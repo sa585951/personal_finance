@@ -26,7 +26,7 @@ class AssetManager:
                 self.assets = {}
                 print("🆕 建立新的資產記錄")
         except Exception as e:
-            print(f"❌ 載入資料失敗: {e}")
+            print(f"❌載入資料失敗: {e}")
             self.assets = {}
     
     def save_data(self):
@@ -134,58 +134,265 @@ class AssetManager:
                 print(f"  {category}: ${amount:,} ({percentage:.1f}%)")
         print("="*50)
 
-# 測試用的簡單命令行介面
-def main():
-    """簡單的命令行介面"""
-    asset_manager = AssetManager()
+    def get_bank_total(self, bank_name):
+        """計算某家銀行的總資產"""
+        if bank_name in self.assets:
+            total = 0
+            bank_data = self.assets[bank_name]
+            for account_type in bank_data:
+                total += bank_data[account_type]["balance"]
+
+            return total
+        else:
+            print (f"目前沒有{bank_name}帳戶的任何資料")
+            return 0
+        
+    def get_richest_bank(self):
+        """找出資產最多的銀行"""
+        if not self.assets:
+            print("目前沒有任何銀行資料")
+            return None
     
-    while True:
-        print("\n🏦 個人資產管理系統")
+        richest_bank = ""
+        max_amount = 0
+
+        for bank_name in self.assets:
+            current_total = self.get_bank_total(bank_name)
+
+            if current_total > max_amount:
+                max_amount = current_total
+                richest_bank = bank_name
+
+        return richest_bank, max_amount
+    
+    def analyze_asset_distribution(self):
+        """分析資產分佈"""
+        totals = self.calculate_totals()
+        total_assets = totals["總資產"]
+
+        if total_assets == 0:
+            print("目前沒有資產資料")
+            return
+
+        活存百分比 = (totals["活存"] / totals["總資產"]) * 100
+        定存百分比 = (totals["定存"] / totals["總資產"]) * 100
+        投資百分比 = (totals["投資"] / totals["總資產"]) * 100
+
+        print(f"\n📊 資產分佈分析")
+        print(f"活存: ${totals['活存']:,} ({活存百分比:.1f}%)")
+        print(f"定存: ${totals['定存']:,} ({定存百分比:.1f}%)")
+        print(f"投資: ${totals['投資']:,} ({投資百分比:.1f}%)")
+
+        print(f"\n💡 理財建議:")
+    
+        if 活存百分比 > 60:
+            print("⚠️  活存比例過高，建議增加投資以對抗通膨")
+        elif 活存百分比 < 10:
+            print("⚠️  活存比例過低，建議保留緊急預備金")
+        else:
+            print("✅ 活存比例適中")
+
+        if 投資百分比 < 20:
+            print("💡 投資比例較低，可考慮增加以提升報酬率")
+        elif 投資百分比 > 70:
+            print("⚠️  投資比例較高，注意風險控制")
+
+        if 定存百分比 > 50:
+            print("💡 定存比例較高，報酬率可能不足以對抗通膨")
+
+
+class MenuManager:
+    """選單管理類別 - 負責所有選單相關的功能"""
+    
+    def __init__(self, asset_manager):
+        self.asset_manager = asset_manager
+    
+    def show_main_menu(self):
+        """顯示主選單"""
+        print("\n" + "="*50)
+        print("🏦 個人資產管理系統")
+        print("="*50)
+        print("1. 📊 基本功能 - 帳戶管理")
+        print("2. 📈 分析功能 - 資產分析")
+        print("3. 🛠️  工具功能 - 實用工具")
+        print("4. 👋 離開系統")
+        print("="*50)
+    
+    def show_basic_menu(self):
+        """顯示基本功能選單"""
+        print("\n" + "-"*40)
+        print("📊 基本功能選單")
+        print("-"*40)
         print("1. 顯示所有帳戶")
         print("2. 新增帳戶")
         print("3. 更新餘額")
         print("4. 刪除帳戶")
-        print("5. 離開")
-        
-        choice = input("\n請選擇功能 (1-5): ").strip()
+        print("0. 返回主選單")
+        print("-"*40)
+    
+    def show_analysis_menu(self):
+        """顯示分析功能選單"""
+        print("\n" + "-"*40)
+        print("📈 分析功能選單")
+        print("-"*40)
+        print("1. 資產分佈分析")
+        print("2. 查詢銀行總資產")
+        print("3. 尋找最富有的銀行")
+        print("4. 財務健康評分 (即將推出)")
+        print("5. 風險評估 (即將推出)")
+        print("0. 返回主選單")
+        print("-"*40)
+    
+    def show_tools_menu(self):
+        """顯示工具功能選單"""
+        print("\n" + "-"*40)
+        print("🛠️ 工具功能選單")
+        print("-"*40)
+        print("1. 匯出資料到CSV")
+        print("2. 從CSV匯入資料 (即將推出)")
+        print("3. 備份資料")
+        print("4. 還原資料 (即將推出)")
+        print("0. 返回主選單")
+        print("-"*40)
+    
+    def handle_basic_functions(self):
+        """處理基本功能"""
+        while True:
+            self.show_basic_menu()
+            choice = input("請選擇功能 (0-4): ").strip()
+            
+            if choice == "0":
+                break
+            elif choice == "1":
+                self.asset_manager.show_all_accounts()
+            elif choice == "2":
+                self._add_account()
+            elif choice == "3":
+                self._update_balance()
+            elif choice == "4":
+                self._delete_account()
+            else:
+                print("❌ 無效選擇，請重新輸入")
+            
+            input("\n按 Enter 鍵繼續...")
+    
+    def handle_analysis_functions(self):
+        """處理分析功能"""
+        while True:
+            self.show_analysis_menu()
+            choice = input("請選擇功能 (0-5): ").strip()
+            
+            if choice == "0":
+                break
+            elif choice == "1":
+                self.asset_manager.analyze_asset_distribution()
+            elif choice == "2":
+                self._query_bank_total()
+            elif choice == "3":
+                self._find_richest_bank()
+            elif choice == "4":
+                print("🚧 財務健康評分功能正在開發中...")
+            elif choice == "5":
+                print("🚧 風險評估功能正在開發中...")
+            else:
+                print("❌ 無效選擇，請重新輸入")
+            
+            input("\n按 Enter 鍵繼續...")
+    
+    def handle_tools_functions(self):
+        """處理工具功能"""
+        while True:
+            self.show_tools_menu()
+            choice = input("請選擇功能 (0-4): ").strip()
+            
+            if choice == "0":
+                break
+            elif choice == "1":
+                print("🚧 CSV匯出功能正在開發中...")
+            elif choice == "2":
+                print("🚧 CSV匯入功能正在開發中...")
+            elif choice == "3":
+                print("🚧 備份功能正在開發中...")
+            elif choice == "4":
+                print("🚧 還原功能正在開發中...")
+            else:
+                print("❌ 無效選擇，請重新輸入")
+            
+            input("\n按 Enter 鍵繼續...")
+    
+    # 私有方法 - 處理具體的輸入輸出
+    def _add_account(self):
+        """新增帳戶的輸入處理"""
+        print("\n➕ 新增帳戶")
+        bank_name = input("銀行名稱: ").strip()
+        account_type = input("帳戶類型 (活存/定存/投資): ").strip()
+        try:
+            balance = int(input("餘額: ").strip())
+            self.asset_manager.add_account(bank_name, account_type, balance)
+        except ValueError:
+            print("❌ 請輸入有效的數字")
+    
+    def _update_balance(self):
+        """更新餘額的輸入處理"""
+        print("\n🔄 更新餘額")
+        bank_name = input("銀行名稱: ").strip()
+        account_type = input("帳戶類型: ").strip()
+        try:
+            new_balance = int(input("新餘額: ").strip())
+            self.asset_manager.update_balance(bank_name, account_type, new_balance)
+        except ValueError:
+            print("❌ 請輸入有效的數字")
+    
+    def _delete_account(self):
+        """刪除帳戶的輸入處理"""
+        print("\n🗑️ 刪除帳戶")
+        bank_name = input("銀行名稱: ").strip()
+        account_type = input("帳戶類型: ").strip()
+        confirm = input(f"確定要刪除 {bank_name} 的 {account_type} 嗎? (y/n): ").strip().lower()
+        if confirm == 'y':
+            self.asset_manager.delete_account(bank_name, account_type)
+    
+    def _query_bank_total(self):
+        """查詢銀行總資產的輸入處理"""
+        print("\n🏦 查詢銀行總資產")
+        bank_name = input("銀行名稱: ").strip()
+        total = self.asset_manager.get_bank_total(bank_name)
+        if total > 0:
+            print(f"💰 {bank_name} 總資產: ${total:,}")
+    
+    def _find_richest_bank(self):
+        """尋找最富有銀行的處理"""
+        print("\n👑 尋找最富有的銀行")
+        result = self.asset_manager.get_richest_bank()
+        if result:
+            bank_name, amount = result
+            print(f"🏆 最富有的銀行: {bank_name}")
+            print(f"💰 總資產: ${amount:,}")
+
+
+def main():
+    """主程式入口"""
+    # 建立物件
+    asset_manager = AssetManager()
+    menu_manager = MenuManager(asset_manager)
+    
+    # 主選單循環
+    while True:
+        menu_manager.show_main_menu()
+        choice = input("請選擇功能 (1-4): ").strip()
         
         if choice == "1":
-            asset_manager.show_all_accounts()
-        
+            menu_manager.handle_basic_functions()
         elif choice == "2":
-            print("\n➕ 新增帳戶")
-            bank_name = input("銀行名稱: ").strip()
-            account_type = input("帳戶類型 (活存/定存/投資): ").strip()
-            try:
-                balance = int(input("餘額: ").strip())
-                asset_manager.add_account(bank_name, account_type, balance)
-            except ValueError:
-                print("❌ 請輸入有效的數字")
-        
+            menu_manager.handle_analysis_functions()
         elif choice == "3":
-            print("\n🔄 更新餘額")
-            bank_name = input("銀行名稱: ").strip()
-            account_type = input("帳戶類型: ").strip()
-            try:
-                new_balance = int(input("新餘額: ").strip())
-                asset_manager.update_balance(bank_name, account_type, new_balance)
-            except ValueError:
-                print("❌ 請輸入有效的數字")
-        
+            menu_manager.handle_tools_functions()
         elif choice == "4":
-            print("\n🗑️ 刪除帳戶")
-            bank_name = input("銀行名稱: ").strip()
-            account_type = input("帳戶類型: ").strip()
-            confirm = input(f"確定要刪除 {bank_name} 的 {account_type} 嗎? (y/n): ").strip().lower()
-            if confirm == 'y':
-                asset_manager.delete_account(bank_name, account_type)
-        
-        elif choice == "5":
-            print("👋 再見！")
+            print("👋 感謝使用個人資產管理系統！再見！")
             break
-        
         else:
             print("❌ 無效選擇，請重新輸入")
+
 
 if __name__ == "__main__":
     main()
