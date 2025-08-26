@@ -200,6 +200,146 @@ class AssetManager:
         if 定存百分比 > 50:
             print("💡 定存比例較高，報酬率可能不足以對抗通膨")
 
+    def calculate_financial_health_score(self):
+        """計算財務健康評分"""
+        totals = self.calculate_totals()
+
+        if totals["總資產"] == 0 :
+            print("目前查無資產")
+            return 0
+        
+        活存比例 = (totals["活存"] / totals["總資產"])
+        投資比例 = (totals["投資"] / totals["總資產"])
+        total_banks = len(self.assets)
+        score = 0
+
+        if (活存比例 >= 0.1 ) and (活存比例 <= 0.4):
+            score = score + 30
+        elif (活存比例 <0.1 and 活存比例 >= 0.05) or (活存比例 > 0.4 and 活存比例 <=0.5):
+            score = score + 20
+        else :
+            score = score + 10
+        
+        if(投資比例 >= 0.2) and (投資比例 <=0.6):
+            score = score + 30
+        elif (投資比例 <0.2 and 投資比例 >= 0.05) or (投資比例 > 0.6 and 投資比例 <=0.8):
+            score = score + 20
+        else :
+            score = score + 10
+
+        if total_banks >= 2:
+            score = score + 40
+        elif total_banks == 1:
+            score = score + 10
+
+        return score
+
+    def calculate_risk_assessment(self):
+        """計算風險評估 - 純計算，回傳結果"""
+        totals = self.calculate_totals()
+
+        if totals["總資產"] == 0:
+            return{"流動性": "無資料", "時間": " 無資料"}
+        
+        快速可用資產 = totals["活存"]
+        流動性比例 = 快速可用資產 / totals["總資產"]
+
+        if 流動性比例 >= 0.6:
+            流動性風險 = "低"
+        elif 流動性比例 >= 0.3:
+            流動性風險 = "中"
+        else:
+            流動性風險 = "高"
+
+        最舊時間 = datetime.now().isoformat()
+
+        for bank_name, accounts in self.assets.items():
+            for account_type, info in accounts.items():
+                if info["last_update"] < 最舊時間:
+                    最舊時間 = info["last_update"]
+
+        最舊日期 = datetime.fromisoformat(最舊時間)
+        現在日期 = datetime.now()
+
+        差距天數 = (現在日期 - 最舊日期).days
+
+        if 差距天數 <= 7:
+            時間風險 = "低"
+        elif 差距天數 <=30:
+            時間風險 = "中"
+        else:
+            時間風險 = "高"
+
+        return {"流動性": 流動性風險, "時間": 時間風險}
+    
+    def find_oldest_account(self):
+        """找出最久沒更新的帳戶"""
+        最舊時間 = datetime.now().isoformat()
+        最舊銀行 = ""
+        最舊帳戶 = ""
+    
+        for bank_name, accounts in self.assets.items():
+            for account_type, info in accounts.items():
+                if info["last_update"] < 最舊時間:
+                    最舊時間 = info["last_update"]
+                    最舊銀行 = bank_name
+                    最舊帳戶 = account_type
+                
+        return 最舊銀行, 最舊帳戶, 最舊時間
+
+class BudgetManager:
+    def __init__(self):
+        self.budget_file = "data/budgets.json"
+        self.expense_file = "data/expenses.json"
+
+        #初始化資料結構
+        self.budgets = {}
+        self.expenses= {}
+
+        self.load_data()
+
+
+    def load_data(self):
+        """載入Budget/expense資料"""
+        try:
+            if os.path.exists(self.budget_file):
+                with open(self.budget_file, "r", encoding="utf-8") as b:
+                    self.budgets = json.load(b)
+                print(f"📖 載入現有資料: {len(self.budgets)} 預算")
+            else:
+                self.budgets ={}
+                print("🆕 建立新的預算")
+        
+            if os.path.exists(self.expense_file):
+                with open(self.expense_file, "r", encoding="utf-8") as e:
+                    self.expenses = json.load(e)
+                print(f"📖 載入現有資料: {len(self.expenses)} 開銷")
+            else:
+                self.expenses = {}
+                print("🆕 建立新的開銷")
+        except Exception as e:
+            print(f"❌載入資料失敗: {e}")
+            self.budgets ={}
+            self.expenses = {}
+    
+    def save_data(self):
+        try:
+            with open(self.budget_file, "w", encoding="utf-8") as b:
+                json.dump(self.budgets, b, indent=2, ensure_ascii=False)
+            with open(self.expense_file, "w", encoding="utf-8") as e:
+                json.dump(self.expenses, e, indent=2, ensure_ascii=False)
+            print("💾 資料已儲存")
+        except Exception as e:
+            print(f"❌ 儲存失敗: {e}")
+
+    def set_budget(self, month, category, amount):
+        """設定某月某類別的預算"""
+        if month not in self.budgets:
+            self.budgets[month] = {}
+
+        self.budgets[month][category] = {
+            "amounts" = amount
+        }
 
 class MenuManager:
     """選單管理類別 - 負責所有選單相關的功能"""
@@ -238,8 +378,8 @@ class MenuManager:
         print("1. 資產分佈分析")
         print("2. 查詢銀行總資產")
         print("3. 尋找最富有的銀行")
-        print("4. 財務健康評分 (即將推出)")
-        print("5. 風險評估 (即將推出)")
+        print("4. 財務健康評分")
+        print("5. 風險評估")
         print("0. 返回主選單")
         print("-"*40)
     
@@ -291,9 +431,9 @@ class MenuManager:
             elif choice == "3":
                 self._find_richest_bank()
             elif choice == "4":
-                print("🚧 財務健康評分功能正在開發中...")
+                self._show_health_analysis()
             elif choice == "5":
-                print("🚧 風險評估功能正在開發中...")
+                self._show_risk_analysis()
             else:
                 print("❌ 無效選擇，請重新輸入")
             
@@ -369,12 +509,44 @@ class MenuManager:
             print(f"🏆 最富有的銀行: {bank_name}")
             print(f"💰 總資產: ${amount:,}")
 
+    def _show_health_analysis(self):
+        """顯示健康分析和建議"""
+        score = self.asset_manager.calculate_financial_health_score()
+        print(f"🏥 財務健康評分: {score}/100 分")
+
+        if score > 80:
+            print("💪 財務狀況優良！")
+        elif score >= 60:
+            print("👍 財務狀況良好，還有改善空間")
+        else:
+            print("建議改善資產分配狀況!")
+
+    def _show_risk_analysis(self):
+        """顯示風險分析"""
+        result = self.asset_manager.calculate_risk_assessment()
+
+        print("\n🎯 風險評估報告")
+        print("="*30)
+        print(f"💧 流動性風險: {result['流動性']}")
+        print(f"⏰ 時間風險: {result['時間']}")
+    
+    
+        if result['流動性'] == "高":
+            print("⚠️ 建議增加活存比例以應付緊急狀況")
+    
+        if result['時間'] == "高":
+            print("⚠️ 建議盡快更新資產資料")
+        
+        if result['時間'] != "低":
+            最舊銀行, 最舊帳戶, 最舊時間 = self.asset_manager.find_oldest_account()
+            print(f"📅 最久未更新: {最舊銀行} {最舊帳戶} ({最舊時間[:10]})")
 
 def main():
     """主程式入口"""
     # 建立物件
     asset_manager = AssetManager()
     menu_manager = MenuManager(asset_manager)
+    budget_manager = BudgetManager()
     
     # 主選單循環
     while True:
