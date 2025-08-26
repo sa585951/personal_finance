@@ -332,33 +332,64 @@ class BudgetManager:
         except Exception as e:
             print(f"❌ 儲存失敗: {e}")
 
-    def set_budget(self, month, category, amount):
+    def set_budget(self, month, category, amount, notes=""):
         """設定某月某類別的預算"""
         if month not in self.budgets:
             self.budgets[month] = {}
 
+        if amount <= 0:
+            print("❌ 預算金額必須大於0")
+            return
+
         self.budgets[month][category] = {
-            "amounts" : amount,
+            "amount" : amount,
             "created_date" : datetime.now().isoformat(),
-            "notes":
-        }
+            "notes":notes
+        }        
+
+        self.save_data()
+        print(f"✅ 已設定 {month} {category} 預算: ${amount:,}")
+
+    def add_expense(self, month, category, amount, description=""):
+        """紀錄支出"""
+        if month not in self.expenses:
+            self.expenses[month] = {}
+
+        if category not in self.expenses[month]:
+            self.expenses[month][category] = [] 
+        
+        if amount <= 0:
+            print("❌ 支出金額必須大於0")
+            return
+
+        self.expenses[month][category].append({
+            "date": datetime.now().isoformat(),
+            "amount": amount,
+            "description":description
+        })
+        self.save_data()
+        print(f"✅ 已新增 {month} {category} 支出: ${amount:,}")
+
+
 
 class MenuManager:
     """選單管理類別 - 負責所有選單相關的功能"""
     
-    def __init__(self, asset_manager):
+    def __init__(self, asset_manager, budget_manager):
         self.asset_manager = asset_manager
+        self.budget_manager = budget_manager
     
     def show_main_menu(self):
         """顯示主選單"""
         print("\n" + "="*50)
         print("🏦 個人資產管理系統")
         print("="*50)
-        print("1. 📊 基本功能 - 帳戶管理")
-        print("2. 📈 分析功能 - 資產分析")
-        print("3. 🛠️  工具功能 - 實用工具")
-        print("4. 👋 離開系統")
-        print("="*50)
+        print("1. 基本功能 - 帳戶管理")
+        print("2. 分析功能 - 資產分析")
+        print("3. 預算功能 - 支出追蹤")  
+        print("4. 工具功能 - 實用工具") 
+        print("5. 離開系統")           
+
     
     def show_basic_menu(self):
         """顯示基本功能選單"""
@@ -385,6 +416,18 @@ class MenuManager:
         print("0. 返回主選單")
         print("-"*40)
     
+    def show_budget_menu(self):
+        """顯示預算功能選單"""
+        print("\n" + "-"*40)
+        print("預算功能選單")
+        print("-"*40)
+        print("1. 設定月度預算")
+        print("2. 記錄支出")
+        print("3. 查看預算執行情況 (即將推出)")
+        print("4. 超支警告檢查 (即將推出)")
+        print("0. 返回主選單")
+        print("-"*40)
+
     def show_tools_menu(self):
         """顯示工具功能選單"""
         print("\n" + "-"*40)
@@ -440,6 +483,26 @@ class MenuManager:
                 print("❌ 無效選擇，請重新輸入")
             
             input("\n按 Enter 鍵繼續...")
+
+    def handle_budget_function(self):
+        """處理預算功能"""
+        while True:
+            self.show_budget_menu()
+            choice = input("請選擇功能 (0-4):").strip()
+
+            if choice =="0":
+                break
+            elif choice =="1":
+                self._set_budget()
+            elif choice =="2":
+                self._add_expense()
+            elif choice == "3":
+                print("🚧 預算功能正在開發中...")
+            elif choice == "4":
+                print("🚧 預算功能正在開發中...")
+            else:
+                print("❌ 無效選擇，請重新輸入")
+
     
     def handle_tools_functions(self):
         """處理工具功能"""
@@ -543,25 +606,100 @@ class MenuManager:
             最舊銀行, 最舊帳戶, 最舊時間 = self.asset_manager.find_oldest_account()
             print(f"📅 最久未更新: {最舊銀行} {最舊帳戶} ({最舊時間[:10]})")
 
+    def _set_budget(self):
+        """設定預算的輸入處理"""
+        print("\n設定月度預算")
+        month = input("月份 (例如: 2025-08): ").strip()
+    
+        print("預算分類:")
+        print("1. 食物")
+        print("2. 固定支出") 
+        print("3. 娛樂性消費")
+        print("4. 交通")
+        print("5. 治裝費")
+        
+        category_choice = input("選擇分類 (1-5): ").strip()
+        
+        # 將選項對應到實際分類名稱
+        categories = {
+            "1": "食物",
+            "2": "固定支出", 
+            "3": "娛樂性消費",
+            "4": "交通",
+            "5": "治裝費"
+        }
+        
+        if category_choice not in categories:
+            print("無效選擇")
+            return
+            
+        category = categories[category_choice]
+        
+        try:
+            amount = int(input("預算金額: ").strip())
+            notes = input("備註 (可選): ").strip()
+            
+            self.budget_manager.set_budget(month, category, amount, notes)
+        except ValueError:
+            print("請輸入有效的數字")
+
+    def _add_expense(self):
+        """增加支出的輸入處理"""
+        print("\n新增支出")
+        month = input("月份 (例如: 2025-08): ").strip()
+
+        print("分類:")
+        print("1. 食物")
+        print("2. 固定支出") 
+        print("3. 娛樂性消費")
+        print("4. 交通")
+        print("5. 治裝費")
+
+        category_choice = input("選擇分類 (1-5): ").strip()
+
+        categories = {
+            "1": "食物",
+            "2": "固定支出", 
+            "3": "娛樂性消費",
+            "4": "交通",
+            "5": "治裝費"
+        }
+
+        if category_choice not in categories:
+            print("無效選擇")
+            return
+            
+        category = categories[category_choice]
+        
+        try:
+            amount = int(input("支出金額: ").strip())
+            description = input("說明 (可選): ").strip()
+            
+            self.budget_manager.add_expense(month, category, amount, description)
+        except ValueError:
+            print("請輸入有效的數字")
+
 def main():
     """主程式入口"""
     # 建立物件
     asset_manager = AssetManager()
-    menu_manager = MenuManager(asset_manager)
     budget_manager = BudgetManager()
+    menu_manager = MenuManager(asset_manager,budget_manager)
     
     # 主選單循環
     while True:
         menu_manager.show_main_menu()
-        choice = input("請選擇功能 (1-4): ").strip()
+        choice = input("請選擇功能 (1-5): ").strip()
         
         if choice == "1":
             menu_manager.handle_basic_functions()
         elif choice == "2":
             menu_manager.handle_analysis_functions()
         elif choice == "3":
-            menu_manager.handle_tools_functions()
+            menu_manager.handle_budget_function()
         elif choice == "4":
+            menu_manager.handle_tools_functions()
+        elif choice == "5":
             print("👋 感謝使用個人資產管理系統！再見！")
             break
         else:
