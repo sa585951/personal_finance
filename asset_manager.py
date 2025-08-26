@@ -338,7 +338,9 @@ class BudgetManager:
             self.budgets[month] = {}
 
         self.budgets[month][category] = {
-            "amounts" = amount
+            "amounts" : amount,
+            "created_date" : datetime.now().isoformat(),
+            "notes":
         }
 
 class MenuManager:
