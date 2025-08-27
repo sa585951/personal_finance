@@ -370,6 +370,49 @@ class BudgetManager:
         self.save_data()
         print(f"✅ 已新增 {month} {category} 支出: ${amount:,}")
 
+    def calculate_monthly_expenses(self,month):
+        """計算某月各類別支出總額"""
+        if month not in self.expenses:
+            return{}
+        
+        category_totals = {}
+        for category, expense_list in self.expenses[month].items():
+            total = sum(expense["amount"] for expense in expense_list)
+            category_totals[category] = total
+
+        return category_totals
+    
+    def show_monthly_summary(self, month):
+        """顯示某月消費總覽"""
+        # 取得支出統計
+        expense_totals = self.calculate_monthly_expenses(month)
+        
+        if not expense_totals:
+            print(f"📭 {month} 無支出記錄")
+            return
+        
+        # 計算總消費
+        total_expenses = sum(expense_totals.values())
+        
+        print(f"\n=== {month} 消費總覽 ===")
+        print(f"總消費: ${total_expenses:,}")
+        print()
+        
+        # 顯示各類別詳情
+        for category, amount in expense_totals.items():
+            percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
+            
+            # 檢查是否有設定預算
+            if month in self.budgets and category in self.budgets[month]:
+                budget_amount = self.budgets[month][category]["amount"]
+                remaining = budget_amount - amount
+                
+                if remaining >= 0:
+                    print(f"{category}: ${amount:,} ({percentage:.1f}%) [預算: ${budget_amount:,}] 剩餘: ${remaining:,}")
+                else:
+                    print(f"{category}: ${amount:,} ({percentage:.1f}%) [預算: ${budget_amount:,}] 超支: ${-remaining:,} ⚠️")
+            else:
+                print(f"{category}: ${amount:,} ({percentage:.1f}%) [無預算設定]")
 
 
 class MenuManager:
@@ -423,7 +466,7 @@ class MenuManager:
         print("-"*40)
         print("1. 設定月度預算")
         print("2. 記錄支出")
-        print("3. 查看預算執行情況 (即將推出)")
+        print("3. 查看總支出")
         print("4. 超支警告檢查 (即將推出)")
         print("0. 返回主選單")
         print("-"*40)
@@ -497,11 +540,13 @@ class MenuManager:
             elif choice =="2":
                 self._add_expense()
             elif choice == "3":
-                print("🚧 預算功能正在開發中...")
+                self._show_monthy_summary()
             elif choice == "4":
                 print("🚧 預算功能正在開發中...")
             else:
                 print("❌ 無效選擇，請重新輸入")
+
+            input("\n按 Enter 鍵繼續...")
 
     
     def handle_tools_functions(self):
@@ -678,6 +723,11 @@ class MenuManager:
             self.budget_manager.add_expense(month, category, amount, description)
         except ValueError:
             print("請輸入有效的數字")
+
+    def _show_monthy_summary(self):
+        """查看月度消費總覽的輸入處理"""
+        month = input("請輸入要查看的月份 (例如: 2025-08): ").strip()
+        self.budget_manager.show_monthly_summary(month)
 
 def main():
     """主程式入口"""
