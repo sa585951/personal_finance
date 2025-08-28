@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from datetime import datetime
 
 class AssetManager:
@@ -239,7 +240,7 @@ class AssetManager:
         totals = self.calculate_totals()
 
         if totals["總資產"] == 0:
-            return{"流動性": "無資料", "時間": " 無資料"}
+            return{ "流動性": "無資料", "時間": "無資料" }
         
         快速可用資產 = totals["活存"]
         流動性比例 = 快速可用資產 / totals["總資產"]
@@ -414,6 +415,129 @@ class BudgetManager:
             else:
                 print(f"{category}: ${amount:,} ({percentage:.1f}%) [無預算設定]")
 
+    def check_over_warnings(self, month=None):
+        """檢查超支警告"""
+        overspend_items = []
+        months_to_check = [month] if month else self.expenses.keys()
+
+        for check_month in months_to_check:
+            if check_month in self.budgets:
+                expense_totals = self.calculate_monthly_expenses(check_month)
+
+                for category, spent_amount in expense_totals.items():
+                    if category in self.budgets[check_month]:
+                        budget_amount = self.budgets[check_month][category]["amount"]
+                        if spent_amount > budget_amount:
+                            overspend = spent_amount - budget_amount
+                            overspend_items.append({
+                                "month":check_month,
+                                "category":category,
+                                "budget":budget_amount,
+                                "spent":spent_amount,
+                                "overspend":overspend
+                            })
+        return overspend_items
+    
+    def show_overspend_warnings(self, month = None):
+        """顯示超支警告報告"""
+        overspend_items = self.check_over_warnings(month)
+
+        if not overspend_items:
+            if month:
+                print(f"✔ {month} 無超支情況")
+            else:
+                print("✔ 目前無超支情況")
+            return
+        
+        print("\n⚠️ 超支警告報告")
+        print("=" * 30)
+
+        current_month = ""
+        total_overspend = 0
+
+        for item in overspend_items:
+            if item["month"] != current_month:
+                if current_month:
+                    print()
+                current_month = item["month"]
+                print(f"\n📅 {current_month}:")
+
+            print(f"  🚨 {item['category']}: 超支 ${item['overspend']:,} "
+            f"(預算: ${item['budget']:,}, 實際: ${item['spent']:,})")
+            
+            total_overspend += item["overspend"]
+
+        print("\n" + "=" * 30)
+        print(f"💸 總超支金額: ${total_overspend:,}")
+
+        if len(overspend_items) >= 3:
+            print("\n💡 建議檢視預算設定是否合理，或加強支出控制")
+        elif total_overspend > 10000:
+            print("\n💡 超支金額較大，建議調整消費習慣")
+
+class GoalManager:
+    def __init__(self):
+        self.goal_file = "data/goals.json"
+        self.goals = {}
+        self.load_data()
+
+    def load_data(self):
+        """載入goal資料"""
+        try:
+            if os.path.exists(self.goal_file):
+                with open(self.goal_file, "r", encoding="utf-8") as b:
+                    self.budgets = json.load(b)
+                print(f"📖 載入現有資料: {len(self.goals)} ")
+            else:
+                self.goals ={}
+                print("🆕 建立新的目標")
+
+        except Exception as e:
+            print(f"❌載入資料失敗: {e}")
+            self.goals ={}
+
+    def save_data(self):
+        """"儲存資料"""
+        try:
+            with open(self.goal_file, "w", encoding="utf-8") as b:
+                json.dump(self.goals, b, indent=2, ensure_ascii=False)
+            print("💾 資料已儲存")
+        except Exception as e:
+            print(f"❌ 儲存失敗: {e}")
+
+    def add_goal(self, title, goal_type, target_amount, target_date, description=""):
+        """新增目標"""
+        if target_amount <= 0:
+            print("❌ 目標金額必須大於0")
+            return
+    
+        # 生成唯一ID
+        goal_id = str(uuid.uuid4())[:8]  # 簡化的8位ID
+        
+        self.goals[goal_id] = {
+            "title": title,
+            "type": goal_type,
+            "target_amount": target_amount,
+            "target_date": target_date,
+            "current_amount": 0,
+            "created_date": datetime.now().isoformat(),
+            "status": "active",
+            "description": description
+        }
+        
+        self.save_data()
+        print(f"✅ 已新增目標: {title} (${target_amount:,})")
+
+    def update_goal_progress(self, goal_id, current_amount):
+        """更新目標進度"""
+        if goal_id not in self.goals:
+            print("❌ 找不到此目標")
+            return
+        
+        if current_amount <= 0:
+            print("❌ 金額不能為負數")
+            return
+        
 
 class MenuManager:
     """選單管理類別 - 負責所有選單相關的功能"""
@@ -429,9 +553,10 @@ class MenuManager:
         print("="*50)
         print("1. 基本功能 - 帳戶管理")
         print("2. 分析功能 - 資產分析")
-        print("3. 預算功能 - 支出追蹤")  
-        print("4. 工具功能 - 實用工具") 
-        print("5. 離開系統")           
+        print("3. 預算功能 - 支出追蹤")
+        print("4. 目標功能 - 財務規劃")  
+        print("5. 工具功能 - 實用工具")  
+        print("6. 離開系統")           
 
     
     def show_basic_menu(self):
@@ -467,7 +592,19 @@ class MenuManager:
         print("1. 設定月度預算")
         print("2. 記錄支出")
         print("3. 查看總支出")
-        print("4. 超支警告檢查 (即將推出)")
+        print("4. 超支警告檢查")
+        print("0. 返回主選單")
+        print("-"*40)
+
+    def show_goal_menu(self):
+        """顯示目標功能選單"""
+        print("\n" + "-"*40)
+        print("🎯 目標功能選單")
+        print("-"*40)
+        print("1. 設定財務目標")
+        print("2. 查看目標進度")
+        print("3. 更新目標狀態")
+        print("4. 投資建議 (即將推出)")
         print("0. 返回主選單")
         print("-"*40)
 
@@ -540,12 +677,34 @@ class MenuManager:
             elif choice =="2":
                 self._add_expense()
             elif choice == "3":
-                self._show_monthy_summary()
+                self._show_monthly_summary()
             elif choice == "4":
-                print("🚧 預算功能正在開發中...")
+                self._check_overspend_warnings()
             else:
                 print("❌ 無效選擇，請重新輸入")
 
+            input("\n按 Enter 鍵繼續...")
+
+
+    def handle_goal_functions(self):
+        """處理目標功能"""
+        while True:
+            self.show_goal_menu()
+            choice = input("請選擇功能 (0-4): ").strip()
+            
+            if choice == "0":
+                break
+            elif choice == "1":
+                print("🚧 設定財務目標功能正在開發中...")
+            elif choice == "2":
+                print("🚧 查看目標進度功能正在開發中...")
+            elif choice == "3":
+                print("🚧 更新目標狀態功能正在開發中...")
+            elif choice == "4":
+                print("🚧 投資建議功能正在開發中...")
+            else:
+                print("❌ 無效選擇，請重新輸入")
+            
             input("\n按 Enter 鍵繼續...")
 
     
@@ -724,10 +883,22 @@ class MenuManager:
         except ValueError:
             print("請輸入有效的數字")
 
-    def _show_monthy_summary(self):
+    def _show_monthly_summary(self):
         """查看月度消費總覽的輸入處理"""
         month = input("請輸入要查看的月份 (例如: 2025-08): ").strip()
         self.budget_manager.show_monthly_summary(month)
+
+    def _check_overspend_warnings(self):
+        """檢查超支警告的輸入處理"""
+        choice = input("檢查範圍 (1)指定月份 (2)所有月份: ").strip()
+    
+        if choice == "1":
+            month = input("月份 (例如: 2025-08): ").strip()
+            self.budget_manager.show_overspend_warnings(month)
+        elif choice == "2":
+            self.budget_manager.show_overspend_warnings()
+        else:
+            print("無效選擇")
 
 def main():
     """主程式入口"""
@@ -748,8 +919,10 @@ def main():
         elif choice == "3":
             menu_manager.handle_budget_function()
         elif choice == "4":
+            menu_manager.handle_goal_functions()    
+        elif choice == "5":                          
             menu_manager.handle_tools_functions()
-        elif choice == "5":
+        elif choice == "6":                         
             print("👋 感謝使用個人資產管理系統！再見！")
             break
         else:
