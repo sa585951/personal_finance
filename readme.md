@@ -39,4 +39,5 @@ pip install Flask
 
 # 請確保你在專案的根目錄
 python main.py
-```
+# 請確保你在專案的根目錄
+python web_app.py
