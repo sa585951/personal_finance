@@ -1,7 +1,8 @@
 import os
 from datetime import datetime
-from config import BUDGETS_FILE, EXPENSES_FILE
+from config import BUDGETS_FILE, TRANSACTIONS_FILE
 from utils import load_json_file, save_json_file
+import uuid
 
 class BudgetManager:
     """
@@ -10,30 +11,30 @@ class BudgetManager:
     """
     def __init__(self):
         self.budget_file = BUDGETS_FILE
-        self.expense_file = EXPENSES_FILE
+        self.transaction_file = TRANSACTIONS_FILE  # 改個更清楚的名稱
         self.budgets = {}
-        self.expenses = {}
+        self.transactions = []  # 直接使用 transactions
         self.load_data()
 
     def load_data(self):
         """載入 Budget/expense 資料"""
         self.budgets = load_json_file(self.budget_file, {})
-        self.expenses = load_json_file(self.expense_file, {})
+        self.transactions = load_json_file(self.transaction_file, [])
         if self.budgets:
             print(f"📖 載入現有預算: {len(self.budgets)} 個")
         else:
             print("🆕 建立新的預算")
         
-        if self.expenses:
-            print(f"📖 載入現有開銷: {len(self.expenses)} 個")
+        if self.transactions:
+            print(f"📖 載入現有開銷: {len(self.transactions)} 個")
         else:
-            print("🆕 建立新的開銷")
+            print("🆕 建立新的交易紀錄")
 
     def save_data(self):
         """儲存資料"""
         saved_budgets = save_json_file(self.budget_file, self.budgets)
-        saved_expenses = save_json_file(self.expense_file, self.expenses)
-        return saved_budgets and saved_expenses
+        saved_transactions = save_json_file(self.transaction_file, self.transactions)
+        return saved_budgets and saved_transactions
 
     def set_budget(self, month, category, amount, notes=""):
         """設定某月某類別的預算"""
@@ -68,66 +69,61 @@ class BudgetManager:
             print("❌ 找不到要刪除的預算")
             return False
 
-    def add_expense(self, month, category, amount, description=""):
-        """紀錄支出"""
+    def add_transaction(self, date_str, transaction_type, category, amount, description=""):
+        """記錄一筆交易 (收入或支出)"""
         if amount <= 0:
             return False
 
-        if month not in self.expenses:
-            self.expenses[month] = {}
-
-        if category not in self.expenses[month]:
-            self.expenses[month][category] = []
-        
-        self.expenses[month][category].append({
-            "date": datetime.now().isoformat(),
+        transaction = {
+            "id": str(uuid.uuid4()),  # 使用 UUID 生成唯一ID
+            "date": date_str,
+            "type": transaction_type,
+            "category": category,
             "amount": amount,
             "description": description,
-        })
-
+            "timestamp": datetime.now().isoformat()
+        }
+        self.transactions.append(transaction)
+        
         return self.save_data()
     
-    def delete_expense(self, month, category, index):
-        """刪除某月某類別的單筆支出"""
-        if month in self.expenses and category in self.expenses[month]:
-            try:
-                #此處index 假設使用者從 1 開始輸入
-                if 0 <= index -1 < len(self.expenses[month][category]):
-                    deleted_expense = self.expenses[month][category].pop(index - 1)
-
-                    if not self.expenses[month][category]:
-                        del self.expenses[month][category]
-                    if not self.expenses[month]:
-                        del self.expenses[month]
-
-                    if self.save_data():
-                        print(f"🗑️ 已刪除 {month} {category} 的一筆支出: ${deleted_expense['amount']:,}")
-                        return True
-                    else:
-                        print("❌ 刪除支出失敗，無法儲存資料")
-                        return False
-            except (ValueError, IndexError):
-                print("❌ 無效的支出索引")
-                return False
+    def get_all_transactions(self):
+        """獲取所有交易紀錄"""
+        return self.transactions
         
-        print("❌ 找不到要刪除的支出")
-        return False
+    def delete_transaction(self, transaction_id):
+        """刪除一筆交易"""
+        original_count = len(self.transactions)
+        self.transactions = [t for t in self.transactions if t['id'] != transaction_id]
+        
+        if len(self.transactions) < original_count:
+            if self.save_data():
+                print(f"🗑️ 已刪除交易 ID: {transaction_id}")
+                return True
+            else:
+                print("❌ 刪除交易失敗，無法儲存資料")
+                return False
+        else:
+            print("❌ 找不到要刪除的交易")
+            return False
 
     def calculate_monthly_expenses(self, month):
         """計算某月各類別支出總額"""
-        if month not in self.expenses:
-            return {}
-        
-        category_totals = {
-            category: sum(expense["amount"] for expense in expense_list)
-            for category, expense_list in self.expenses[month].items()
-        }
+        category_totals = {}
+        for transaction in self.transactions:
+            # 檢查交易是否屬於該月且為支出
+            if transaction.get('type') == '支出' and transaction.get('date', '').startswith(month):
+                category = transaction.get('category')
+                amount = transaction.get('amount')
+                if category not in category_totals:
+                    category_totals[category] = 0
+                category_totals[category] += amount
         return category_totals
 
     def check_over_warnings(self, month=None):
         """檢查超支警告，回傳超支項目列表"""
         overspend_items = []
-        months_to_check = [month] if month else self.expenses.keys()
+        months_to_check = [month] if month else self.budgets.keys()
 
         for check_month in months_to_check:
             if check_month in self.budgets:

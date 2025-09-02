@@ -1,25 +1,22 @@
-import { createRouter, createWebHistory } from "vue-router";
-import HomeView from "../views/HomeView.vue";
+import { createRouter, createWebHistory } from "vue-router"; // 從 vue-router 庫中導入 createRouter 和 createWebHistory
+import AssetsOverview from "../views/AssetsOverview.vue";
+import TransactionRecord from "../views/TransactionRecord.vue";
 
 const routes = [
   {
     path: "/",
-    name: "home",
-    component: HomeView,
+    name: "AssetsOverview",
+    component: AssetsOverview,
   },
   {
-    path: "/about",
-    name: "about",
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    component: () =>
-      import(/* webpackChunkName: "about" */ "../views/AboutView.vue"),
+    path: "/transactions",
+    name: "TransactionRecord",
+    component: TransactionRecord,
   },
 ];
 
 const router = createRouter({
-  history: createWebHistory(process.env.BASE_URL),
+  history: createWebHistory(),
   routes,
 });
 

@@ -54,19 +54,18 @@ def get_all_assets():
     """
     return jsonify({"success": True, "data": asset_manager.assets})
 
-@app.route("/api/assets/update", methods=["PUT"])
-def update_balance():
+@app.route("/api/assets/<bank_name>/<account_type>", methods=["PUT"])
+def update_balance(bank_name, account_type):
     """
     更新帳戶餘額
+    - 透過 URL 傳入銀行名稱與帳戶類型
     - 接收 JSON 格式的資料
     """
     data = request.get_json()
-    bank_name = data.get("bank_name")
-    account_type = data.get("account_type")
     new_balance = data.get("new_balance")
 
-    if not all([bank_name, account_type, new_balance is not None]):
-        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+    if new_balance is None:
+        return jsonify({"success": False, "message": "缺少 new_balance 欄位"}), 400
 
     success = asset_manager.update_balance(bank_name, account_type, new_balance)
     if success:
@@ -74,19 +73,12 @@ def update_balance():
     else:
         return jsonify({"success": False, "message": "更新失敗，找不到帳戶"}), 404
 
-@app.route("/api/assets/delete", methods=["DELETE"])
-def delete_account():
+@app.route("/api/assets/<bank_name>/<account_type>", methods=["DELETE"])
+def delete_account(bank_name, account_type):
     """
     刪除帳戶
-    - 接收 JSON 格式的資料
-    """
-    data = request.get_json()
-    bank_name = data.get("bank_name")
-    account_type = data.get("account_type")
-    
-    if not all([bank_name, account_type]):
-        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
-    
+    - 透過 URL 傳入銀行名稱與帳戶類型
+    """    
     success = asset_manager.delete_account(bank_name, account_type)
     if success:
         return jsonify({"success": True, "message": "帳戶刪除成功"}), 200
@@ -135,46 +127,49 @@ def delete_budget():
     else:
         return jsonify({"success": False, "message": "預算刪除失敗，找不到預算"}), 404
 
-@app.route("/api/expenses", methods=["POST"])
-def add_expense():
+@app.route("/api/transactions", methods=["GET", "POST"])
+def manage_transactions():
     """
-    新增一筆支出
-    - 接收 JSON 格式的資料
+    管理所有交易紀錄（新增與獲取）
+    - GET: 獲取所有交易
+    - POST: 新增一筆交易
     """
-    data = request.get_json()
-    month = data.get("month")
-    category = data.get("category")
-    amount = data.get("amount")
-    description = data.get("description", "")
+    if request.method == "POST":
+        data = request.get_json()
+        required_fields = ["date", "type", "category", "amount"]
+        if not all(field in data for field in required_fields):
+            return jsonify({"success": False, "message": "缺少必要欄位"}), 400
 
-    if not all([month, category, amount is not None]):
-        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+        # 將數據傳給 BudgetManager
+        success = budget_manager.add_transaction(
+            data["date"],
+            data["type"],
+            data["category"],
+            data["amount"],
+        )
+        if success:
+            return jsonify({"success": True, "message": "交易記錄成功"}), 201
+        else:
+            return jsonify({"success": False, "message": "交易記錄失敗"}), 500
+    
+    elif request.method == "GET":
+        transactions_data = budget_manager.get_all_transactions()
+        if transactions_data:
+            return jsonify({"success": True, "data": transactions_data}), 200
+        else:
+            return jsonify({"success": False, "message": "沒有找到交易紀錄"}), 404
 
-    success = budget_manager.add_expense(month, category, amount, description)
+@app.route("/api/transactions/<string:transaction_id>", methods=["DELETE"])
+def delete_transaction(transaction_id):
+    """
+    刪除一筆交易
+    """
+    success = budget_manager.delete_transaction(transaction_id)
     if success:
-        return jsonify({"success": True, "message": "支出記錄成功"}), 201
+        return jsonify({"success": True, "message": "交易刪除成功"}), 200
     else:
-        return jsonify({"success": False, "message": "支出記錄失敗"}), 500
+        return jsonify({"success": False, "message": "交易刪除失敗，找不到該筆交易"}), 404
 
-@app.route("/api/expenses/delete", methods=["DELETE"])
-def delete_expense():
-    """
-    刪除一筆支出
-    - 接收 JSON 格式的資料
-    """
-    data = request.get_json()
-    month = data.get("month")
-    category = data.get("category")
-    index = data.get("index")
-
-    if not all([month, category, index is not None]):
-        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
-
-    success = budget_manager.delete_expense(month, category, index)
-    if success:
-        return jsonify({"success": True, "message": "支出刪除成功"}), 200
-    else:
-        return jsonify({"success": False, "message": "支出刪除失敗，找不到該筆支出"}), 404
         
 @app.route("/api/budgets/summary/<month>", methods=["GET"])
 def get_monthly_summary(month):

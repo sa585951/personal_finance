@@ -4,7 +4,7 @@ import os
 DATA_FOLDER = "data"
 ASSETS_FILE = os.path.join(DATA_FOLDER, "assets.json")
 BUDGETS_FILE = os.path.join(DATA_FOLDER, "budgets.json")
-EXPENSES_FILE = os.path.join(DATA_FOLDER, "expenses.json")
+TRANSACTIONS_FILE = os.path.join(DATA_FOLDER, "transactions.json")
 GOALS_FILE = os.path.join(DATA_FOLDER, "goals.json")
 
 # 其他設定
