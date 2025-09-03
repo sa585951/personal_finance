@@ -1,23 +1,9 @@
 {
-  "合作金庫": {
-    "活存": {
-      "balance": 13407,
-      "last_update": "2025-09-02T11:05:58.792994",
-      "currency": "TWD"
-    }
-  },
-  "元大銀行": {
-    "投資": {
-      "balance": 17556,
-      "last_update": "2025-08-20T17:08:45.209757",
-      "currency": "TWD"
-    }
-  },
-  "LineBank": {
-    "活存": {
-      "balance": 2500,
-      "last_update": "2025-09-02T10:34:12.731533",
-      "currency": "TWD"
-    }
+  "LineBank-活存": {
+    "bank_name": "LineBank",
+    "account_type": "活存",
+    "balance": 13000,
+    "last_update": "2025-09-04T01:32:10.098685",
+    "currency": "TWD"
   }
 }

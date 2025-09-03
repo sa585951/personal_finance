@@ -1,6 +1,9 @@
 <template>
   <div class="page-container">
     <h1>個人資產總覽</h1>
+
+    <TransferForm :assets="assets" @transfer-success="fetchAssets" />
+
     <AccountForm @account-added="fetchAssets" />
 
     <div v-if="loading">載入中...</div>
@@ -22,6 +25,7 @@ import axios from "axios";
 import AccountForm from "../components/AccountForm.vue";
 import AssetsTable from "../components/AssetsTable.vue";
 import TotalCards from "../components/TotalCards.vue";
+import TransferForm from "../components/TransferForm.vue";
 
 export default {
   name: "AssetsOverview",
@@ -29,12 +33,13 @@ export default {
     AccountForm,
     AssetsTable,
     TotalCards,
+    TransferForm,
   },
   data() {
     return {
       loading: true,
       error: null,
-      assets: null,
+      assets: {},
       totals: null,
     };
   },
@@ -54,38 +59,57 @@ export default {
       }
     },
     calculateTotals(assets) {
-      const totals = {};
-      let total = 0;
-      for (const bank in assets) {
-        for (const account in assets[bank]) {
-          const balance = assets[bank][account].balance;
-          total += balance;
-          if (!totals[account]) {
-            totals[account] = 0;
-          }
-          totals[account] += balance;
+      const totals = {
+        總資產: 0,
+        其他: 0,
+      };
+
+      for (const accountId in assets) {
+        const asset = assets[accountId];
+        const balance = asset.balance;
+        const type = asset.account_type;
+
+        totals["總資產"] += balance;
+
+        if (totals[type] === undefined) {
+          totals[type] = 0;
+        }
+
+        // 累加金額
+        totals[type] += balance;
+      }
+
+      // 處理完所有帳戶後，將「其他」類別的金額重新計算
+      // 這是為了避免「其他」這個鍵可能被覆蓋的問題
+      let totalOther = totals["總資產"];
+      for (const type in totals) {
+        if (type !== "總資產" && type !== "其他") {
+          totalOther -= totals[type];
         }
       }
-      totals["總資產"] = total;
+      totals["其他"] = totalOther;
+
       return totals;
     },
-    async deleteAccount(bankName, accountType) {
-      if (confirm(`確定要刪除 ${bankName} 的 ${accountType} 帳戶嗎？`)) {
+    async deleteAccount(accountId) {
+      if (confirm(`確定要刪除此帳戶嗎？`)) {
         try {
-          await axios.delete(`/api/assets/${bankName}/${accountType}`);
+          // 只傳遞唯一的 accountId
+          await axios.delete(`/api/assets/${accountId}`);
           await this.fetchAssets();
         } catch (err) {
           console.error("刪除失敗", err);
         }
       }
     },
-    async updateBalance(bankName, accountType, newBalance) {
+    async updateBalance(accountId, newBalance) {
       if (newBalance === null || newBalance === undefined) {
         return;
       }
 
       try {
-        await axios.put(`/api/assets/${bankName}/${accountType}`, {
+        // 只傳遞唯一的 accountId 和新的餘額
+        await axios.put(`/api/assets/${accountId}`, {
           new_balance: newBalance,
         });
         await this.fetchAssets();

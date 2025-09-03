@@ -50,10 +50,16 @@ export default {
   methods: {
     async addAccount() {
       try {
-        const response = await axios.post("/api/assets", this.newAccount);
+        const payload = {
+          bank_name: this.newAccount.bank_name,
+          account_type: this.newAccount.account_type,
+          initial_balance: this.newAccount.balance,
+        };
+
+        const response = await axios.post("/api/assets", payload);
         this.submitMessage = response.data.message;
 
-        await this.fetchAssets();
+        this.$emit("account-added");
 
         this.newAccount.bank_name = "";
         this.newAccount.account_type = "";

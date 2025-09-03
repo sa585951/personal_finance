@@ -1,55 +1,37 @@
 <template>
-  <div>
-    <h2>帳戶餘額</h2>
-    <table v-if="assets && Object.keys(assets).length > 0">
-      <thead>
-        <tr>
-          <th>銀行</th>
-          <th>帳戶類型</th>
-          <th>餘額</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(accounts, bank) in assets" :key="bank">
-          <td :rowspan="Object.keys(accounts).length">{{ bank }}</td>
-          <td>{{ Object.keys(accounts)[0] }}</td>
-          <td>
-            ${{ accounts[Object.keys(accounts)[0]].balance.toLocaleString() }}
-          </td>
-          <td class="table-buttons">
-            <input
-              type="number"
-              v-model.number="
-                updatedBalances[bank + '-' + Object.keys(accounts)[0]]
-              "
-              :placeholder="accounts[Object.keys(accounts)[0]].balance"
-            />
-            <button
-              class="update-btn"
-              @click="
-                $emit(
-                  'update-balance',
-                  bank,
-                  Object.keys(accounts)[0],
-                  updatedBalances[bank + '-' + Object.keys(accounts)[0]]
-                )
-              "
-            >
-              更新
-            </button>
-            <button
-              class="delete-btn"
-              @click="$emit('delete-account', bank, Object.keys(accounts)[0])"
-            >
-              刪除
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <div v-else>
-      <p>目前沒有資產資料。請新增一筆。</p>
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">資產列表</h3>
+    </div>
+    <div class="card-body" v-if="assets && Object.keys(assets).length > 0">
+      <table class="assets-table">
+        <thead>
+          <tr>
+            <th>銀行名稱</th>
+            <th>帳戶類型</th>
+            <th>餘額</th>
+            <th>動作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(asset, key) in assets" :key="key">
+            <td>{{ asset.bank_name }}</td>
+            <td>{{ asset.account_type }}</td>
+            <td>${{ asset.balance.toLocaleString() }}</td>
+            <td class="table-buttons">
+              <button class="update-btn" @click="promptUpdate(key)">
+                更新
+              </button>
+              <button class="delete-btn" @click="promptDelete(key)">
+                刪除
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div v-else class="no-data">
+      <p>目前沒有資產，請點擊 "新增帳戶" 來新增一筆資產。</p>
     </div>
   </div>
 </template>
@@ -58,17 +40,30 @@
 export default {
   name: "AssetsTable",
   props: {
-    assets: Object,
+    assets: {
+      type: Object,
+      required: true,
+      default: () => ({}),
+    },
   },
-  data() {
-    return {
-      updatedBalances: {},
-    };
-  },
-  watch: {
-    // 當資產數據改變時，清空輸入框
-    assets() {
-      this.updatedBalances = {};
+  methods: {
+    promptUpdate(accountId) {
+      const newBalance = prompt("請輸入新的餘額：");
+      if (newBalance !== null) {
+        const parsedBalance = parseFloat(newBalance);
+        if (!isNaN(parsedBalance) && parsedBalance >= 0) {
+          // 發出事件，傳遞帳戶 ID 和新的餘額
+          this.$emit("update-balance", accountId, parsedBalance);
+        } else {
+          alert("輸入無效的數字，餘額必須為非負數。");
+        }
+      }
+    },
+    promptDelete(accountId) {
+      if (confirm("確定要刪除此帳戶嗎？此操作無法復原。")) {
+        // 發出事件，傳遞帳戶 ID
+        this.$emit("delete-account", accountId);
+      }
     },
   },
 };

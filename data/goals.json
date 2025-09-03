@@ -4,9 +4,10 @@
     "type": "儲蓄",
     "target_amount": 60000,
     "target_date": "2025-11-08",
-    "current_amount": 0,
+    "current_amount": 13000,
     "created_date": "2025-09-03T17:08:23.813116",
     "status": "active",
-    "description": "for 日本旅遊金"
+    "description": "for 日本旅遊金",
+    "last_update": "2025-09-03T23:32:03.497779"
   }
 }

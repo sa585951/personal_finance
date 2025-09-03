@@ -24,63 +24,65 @@ def home():
 
 # API - 資產管理
 
+@app.route("/api/assets", methods=["GET"])
+def get_assets():
+    assets = asset_manager.get_all_assets()
+    return jsonify({"success": True, "data": assets}), 200
+
 @app.route("/api/assets", methods=["POST"])
-def add_account():
-    """
-    新增帳戶
-    - 接收 JSON 格式的資料
-    """
+def add_asset():
     data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "message": "缺少資料"}), 400
+    
     bank_name = data.get("bank_name")
     account_type = data.get("account_type")
-    balance = data.get("balance")
+    initial_balance = data.get("initial_balance")
 
-    if not all([bank_name, account_type, balance is not None]):
+    if not all([bank_name, account_type, initial_balance is not None]):
         return jsonify({"success": False, "message": "缺少必要欄位"}), 400
 
-    success = asset_manager.add_account(bank_name, account_type, balance)
+    success, message = asset_manager.add_account(bank_name, account_type, initial_balance)
     if success:
-        return jsonify({"success": True, "message": "帳戶新增成功"}), 201
+        return jsonify({"success": True, "message": message}), 201
     else:
-        return jsonify({"success": False, "message": "帳戶新增失敗"}), 500
+        return jsonify({"success": False, "message": message}), 409 # Conflict
 
-@app.route("/api/assets", methods=["GET"])
-def get_all_assets():
-    """
-    獲取所有資產帳戶資料
-    """
-    return jsonify({"success": True, "data": asset_manager.assets})
-
-@app.route("/api/assets/<bank_name>/<account_type>", methods=["PUT"])
-def update_balance(bank_name, account_type):
-    """
-    更新帳戶餘額
-    - 透過 URL 傳入銀行名稱與帳戶類型
-    - 接收 JSON 格式的資料
-    """
+@app.route("/api/assets/<account_id>", methods=["PUT"])
+def update_asset_balance(account_id):
     data = request.get_json()
-    new_balance = data.get("new_balance")
-
+    new_balance = data.get('new_balance')
     if new_balance is None:
-        return jsonify({"success": False, "message": "缺少 new_balance 欄位"}), 400
+        return jsonify({"success": False, "message": "缺少 'new_balance' 欄位"}), 400
 
-    success = asset_manager.update_balance(bank_name, account_type, new_balance)
+    success, message = asset_manager.update_balance(account_id, new_balance)
     if success:
-        return jsonify({"success": True, "message": "餘額更新成功"}), 200
-    else:
-        return jsonify({"success": False, "message": "更新失敗，找不到帳戶"}), 404
+        return jsonify({"success": True, "message": message}), 200
+    return jsonify({"success": False, "message": message}), 404
 
-@app.route("/api/assets/<bank_name>/<account_type>", methods=["DELETE"])
-def delete_account(bank_name, account_type):
-    """
-    刪除帳戶
-    - 透過 URL 傳入銀行名稱與帳戶類型
-    """    
-    success = asset_manager.delete_account(bank_name, account_type)
+@app.route("/api/assets/<account_id>", methods=["DELETE"])
+def delete_asset(account_id):
+    success, message = asset_manager.delete_account(account_id)
     if success:
-        return jsonify({"success": True, "message": "帳戶刪除成功"}), 200
+        return jsonify({"success": True, "message": message}), 200
+    return jsonify({"success": False, "message": message}), 404
+
+@app.route("/api/transfer", methods=["POST"])
+def transfer_funds():
+    data = request.get_json()
+    source_id = data.get("source_id")
+    dest_id = data.get("dest_id")
+    amount = data.get("amount")
+
+    if not all([source_id, dest_id, amount is not None]):
+        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+
+    success, message = asset_manager.transfer(source_id, dest_id, amount)
+    
+    if success:
+        return jsonify({"success": True, "message": message}), 200
     else:
-        return jsonify({"success": False, "message": "刪除失敗，找不到帳戶"}), 404
+        return jsonify({"success": False, "message": message}), 400
 
 # API - 預算與支出管理
 
@@ -302,6 +304,5 @@ def get_all_goals():
     goals_data = goal_manager.get_all_goals()
     return jsonify({"success": True, "data": goals_data})
 
-if __name__ == '__main__':
-    # 執行 Flask 應用程式
-    app.run(debug=True)
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)
