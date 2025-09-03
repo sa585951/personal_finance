@@ -8,8 +8,12 @@ module.exports = {
     "eslint:recommended",
     "plugin:prettier/recommended",
   ],
+  parser: "vue-eslint-parser",
   parserOptions: {
-    parser: "@babel/eslint-parser",
+    requireConfigFile: false,
+    babelOptions: {
+      presets: ["@vue/cli-plugin-babel/preset"],
+    },
   },
   rules: {
     "no-console": process.env.NODE_ENV === "production" ? "warn" : "off",
