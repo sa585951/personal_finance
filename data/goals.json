@@ -1,0 +1,12 @@
+{
+  "a94f1765": {
+    "title": "旅遊金",
+    "type": "儲蓄",
+    "target_amount": 60000,
+    "target_date": "2025-11-08",
+    "current_amount": 0,
+    "created_date": "2025-09-03T17:08:23.813116",
+    "status": "active",
+    "description": "for 日本旅遊金"
+  }
+}

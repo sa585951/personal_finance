@@ -74,36 +74,24 @@ export default {
 };
 </script>
 <style scoped>
-/* 這裡保留所有表格相關的樣式 */
-h2 {
-  font-size: 1.8rem;
-  margin-top: 2rem;
-  margin-bottom: 1rem;
-  border-bottom: 2px solid #eee;
-  padding-bottom: 0.5rem;
-}
-
 table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0 10px;
-  margin-top: 20px;
 }
 
-thead tr th {
+thead th {
   background-color: var(--primary-color);
   color: var(--card-bg);
   padding: 12px;
   text-align: center;
   font-size: 1rem;
+  white-space: nowrap;
 }
 
-thead tr th:first-child {
-  border-top-left-radius: 8px;
-}
-thead tr th:last-child {
-  /* 因為現在只有四個 th，所以要改為 last-child */
-  border-top-right-radius: 8px;
+tbody td {
+  padding: 12px;
+  text-align: center;
 }
 
 tbody tr {
@@ -117,39 +105,23 @@ tbody tr:hover {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-td {
-  padding: 12px;
-  text-align: center;
-  vertical-align: middle;
+/* 這裡是它們各自獨有的樣式，請保留 */
+.delete-btn {
+  background-color: var(--danger-color);
+}
+.update-btn {
+  background-color: var(--update-color);
+}
+thead tr th:first-child {
+  border-top-left-radius: 8px;
+}
+thead tr th:last-child {
+  /* 因為現在只有四個 th，所以要改為 last-child */
+  border-top-right-radius: 8px;
 }
 
 td:first-child {
   font-weight: bold;
-}
-
-button {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-}
-
-.delete-btn {
-  background-color: var(--danger-color);
-  margin-right: 5px;
-}
-
-.update-btn {
-  background-color: var(--update-color);
 }
 
 .table-buttons {

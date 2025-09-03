@@ -35,6 +35,25 @@ class BudgetManager:
         saved_budgets = save_json_file(self.budget_file, self.budgets)
         saved_transactions = save_json_file(self.transaction_file, self.transactions)
         return saved_budgets and saved_transactions
+    
+    def get_all_budget_categories(self):
+        """
+        獲取所有已設定預算的類別
+        """
+        categories = set()
+
+        # 從預算中獲取類別
+        for month_data in self.budgets.values():
+            for category in month_data.keys():
+                categories.add(category)
+        
+        # 從交易中獲取類別
+        for transaction in self.transactions:
+            budget_category = transaction.get("budget_category")
+            if budget_category:
+                categories.add(budget_category)
+
+        return sorted(list(categories))
 
     def set_budget(self, month, category, amount, notes=""):
         """設定某月某類別的預算"""
@@ -68,24 +87,45 @@ class BudgetManager:
         else:
             print("❌ 找不到要刪除的預算")
             return False
+        
+    def get_all_transaction_months(self):
+        """
+        從交易紀錄中提取所有唯一的月份
+        """
+        months = set()
+        for transaction in self.transactions:
+            date_str = transaction.get("date")
+            if date_str and len(date_str) >= 7:
+                month = date_str[:7]  # 提取 'YYYY-MM' 部分
+                months.add(month)
+        return list(months)
 
-    def add_transaction(self, date_str, transaction_type, category, amount, description=""):
-        """記錄一筆交易 (收入或支出)"""
+    def add_transaction(self, date, item, amount, transaction_type, budget_category, description=""):
+        """
+        新增一筆交易紀錄
+        :param date: 交易日期 (YYYY-MM-DD)
+        :param item: 交易項目 (例如: 早餐)
+        :param amount: 交易金額
+        :param transaction_type: 交易類型 (expense 或 income)
+        :param budget_category: 預算類別 (例如: 伙食)
+        :param description: 備註
+        """
         if amount <= 0:
             return False
 
-        transaction = {
-            "id": str(uuid.uuid4()),  # 使用 UUID 生成唯一ID
-            "date": date_str,
+        new_transaction = {
+            "id": str(uuid.uuid4()),
+            "date": date,
             "type": transaction_type,
-            "category": category,
+            "category": item,  
+            "budget_category": budget_category, 
             "amount": amount,
             "description": description,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
-        self.transactions.append(transaction)
-        
-        return self.save_data()
+        self.transactions.append(new_transaction)
+        self.save_data()
+        return True
     
     def get_all_transactions(self):
         """獲取所有交易紀錄"""

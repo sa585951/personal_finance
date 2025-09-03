@@ -1,5 +1,5 @@
 <template>
-  <div class="assets-container">
+  <div class="page-container">
     <h1>個人資產總覽</h1>
     <AccountForm @account-added="fetchAssets" />
 
@@ -99,7 +99,7 @@ export default {
 
 <style scoped>
 /* 將原本的樣式移動到個別的子元件中後，這裡只保留 AssetsOverview 自己的樣式 */
-.assets-container {
+.page-container {
   max-width: 900px;
   margin: 40px auto;
   padding: 20px;

@@ -49,40 +49,55 @@ class GoalManager:
         else:
             print("❌ 新增目標失敗，無法儲存資料")
             return False
-
-    def update_goal_progress(self, goal_id, new_current_amount):
-        """更新目標進度"""
+        
+    def update_goal(self, goal_id, **updates):
+        """
+        通用更新目標方法，可同時更新多個欄位。
+        傳入 goal_id 和一個包含要更新欄位的字典。
+        例如: update_goal('goal123', title='新標題', target_amount=20000)
+        """
         if goal_id not in self.goals:
             print("❌ 找不到此目標")
             return False
-        
-        if new_current_amount < 0:
-            print("❌ 金額不能為負數")
-            return False
-        
-        old_amount = self.goals[goal_id]["current_amount"]
-        target_amount = self.goals[goal_id]["target_amount"]
 
-        # 更新進度
-        self.goals[goal_id]["current_amount"] = new_current_amount
+        # 檢查更新的欄位是否有效
+        valid_keys = ["title", "type", "target_amount", "target_date", "current_amount", "description"]
+        for key, value in updates.items():
+            if key not in valid_keys:
+                print(f"❌ 無效的更新欄位: {key}")
+                return False
+
+            # 特殊處理金額，確保為正數
+            if key in ["target_amount", "current_amount"] and value < 0:
+                print(f"❌ {key} 必須大於等於 0")
+                return False
+
+            # 更新欄位
+            self.goals[goal_id][key] = value
+
+        # 檢查是否達成目標 (如果 target_amount 或 current_amount 被更新)
+        if "target_amount" in updates or "current_amount" in updates:
+            target_amount = self.goals[goal_id].get("target_amount", 0)
+            current_amount = self.goals[goal_id].get("current_amount", 0)
+            if current_amount >= target_amount:
+                self.goals[goal_id]["status"] = "completed"
+            else:
+                self.goals[goal_id]["status"] = "active"
+
         self.goals[goal_id]["last_update"] = datetime.now().isoformat()
-
-        # 檢查是否達成目標
-        if new_current_amount >= target_amount:
-            self.goals[goal_id]["status"] = "completed"
-            
+        
         if self.save_data():
-            # 顯示進度變化
-            progress = (new_current_amount / target_amount * 100) if target_amount > 0 else 0
-            change = new_current_amount - old_amount
-            print(f"📈 進度更新: ${old_amount:,} → ${new_current_amount:,} ({change:+,})")
-            print(f"📊 目標達成率: {progress:.1f}%")
-            if new_current_amount >= target_amount:
-                print(f"🎉 恭喜！目標「{self.goals[goal_id]['title']}」已達成！")
+            print(f"✅ 目標「{self.goals[goal_id]['title']}」已更新")
             return True
         else:
             print("❌ 更新目標失敗，無法儲存資料")
             return False
+
+    def update_goal_progress(self, goal_id, new_current_amount):
+        """
+        更新目標進度 (舊方法)
+        """
+        return self.update_goal(goal_id, current_amount=new_current_amount)
             
     def delete_goal(self, goal_id):
         """刪除目標"""

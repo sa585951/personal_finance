@@ -1,6 +1,5 @@
 <template>
-  <div class="table-container">
-    <h2>所有交易紀錄</h2>
+  <div>
     <table v-if="transactions.length > 0">
       <thead>
         <tr>
@@ -15,7 +14,7 @@
         <tr v-for="transaction in transactions" :key="transaction.id">
           <td>{{ transaction.date }}</td>
           <td>
-            <span :class="transaction.type === '收入' ? 'income' : 'expense'">
+            <span :class="transaction.type === 'income' ? 'income' : 'expense'">
               {{ transaction.type }}
             </span>
           </td>
@@ -23,7 +22,9 @@
           <td>
             <span
               :class="
-                transaction.type === '收入' ? 'income-amount' : 'expense-amount'
+                transaction.type === 'income'
+                  ? 'income-amount'
+                  : 'expense-amount'
               "
             >
               ${{ transaction.amount.toLocaleString() }}
@@ -71,75 +72,77 @@ export default {
 </script>
 
 <style scoped>
-.table-container {
-  margin-top: 2rem;
-  padding: 1.5rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  background-color: #fafafa;
-}
-
-h2 {
-  text-align: center;
-  color: var(--text-color);
-  margin-bottom: 1rem;
-}
-
 table {
   width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-}
-
-th,
-td {
-  padding: 12px;
-  text-align: left;
-  border-bottom: 1px solid #ddd;
+  border-collapse: separate;
+  border-spacing: 0 10px;
 }
 
 thead th {
   background-color: var(--primary-color);
-  color: white;
+  color: var(--card-bg);
+  padding: 12px;
+  text-align: center;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+thead th:first-child {
+  border-top-left-radius: 8px;
+}
+
+thead th:last-child {
+  border-top-right-radius: 8px;
+}
+
+tbody td {
+  padding: 12px;
   text-align: center;
 }
 
-tbody tr:nth-child(even) {
-  background-color: #f9f9f9;
+tbody tr {
+  background-color: var(--card-bg);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.05);
 }
 
-.income {
-  color: #4caf50;
-  font-weight: bold;
-}
-
-.expense {
-  color: #f44336;
-  font-weight: bold;
-}
-
-.income-amount {
-  color: #4caf50;
-  font-weight: bold;
-}
-
-.expense-amount {
-  color: #f44336;
-  font-weight: bold;
+tbody tr:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .delete-btn {
   background-color: var(--danger-color);
   color: white;
   border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
+  padding: 8px 12px;
+  border-radius: 6px;
   cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.delete-btn:hover {
+  background-color: #d32f2f;
+}
+
+.income,
+.income-amount {
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.expense,
+.expense-amount {
+  color: #f44336;
+  font-weight: bold;
 }
 
 .no-data {
   text-align: center;
   padding: 2rem;
   color: #666;
+  background-color: var(--card-bg);
+  margin-top: 1rem;
+  border-radius: 8px;
 }
 </style>

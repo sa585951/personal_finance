@@ -1,10 +1,14 @@
 <template>
-  <div class="transaction-container">
+  <div class="page-container">
     <h1>個人交易紀錄</h1>
 
     <!-- 使用 TransactionForm 組件 -->
     <TransactionForm @transaction-added="fetchTransactions" />
 
+    <!-- 新增統計組件 -->
+    <TransactionSummary :transactions="transactions" />
+
+    <h2 class="table-title">所有交易紀錄</h2>
     <!-- 使用 TransactionTable 組件 -->
     <TransactionTable
       :transactions="transactions"
@@ -17,12 +21,14 @@
 import axios from "axios";
 import TransactionForm from "../components/TransactionForm.vue";
 import TransactionTable from "../components/TransactionTable.vue";
+import TransactionSummary from "../components/TransactionSummary.vue";
 
 export default {
   name: "TransactionRecord",
   components: {
     TransactionForm,
     TransactionTable,
+    TransactionSummary,
   },
   data() {
     return {
@@ -47,7 +53,7 @@ export default {
 </script>
 
 <style scoped>
-.transaction-container {
+.page-container {
   max-width: 900px;
   margin: 40px auto;
   padding: 20px;
@@ -60,6 +66,13 @@ h1 {
   text-align: center;
   color: var(--text-color);
   font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.table-title {
+  text-align: center;
+  color: var(--text-color);
+  margin-top: 2rem;
   margin-bottom: 1rem;
 }
 </style>

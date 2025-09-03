@@ -1,11 +1,36 @@
-/* 從這裡剪下 */
+/* ========================
+   基礎排版與通用樣式
+   ======================== */
 :root {
-    --primary-color: #4caf50;
-    --danger-color: #f44336;
-    --update-color: #2196f3;
-    --bg-color: #f7f9fc;
-    --card-bg: #ffffff;
-    --text-color: #333;
-    --light-text-color: #666;
+  --primary-color: #4CAF50; /* 綠色 */
+  --secondary-color: #f0f0f0;
+  --card-bg: #fff;
+  --border-color: #e0e0e0;
+  --text-color: #333;
+  --light-text-color: #666;
+  --danger-color: #F44336;
+  --update-color: #2196F3;
 }
-/* 剪下到這裡 */
+
+body {
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  background-color: #f5f5f5;
+  color: var(--text-color);
+  line-height: 1.6;
+}
+
+button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
