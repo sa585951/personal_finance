@@ -2,6 +2,7 @@ from datetime import datetime
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 # 為了確保匯入正確，我們需要將專案根目錄加入到路徑
 # 這樣 Flask 才能找到我們的 models 和 reports
@@ -13,6 +14,7 @@ from models.goal_manager import GoalManager
 
 # 實例化 Flask 應用程式
 app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "https:personal-finance-gilt.vercel.app"}})
 
 # 實例化 Manager 類別，它們將在整個應用程式中被重複使用
 asset_manager = AssetManager()
