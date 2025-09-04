@@ -16,6 +16,7 @@
 </template>
 
 <script>
+const API_URL = import.meta.env.VITE_APP_API_URL;
 import { Pie } from "vue-chartjs";
 import {
   Chart as ChartJS,
@@ -54,7 +55,7 @@ export default {
   },
   async created() {
     try {
-      const response = await axios.get("/api/reports/asset_allocation");
+      const response = await axios.get(`${API_URL}/api/reports/asset_allocation`);
       this.chartData = response.data.data;
     } catch (error) {
       console.error("Error fetching asset allocation data:", error);

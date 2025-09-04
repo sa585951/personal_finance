@@ -27,6 +27,7 @@
 
 <script>
 import { Bar } from "vue-chartjs";
+const API_URL = import.meta.env.VITE_APP_API_URL;
 import {
   Chart as ChartJS,
   Title,
@@ -84,7 +85,7 @@ export default {
     async fetchChartData() {
       try {
         const response = await axios.get(
-          `/api/reports/transactions_by_category_over_time?interval=${this.selectedInterval}`
+          `${API_URL}/api/reports/transactions_by_category_over_time?interval=${this.selectedInterval}`
         );
         this.chartData = response.data.data;
       } catch (error) {

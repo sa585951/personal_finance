@@ -45,7 +45,7 @@
 
 <script>
 import axios from "axios";
-
+const API_URL = import.meta.env.VITE_APP_API_URL;
 export default {
   name: "TransferForm",
   props: {
@@ -76,7 +76,7 @@ export default {
       }
 
       try {
-        const response = await axios.post("/api/transfer", {
+        const response = await axios.post(`${API_URL}/api/transfer`, {
           source_id: this.transferData.source_id,
           dest_id: this.transferData.dest_id,
           amount: this.transferData.amount,

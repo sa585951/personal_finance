@@ -58,7 +58,7 @@
 
 <script>
 import axios from "axios";
-
+const API_URL = import.meta.env.VITE_APP_API_URL;
 export default {
   name: "BudgetSummaryTable",
   props: {
@@ -83,7 +83,7 @@ export default {
       if (!this.selectedMonth) return;
       try {
         const response = await axios.get(
-          `/api/budgets/summary/${this.selectedMonth}`
+          `${API_URL}/api/budgets/summary/${this.selectedMonth}`
         );
         this.budgetSummary = response.data.data;
       } catch (error) {
@@ -94,7 +94,7 @@ export default {
     // 獲取所有有紀錄的月份
     async fetchAvailableMonths() {
       try {
-        const response = await axios.get("/api/months");
+        const response = await axios.get(`${API_URL}/api/months`);
         this.availableMonths = response.data.data;
       } catch (error) {
         console.error("無法載入可用月份", error);
@@ -150,7 +150,7 @@ export default {
       if (result.isConfirmed) {
         try {
           const response = await axios.delete(
-            `/api/budgets/${this.selectedMonth}/${category}`
+            `${API_URL}/api/budgets/${this.selectedMonth}/${category}`
           );
           this.$swal.fire("刪除成功！", response.data.message, "success");
           this.fetchBudgetSummary(); // 刪除成功後重新載入列表

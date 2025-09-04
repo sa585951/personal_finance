@@ -67,7 +67,8 @@ export default {
   },
   async created() {
     try {
-      const response = await axios.get("/api/reports/income_expense_summary");
+
+      const response = await axios.get(`${API_URL}/api/reports/income_expense_summary`);
       this.chartData = response.data.data;
     } catch (error) {
       console.error("Error fetching income/expense data:", error);

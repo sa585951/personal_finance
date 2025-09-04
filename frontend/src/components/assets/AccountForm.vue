@@ -34,7 +34,7 @@
 
 <script>
 import axios from "axios";
-
+const API_URL = import.meta.env.VITE_APP_API_URL;
 export default {
   name: "AccountForm",
   data() {
@@ -56,7 +56,7 @@ export default {
           initial_balance: this.newAccount.balance,
         };
 
-        const response = await axios.post("/api/assets", payload);
+        const response = await axios.post(`${API_URL}/api/assets`, payload);
         this.submitMessage = response.data.message;
 
         this.$emit("account-added");
