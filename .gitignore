@@ -1,0 +1,15 @@
+# Python 快取檔案
+__pycache__/
+*.pyc
+
+# 虛擬環境
+.venv/
+
+# 其他通用忽略檔案
+.DS_Store
+
+# 後端環境變數檔案
+.env
+
+# Render 部署日誌檔案
+.render
