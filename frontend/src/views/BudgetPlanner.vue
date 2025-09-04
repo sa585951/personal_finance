@@ -45,13 +45,14 @@
         </div>
       </form>
       <div class="button-wrapper">
-        <button type="submit">設定</button>
+        <button type="submit" @click="setBudget">設定</button>
       </div>
     </div>
     <BudgetSummaryTable
       ref="budgetSummaryTable"
       :selected-month="selectedMonth"
       @update-month="selectedMonth = $event"
+      @update-budget="updateBudget"
     />
   </div>
 </template>
@@ -59,7 +60,7 @@
 <script>
 import axios from "axios";
 import { format } from "date-fns";
-import BudgetSummaryTable from "@/components/BudgetSummaryTable.vue";
+import BudgetSummaryTable from "@/components/budgets/BudgetSummaryTable.vue";
 
 export default {
   name: "BudgetPlanner",
@@ -81,13 +82,29 @@ export default {
     async setBudget() {
       try {
         const response = await axios.post("/api/budgets", this.newBudget);
-        console.log("預算設定成功:", response.data.message);
+        this.$swal.fire("成功！", response.data.message, "success");
         this.$refs.budgetSummaryTable.fetchBudgetSummary();
         this.newBudget.category = "";
         this.newBudget.amount = null;
         this.newBudget.notes = "";
       } catch (error) {
         console.error("預算設定失敗:", error);
+        this.$swal.fire("失敗！", "預算設定失敗，請稍後再試。", "error");
+      }
+    },
+    async updateBudget(month, category, amount, notes) {
+      try {
+        const response = await axios.post("/api/budgets", {
+          month,
+          category,
+          amount,
+          notes,
+        });
+        this.$swal.fire("成功！", response.data.message, "success");
+        this.$refs.budgetSummaryTable.fetchBudgetSummary();
+      } catch (error) {
+        console.error("更新預算失敗:", error);
+        this.$swal.fire("失敗！", "更新預算失敗，請稍後再試。", "error");
       }
     },
   },

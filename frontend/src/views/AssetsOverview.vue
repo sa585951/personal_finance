@@ -22,10 +22,10 @@
 
 <script>
 import axios from "axios";
-import AccountForm from "../components/AccountForm.vue";
-import AssetsTable from "../components/AssetsTable.vue";
-import TotalCards from "../components/TotalCards.vue";
-import TransferForm from "../components/TransferForm.vue";
+import AccountForm from "../components/assets/AccountForm.vue";
+import AssetsTable from "../components/assets/AssetsTable.vue";
+import TotalCards from "../components/assets/TotalCards.vue";
+import TransferForm from "../components/assets/TransferForm.vue";
 
 export default {
   name: "AssetsOverview",

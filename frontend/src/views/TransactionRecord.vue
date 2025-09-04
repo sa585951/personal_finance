@@ -8,6 +8,9 @@
     <!-- 新增統計組件 -->
     <TransactionSummary :transactions="transactions" />
 
+    <!-- 新增支出趨勢圖表 -->
+    <SpendingTrendsChart />
+
     <h2 class="table-title">所有交易紀錄</h2>
     <!-- 使用 TransactionTable 組件 -->
     <TransactionTable
@@ -19,9 +22,10 @@
 
 <script>
 import axios from "axios";
-import TransactionForm from "../components/TransactionForm.vue";
-import TransactionTable from "../components/TransactionTable.vue";
-import TransactionSummary from "../components/TransactionSummary.vue";
+import TransactionForm from "../components/budgets/TransactionForm.vue";
+import TransactionTable from "../components/budgets/TransactionTable.vue";
+import TransactionSummary from "../components/budgets/TransactionSummary.vue";
+import SpendingTrendsChart from "../components/charts/SpendingTrendsChart.vue";
 
 export default {
   name: "TransactionRecord",
@@ -29,6 +33,7 @@ export default {
     TransactionForm,
     TransactionTable,
     TransactionSummary,
+    SpendingTrendsChart,
   },
   data() {
     return {

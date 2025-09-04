@@ -42,7 +42,10 @@
             }}</span>
           </td>
           <td>
-            <button class="delete-btn" @click="deleteBudget(item.category)">
+            <button class="update-btn" @click="promptEditBudget(item)">
+              編輯
+            </button>
+            <button class="delete-btn" @click="promptDeleteBudget(item.category)">
               刪除
             </button>
           </td>
@@ -64,6 +67,7 @@ export default {
       required: true,
     },
   },
+  emits: ["update-month", "update-budget"], // 新增 update-budget 事件
   data() {
     return {
       availableMonths: [],
@@ -73,7 +77,6 @@ export default {
   methods: {
     // 處理下拉選單變更事件
     handleMonthChange(event) {
-      // 發出事件，將新值傳給父元件
       this.$emit("update-month", event.target.value);
     },
     async fetchBudgetSummary() {
@@ -104,20 +107,56 @@ export default {
       let progress = (item.spent / item.budget) * 100;
       return Math.min(progress, 100); // 確保進度條不超過 100%
     },
-    async deleteBudget(category) {
-      const confirmDelete = window.confirm(
-        `確定要刪除「${this.selectedMonth}」月份的「${category}」預算嗎？`
-      );
-      if (confirmDelete) {
+    async promptEditBudget(item) {
+      const { value: formValues } = await this.$swal.fire({
+        title: `編輯 ${item.category} 預算`, 
+        html:
+          `<label for="swal-input1">預算金額:</label>` +
+          `<input id="swal-input1" class="swal2-input" type="number" value="${item.budget}">` +
+          `<label for="swal-input2">備註:</label>` +
+          `<input id="swal-input2" class="swal2-input" value="${item.notes || ''}">`,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: "儲存",
+        cancelButtonText: "取消",
+        preConfirm: () => {
+          const amount = parseFloat(this.$swal.getPopup().querySelector('#swal-input1').value);
+          const notes = this.$swal.getPopup().querySelector('#swal-input2').value;
+
+          if (isNaN(amount) || amount < 0) {
+            this.$swal.showValidationMessage(`請輸入有效的非負數金額`);
+            return false;
+          }
+          return { amount: amount, notes: notes };
+        }
+      });
+
+      if (formValues) {
+        this.$emit("update-budget", this.selectedMonth, item.category, formValues.amount, formValues.notes);
+      }
+    },
+    async promptDeleteBudget(category) {
+      const result = await this.$swal.fire({
+        title: "確定刪除？",
+        text: `確定要刪除「${this.selectedMonth}」月份的「${category}」預算嗎？`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d33",
+        cancelButtonColor: "#3085d6",
+        confirmButtonText: "確定刪除",
+        cancelButtonText: "取消",
+      });
+
+      if (result.isConfirmed) {
         try {
           const response = await axios.delete(
             `/api/budgets/${this.selectedMonth}/${category}`
           );
-          alert(response.data.message);
+          this.$swal.fire("刪除成功！", response.data.message, "success");
           this.fetchBudgetSummary(); // 刪除成功後重新載入列表
         } catch (error) {
           console.error("刪除預算失敗:", error);
-          alert("刪除失敗，請稍後再試。");
+          this.$swal.fire("刪除失敗！", "刪除失敗，請稍後再試。", "error");
         }
       }
     },
@@ -224,6 +263,21 @@ select:focus {
 
 .delete-btn:hover {
   background-color: #d32f2f;
+}
+
+.update-btn {
+  background-color: var(--update-color);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-right: 5px; /* Add some space between buttons */
+}
+
+.update-btn:hover {
+  background-color: #1976d2;
 }
 
 .overspend {

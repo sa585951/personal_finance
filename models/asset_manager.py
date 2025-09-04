@@ -24,31 +24,20 @@ class AssetManager:
             print("⚠️ 警告: assets.json 檔案格式錯誤，已重設為空資料。")
             self.assets = {}
             return
-            
-        new_assets = {}
-        for bank_name, account_types in raw_data.items():
-            # 檢查第二層資料結構是否為字典
-            if not isinstance(account_types, dict):
-                print(f"⚠️ 警告: '{bank_name}' 的帳戶資料格式錯誤，已跳過。")
-                continue
                 
-            for account_type, data in account_types.items():
-                # 檢查最內層資料結構是否為字典
-                if not isinstance(data, dict):
-                    print(f"⚠️ 警告: '{bank_name}-{account_type}' 的資料格式錯誤，已跳過。")
-                    continue
-                    
-                account_key = self._get_account_key(bank_name, account_type)
-                new_assets[account_key] = {
-                    "bank_name": bank_name,
-                    "account_type": account_type,
-                    **data,
-                }
+        self.assets = raw_data
+
+        valid_assets = {}
+        for account_id, data in self.assets.items():
+            if isinstance(data, dict) and 'bank_name' in data and 'account_type' in data:
+                valid_assets[account_id] = data
+            else:
+                print(f"⚠️ 警告: '{account_id}' 的資料格式錯誤，已跳過。")
                 
-        self.assets = new_assets
+        self.assets = valid_assets
         
         if self.assets:
-            print(f"📖 載入現有資產資料: {len(self.assets)} 個帳戶")
+            print(f"載入現有資產資料: {len(self.assets)} 個帳戶")
         else:
             print("🆕 建立新的資產記錄")
 

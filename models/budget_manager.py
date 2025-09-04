@@ -147,18 +147,19 @@ class BudgetManager:
             print("❌ 找不到要刪除的交易")
             return False
 
-    def calculate_monthly_expenses(self, month):
-        """計算某月各類別支出總額"""
-        category_totals = {}
+    def calculate_monthly_expenses(self, year_month):
+        """
+        根據給定的年月 (格式: "YYYY-MM") 彙總每月支出。
+        """
+        expense_totals = {}
         for transaction in self.transactions:
-            # 檢查交易是否屬於該月且為支出
-            if transaction.get('type') == '支出' and transaction.get('date', '').startswith(month):
-                category = transaction.get('category')
+            if transaction.get('type') == 'expense' and transaction.get('date', '').startswith(year_month):
+                category = transaction.get('budget_category')
                 amount = transaction.get('amount')
-                if category not in category_totals:
-                    category_totals[category] = 0
-                category_totals[category] += amount
-        return category_totals
+                if category not in expense_totals:
+                    expense_totals[category] = 0
+                expense_totals[category] += amount
+        return expense_totals
 
     def check_over_warnings(self, month=None):
         """檢查超支警告，回傳超支項目列表"""

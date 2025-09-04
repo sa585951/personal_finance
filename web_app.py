@@ -1,4 +1,6 @@
-import os
+from datetime import datetime
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
 from flask import Flask, jsonify, request
 
 # 為了確保匯入正確，我們需要將專案根目錄加入到路徑
@@ -303,6 +305,221 @@ def get_all_goals():
     """
     goals_data = goal_manager.get_all_goals()
     return jsonify({"success": True, "data": goals_data})
+
+@app.route("/api/reports/monthly_expenses", methods=["GET"])
+def get_monthly_expenses():
+    """
+    提供每月支出總額數據，以供前端圖表使用。
+    """
+    # 獲取請求中的 'month' 參數，如果沒有則使用當前月份
+    year_month = request.args.get("month", datetime.now().strftime("%Y-%m"))
+
+    # 呼叫 budget_manager 的方法來獲取彙總數據
+    expense_data = budget_manager.calculate_monthly_expenses(year_month)
+
+    # 將字典轉換成前端圖表所需的格式
+    labels = list(expense_data.keys())
+    data = list(expense_data.values())
+
+    # 構建一個包含完整圖表數據的字典，並設定顏色
+    chart_data = {
+        "labels": labels,
+        "datasets": [{
+            "label": f"{year_month}月支出",
+            "backgroundColor": ["#42A5F5", "#66BB6A", "#FFA726", "#26A69A", "#BDBDBD", "#7986CB", "#C0CA33"],
+            "data": data
+        }]
+    }
+
+    return jsonify({"success": True, "data": chart_data})
+
+@app.route("/api/reports/asset_allocation", methods=["GET"])
+def get_asset_allocation():
+    """
+    提供資產配置數據，以供前端圓餅圖使用。
+    """
+    totals = asset_manager.calculate_totals()
+    
+    # 排除 '總資產' 鍵，只保留帳戶類型
+    labels = [key for key in totals.keys() if key != "總資產"]
+    data = [totals[key] for key in labels]
+
+    # 構建一個包含完整圖表數據的字典，並設定顏色
+    chart_data = {
+        "labels": labels,
+        "datasets": [{
+            "backgroundColor": ["#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40"],
+            "data": data
+        }]
+    }
+    return jsonify({"success": True, "data": chart_data})
+
+@app.route("/api/reports/income_expense_summary", methods=["GET"])
+def get_income_expense_summary():
+    """
+    提供收入與支出總額數據，以供前端圖表使用。
+    可選參數: month (YYYY-MM)
+    """
+    month = request.args.get("month")
+    
+    transactions = budget_manager.get_all_transactions()
+    
+    total_income = 0
+    total_expense = 0
+
+    for t in transactions:
+        if month and not t.get("date", "").startswith(month):
+            continue
+        
+        if t.get("type") == "income":
+            total_income += t.get("amount", 0)
+        elif t.get("type") == "expense":
+            total_expense += t.get("amount", 0)
+
+    chart_data = {
+        "labels": ["收入", "支出"],
+        "datasets": [{
+            "label": f"{month if month else '總計'}收入與支出",
+            "backgroundColor": ["#4CAF50", "#F44336"], # 綠色代表收入，紅色代表支出
+            "data": [total_income, total_expense]
+        }]
+    }
+    return jsonify({"success": True, "data": chart_data})
+
+@app.route("/api/reports/overspending_warnings", methods=["GET"])
+def get_overspending_warnings():
+    """
+    提供超支警告數據，以供前端顯示。
+    可選參數: month (YYYY-MM)
+    """
+    month = request.args.get("month")
+    warnings = budget_manager.check_over_warnings(month)
+    return jsonify({"success": True, "data": warnings})
+
+    return jsonify({"success": True, "data": chart_data})
+
+@app.route("/api/reports/transactions_by_category_over_time", methods=["GET"])
+def get_transactions_by_category_over_time():
+    """
+    提供按類別和時間聚合的交易數據，以供前端圖表使用。
+    可選參數: start_date (YYYY-MM-DD), end_date (YYYY-MM-DD), interval (month, year)
+    """
+    start_date_str = request.args.get("start_date")
+    end_date_str = request.args.get("end_date")
+    interval = request.args.get("interval", "month") # default to month
+
+    transactions = budget_manager.get_all_transactions()
+
+    # Filter transactions by date range if provided
+    filtered_transactions = []
+    for t in transactions:
+        transaction_date = datetime.strptime(t["date"], "%Y-%m-%d")
+        if start_date_str and transaction_date < datetime.strptime(start_date_str, "%Y-%m-%d"):
+            continue
+        if end_date_str and transaction_date > datetime.strptime(end_date_str, "%Y-%m-%d"):
+            continue
+        filtered_transactions.append(t)
+
+    # Aggregate data
+    aggregated_data = {}
+    all_categories = set()
+    all_periods = set()
+
+    for t in filtered_transactions:
+        category = t.get("budget_category", "未分類")
+        amount = t.get("amount", 0)
+        transaction_type = t.get("type")
+        transaction_date = datetime.strptime(t["date"], "%Y-%m-%d")
+
+        if interval == "month":
+            period = transaction_date.strftime("%Y-%m")
+        elif interval == "year":
+            period = transaction_date.strftime("%Y")
+        else:
+            period = transaction_date.strftime("%Y-%m-%d") # Default to day if invalid interval
+
+        all_categories.add(category)
+        all_periods.add(period)
+
+        if period not in aggregated_data:
+            aggregated_data[period] = {}
+        if category not in aggregated_data[period]:
+            aggregated_data[period][category] = {"income": 0, "expense": 0}
+        
+        if transaction_type == "income":
+            aggregated_data[period][category]["income"] += amount
+        elif transaction_type == "expense":
+            aggregated_data[period][category]["expense"] += amount
+
+    # Sort periods chronologically
+    sorted_periods = sorted(list(all_periods))
+    sorted_categories = sorted(list(all_categories))
+
+    datasets = []
+    # For simplicity, let's create datasets for total income and total expense per period
+    # A more complex chart might need datasets per category
+    income_data = []
+    expense_data = []
+
+    for period in sorted_periods:
+        period_income = 0
+        period_expense = 0
+        for category in sorted_categories:
+            if period in aggregated_data and category in aggregated_data[period]:
+                period_income += aggregated_data[period][category]["income"]
+                period_expense += aggregated_data[period][category]["expense"]
+        income_data.append(period_income)
+        expense_data.append(period_expense)
+
+    datasets.append({
+        "label": "總收入",
+        "backgroundColor": "#4CAF50",
+        "data": income_data
+    })
+    datasets.append({
+        "label": "總支出",
+        "backgroundColor": "#F44336",
+        "data": expense_data
+    })
+
+    chart_data = {
+        "labels": sorted_periods,
+        "datasets": datasets
+    }
+
+    return jsonify({"success": True, "data": chart_data})
+
+    return jsonify({"success": True, "data": chart_data})
+
+@app.route("/api/reports/goal_summary", methods=["GET"])
+def get_goal_summary():
+    """
+    提供財務目標的總結數據，以供前端顯示。
+    """
+    goals = goal_manager.get_all_goals()
+    
+    total_target_amount = 0
+    total_current_amount = 0
+    completed_goals = 0
+    active_goals = 0
+
+    for goal_id, goal in goals.items():
+        total_target_amount += goal.get("target_amount", 0)
+        total_current_amount += goal.get("current_amount", 0)
+        if goal.get("status") == "completed":
+            completed_goals += 1
+        else:
+            active_goals += 1
+
+    summary = {
+        "total_goals": len(goals),
+        "completed_goals": completed_goals,
+        "active_goals": active_goals,
+        "total_target_amount": total_target_amount,
+        "total_current_amount": total_current_amount,
+        "overall_progress_percentage": (total_current_amount / total_target_amount * 100) if total_target_amount > 0 else 0
+    }
+    return jsonify({"success": True, "data": summary})
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

@@ -47,21 +47,38 @@ export default {
     },
   },
   methods: {
-    promptUpdate(accountId) {
-      const newBalance = prompt("請輸入新的餘額：");
-      if (newBalance !== null) {
-        const parsedBalance = parseFloat(newBalance);
-        if (!isNaN(parsedBalance) && parsedBalance >= 0) {
-          // 發出事件，傳遞帳戶 ID 和新的餘額
-          this.$emit("update-balance", accountId, parsedBalance);
-        } else {
-          alert("輸入無效的數字，餘額必須為非負數。");
-        }
+    async promptUpdate(accountId) {
+      const { value: newBalance } = await this.$swal.fire({
+        title: "更新餘額",
+        input: "number",
+        inputLabel: "請輸入新的餘額：",
+        showCancelButton: true,
+        confirmButtonText: "確定",
+        cancelButtonText: "取消",
+        inputValidator: (value) => {
+          if (!value || isNaN(value) || parseFloat(value) < 0) {
+            return "輸入無效，餘額必須為非負數！";
+          }
+        },
+      });
+
+      if (newBalance) {
+        this.$emit("update-balance", accountId, parseFloat(newBalance));
       }
     },
-    promptDelete(accountId) {
-      if (confirm("確定要刪除此帳戶嗎？此操作無法復原。")) {
-        // 發出事件，傳遞帳戶 ID
+    async promptDelete(accountId) {
+      const result = await this.$swal.fire({
+        title: "確定刪除？",
+        text: "此操作無法復原。",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d33",
+        cancelButtonColor: "#3085d6",
+        confirmButtonText: "確定刪除",
+        cancelButtonText: "取消",
+      });
+
+      if (result.isConfirmed) {
         this.$emit("delete-account", accountId);
       }
     },

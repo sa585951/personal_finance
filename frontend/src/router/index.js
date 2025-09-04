@@ -3,10 +3,16 @@ import AssetsOverview from "../views/AssetsOverview.vue";
 import TransactionRecord from "../views/TransactionRecord.vue";
 import BudgetPlanner from "@/views/BudgetPlanner.vue";
 import Goals from "../views/FinancialGoals.vue";
+import HomeView from "../views/HomeView.vue";
 
 const routes = [
   {
     path: "/",
+    name: "Home",
+    component: HomeView,
+  },
+  {
+    path: "/assets",
     name: "AssetsOverview",
     component: AssetsOverview,
   },

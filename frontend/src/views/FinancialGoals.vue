@@ -2,28 +2,31 @@
   <div class="page-container">
     <h1>財務目標規劃</h1>
 
+    <GoalSummaryCard />
+
     <GoalForm @goal-added="fetchGoals" />
 
     <GoalList
       :goals="goals"
-      @update-progress="updateGoalProgress"
+      @update-goal="updateGoal"
       @delete-goal="deleteGoal"
-      @save-goal="saveGoal"
-      @edit-canceled="fetchGoals"
+      @update-progress="updateGoalProgress"
     />
   </div>
 </template>
 
 <script>
 import axios from "axios";
-import GoalForm from "../components/GoalForm.vue";
-import GoalList from "../components/GoalList.vue";
+import GoalForm from "../components/goals/GoalForm.vue";
+import GoalList from "../components/goals/GoalList.vue";
+import GoalSummaryCard from "../components/reports/GoalSummaryCard.vue";
 
 export default {
   name: "FinancialGoals",
   components: {
     GoalForm,
     GoalList,
+    GoalSummaryCard,
   },
   data() {
     return {
@@ -36,60 +39,64 @@ export default {
         const response = await axios.get("/api/goals");
         this.goals = response.data.data;
       } catch (error) {
-        console.error("無法載入目標資料", error);
+        this.$swal.fire({
+          icon: "error",
+          title: "錯誤",
+          text: "無法載入目標資料，請稍後再試。",
+        });
       }
     },
-    async updateGoalProgress(goalId, newCurrentAmount) {
-      if (
-        newCurrentAmount === undefined ||
-        newCurrentAmount === null ||
-        newCurrentAmount < 0
-      ) {
-        alert("請輸入有效的更新金額（大於或等於 0）！");
-        return;
-      }
+    async updateGoal(goalId, updatedData) {
       try {
-        const response = await axios.put(`/api/goals/${goalId}`, {
-          new_current_amount: newCurrentAmount,
+        const response = await axios.put(`/api/goals/${goalId}`, updatedData);
+        this.$swal.fire({
+          icon: "success",
+          title: "成功",
+          text: response.data.message,
         });
-        alert(response.data.message);
         this.fetchGoals();
       } catch (error) {
-        alert("更新進度失敗。");
-        console.error("更新進度失敗:", error);
+        this.$swal.fire({
+          icon: "error",
+          title: "更新失敗",
+          text: "無法更新目標，請稍後再試。",
+        });
       }
     },
     async deleteGoal(goalId) {
-      if (confirm("確定要刪除這個目標嗎？")) {
-        try {
-          const response = await axios.delete(`/api/goals/${goalId}`);
-          alert(response.data.message);
-          this.fetchGoals();
-        } catch (error) {
-          alert("刪除目標失敗。");
-          console.error("刪除目標失敗:", error);
-        }
-      }
-    },
-    async saveGoal(goalId, updatedGoal) {
       try {
-        if (updatedGoal.target_amount < 0 || updatedGoal.current_amount < 0) {
-          alert("目標金額和目前金額不能為負數！");
-          return;
-        }
-
-        const response = await axios.put(`/api/goals/${goalId}`, {
-          title: updatedGoal.title,
-          goal_type: updatedGoal.type,
-          target_amount: updatedGoal.target_amount,
-          current_amount: updatedGoal.current_amount,
+        const response = await axios.delete(`/api/goals/${goalId}`);
+        this.$swal.fire({
+          icon: "success",
+          title: "成功",
+          text: response.data.message,
         });
-
-        alert(response.data.message);
         this.fetchGoals();
       } catch (error) {
-        alert("儲存目標失敗。");
-        console.error("儲存目標失敗:", error);
+        this.$swal.fire({
+          icon: "error",
+          title: "刪除失敗",
+          text: "無法刪除目標，請稍後再試。",
+        });
+      }
+    },
+    async updateGoalProgress(goalId, newCurrentAmount) {
+      try {
+        const response = await axios.put(`/api/goals/${goalId}`, {
+          current_amount: newCurrentAmount,
+        });
+        this.$swal.fire({
+          icon: "success",
+          title: "成功",
+          text: response.data.message,
+        });
+        this.fetchGoals();
+      } catch (error) {
+        this.$swal.fire({
+          icon: "error",
+          title: "更新失敗",
+          text: "無法更新進度，請稍後再試。",
+        });
       }
     },
   },
