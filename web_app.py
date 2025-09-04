@@ -14,7 +14,7 @@ from models.goal_manager import GoalManager
 
 # 實例化 Flask 應用程式
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "https:personal-finance-gilt.vercel.app"}})
+CORS(app, resources={r"/*": {"origins": "https://personal-finance-gilt.vercel.app"}})
 
 # 實例化 Manager 類別，它們將在整個應用程式中被重複使用
 asset_manager = AssetManager()
