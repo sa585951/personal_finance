@@ -118,12 +118,6 @@ tbody tr:hover {
 }
 
 /* 這裡是它們各自獨有的樣式，請保留 */
-.delete-btn {
-  background-color: var(--danger-color);
-}
-.update-btn {
-  background-color: var(--update-color);
-}
 thead tr th:first-child {
   border-top-left-radius: 8px;
 }

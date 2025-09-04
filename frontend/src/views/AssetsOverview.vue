@@ -3,7 +3,7 @@
     <h1>個人資產總覽</h1>
 
     <TransferForm :assets="assets" @transfer-success="fetchAssets" />
-
+    <br></br>
     <AccountForm @account-added="fetchAssets" />
 
     <div v-if="loading">載入中...</div>

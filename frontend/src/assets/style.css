@@ -34,3 +34,13 @@ button:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
 }
+
+.delete-btn {
+  background-color: var(--danger-color);
+}
+.update-btn {
+  background-color: var(--update-color);
+}
+.confirm-btn {
+  background-color: var(--primary-color);
+}

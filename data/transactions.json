@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "id": "274c99ba-4934-4042-84be-e372b0aa44a5",
+    "date": "2025-09-04",
+    "type": "expense",
+    "category": "午餐",
+    "budget_category": "伙食",
+    "amount": 65,
+    "description": "涼麵",
+    "timestamp": "2025-09-04T14:21:02.144882"
+  }
+]

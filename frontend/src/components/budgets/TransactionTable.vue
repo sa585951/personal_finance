@@ -7,6 +7,7 @@
           <th>類型</th>
           <th>項目</th>
           <th>金額</th>
+          <th>備註</th>
           <th>操作</th>
         </tr>
       </thead>
@@ -15,7 +16,7 @@
           <td>{{ transaction.date }}</td>
           <td>
             <span :class="transaction.type === 'income' ? 'income' : 'expense'">
-              {{ transaction.type }}
+              {{ translateType(transaction.type) }}
             </span>
           </td>
           <td>{{ transaction.category }}</td>
@@ -30,10 +31,11 @@
               ${{ transaction.amount.toLocaleString() }}
             </span>
           </td>
+          <td>{{ transaction.description }}</td>
           <td>
             <button
               class="delete-btn"
-              @click="deleteTransaction(transaction.id)"
+              @click="promptDeleteTransaction(transaction.id)"
             >
               刪除
             </button>
@@ -57,13 +59,29 @@ export default {
     },
   },
   methods: {
-    async deleteTransaction(id) {
-      if (confirm("確定要刪除這筆交易嗎？")) {
+    translateType(type) {
+      return type === "income" ? "收入" : "支出";
+    },
+    async promptDeleteTransaction(id) {
+      const result = await this.$swal.fire({
+        title: "確定刪除？",
+        text: "此操作無法復原。",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d33",
+        cancelButtonColor: "#3085d6",
+        confirmButtonText: "確定刪除",
+        cancelButtonText: "取消",
+      });
+
+      if (result.isConfirmed) {
         try {
           await axios.delete(`/api/transactions/${id}`);
+          this.$swal.fire("刪除成功！", "交易已成功刪除。", "success");
           this.$emit("transaction-deleted");
         } catch (error) {
           console.error("刪除失敗:", error);
+          this.$swal.fire("刪除失敗！", "刪除交易失敗，請稍後再試。", "error");
         }
       }
     },

@@ -36,7 +36,7 @@
       <input
         type="text"
         id="transactionCategory"
-        v-model="newTransaction.category"
+        v-model="newTransaction.item"
         required
       />
 
@@ -71,7 +71,7 @@ export default {
       newTransaction: {
         date: format(new Date(), "yyyy-MM-dd"), // 預設為當天日期
         type: "expense",
-        category: "",
+        item: "", // 將 category 改為 item
         amount: null,
         budget_category: "", // 新增：預算類別
         description: "", // 新增：備註
@@ -103,7 +103,7 @@ export default {
       this.newTransaction = {
         date: format(new Date(), "yyyy-MM-dd"),
         type: "支出",
-        category: "",
+        item: "", // 將 category 改為 item
         amount: null,
         budget_category: "",
         description: "",

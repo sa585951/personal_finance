@@ -38,7 +38,7 @@
           />
         </div>
       </div>
-      <button type="submit" class="base-btn btn-primary">確認轉帳</button>
+      <button type="submit" class="confirm-btn" style="margin-top: 10px;">確認轉帳</button>
     </form>
   </div>
 </template>
