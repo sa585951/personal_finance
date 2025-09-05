@@ -1,120 +1,108 @@
-import uuid
 from datetime import datetime
-from config import GOALS_FILE
-from utils import load_json_file, save_json_file
+from sqlalchemy import select, insert, update, delete
+
+from .database import engine
+from .schema import goals_table
 
 class GoalManager:
-    """
-    管理財務目標的核心邏輯。
-    負責新增、更新、刪除目標以及提供純計算功能。
-    """
-    def __init__(self):
-        self.goal_file = GOALS_FILE
-        self.goals = {}
-        self.load_data()
-
-    def load_data(self):
-        """載入目標資料"""
-        self.goals = load_json_file(self.goal_file, {})
-        if self.goals:
-            print(f"📖 載入現有目標: {len(self.goals)} 個")
-        else:
-            print("🆕 建立新的目標紀錄")
-
-    def save_data(self):
-        """儲存資料"""
-        return save_json_file(self.goal_file, self.goals)
-
-    def add_goal(self, title, goal_type, target_amount, target_date, description=""):
-        """新增目標"""
-        if target_amount <= 0:
-            print("❌ 目標金額必須大於0")
-            return False
-    
-        goal_id = str(uuid.uuid4())[:8]  # 簡化的8位ID
-        self.goals[goal_id] = {
-            "title": title,
-            "type": goal_type,
-            "target_amount": target_amount,
-            "target_date": target_date,
-            "current_amount": 0,
-            "created_date": datetime.now().isoformat(),
-            "status": "active",
-            "description": description
-        }
-        
-        if self.save_data():
-            print(f"✅ 已新增目標: {title} (${target_amount:,})")
-            return True
-        else:
-            print("❌ 新增目標失敗，無法儲存資料")
-            return False
-        
-    def update_goal(self, goal_id, **updates):
-        """
-        通用更新目標方法，可同時更新多個欄位。
-        傳入 goal_id 和一個包含要更新欄位的字典。
-        例如: update_goal('goal123', title='新標題', target_amount=20000)
-        """
-        if goal_id not in self.goals:
-            print("❌ 找不到此目標")
-            return False
-
-        # 檢查更新的欄位是否有效
-        valid_keys = ["title", "type", "target_amount", "target_date", "current_amount", "description"]
-        for key, value in updates.items():
-            if key not in valid_keys:
-                print(f"❌ 無效的更新欄位: {key}")
-                return False
-
-            # 特殊處理金額，確保為正數
-            if key in ["target_amount", "current_amount"] and value < 0:
-                print(f"❌ {key} 必須大於等於 0")
-                return False
-
-            # 更新欄位
-            self.goals[goal_id][key] = value
-
-        # 檢查是否達成目標 (如果 target_amount 或 current_amount 被更新)
-        if "target_amount" in updates or "current_amount" in updates:
-            target_amount = self.goals[goal_id].get("target_amount", 0)
-            current_amount = self.goals[goal_id].get("current_amount", 0)
-            if current_amount >= target_amount:
-                self.goals[goal_id]["status"] = "completed"
-            else:
-                self.goals[goal_id]["status"] = "active"
-
-        self.goals[goal_id]["last_update"] = datetime.now().isoformat()
-        
-        if self.save_data():
-            print(f"✅ 目標「{self.goals[goal_id]['title']}」已更新")
-            return True
-        else:
-            print("❌ 更新目標失敗，無法儲存資料")
-            return False
-
-    def update_goal_progress(self, goal_id, new_current_amount):
-        """
-        更新目標進度 (舊方法)
-        """
-        return self.update_goal(goal_id, current_amount=new_current_amount)
-            
-    def delete_goal(self, goal_id):
-        """刪除目標"""
-        if goal_id in self.goals:
-            title = self.goals[goal_id]['title']
-            del self.goals[goal_id]
-            
-            if self.save_data():
-                print(f"🗑️ 已刪除目標: {title} (ID: {goal_id})")
-                return True
-            else:
-                print("❌ 刪除目標失敗，無法儲存資料")
-                return False
-        else:
-            print("❌ 找不到要刪除的目標")
-            return False
+    """管理財務目標，所有操作直接對資料庫進行。"""
 
     def get_all_goals(self):
-        """回傳所有目標資料"""
-        return self.goals
+        """從資料庫獲取所有目標"""
+        stmt = select(goals_table)
+        with engine.connect() as conn:
+            result = conn.execute(stmt)
+            # 將結果轉換為 {goal_id: {details}} 格式
+            goals = {row.id: dict(row._mapping) for row in result}
+            return goals
+
+    def add_goal(self, title, goal_type, target_amount, target_date, description=""):
+        """新增一個目標到資料庫"""
+        if target_amount <= 0:
+            return False, "目標金額必須大於0"
+
+        stmt = insert(goals_table).values(
+            title=title,
+            type=goal_type,
+            target_amount=target_amount,
+            target_date=target_date,
+            current_amount=0,
+            created_date=datetime.now(),
+            last_update=datetime.now(),
+            status="active",
+            description=description
+        )
+        
+        with engine.connect() as conn:
+            try:
+                result = conn.execute(stmt)
+                conn.commit()
+                # 返回帶有新 ID 的成功訊息
+                new_id = result.inserted_primary_key[0]
+                print(f"✅ 已新增目標 '{title}' 到資料庫，ID: {new_id}")
+                return True, {"id": new_id}
+            except Exception as e:
+                print(f"❌ 新增目標失敗: {e}")
+                return False, f"新增目標失敗: {e}"
+
+    def update_goal(self, goal_id, **updates):
+        """通用更新目標方法，可同時更新多個欄位"""
+        with engine.connect() as conn:
+            # 1. 先獲取目標的當前狀態
+            goal_stmt = select(goals_table).where(goals_table.c.id == goal_id)
+            current_goal = conn.execute(goal_stmt).first()
+            if not current_goal:
+                return False, "找不到此目標"
+
+            # 2. 準備要更新的資料
+            update_values = updates.copy()
+            update_values['last_update'] = datetime.now()
+
+            # 3. 檢查並更新目標狀態
+            current_amount = update_values.get("current_amount", current_goal.current_amount)
+            target_amount = update_values.get("target_amount", current_goal.target_amount)
+            
+            if current_amount >= target_amount:
+                update_values['status'] = "completed"
+            else:
+                update_values['status'] = "active"
+
+            # 4. 執行更新
+            stmt = update(goals_table).where(goals_table.c.id == goal_id).values(**update_values)
+            conn.execute(stmt)
+            conn.commit()
+            print(f"✅ 已更新目標 ID: {goal_id}")
+            return True, "目標更新成功"
+
+    def delete_goal(self, goal_id):
+        """從資料庫刪除目標"""
+        stmt = delete(goals_table).where(goals_table.c.id == goal_id)
+        with engine.connect() as conn:
+            result = conn.execute(stmt)
+            conn.commit()
+            if result.rowcount == 0:
+                print(f"❌ 刪除失敗: 找不到目標 ID: {goal_id}")
+                return False, "找不到要刪除的目標"
+            print(f"🗑️ 已從資料庫刪除目標 ID: {goal_id}")
+            return True, "成功刪除目標"
+
+    def calculate_goal_summary(self):
+        """計算所有目標的總覽"""
+        all_goals = self.get_all_goals()
+        summary = {
+            "total_goals": len(all_goals),
+            "active_goals": 0,
+            "completed_goals": 0,
+            "total_needed": 0,
+            "total_saved": 0,
+        }
+        for goal in all_goals.values():
+            if goal["status"] == "active":
+                summary["active_goals"] += 1
+            else:
+                summary["completed_goals"] += 1
+            
+            summary["total_needed"] += goal["target_amount"]
+            summary["total_saved"] += goal["current_amount"]
+        
+        return summary
