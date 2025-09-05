@@ -92,8 +92,9 @@ class GoalManager:
             "total_goals": len(all_goals),
             "active_goals": 0,
             "completed_goals": 0,
-            "total_needed": 0,
-            "total_saved": 0,
+            "total_target_amount": 0,
+            "total_current_amount": 0,
+            "overall_progress_percentage": 0
         }
         for goal in all_goals:
             if goal["status"] == "active":
@@ -101,7 +102,12 @@ class GoalManager:
             else:
                 summary["completed_goals"] += 1
             
-            summary["total_needed"] += goal["target_amount"]
-            summary["total_saved"] += goal["current_amount"]
+            summary["total_target_amount"] += goal["target_amount"]
+            summary["total_current_amount"] += goal["current_amount"]
         
+        if summary["total_target_amount"] > 0:
+            summary["overall_progress_percentage"] = (summary["total_current_amount"] / summary["total_target_amount"]) * 100
+        else:
+            summary["overall_progress_percentage"] = 0
+
         return summary
