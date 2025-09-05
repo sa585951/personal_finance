@@ -53,7 +53,8 @@ class BudgetManager:
 
     def get_all_transaction_months(self):
         """從交易紀錄中提取所有唯一的月份 (YYYY-MM)"""
-        stmt = select(distinct(func.to_char(transactions_table.c.date, 'YYYY-MM'))).order_by(1.desc())
+        month_expr = func.to_char(transactions_table.c.date, 'YYYY-MM')
+        stmt = select(distinct(month_expr)).order_by(month_expr.desc())
         with engine.connect() as conn:
             result = conn.execute(stmt)
             return [row[0] for row in result]
