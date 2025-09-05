@@ -105,6 +105,10 @@ class GoalManager:
             summary["total_target_amount"] += goal["target_amount"]
             summary["total_current_amount"] += goal["current_amount"]
         
+        # 將 Decimal 轉換為 float 以便進行 JSON 序列化
+        summary["total_target_amount"] = float(summary["total_target_amount"])
+        summary["total_current_amount"] = float(summary["total_current_amount"])
+
         if summary["total_target_amount"] > 0:
             summary["overall_progress_percentage"] = (summary["total_current_amount"] / summary["total_target_amount"]) * 100
         else:
