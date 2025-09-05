@@ -294,6 +294,13 @@ def get_income_expense_summary():
     }
     return jsonify({"success": True, "data": chart_data})
 
+@app.route("/api/reports/transactions_by_category_over_time", methods=["GET"])
+def get_transactions_by_category_over_time():
+    interval = request.args.get("interval", "month") # Default to 'month'
+    chart_data = budget_manager.get_transactions_by_category_over_time(interval)
+    return jsonify({"success": True, "data": chart_data})
+
+
 @app.route("/api/reports/overspending_warnings", methods=["GET"])
 def get_overspending_warnings():
     month = request.args.get("month")

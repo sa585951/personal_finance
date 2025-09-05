@@ -137,6 +137,63 @@ class BudgetManager:
             result = conn.execute(stmt)
             return {row.budget_category: row.total_spent for row in result}
 
+    def get_transactions_by_category_over_time(self, interval='month'):
+        """按時間間隔和類別匯總支出數據"""
+        if interval == 'month':
+            time_format = 'YYYY-MM'
+        elif interval == 'year':
+            time_format = 'YYYY'
+        else: # Default to month if interval is invalid
+            time_format = 'YYYY-MM'
+
+        time_period = func.to_char(transactions_table.c.date, time_format).label('time_period')
+        
+        stmt = (
+            select(
+                time_period,
+                transactions_table.c.budget_category,
+                func.sum(transactions_table.c.amount).label("total_spent")
+            )
+            .where(transactions_table.c.type == 'expense')
+            .where(transactions_table.c.budget_category.isnot(None))
+            .group_by(time_period, transactions_table.c.budget_category)
+            .order_by(time_period.asc(), transactions_table.c.budget_category.asc())
+        )
+
+        with engine.connect() as conn:
+            result = conn.execute(stmt)
+            # Restructure data for charting
+            data = {} # { '2023-01': {'Food': 100, 'Transport': 50}, ... }
+            for row in result:
+                period = row.time_period
+                category = row.budget_category
+                spent = float(row.total_spent)
+                
+                if period not in data:
+                    data[period] = {}
+                data[period][category] = spent
+
+        if not data:
+            return {"labels": [], "datasets": []}
+
+        # Final transformation for Chart.js
+        labels = sorted(list(data.keys()))
+        all_categories = sorted(list(set(cat for period_data in data.values() for cat in period_data.keys())))
+        
+        datasets = []
+        # A color palette for the chart
+        colors = ["#42A5F5", "#66BB6A", "#FFA726", "#26A69A", "#BDBDBD", "#7986CB", "#C0CA33", "#FF7043", "#8D6E63", "#EC407A"]
+        
+        for i, category in enumerate(all_categories):
+            dataset = {
+                "label": category,
+                "data": [data[label].get(category, 0) for label in labels],
+                "backgroundColor": colors[i % len(colors)],
+            }
+            datasets.append(dataset)
+            
+        return {"labels": labels, "datasets": datasets}
+
     def check_over_warnings(self, month=None):
         """檢查超支警告"""
         overspend_items = []

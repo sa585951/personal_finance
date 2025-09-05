@@ -12,8 +12,7 @@ class GoalManager:
         stmt = select(goals_table)
         with engine.connect() as conn:
             result = conn.execute(stmt)
-            # 將結果轉換為 {goal_id: {details}} 格式
-            goals = {row.id: dict(row._mapping) for row in result}
+            goals = [dict(row._mapping) for row in result]
             return goals
 
     def add_goal(self, title, goal_type, target_amount, target_date, description=""):
