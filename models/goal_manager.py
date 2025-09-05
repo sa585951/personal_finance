@@ -95,7 +95,7 @@ class GoalManager:
             "total_needed": 0,
             "total_saved": 0,
         }
-        for goal in all_goals.values():
+        for goal in all_goals:
             if goal["status"] == "active":
                 summary["active_goals"] += 1
             else:
