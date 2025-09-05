@@ -28,6 +28,7 @@ import {
   LinearScale,
 } from "chart.js";
 import axios from "axios";
+import { Bar } from 'vue-chartjs';
 
 ChartJS.register(
   Title,
