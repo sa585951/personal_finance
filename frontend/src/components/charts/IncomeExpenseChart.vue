@@ -16,7 +16,8 @@
 </template>
 
 <script>
-import { Bar } from "vue-chartjs";
+import { ref, onMounted, watch } from 'vue';
+const API_URL = import.meta.env.VITE_APP_API_URL;
 import {
   Chart as ChartJS,
   Title,
