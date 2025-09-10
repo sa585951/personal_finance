@@ -2,6 +2,33 @@
 
 這是一個以 Python 和 Flask 打造的 RESTful API 後端，用於管理個人資產、預算與財務目標。
 
+## 🎯 專案定位
+- **類型**：全端 Side Project
+- **功能**：資產追蹤、預算管理、財務目標、報表視覺化
+- **技術亮點**：Flask + Vue 3 + PostgreSQL + Render/Vercel 部署
+- **實用性**：幫助使用者管理個人財務，適合擴展為 SaaS 應用
+
+## 🛠 技術棧
+- **後端**: Python (Flask)
+- **前端**: Vue 3 + Vite
+- **資料庫**: PostgreSQL
+- **圖表**: Chart.js + vue-chartjs
+- **部署**: Render (後端/DB), Vercel (前端)
+
+## 📈 功能列表
+- 資產管理：多銀行帳戶追蹤  
+- 交易紀錄：收入 / 支出分類  
+- 預算設定：每月類別預算 + 超支追蹤  
+- 財務目標：進度追蹤  
+- 視覺化：月度支出分佈圖、資產變化圖表  
+
+## 🚀 未來優化方向
+- 多使用者系統 (登入、權限控管)  
+- 自動化 API（股價、匯率）  
+- ML 預算/支出預測  
+- CI/CD + Docker + Kubernetes 部署  
+
+
 ## 專案架構
 
 -   `main.py`: 專案的主程式入口，提供一個命令列介面 (CLI) 進行測試與互動。
@@ -14,6 +41,11 @@
 -   `data/`: 存放所有 JSON 格式的資料檔案。
 -   `config.py`: 專案的通用設定檔。
 -   `utils.py`: 專案的通用工具函數。
+
+
+## 🔗 Demo / GitHub
+- [GitHub Repo](#)  
+- [Demo 連結](#)  
 
 ## 安裝與執行
 
@@ -41,3 +73,4 @@ pip install Flask
 python main.py
 # 請確保你在專案的根目錄
 python web_app.py
+```
