@@ -159,7 +159,7 @@ class LineBotManager:
             # 格式化回覆
             reply = f"【{current_month} 支出統計】 \n"
             total = 0
-            for category, amount in expenses.item():
+            for category, amount in expenses.items():
                 reply += f"· {category}: ${amount:,.0f}\n"
                 total += amount
 
