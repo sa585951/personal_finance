@@ -1,5 +1,8 @@
 import os
 import json
+from models.schema import budget_categories_table
+from models.database import engine
+from sqlalchemy import select
 from datetime import datetime
 import google.generativeai as genai
 from linebot import LineBotApi, WebhookHandler
@@ -49,30 +52,27 @@ class LineBotManager:
         """註冊 Line Bot 事件處理器"""
         @self.handler.add(MessageEvent, message=TextMessage)
         def handle_text_message(event):
-            self.handle_message(event)
+            self.handle_message_flex(event)
 
-    def handle_message(self, event):
-        """處理用戶訊息"""
+    def handle_message_flex(self, event):
+        """支援 Flex Message 的訊息處理"""
         user_message = event.message.text.strip()
         user_id = event.source.user_id
 
         try:
-            # 先回覆處理中訊息 (提升用戶體驗)
-            self.reply_message(event.reply_token, "正在處理您的記帳...")
-
-            # 解析訊息
             parsed_data = self.parse_with_gemini(user_message)
 
-            # 處理解析結果
-            response_message = self.process_parsed_message(parsed_data, user_id)
-
-            # 發送最終回復 (使用push message)
-            self.push_message(user_id, response_message)
+            if parsed_data.get("type") == "expense":
+                response_message = self.handle_expense_with_flex(parsed_data, user_id)
+            else:
+                response_message = self.process_parsed_message(parsed_data, user_id)
+            
+            self.reply_message_flex(event.reply_token, response_message)
 
         except Exception as e:
             print(f"LINE Bot 錯誤: {e}")
             error_msg = "抱歉，系統暫時無法處理，請稍後再試"
-            self.reply_message(event.reply_token, error_msg)
+            self.reply_message_flex(event.reply_token, error_msg)
             
 
     def parse_with_gemini(self, message):
@@ -96,7 +96,7 @@ class LineBotManager:
         message_type = parsed_data.get("type")
 
         if message_type == "expense":
-            return self.handle_expense(parsed_data, user_id)
+            return self.handle_expense_with_flex(parsed_data, user_id)
         elif message_type == "income":
             return self.handle_income(parsed_data, user_id)
         elif message_type == "query":
@@ -106,8 +106,8 @@ class LineBotManager:
         else:
             return self.get_help_message()
         
-    def handle_expense(self, data, user_id):
-        """處理支出紀錄"""
+    def handle_expense_with_flex(self, data, user_id):
+        """使用 Flex Message 處理支出"""
         try:
             # 使用現有的 budget_manager
             success, message = self.budget_manager.add_transaction(
@@ -120,7 +120,7 @@ class LineBotManager:
             )
 
             if success:
-                return self._format_expense_success(data)
+                return self._format_expense_success_flex(data)
             else:
                 return f"紀錄失敗:{message}"
             
@@ -184,9 +184,235 @@ class LineBotManager:
         except Exception as e:
             return f"查詢失敗:{str(e)}"
         
-    def _format_expense_success(self, data):
-        """格式化支出成功訊息"""
-        return f"記帳成功！\n💰 金額：${data['amount']:,}\n📁 類別：{data['category']}\n📝 描述：{data['description']}"
+    def _format_expense_success_flex(self, data):
+        """使用 Flex Message 格式化支出成功訊息"""
+        category = data.get("category", "其他")
+        amount = data.get("amount", 0)
+        description = data.get("description", "記帳")
+        date = datetime.now().strftime("%Y/%m/%d")
+
+        #類別顏色對應
+        category_color = {
+            "餐飲": "#4CAF50",
+            "交通": "#2196F3", 
+            "購物": "#FF9800",
+            "娛樂": "#E91E63",
+            "醫療": "#F44336",
+            "投資": "#607D8B",
+            "生活": "#795548",
+            "其他": "#9E9E9E"
+        }
+
+        selected_color = category_color.get(category, "#9E9E9E")
+
+        #獲取預算狀況
+        budget_status = self._get_budget_status_for_flex(category)
+
+        flex_content = {
+        "type": "bubble",
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "box",
+                    "layout": "horizontal",
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": category,
+                            "weight": "bold",
+                            "color": "#FFFFFF",
+                            "size": "sm"
+                        },
+                        {
+                            "type": "text",
+                            "text": "記帳成功",
+                            "weight": "bold",
+                            "color": "#FFFFFF",
+                            "size": "xs",
+                            "align": "end"
+                        }
+                    ],
+                    "backgroundColor": selected_color,
+                    "paddingAll": "12px",
+                    "cornerRadius": "8px",
+                    "margin": "none"
+                },
+                {
+                    "type": "text",
+                    "text": f"${amount:,}",
+                    "weight": "bold",
+                    "size": "4xl",
+                    "margin": "lg",
+                    "color": "#333333"
+                },
+                {
+                    "type": "box",
+                    "layout": "vertical",
+                    "margin": "lg",
+                    "spacing": "sm",
+                    "contents": [
+                        {
+                            "type": "box",
+                            "layout": "baseline",
+                            "spacing": "sm",
+                            "contents": [
+                                {
+                                    "type": "text",
+                                    "text": "備註",
+                                    "color": "#999999",
+                                    "size": "sm",
+                                    "flex": 1
+                                },
+                                {
+                                    "type": "text",
+                                    "text": description,
+                                    "wrap": True,
+                                    "color": "#666666",
+                                    "size": "sm",
+                                    "flex": 3
+                                }
+                            ]
+                        },
+                        {
+                            "type": "box",
+                            "layout": "baseline",
+                            "spacing": "sm",
+                            "contents": [
+                                {
+                                    "type": "text",
+                                    "text": "日期",
+                                    "color": "#999999",
+                                    "size": "sm",
+                                    "flex": 1
+                                },
+                                {
+                                    "type": "text",
+                                    "text": date,
+                                    "wrap": True,
+                                    "color": "#666666",
+                                    "size": "sm",
+                                    "flex": 3
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+        if budget_status:
+            flex_content["body"]["contents"].append({
+                "type": "separator",
+                "margin": "lg"
+            })
+            flex_content["body"]["contents"].append({
+                "type": "box",
+                "layout": "vertical",
+                "margin": "lg",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": budget_status["title"],
+                        "size": "sm",
+                        "color": budget_status["color"],
+                        "weight": "bold"
+                    },
+                    {
+                        "type": "text",
+                        "text": budget_status["message"],
+                        "size": "xs",
+                        "color": "#666666",
+                        "wrap": True,
+                        "margin": "xs"
+                    }
+                ]
+            })
+
+        flex_content["footer"] = {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "sm",
+            "contents": [
+                {
+                    "type": "button",
+                    "style": "link",
+                    "height": "sm",
+                    "action": {
+                        "type": "message",
+                        "label": "查看本月支出",
+                        "text": "查詢本月支出"
+                    }
+                },
+                {
+                    "type": "button",
+                    "style": "link", 
+                    "height": "sm",
+                    "action": {
+                        "type": "message",
+                        "label": "查看資產狀況",
+                        "text": "我的資產"
+                    }
+                }
+            ]
+        }
+        
+        return FlexSendMessage(
+            alt_text=f"{category} ${amount:,} 記帳成功",
+            contents=flex_content
+        )
+    
+    def _get_budget_status_for_flex(self, category):
+        """獲取預算狀況用於 Flex Message"""
+        try:
+            current_month = datetime.now().strftime("%Y-%m")
+
+            stmt = select(budget_categories_table).where(
+                budget_categories_table.c.month == current_month,
+                budget_categories_table.c.category_name == category
+            )
+
+            with engine.connect() as conn:
+                budget_result = conn.execute(stmt).first()
+                if not budget_result:
+                    return None
+                
+            budget_amount = float(budget_result.amount)
+
+            #計算已花費
+            expenses = self.budget_manager.calculate_monthly_expenses(current_month)
+            spent = expenses.get(category, 0)
+            remaining = budget_amount - spent
+            usage_rate = (spent / budget_amount) * 100
+
+            #根據使用率回應
+            if usage_rate >= 100:
+                return {
+                    "title": "⚠️ 預算超支",
+                    "message": f"已超支 ${abs(remaining):,}",
+                    "color": "#F44336"
+                }
+            elif usage_rate >= 80:
+                return {
+                    "title": "⚠️ 預算警告", 
+                    "message": f"剩餘 ${remaining:,} ({100-usage_rate:.0f}%)",
+                    "color": "#FF9800"
+                }
+            elif usage_rate >= 50:
+                return {
+                    "title": "✅ 預算正常",
+                    "message": f"剩餘 ${remaining:,} ({100-usage_rate:.0f}%)",
+                    "color": "#4CAF50"
+                }
+            else:
+                return {
+                    "title": "✅ 預算充足",
+                    "message": f"剩餘 ${remaining:,}",
+                    "color": "#4CAF50"
+                }
+        except Exception as e:
+            return None
     
     def _format_income_success(self, data):
         return f"收入記錄成功！\n💰 金額：${data['amount']:,}\n📝 描述：{data['description']}"
@@ -243,24 +469,33 @@ class LineBotManager:
                 result["descripttion"] = original_message[:20]
 
         return result
-    
-    def reply_message(self, reply_token, message):
-        """回覆訊息"""
+
+    def reply_message_flex(self, reply_token, message):
+        """支援 Flex Message 的回覆方法"""
         try:
-            self.line_bot_api.reply_message(
-                reply_token,
-                TextSendMessage(text=message)
-            )
+            if isinstance(message, str):
+                # 文字訊息
+                self.line_bot_api.reply_message(
+                    reply_token,
+                    TextSendMessage(text=message)
+                )
+            else:
+                self.line_bot_api.reply_message(reply_token, message)
+
         except LineBotApiError as e:
             print(f"Line API Error: {e}")
-    
-    def push_message(self, user_id, message):
-        """推送訊息"""
+
+    def push_message_flex(self, user_id, message):
+        """支援 Flex Message 的推送方法"""
         try:
-            self.line_bot_api.push_message(
-                user_id,
-                TextSendMessage(text=message)
-            )
+            if isinstance(message, str):
+                # 文字訊息
+                self.line_bot_api.push_message(
+                    user_id,
+                    TextSendMessage(text=message)
+                )
+            else:
+                self.line_bot_api.push_message(user_id, message)
         except LineBotApiError as e:
             print(f"Line Push Error: {e}")
 
