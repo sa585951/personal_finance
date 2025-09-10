@@ -2,13 +2,15 @@ from datetime import datetime
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from sqlalchemy import select, func
+from linebot.exceptions import InvalidSignatureError
 
 # 匯入重構後的核心類別和資料庫引擎
 from models.asset_manager import AssetManager
 from models.budget_manager import BudgetManager
 from models.goal_manager import GoalManager
-from models.database import engine # 雖然 manager 內部已使用，但部分報告可能直接用
-from models.schema import budget_categories_table, transactions_table # 報告可能會用到
+from models.linebot_manager import LineBotManager
+from models.database import engine 
+from models.schema import budget_categories_table, transactions_table 
 
 # 實例化 Flask 應用程式
 app = Flask(__name__)
@@ -18,6 +20,7 @@ CORS(app) # 簡化 CORS 設定，允許所有來源
 asset_manager = AssetManager()
 budget_manager = BudgetManager()
 goal_manager = GoalManager()
+linebot_manager = LineBotManager(budget_manager, asset_manager)
 
 @app.route("/")
 def home():
@@ -311,6 +314,22 @@ def get_overspending_warnings():
 def get_goal_summary():
     summary = goal_manager.calculate_goal_summary()
     return jsonify({"success": True, "data": summary})
+
+@app.route("/line-webhook", methods=["POST"])
+def line_webhook():
+    """Line Bot Webhook 端點"""
+    signature = request.headers.get('X-Line-Signature', '')
+    body = request.get_data(as_text=True)
+
+    try:
+        linebot_manager.handler.handle(body, signature)
+        return 'OK', 200
+    except InvalidSignatureError:
+        print("Invalid Line signature")
+        return 'Bad Request', 400
+    except Exception as e:
+        print(f"LINE Webhook error: {e}")
+        return 'Internal Server Error', 500
 
 if __name__ == "__main__":
     # 在生產環境中，應使用 Gunicorn 或其他 WSGI 伺服器

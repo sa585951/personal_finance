@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(/D:\\Project\\personal_finance\\models/**)",
+      "Read(/D:\\Project\\personal_finance/**)",
+      "Read(/D:\\Project\\personal_finance\\models/**)",
+      "Read(/D:\\Project\\personal_finance\\models/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
