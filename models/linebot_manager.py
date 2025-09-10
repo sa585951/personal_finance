@@ -22,7 +22,7 @@ class LineBotManager:
 
         # Gemini設定
         genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-        self.model = genai.GenerativeModel('models/gemini-1.5-flasg')
+        self.model = genai.GenerativeModel('models/gemini-1.5-flash')
 
         # 註冊事件處理器
         self.register_handlers()
@@ -151,7 +151,7 @@ class LineBotManager:
         try:
             # 獲取本月支出統計
             current_month = datetime.now().strftime("%Y-%m")
-            expenses = self.budget_manager.calculate_monthly_expense(current_month)
+            expenses = self.budget_manager.calculate_monthly_expenses(current_month)
 
             if not expenses:
                 return f"本月尚無支出紀錄"
