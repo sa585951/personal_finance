@@ -481,15 +481,7 @@ class LineBotManager:
         """處理資產查詢"""
         try:
             totals = self.asset_manager.calculate_totals()
-
-            reply = "【資產總攬】\n"
-            reply += f"總資產: ${totals.get('總資產', 0):,.0f}\n\n"
-
-            for asset_type, amount in totals.items():
-                if asset_type != '總資產' and amount > 0:
-                    reply += f"·{asset_type}: ${amount:,.0f}\n"
-
-            return reply
+            return self._create_asset_overview_flex(totals)
         except Exception as e:
             return f"查詢失敗:{str(e)}"
         
@@ -805,6 +797,202 @@ class LineBotManager:
             contents=flex_content
         )
     
+    def _create_asset_overview_flex(self, totals):
+        """建立資產總攬 Flex Message"""
+        total_assets = totals.get('總資產', 0 )
+
+        #資產類型顏色對應
+        asset_colors = {
+            "活存": "#4CAF50",
+            "定存": "#2196F3",
+            "投資": "#FF9800",
+            "其他": "#9E9E9E"
+        }
+
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents":[
+                    {
+                        "type": "text",
+                        "text": "資產總攬",
+                        "weight": "bold",
+                        "size": "lg",
+                        "color": "#333333"
+                    },
+                    {
+                        "type": "text",
+                        "text": f"${total_assets:,.0f}",
+                        "weight": "bold",
+                        "size": "4xl",
+                        "color": "#4CAF50",
+                        "margin": "md"
+                    },
+                    {
+                        "type": "text",
+                        "text": f"更新時間: {datetime.now().strftime('%Y/%m/%d %H:%M')}",
+                        "size": "xs",
+                        "color": "#999999",
+                        "margin": "sm"
+                    }
+                ],
+                "backgroundColor": "#F8F9FA",
+                "paddingAll": "20px"
+            },
+            "body":{
+                "type": "box",
+                "layout": "vertical",
+                "contents": []
+            }
+        }
+
+        # 過濾出有金額的資產類型
+        active_assets = {k: v for k, v in totals.items()
+                        if k != '總資產' and v > 0}
+        
+        if active_assets:
+            #資產分布標題
+            flex_content["body"]["contents"].append({
+                "type": "text",
+                "text": "資產分布",
+                "weight": "bold",
+                "size": "md",
+                "color": "#333333",
+                "margin": "lg"
+            })
+        
+            # 資產分布列表
+            for asset_type, amount in active_assets.items():
+                percentage = (amount / total_assets * 100) if total_assets > 0 else 0
+                color = asset_colors.get(asset_type, "#9E9E9E")
+
+                # 資產項目
+                asset_row = {
+                    "type": "box",
+                    "layout": "horizontal",
+                    "contents":[
+                        {
+                            "type": "box",
+                            "layout": "vertical",
+                            "contents":[
+                                {
+                                    "type": "text",
+                                    "text": asset_type,
+                                    "weight": "bold",
+                                    "size": "sm",
+                                    "color": "#333333"
+                                },
+                                {
+                                    "type": "text",
+                                    "text": f"{percentage:.1f}%",
+                                    "size": "xs",
+                                    "color": "#666666"
+                                }
+                            ],
+                            "flex": 2
+                        },
+                        {
+                            "type": "text",
+                            "text": f"${amount:,.0f}",
+                            "size": "sm",
+                            "color": "#333333",
+                            "align": "end",
+                            "weight": "bold",
+                            "flex": 2
+                        }
+                    ],
+                    "margin": "md",
+                    "backgroundColor": "#FFFFFF",
+                    "paddingAll": "12px",
+                    "cornerRadius": "8px",
+                    "borderWidth": "2px",
+                    "borderColor": color
+                }
+
+                flex_content["body"]["contents"].append(asset_row)
+        else:
+            #沒有資產時的提示
+            flex_content["body"]["contents"].append({
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "尚未新增任何資產",
+                        "size": "sm",
+                        "color": "#999999",
+                        "align": "center",
+                        "margin": "sm"
+                    },
+                    {
+                        "type": "text",
+                        "text": "點擊下方按鈕開始管理您的資產",
+                        "size": "sm",
+                        "color": "#999999",
+                        "align": "center",
+                        "margin": "sm"
+                    }
+                ],
+                "margin": "lg",
+                "paddingAll": "20px"
+            })
+        
+        # 操作按鈕
+        flex_content["footer"] = {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "sm",
+            "contents": [
+                {
+                    "type": "button",
+                    "style": "primary",
+                    "height": "sm",
+                    "color": "#4CAF50",
+                    "action": {
+                        "type": "message",
+                        "label": "帳戶間轉帳",
+                        "text": "我要轉帳"
+                    }
+                },
+                {
+                    "type": "box",
+                    "layout": "horizontal",
+                    "spacing": "sm",
+                    "contents": [
+                        {
+                            "type": "button",
+                            "style": "link",
+                            "height": "sm",
+                            "action":{
+                                "type": "message",
+                                "label": "新增帳戶",
+                                "text": "新增銀行帳戶"
+                            },
+                            "flex": 1
+                        },
+                        {
+                            "type": "button",
+                            "style": "link",
+                            "height": "sm",
+                            "action": {
+                                "type": "message",
+                                "label": "查看支出",
+                                "text": "查詢本月支出"
+                            },
+                            "flex": 1
+                        }
+                    ]
+                }
+            ]
+        }
+
+        return FlexSendMessage(
+            alt_text=f"資產總覽 ${total_assets:,.0f}",
+            contents=flex_content
+        )
+
     def _get_budget_status_for_flex(self, category):
         """獲取預算狀況用於 Flex Message"""
         try:
