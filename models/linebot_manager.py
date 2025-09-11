@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from models.schema import budget_categories_table
 from models.database import engine
 from sqlalchemy import select
@@ -15,6 +16,9 @@ from linebot.models import (
 
 class LineBotManager:
     def __init__(self, budget_manager=None, asset_manager=None):
+
+        self._startup_time = time.time()
+        self._is_warming_up = True
         #Line Bot設定
         self.line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
         self.handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
@@ -43,7 +47,7 @@ class LineBotManager:
         4. 資產查詢：{{"type": "asset_query"}}
         5. 非記帳訊息：{{"type": "other"}}
 
-        類別限制：餐飲、交通、購物、娛樂、醫療、教育、投資、生活、其他
+        類別限制：伙食、交通、購物、娛樂、醫療、投資、生活、其他
 
         注意：只回傳純 JSON，不要 markdown 標記
         """
@@ -55,11 +59,18 @@ class LineBotManager:
             self.handle_message_flex(event)
 
     def handle_message_flex(self, event):
-        """支援 Flex Message 的訊息處理"""
+        """支援 Flex Message 的訊息處理 - 加入冷啟動檢測"""
         user_message = event.message.text.strip()
         user_id = event.source.user_id
 
         try:
+            # 檢測冷啟動狀態
+            if self._is_cold_start():
+                print(f"檢測到冷啟動，訊息: {user_message}")
+                self.reply_message_flex(event.reply_token,
+                    "🚀 系統剛啟動完成！\n請重新發送您的訊息，我現在準備好了 😊")
+                return
+
             parsed_data = self.parse_with_gemini(user_message)
 
             if parsed_data.get("type") == "expense":
@@ -71,13 +82,23 @@ class LineBotManager:
 
         except Exception as e:
             print(f"LINE Bot 錯誤: {e}")
-            error_msg = "抱歉，系統暫時無法處理，請稍後再試"
+
+            # 如果是啟動期間的錯誤，可能是資源尚未載入
+            if self._is_cold_start():
+                error_msg = "系統正在啟動中，請稍後重新發送訊息"
+            else:
+                error_msg = "抱歉，系統暫時無法處理，請稍後再試"
+
             self.reply_message_flex(event.reply_token, error_msg)
             
 
     def parse_with_gemini_original(self, message):
         """使用 Gemini 解析自然語言"""
         try:
+            # 紀錄是否在冷啟動期間使用 Gemini
+            if self._is_cold_start():
+                print(f"冷啟動期間呼叫 Gemini: {message}")
+
             prompt = self.prompt_template.format(message = message)
             response = self.model.generate_content(prompt)
 
@@ -89,6 +110,11 @@ class LineBotManager:
         
         except Exception as e:
             print(f"Gemini 解析失敗: {e}")
+
+            # 冷啟動期間的特殊處理
+            if self._is_cold_start():
+                print("冷啟動期間 Gemini 失敗， 可能是網路連線還沒穩定")
+
             return {"type": "other", "error": str(e)}
     
     def parse_with_gemini(self, message):
@@ -130,7 +156,7 @@ class LineBotManager:
         if message_type == "expense":
             return self.handle_expense_with_flex(parsed_data, user_id)
         elif message_type == "income":
-            return self.handle_income(parsed_data, user_id)
+            return self.handle_income_with_flex(parsed_data, user_id)
         elif message_type == "query":
             return self.handle_query(user_id)
         elif message_type == "asset_query":
@@ -148,7 +174,7 @@ class LineBotManager:
                 amount = data["amount"],
                 transaction_type = "expense",
                 budget_category = data["category"],
-                description = f"LINE Bot: {data.get('description', '')}"
+                description = f"{data.get('description', '')}"
             )
 
             if success:
@@ -159,24 +185,25 @@ class LineBotManager:
         except Exception as e:
             return f"紀錄失敗: {str(e)}"
         
-    def handle_income(self, data, user_id):
-        """處理收入紀錄"""
+    def handle_income_with_flex(self, data, user_id):
+        """使用 Flex Message 處理收入"""
         try:
             success, message = self.budget_manager.add_transaction(
-                date = datetime.now().strftime("%Y-%m-%d"),
-                item = data.get("description", "Line收入"),
-                amount = data["amount"],
-                transaction_type = "income",
-                budget_category = "收入",
-                description = f"LINE Bot: {data.get('description', '')}"
+                date=datetime.now().strftime("%Y-%m-%d"),
+                item=data.get("description", "Line收入"),
+                amount=data["amount"],
+                transaction_type="income",
+                budget_category="收入",
+                description=f"{data.get('description', '')}"
             )
-            if success:
-                return self._format_income_success(data)
-            else:
-                return f"紀錄失敗:{message}"
             
+            if success:
+                return self._format_income_success_flex(data)
+            else:
+                return f"記錄失敗: {message}"
+                
         except Exception as e:
-            return f"紀錄失敗: {str(e)}"
+            return f"記錄失敗: {str(e)}"
         
     def handle_query(self, user_id):
         """處理查詢請求"""
@@ -225,7 +252,7 @@ class LineBotManager:
 
         #類別顏色對應
         category_color = {
-            "餐飲": "#4CAF50",
+            "伙食": "#4CAF50",
             "交通": "#2196F3", 
             "購物": "#FF9800",
             "娛樂": "#E91E63",
@@ -395,6 +422,139 @@ class LineBotManager:
             contents=flex_content
         )
     
+    def _format_income_success_flex(self,data):
+        """使用 Flex Message 格式化收入成功訊息"""
+        amount = data.get("amount", 0)
+        description = data.get("description", "收入")
+        date = datetime.now().strftime("%Y/%m/%d")
+
+        flex_content = {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "收入",
+                                "weight": "bold",
+                                "color": "#FFFFFF",
+                                "size": "sm"
+                            },
+                            {
+                                "type": "text",
+                                "text": "記錄成功",
+                                "weight": "bold",
+                                "color": "#FFFFFF",
+                                "size": "xs",
+                                "align": "end"
+                            }
+                        ],
+                        "backgroundColor": "#4CAF50",  # 綠色表示收入
+                        "paddingAll": "12px",
+                        "cornerRadius": "8px",
+                        "margin": "none"
+                    },
+                    {
+                        "type": "text",
+                        "text": f"+${amount:,}",  # 加上 + 號表示收入
+                        "weight": "bold",
+                        "size": "4xl",
+                        "margin": "lg",
+                        "color": "#4CAF50"  # 綠色金額
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "margin": "lg",
+                        "spacing": "sm",
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "baseline",
+                                "spacing": "sm",
+                                "contents": [
+                                    {
+                                        "type": "text",
+                                        "text": "備註",
+                                        "color": "#999999",
+                                        "size": "sm",
+                                        "flex": 1
+                                    },
+                                    {
+                                        "type": "text",
+                                        "text": description,
+                                        "wrap": True,
+                                        "color": "#666666",
+                                        "size": "sm",
+                                        "flex": 3
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "box",
+                                "layout": "baseline",
+                                "spacing": "sm",
+                                "contents": [
+                                    {
+                                        "type": "text",
+                                        "text": "日期",
+                                        "color": "#999999",
+                                        "size": "sm",
+                                        "flex": 1
+                                    },
+                                    {
+                                        "type": "text",
+                                        "text": date,
+                                        "wrap": True,
+                                        "color": "#666666",
+                                        "size": "sm",
+                                        "flex": 3
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "link",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "查看本月支出",
+                            "text": "查詢本月支出"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "link", 
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "查看資產狀況",
+                            "text": "我的資產"
+                        }
+                    }
+                ]
+            }
+        }
+        
+        return FlexSendMessage(
+            alt_text=f"收入 +${amount:,} 記錄成功",
+            contents=flex_content
+        )
+    
     def _get_budget_status_for_flex(self, category):
         """獲取預算狀況用於 Flex Message"""
         try:
@@ -452,7 +612,7 @@ class LineBotManager:
 
     def get_help_message(self):
         """取得幫助訊息"""
-        return """歡迎使用個人財務助手！
+        base_message =  """歡迎使用個人財務助手！
 
         支援功能：
         💰 記帳：
@@ -466,6 +626,11 @@ class LineBotManager:
 
         範例：
         早餐花80元、搭捷運30、薪水45000"""
+        
+        #若是冷啟動期間，加入提示
+        if self._is_cold_start():
+            base_message += "\n\n💡 提示：系統剛啟動，如無回應請重新發送"
+        return base_message
 
     def _clean_response(self, text):
         """清理 Gemini 回應"""
@@ -538,3 +703,28 @@ class LineBotManager:
             return True
         except InvalidSignatureError:
             return False
+        
+    def _is_cold_start(self):
+        """檢測是否為冷啟動期間"""
+        current_time = time.time()
+        startup_duration = current_time - self._startup_time
+
+        #啟動後 30 秒內視為冷啟動期
+        if startup_duration < 30:
+            print(f"冷啟動檢測: 啟動後 {startup_duration:.1f} 秒")
+            return True
+        
+        #第一次通過 30 秒時，標記為正常運行
+        if self._is_warming_up:
+            self._is_warming_up = False
+            print("系統暖機完成，進入正常運行模式")
+
+        return False
+
+    def _log_system_status(self):
+        """紀錄系統狀態"""
+        current_time = time.time()
+        uptime = current_time - self._startup_time
+
+        status = "暖機中" if self._is_warming_up else "正常運行"
+        print(f"系統狀態 {status}, 運行時間: {uptime:.1f} 秒")
