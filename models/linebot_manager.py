@@ -2,8 +2,9 @@ import os
 import json
 import time
 from models.schema import budget_categories_table
+from models.schema import transactions_table
 from models.database import engine
-from sqlalchemy import select
+from sqlalchemy import select, desc, func
 from datetime import datetime
 import google.generativeai as genai
 from linebot import LineBotApi, WebhookHandler
@@ -206,26 +207,275 @@ class LineBotManager:
             return f"記錄失敗: {str(e)}"
         
     def handle_query(self, user_id):
-        """處理查詢請求"""
+        """處理查詢請求 - 改用 Flex Message"""
         try:
-            # 獲取本月支出統計
+            return self._handle_query_with_flex(user_id)
+        except Exception as e:
+            return f"查詢失敗:{str(e)}"
+        
+    def _handle_query_with_flex(self, user_id):
+        """使用 Flex Message 處理查詢統計"""
+        try:
             current_month = datetime.now().strftime("%Y-%m")
             expenses = self.budget_manager.calculate_monthly_expenses(current_month)
 
             if not expenses:
-                return f"本月尚無支出紀錄"
+                return "本月尚無支出記錄"
             
-            # 格式化回覆
-            reply = f"【{current_month} 支出統計】 \n"
-            total = 0
-            for category, amount in expenses.items():
-                reply += f"· {category}: ${amount:,.0f}\n"
-                total += amount
+            # 獲取詳細交易記錄
+            recent_transactions = self._get_recent_transactions(current_month, limit=5)
+            total_expenses = sum(expenses.values())
+            transaction_count = self._get_all_month_transactions(current_month)
 
-            reply += f"\n總支出: ${total:,.0f}"
-            return reply
+            category_stats = self._get_category_expenses(current_month)
+
+            return self._create_monthly_summary_flex(current_month, total_expenses, transaction_count, recent_transactions, category_stats)
         except Exception as e:
-            return f"查詢失敗:{str(e)}"
+            return f"查詢失敗: {str(e)}"
+        
+    
+    def _get_recent_transactions(self, month, limit=5):
+        """獲取最近交易記錄"""
+        try:
+            stmt = select(transactions_table).where(
+                func.to_char(transactions_table.c.date, 'YYYY-MM') == month,
+                transactions_table.c.type == 'expense'
+            ).order_by(desc(transactions_table.c.date)).limit(limit)
+
+            with engine.connect() as conn:
+                result = conn.execute(stmt)
+                return [dict(row._mapping) for row in result]
+            
+        except Exception as e:
+            print(f"獲取交易記錄失敗: {e}")
+            return []
+
+    def _get_all_month_transactions(self, month):
+        """獲取整月交易數量"""
+        try:
+            stmt = select(func.count(transactions_table.c.id)).where(
+                func.to_char(transactions_table.c.date, 'YYYY-MM') == month,
+                transactions_table.c.type == 'expense'
+            )
+
+            with engine.connect() as conn:
+                result = conn.execute(stmt).scalar()
+                return result if result else 0
+            
+        except Exception as e:
+            return 0
+        
+    def _get_category_expenses(self, month):
+        """獲取分類支出統計"""
+        try:
+            stmt = select(transactions_table.c.budget_category,
+                func.sum(transactions_table.c.amount).label('total'),
+                func.count(transactions_table.c.id).label('count')
+            ).where(
+                func.to_char(transactions_table.c.date, 'YYYY-MM') == month,
+                transactions_table.c.type == 'expense'
+            ).group_by(transactions_table.c.budget_category).order_by(
+                func.sum(transactions_table.c.amount).desc()
+            )
+
+            with engine.connect() as conn:
+                result = conn.execute(stmt)
+                return [
+                    {
+                        'category': row.budget_category,
+                        'total': float(row.total),
+                        'count': row.count
+                    }
+                    for row in result
+                ]
+        except Exception as e:
+            print(f"獲取分類統計失敗: {e}")
+            return []
+
+    def _create_monthly_summary_flex(self, month, total, count, transactions, category_stats):
+        """建立月度統計 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": f"{month}",
+                                "size": "sm",
+                                "color": "#666666"
+                            },
+                            {
+                                "type": "text", 
+                                "text": f"共 {count} 筆記錄",
+                                "size": "sm",
+                                "color": "#666666",
+                                "align": "end"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "text",
+                        "text": "支出統計",
+                        "weight": "bold",
+                        "size": "lg",
+                        "color": "#FF6B35",
+                        "margin": "sm"
+                    },
+                    {
+                        "type": "text",
+                        "text": f"${total:,}",
+                        "weight": "bold", 
+                        "size": "3xl",
+                        "color": "#333333",
+                        "margin": "xs"
+                    }
+                ],
+                "backgroundColor": "#F8F9FA",
+                "paddingAll": "16px"
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": []
+            }
+        }
+
+        if category_stats:
+            flex_content["body"]["contents"].append({
+                "type": "text",
+                "text": "分類統計",
+                "weight": "bold",
+                "size": "md",
+                "color": "#333333",
+                "margin": "lg"
+            })
+
+            #分類統計表頭
+            flex_content["body"]["contents"].append({
+                "type": "box",
+                "layout": "horizontal",
+                "contents": [
+                    {"type": "text", "text": "類別", "size": "sm", "color": "#999999", "flex": 2},
+                    {"type": "text", "text": "筆數", "size": "sm", "color": "#999999", "flex": 1, "align": "center"},
+                    {"type": "text", "text": "金額", "size": "sm", "color": "#999999", "align": "end", "flex": 2}
+                ],
+                "margin": "md"
+            })
+
+            #分類統計內容
+            for stat in category_stats:
+                category_row = {
+                    "type": "box",
+                    "layout": "horizontal", 
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": stat['category'],
+                            "size": "sm",
+                            "color": "#333333",
+                            "flex": 2
+                        },
+                        {
+                            "type": "text",
+                            "text": f"{stat['count']}筆",
+                            "size": "sm",
+                            "color": "#666666",
+                            "flex": 1,
+                            "align": "center"
+                        },
+                        {
+                            "type": "text",
+                            "text": f"${stat['total']:,.0f}",
+                            "size": "sm",
+                            "color": "#333333",
+                            "align": "end",
+                            "flex": 2
+                        }
+                    ],
+                    "margin": "sm",
+                    "backgroundColor": "#F0F7FF",
+                    "paddingAll": "8px",
+                    "cornerRadius": "4px"
+                }
+                flex_content["body"]["contents"].append(category_row)
+            
+            #分隔線
+            flex_content["body"]["contents"].append({
+                "type": "separator",
+                "margin": "lg"
+            })
+
+        # 最近交易記錄
+        flex_content["body"]["contents"].append({
+            "type": "text",
+            "text": "最近交易",
+            "weight": "bold",
+            "size": "md",
+            "color": "#333333",
+            "margin": "lg"
+        })
+
+        flex_content["body"]["contents"].append({
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+                {"type": "text", "text": "日期", "size": "sm", "color": "#999999", "flex": 1},
+                {"type": "text", "text": "類別", "size": "sm", "color": "#999999", "flex": 2},
+                {"type": "text", "text": "金額", "size": "sm", "color": "#999999", "align": "end", "flex": 1}
+            ],
+            "margin": "md"
+        })
+
+        #加入交易明細
+        for transaction in transactions:
+            date_str = str(transaction['date'])[-5:] if 'date' in transaction else "N/A"
+            category = transaction.get('budget_category', 'N/A')
+            amount = transaction.get('amount', 0)
+
+            transaction_row = {
+                "type": "box",
+                "layout": "horizontal", 
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": date_str,
+                        "size": "sm",
+                        "color": "#333333",
+                        "flex": 1
+                    },
+                    {
+                        "type": "text", 
+                        "text": category,
+                        "size": "sm",
+                        "color": "#333333",
+                        "flex": 2
+                    },
+                    {
+                        "type": "text",
+                        "text": f"${amount:,}",
+                        "size": "sm",
+                        "color": "#333333",
+                        "align": "end",
+                        "flex": 1
+                    }
+                ],
+                "margin": "sm",
+                "backgroundColor": "#F0F7FF" if amount > 200 else "#FFFFFF",
+                "paddingAll": "8px",
+                "cornerRadius": "4px"
+            }
+            flex_content["body"]["contents"].append(transaction_row)
+        
+        return FlexSendMessage(
+            alt_text=f"{month} 支出統計 ${total:,}",
+            contents=flex_content
+        )
         
     def handle_asset_query(self, user_id):
         """處理資產查詢"""
