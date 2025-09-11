@@ -75,7 +75,7 @@ class LineBotManager:
             self.reply_message_flex(event.reply_token, error_msg)
             
 
-    def parse_with_gemini(self, message):
+    def parse_with_gemini_original(self, message):
         """使用 Gemini 解析自然語言"""
         try:
             prompt = self.prompt_template.format(message = message)
@@ -90,7 +90,39 @@ class LineBotManager:
         except Exception as e:
             print(f"Gemini 解析失敗: {e}")
             return {"type": "other", "error": str(e)}
+    
+    def parse_with_gemini(self, message):
+        return self.parse_message_hybrid(message)
+    
+    def parse_message_hybrid(self, message):
+        """混和解析策略"""
+        quick_result = self._quick_parse(message)
+        if quick_result:
+            return quick_result
         
+        return self.parse_with_gemini_original(message)
+
+    def _quick_parse(self, message):
+        """快速解析規則"""
+        message_lower = message.lower()
+
+        #查詢類 - 直接匹配
+        if any(word in message_lower for word in ['查詢', '統計', '支出', '本月']):
+            return {"type": "query"}
+        
+        if any(word in message_lower for word in ['資產', '總資產', '餘額']):
+            return {"type": "asset_query"}
+        
+        if any(word in message_lower for word in ['幫助', '說明', '功能', '測試']):
+            return {"type": "other"}
+        
+        #記帳類 - 讓 Gemini 處理(返回 None 表示需要 Gemini)
+        if any(char.isdigit() for char in message):
+            return None #交給 Gemini 處理
+        
+        # 其他 - 預設為幫助
+        return {"type": "other"}
+
     def process_parsed_message(self, parsed_data, user_id):
         """處理解析後的訊息"""
         message_type = parsed_data.get("type")
