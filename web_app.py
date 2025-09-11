@@ -8,7 +8,7 @@ from linebot.exceptions import InvalidSignatureError
 from models.asset_manager import AssetManager
 from models.budget_manager import BudgetManager
 from models.goal_manager import GoalManager
-from models.linebot_manager import LineBotManager
+from models.linebot.manager import LineBotManager
 from models.database import engine 
 from models.schema import budget_categories_table, transactions_table 
 
