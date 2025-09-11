@@ -4,7 +4,7 @@ from .parsers import QuickParser, GeminiParser
 class MessageParser:
     """統一的訊息解析入口，協調不同解析器的使用"""
     
-    def __init__(self, gemini_model, prompt_template, cold_start_checker=None):
+    def __init__(self, gemini_model, prompt_template):
         """
         初始化訊息解析器
         
@@ -17,7 +17,6 @@ class MessageParser:
         self.gemini_parser = GeminiParser(
             model = gemini_model,
             prompt_template=prompt_template,
-            cold_start_checker= cold_start_checker
         )
     
     def parse(self, message):

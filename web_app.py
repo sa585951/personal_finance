@@ -9,6 +9,7 @@ from models.asset_manager import AssetManager
 from models.budget_manager import BudgetManager
 from models.goal_manager import GoalManager
 from models.linebot.manager import LineBotManager
+from models.app_state import AppStateManager
 from models.database import engine 
 from models.schema import budget_categories_table, transactions_table 
 
@@ -17,10 +18,11 @@ app = Flask(__name__)
 CORS(app) # 簡化 CORS 設定，允許所有來源
 
 # 實例化 Manager 類別，它們將在整個應用程式中被重複使用
+app_state = AppStateManager()
 asset_manager = AssetManager()
 budget_manager = BudgetManager()
 goal_manager = GoalManager()
-linebot_manager = LineBotManager(budget_manager, asset_manager)
+linebot_manager = LineBotManager(budget_manager, asset_manager, app_state)
 
 @app.route("/")
 def home():
@@ -322,11 +324,14 @@ def line_webhook():
     body = request.get_data(as_text=True)
 
     try:
+
+        # 應用層處理冷啟動
+        if app_state.is_cold_start():
+            print("系統冷啟動期間，webhook 請求可能不穩定")
+        
         linebot_manager.handler.handle(body, signature)
         return 'OK', 200
-    except InvalidSignatureError:
-        print("Invalid Line signature")
-        return 'Bad Request', 400
+
     except Exception as e:
         print(f"LINE Webhook error: {e}")
         return 'Internal Server Error', 500

@@ -4,7 +4,7 @@ class GeminiParser:
     def parse(self, message):
         """使用 Gemini 解析自然語言"""
 
-    def __init__(self, model, prompt_template, cold_start_checker=None):
+    def __init__(self, model, prompt_template):
         """初始化 Gemini 解析器
         
         Args:
@@ -14,7 +14,6 @@ class GeminiParser:
         
         self.model = model
         self.prompt_template = prompt_template
-        self.cold_start_checker = cold_start_checker
 
     def parse(self,message):
         """
@@ -27,10 +26,6 @@ class GeminiParser:
             dict: 解析結果
         """
         try:
-            # 紀錄是否在冷啟動期間使用 Gemini
-            if self.cold_start_checker() and self.cold_start_checker():
-                print(f"冷啟動期間呼叫 Gemini: {message}")
-
             prompt = self.prompt_template.format(message = message)
             response = self.model.generate_content(prompt)
 

@@ -12,10 +12,9 @@ from linebot.models import (
 )
 
 class LineBotManager:
-    def __init__(self, budget_manager=None, asset_manager=None):
+    def __init__(self, budget_manager=None, asset_manager=None, app_state=None):
 
-        self._startup_time = time.time()
-        self._is_warming_up = True
+        self.app_state = app_state
         #Line Bot設定
         self.line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
         self.handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
@@ -50,7 +49,6 @@ class LineBotManager:
         self.message_parser = MessageParser(
             gemini_model=self.model,
             prompt_template=self.prompt_template,
-            cold_start_checker=self._is_cold_start
         )
 
         # 建立 Handler實例
@@ -75,8 +73,8 @@ class LineBotManager:
 
         try:
             # 檢測冷啟動狀態
-            if self._is_cold_start():
-                print(f"檢測到冷啟動，訊息: {user_message}")
+            if self.app_state and self.app_state.is_cold_start():
+                print(f"冷啟動期間收到訊息: {user_message}")
                 self.reply_message_flex(event.reply_token,
                     "🚀 系統剛啟動完成！\n請重新發送您的訊息，我現在準備好了 😊")
                 return
@@ -880,28 +878,3 @@ class LineBotManager:
             return True
         except InvalidSignatureError:
             return False
-        
-    def _is_cold_start(self):
-        """檢測是否為冷啟動期間"""
-        current_time = time.time()
-        startup_duration = current_time - self._startup_time
-
-        #啟動後 30 秒內視為冷啟動期
-        if startup_duration < 30:
-            print(f"冷啟動檢測: 啟動後 {startup_duration:.1f} 秒")
-            return True
-        
-        #第一次通過 30 秒時，標記為正常運行
-        if self._is_warming_up:
-            self._is_warming_up = False
-            print("系統暖機完成，進入正常運行模式")
-
-        return False
-
-    def _log_system_status(self):
-        """紀錄系統狀態"""
-        current_time = time.time()
-        uptime = current_time - self._startup_time
-
-        status = "暖機中" if self._is_warming_up else "正常運行"
-        print(f"系統狀態 {status}, 運行時間: {uptime:.1f} 秒")
