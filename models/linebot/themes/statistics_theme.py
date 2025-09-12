@@ -5,7 +5,7 @@ from linebot.models import FlexSendMessage
 class StatisticsTheme(BaseTheme):
     """統計主題 - 表格化、數據呈現風格"""
     
-    def _create_monthly_summary(self, month, total, count, transactions, category_stats):
+    def create_monthly_summary(self, month, total, count, transactions, category_stats):
         """建立月度統計 Flex Message"""
         flex_content = {
             "type": "bubble",
@@ -190,7 +190,7 @@ class StatisticsTheme(BaseTheme):
             contents=flex_content
         )
     
-    def _create_asset_overview(self, totals):
+    def create_asset_overview(self, totals):
         """建立資產總攬 Flex Message"""
         total_assets = totals.get('總資產', 0 )
 
