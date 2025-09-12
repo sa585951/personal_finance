@@ -767,7 +767,7 @@ class OperationTheme(BaseTheme):
         
         # 帳戶列表
         for asset in assets:
-            account_key = f"{asset['bank_name']}_{asset['account_type']}"
+            account_key = asset['account_key']
             account_button = {
                 "type": "button",
                 "style": "link",

@@ -22,7 +22,7 @@ class UpdateBalanceFlowHandler:
                 user_id, 'update_balance_flow', 'select_account'
             )
             
-            return self.theme.create_update_balance_account_selection(assets)
+            return self.theme.create_update_balance_account_selection(list(assets.values()))
             
         except Exception as e:
             return f"更新餘額流程啟動失敗: {str(e)}"
@@ -55,12 +55,7 @@ class UpdateBalanceFlowHandler:
         
         # 驗證帳戶是否存在
         assets = self.asset_manager.get_all_assets()
-        selected_asset = None
-        for asset in assets:
-            if f"{asset['bank_name']}_{asset['account_type']}" == account_key:
-                selected_asset = asset
-                break
-        
+        selected_asset = assets.get(account_key)
         if not selected_asset:
             return "選擇的帳戶不存在，請重新選擇"
         
