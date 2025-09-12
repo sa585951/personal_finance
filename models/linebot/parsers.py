@@ -75,7 +75,7 @@ class GeminiParser:
                 result["type"] = "other"
                 result["error"] = "無法識別收入金額"
             if "description" not in result:
-                result["descripttion"] = original_message[:20]
+                result["description"] = original_message[:20]
 
         return result
 
@@ -97,6 +97,9 @@ class QuickParser:
         # 查詢類 - 直接匹配
         if any(word in message_lower for word in ['查詢', '統計', '支出', '本月']):
             return {"type": "query"}
+        
+        if any(word in message_lower for word in ['更新餘額', '修改帳戶餘額', '調整餘額']):
+            return {"type": "start_update_balance"}
         
         if any(word in message_lower for word in ['資產', '總資產', '餘額']):
             return {"type": "asset_query"}

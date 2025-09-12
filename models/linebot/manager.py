@@ -36,7 +36,10 @@ class LineBotManager:
         2. 收入記錄：{{"type": "income", "amount": 數字, "description": "簡短描述"}}
         3. 查詢請求：{{"type": "query", "action": "查詢類型"}}
         4. 資產查詢：{{"type": "asset_query"}}
-        5. 非記帳訊息：{{"type": "other"}}
+        5. 轉帳請求：{{"type": "start_transfer"}}
+        6. 新增帳戶：{{"type": "start_add_account"}}
+        7. 更新餘額：{{"type": "start_update_balance"}}
+        8. 非記帳訊息：{{"type": "other"}}
 
         類別限制：伙食、交通、購物、娛樂、醫療、投資、生活、其他
 
