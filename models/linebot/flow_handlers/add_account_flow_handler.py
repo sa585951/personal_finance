@@ -60,7 +60,7 @@ class AddAccountFlowHandler:
             data={'bank_name': bank_name}
         )
         
-        return self.theme.create_account_type_selection_flex()
+        return self.theme.create_account_type_selection_flex(self.account_types)
     
     def _handle_account_type_selection(self, user_id, message, current_state):
         """處理帳戶類型選擇"""
@@ -127,7 +127,7 @@ class AddAccountFlowHandler:
             else:
                 return f"新增帳戶失敗: {result_message}"
         
-        elif message == "取消新增":
+        elif message == "取消操作":
             self.user_state_manager.clear_user_state(user_id)
             return "新增帳戶已取消"
         else:

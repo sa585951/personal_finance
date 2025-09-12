@@ -69,7 +69,7 @@ class OperationTheme(BaseTheme):
                         "action": {
                             "type": "message",
                             "label": "取消",
-                            "text": "取消新增"
+                            "text": "取消操作"
                         },
                         "flex": 1
                     },
@@ -318,7 +318,7 @@ class OperationTheme(BaseTheme):
             contents=flex_content
         )
     
-    def create_account_type_selection_flex(self):
+    def create_account_type_selection_flex(self, account_types):
         """建立帳戶類型選擇 Flex Message"""
         flex_content = {
             "type": "bubble",
@@ -353,7 +353,7 @@ class OperationTheme(BaseTheme):
         }
         
         # 新增帳戶類型選項
-        for account_type in self.account_types:
+        for account_type in account_types:
             color = type_colors.get(account_type, "#9E9E9E")
             type_button = {
                 "type": "button",
