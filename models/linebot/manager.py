@@ -1,9 +1,10 @@
 import os
-import time
 import google.generativeai as genai
 from datetime import datetime
 from .message_parser import MessageParser
 from .handlers import ExpenseHandler, IncomeHandler, QueryHandler, AssetHandler
+from .flow_handlers import TransferFlowHandler, AddAccountFlowHandler
+from .user_state_manager import UserStateManager
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError, LineBotApiError
 from linebot.models import (
@@ -26,7 +27,9 @@ class LineBotManager:
         #依賴注入現有 managers
         self.budget_manager = budget_manager
         self.asset_manager = asset_manager
-        
+        self.user_state_manager = UserStateManager()
+        self.transfer_flow_handler = TransferFlowHandler(asset_manager, self.user_state_manager)
+        self.add_account_flow_handler = AddAccountFlowHandler(asset_manager, self.user_state_manager)
         # Prompt模板
         self.prompt_template = """
         分析以下中文記帳訊息，回傳 JSON 格式：
@@ -79,15 +82,38 @@ class LineBotManager:
                     "🚀 系統剛啟動完成！\n請重新發送您的訊息，我現在準備好了 😊")
                 return
 
-            parsed_data = self.message_parser.parse(user_message)
-            response_message = self.process_parsed_message(parsed_data, user_id)
+            # 新增：檢查用戶是否在多步驟流程中
+            user_state = self.user_state_manager.get_user_state(user_id)
+            if user_state:
+                response_message = self._handle_state_message(user_message, user_id, user_state)
+            else:
+                # 正常的訊息解析流程
+                parsed_data = self.message_parser.parse(user_message)
+                response_message = self.process_parsed_message(parsed_data, user_id)
+
             self.reply_message_flex(event.reply_token, response_message)
 
         except Exception as e:
             print(f"LINE Bot 錯誤: {e}")
+
+            # 出錯時清除狀態
+            self.user_state_manager.clear_user_state(user_id)
             # 如果是啟動期間的錯誤，可能是資源尚未載入
             error_msg = "系統正在啟動中，請稍後重新發送訊息" if self._is_cold_start() else "抱歉，系統暫時無法處理，請稍後再試"
             self.reply_message_flex(event.reply_token, error_msg)
+
+    def _handle_state_message(self, message, user_id, user_state):
+        """處理用戶在多步驟流程中的訊息"""
+        state_type = user_state["type"]
+
+        if state_type == "transfer_flow":
+            return self.transfer_flow_handler.handle_flow_message(user_id, message, user_state)
+        elif state_type == "add_account_flow":
+            return self.add_account_flow_handler.handle_flow_message(user_id, message, user_state)
+        else:
+            #未知狀態，清除並重新開始
+            self.user_state_manager.clear_user_state(user_id)
+            return "操作流程已重置，請重新開始"
 
     def process_parsed_message(self, parsed_data, user_id):
         """處理解析後的訊息"""
@@ -126,6 +152,14 @@ class LineBotManager:
                 return self._create_asset_overview_flex(result["totals"])
             else:
                 return f"查詢失敗: {result['message']}"
+            
+        # 新增：流程觸發處理
+        elif message_type == "start_transfer":
+            return self.transfer_flow_handler.start_flow(user_id)
+        
+        elif message_type == "start_add_account":
+            return self.add_account_flow_handler.start_flow(user_id)
+        
         else:
             return self.get_help_message()
         

@@ -101,6 +101,14 @@ class QuickParser:
         if any(word in message_lower for word in ['資產', '總資產', '餘額']):
             return {"type": "asset_query"}
         
+        # 新增：轉帳流程觸發
+        if any(word in message_lower for word in ['我要轉帳', '轉帳', '帳戶間轉帳']):
+            return {"type": "start_transfer"}
+        
+        # 新增：新增帳戶流程觸發
+        if any(word in message_lower for word in ['新增銀行帳戶', '新增帳戶', '加入帳戶']):
+            return {"type": "start_add_account"}
+        
         if any(word in message_lower for word in ['幫助', '說明', '功能', '測試']):
             return {"type": "other"}
         
