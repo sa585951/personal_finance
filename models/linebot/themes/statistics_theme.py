@@ -372,7 +372,7 @@ class StatisticsTheme(BaseTheme):
                             "action": {
                                 "type": "message",
                                 "label": "管理帳戶",
-                                "text": "查詢本月支出"
+                                "text": "更新餘額"
                             },
                             "flex": 1
                         }
