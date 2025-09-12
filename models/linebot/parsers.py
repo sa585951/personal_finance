@@ -94,33 +94,39 @@ class QuickParser:
         """
         message_lower = message.lower()
 
-        # 查詢類 - 直接匹配
-        if any(word in message_lower for word in ['查詢', '統計', '支出', '本月']):
-            return {"type": "query"}
+        # 刪除相關 - 最具體的先匹配
+        if any(word in message_lower for word in ['刪除帳戶', '刪除資產', '移除帳戶']):
+            return {"type": "start_delete_asset"}
         
+        if any(word in message_lower for word in ['刪除交易', '刪除記錄', '刪除支出']):
+            return {"type": "start_delete_transaction"}
+        
+        # 更新相關
         if any(word in message_lower for word in ['更新餘額', '修改帳戶餘額', '調整餘額']):
             return {"type": "start_update_balance"}
         
-        if any(word in message_lower for word in ['資產', '總資產', '餘額']):
-            return {"type": "asset_query"}
-        
-        # 新增：轉帳流程觸發
-        if any(word in message_lower for word in ['我要轉帳', '轉帳', '帳戶間轉帳']):
-            return {"type": "start_transfer"}
-        
-        # 新增：新增帳戶流程觸發
+        # 新增相關
         if any(word in message_lower for word in ['新增銀行帳戶', '新增帳戶', '加入帳戶']):
             return {"type": "start_add_account"}
         
-        if any(word in message_lower for word in ['更新餘額', '修改帳戶餘額', '調整餘額']):
-            return {"type": "start_update_balance"}
+        # 轉帳相關
+        if any(word in message_lower for word in ['我要轉帳', '轉帳', '帳戶間轉帳']):
+            return {"type": "start_transfer"}
+        
+        # 查詢相關 - 放在後面，避免被 "餘額" 等關鍵字誤觸
+        if any(word in message_lower for word in ['查詢', '統計', '支出', '本月']):
+            return {"type": "query"}
+        
+        if any(word in message_lower for word in ['資產', '總資產']):
+            return {"type": "asset_query"}
+        
+        # 移除單獨的 "餘額" 關鍵字，因為會與其他功能衝突
         
         if any(word in message_lower for word in ['幫助', '說明', '功能', '測試']):
             return {"type": "other"}
         
-        # 記帳類 - 讓 Gemini 處理(返回 None 表示需要 Gemini)
+        # 記帳類交給 Gemini
         if any(char.isdigit() for char in message):
-            return None  # 交給 Gemini 處理
+            return None
         
-        # 其他 - 預設為幫助
         return {"type": "other"}

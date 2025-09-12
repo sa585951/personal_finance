@@ -2,6 +2,8 @@ from .handlers import ExpenseHandler, IncomeHandler, QueryHandler, AssetHandler
 from .flow_handlers.transfer_flow_handler import TransferFlowHandler
 from .flow_handlers.add_account_flow_handler import AddAccountFlowHandler
 from .flow_handlers.update_balance_flow_handler import UpdateBalanceFlowHandler
+from .flow_handlers.delete_asset_flow_handler import DeleteAssetFlowHandler
+from .flow_handlers.delete_transaction_flow_handler import DeleteTransactionFlowHandler
 from .response_builder import ResponseBuilder
 
 class MessageHandler:
@@ -23,6 +25,8 @@ class MessageHandler:
         self.transfer_flow_handler = TransferFlowHandler(asset_manager, self.user_state_manager, operation_theme)
         self.add_account_flow_handler = AddAccountFlowHandler(asset_manager, self.user_state_manager, operation_theme)
         self.update_balance_flow_handler = UpdateBalanceFlowHandler(asset_manager, self.user_state_manager, operation_theme)
+        self.delete_asset_flow_handler = DeleteAssetFlowHandler(asset_manager, self.user_state_manager, operation_theme)
+        self.delete_transaction_flow_handler = DeleteTransactionFlowHandler(budget_manager, self.user_state_manager, operation_theme)
 
     def handle_user_message(self, user_id, message, parsed_data):
         """處理用戶訊息的主要入口"""
@@ -44,6 +48,10 @@ class MessageHandler:
             return self.add_account_flow_handler.handle_flow_message(user_id, message, user_state)
         elif state_type == "update_balance_flow":
             return self.update_balance_flow_handler.handle_flow_message(user_id, message, user_state)
+        elif state_type == "delete_asset_flow":
+            return self.delete_asset_flow_handler.handle_flow_message(user_id, message, user_state)
+        elif state_type == "delete_transaction_flow":
+            return self.delete_transaction_flow_handler.handle_flow_message(user_id, message, user_state)
         else:
             self.user_state_manager.clear_user_state(user_id)
             return "操作流程已重置，請重新開始"
@@ -66,6 +74,10 @@ class MessageHandler:
             return self.add_account_flow_handler.start_flow(user_id)
         elif message_type == "start_update_balance":
             return self.update_balance_flow_handler.start_flow(user_id)
+        elif message_type == "start_delete_asset":
+            return self.delete_asset_flow_handler.start_flow(user_id)
+        elif message_type == "start_delete_transaction":
+            return self.delete_transaction_flow_handler.start_flow(user_id)
         else:
             return self._get_help_message()
         
