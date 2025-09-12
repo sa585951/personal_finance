@@ -109,6 +109,9 @@ class QuickParser:
         if any(word in message_lower for word in ['新增銀行帳戶', '新增帳戶', '加入帳戶']):
             return {"type": "start_add_account"}
         
+        if any(word in message_lower for word in ['更新餘額', '修改帳戶餘額', '調整餘額']):
+            return {"type": "start_update_balance"}
+        
         if any(word in message_lower for word in ['幫助', '說明', '功能', '測試']):
             return {"type": "other"}
         

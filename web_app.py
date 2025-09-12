@@ -256,7 +256,6 @@ def get_monthly_expenses():
 
 @app.route("/api/reports/asset_allocation", methods=["GET"])
 def get_asset_allocation():
-    # 這個方法需要在 AssetManager 中重新實現
     totals = asset_manager.calculate_totals()
     labels = [key for key in totals.keys() if key != "總資產"]
     data = [totals[key] for key in labels]
