@@ -52,11 +52,8 @@ class DeleteTransactionFlowHandler:
         
         # 驗證交易是否存在
         transactions = self.budget_manager.get_all_transactions()
-        selected_transaction = None
-        for transaction in transactions:
-            if str(transaction['id']) == transaction_id:
-                selected_transaction = transaction
-                break
+        transactions_dict = {str(t['id']): t for t in transactions}
+        selected_transaction = transactions_dict.get(transaction_id)
         
         if not selected_transaction:
             return "選擇的交易不存在，請重新選擇"
@@ -87,7 +84,7 @@ class DeleteTransactionFlowHandler:
             else:
                 return f"刪除交易失敗: {result_message}"
         
-        elif message == "取消刪除":
+        elif message == "取消操作":
             self.user_state_manager.clear_user_state(user_id)
             return "刪除交易已取消"
         else:

@@ -1122,631 +1122,632 @@ class OperationTheme(BaseTheme):
     #====== Delete 資產 ======
     # 在 themes/operation_theme.py 中新增這些方法
 
-def create_delete_asset_account_selection(self, assets, error_message=None):
-    """建立刪除資產帳戶選擇 Flex Message"""
-    flex_content = {
-        "type": "bubble",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "刪除銀行帳戶",
-                    "weight": "bold",
-                    "size": self.FONT_SIZE['lg'],
-                    "color": self.COLORS['text_primary']
-                },
-                {
-                    "type": "text",
-                    "text": "步驟 1/2 - 選擇帳戶",
-                    "size": self.FONT_SIZE['sm'],
-                    "color": self.COLORS['text_secondary'],
-                    "margin": self.SPACING['sm']
-                }
-            ],
-            "backgroundColor": self.COLORS['bg_warning'],  # 使用警告色
-            "paddingAll": self.SPACING['lg']
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "⚠️ 注意：只能刪除餘額為 0 的帳戶",
-                    "size": self.FONT_SIZE['sm'],
-                    "color": self.COLORS['text_error'],
-                    "weight": "bold",
-                    "wrap": True,
-                    "margin": self.SPACING['md']
-                }
-            ]
+    def create_delete_asset_account_selection(self, assets_list, error_message=None):
+        """建立刪除資產帳戶選擇 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "刪除銀行帳戶",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_primary']
+                    },
+                    {
+                        "type": "text",
+                        "text": "步驟 1/2 - 選擇帳戶",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_secondary'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['bg_warning'],  # 使用警告色
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "⚠️ 注意：只能刪除餘額為 0 的帳戶",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_error'],
+                        "weight": "bold",
+                        "wrap": True,
+                        "margin": self.SPACING['md']
+                    }
+                ]
+            }
         }
-    }
-    
-    # 錯誤訊息
-    if error_message:
-        flex_content["body"]["contents"].append(self._create_error_box(error_message))
-    
-    # 帳戶列表
-    for asset in assets:
-        account_key = f"{asset['bank_name']}_{asset['account_type']}"
-        balance = asset['balance']
         
-        # 根據餘額決定按鈕樣式
-        if balance == 0:
-            button_style = "primary"
-            button_color = self.COLORS['danger']
-            button_text = f"刪除 {asset['bank_name']} {asset['account_type']}"
-            action_text = f"刪除帳戶:{account_key}"
-        else:
-            button_style = "secondary"
-            button_color = None
-            button_text = f"{asset['bank_name']} {asset['account_type']} (餘額: ${balance:,.0f})"
-            action_text = "無法刪除"
+        # 錯誤訊息
+        if error_message:
+            flex_content["body"]["contents"].append(self._create_error_box(error_message))
         
-        account_button = {
+        # 帳戶列表
+        for asset in assets_list:
+            account_key = asset['account_key']
+            balance = asset['balance']
+            
+            # 根據餘額決定按鈕樣式
+            if balance == 0:
+                button_style = "primary"
+                button_color = self.COLORS['danger']
+                button_text = f"刪除 {asset['bank_name']} {asset['account_type']}"
+                action_text = f"刪除帳戶:{account_key}"
+            else:
+                button_style = "secondary"
+                button_color = None
+                button_text = f"{asset['bank_name']} {asset['account_type']} (餘額: ${balance:,.0f})"
+                action_text = "無法刪除"
+            
+            account_button = {
+                "type": "button",
+                "style": button_style,
+                "height": "sm",
+                "action": {
+                    "type": "message",
+                    "label": button_text,
+                    "text": action_text
+                },
+                "margin": self.SPACING['sm']
+            }
+            
+            if button_color:
+                account_button["color"] = button_color
+                
+            flex_content["body"]["contents"].append(account_button)
+        
+        # 取消按鈕
+        flex_content["body"]["contents"].append({
             "type": "button",
-            "style": button_style,
+            "style": "secondary",
             "height": "sm",
             "action": {
                 "type": "message",
-                "label": button_text,
-                "text": action_text
+                "label": "取消操作",
+                "text": "取消操作"
             },
-            "margin": self.SPACING['sm']
+            "margin": self.SPACING['lg']
+        })
+        
+        return FlexSendMessage(
+            alt_text="選擇要刪除的帳戶",
+            contents=flex_content
+        )
+
+    def create_delete_asset_confirmation(self, asset):
+        """建立刪除資產確認 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "⚠️ 確認刪除帳戶",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_white']
+                    },
+                    {
+                        "type": "text",
+                        "text": "步驟 2/2 - 最終確認",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_white'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['danger'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "您即將刪除以下帳戶：",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_primary'],
+                        "margin": self.SPACING['md']
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            self._create_info_row("銀行", asset['bank_name']),
+                            self._create_info_row("類型", asset['account_type']),
+                            self._create_info_row("餘額", f"${asset['balance']:,.0f}")
+                        ],
+                        "backgroundColor": self.COLORS['bg_card'],
+                        "paddingAll": self.SPACING['md'],
+                        "cornerRadius": self.BORDER_RADIUS['md'],
+                        "margin": self.SPACING['md']
+                    },
+                    {
+                        "type": "text",
+                        "text": "⚠️ 此操作無法復原，請謹慎考慮！",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_error'],
+                        "weight": "bold",
+                        "wrap": True,
+                        "margin": self.SPACING['lg']
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "horizontal",
+                "spacing": self.SPACING['sm'],
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "取消",
+                            "text": "取消操作"
+                        },
+                        "flex": 1
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "color": self.COLORS['danger'],
+                        "action": {
+                            "type": "message",
+                            "label": "確認刪除",
+                            "text": "確認刪除"
+                        },
+                        "flex": 1
+                    }
+                ]
+            }
         }
         
-        if button_color:
-            account_button["color"] = button_color
-            
-        flex_content["body"]["contents"].append(account_button)
-    
-    # 取消按鈕
-    flex_content["body"]["contents"].append({
-        "type": "button",
-        "style": "secondary",
-        "height": "sm",
-        "action": {
-            "type": "message",
-            "label": "取消操作",
-            "text": "取消操作"
-        },
-        "margin": self.SPACING['lg']
-    })
-    
-    return FlexSendMessage(
-        alt_text="選擇要刪除的帳戶",
-        contents=flex_content
-    )
+        return FlexSendMessage(
+            alt_text=f"確認刪除 {asset['bank_name']} {asset['account_type']}",
+            contents=flex_content
+        )
 
-def create_delete_asset_confirmation(self, asset):
-    """建立刪除資產確認 Flex Message"""
-    flex_content = {
-        "type": "bubble",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "⚠️ 確認刪除帳戶",
-                    "weight": "bold",
-                    "size": self.FONT_SIZE['lg'],
-                    "color": self.COLORS['text_white']
-                },
-                {
-                    "type": "text",
-                    "text": "步驟 2/2 - 最終確認",
-                    "size": self.FONT_SIZE['sm'],
-                    "color": self.COLORS['text_white'],
-                    "margin": self.SPACING['sm']
-                }
-            ],
-            "backgroundColor": self.COLORS['danger'],
-            "paddingAll": self.SPACING['lg']
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "您即將刪除以下帳戶：",
-                    "weight": "bold",
-                    "size": self.FONT_SIZE['md'],
-                    "color": self.COLORS['text_primary'],
-                    "margin": self.SPACING['md']
-                },
-                {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        self._create_info_row("銀行", asset['bank_name']),
-                        self._create_info_row("類型", asset['account_type']),
-                        self._create_info_row("餘額", f"${asset['balance']:,.0f}")
-                    ],
-                    "backgroundColor": self.COLORS['bg_card'],
-                    "paddingAll": self.SPACING['md'],
-                    "cornerRadius": self.BORDER_RADIUS['md'],
-                    "margin": self.SPACING['md']
-                },
-                {
-                    "type": "text",
-                    "text": "⚠️ 此操作無法復原，請謹慎考慮！",
-                    "size": self.FONT_SIZE['sm'],
-                    "color": self.COLORS['text_error'],
-                    "weight": "bold",
-                    "wrap": True,
-                    "margin": self.SPACING['lg']
-                }
-            ]
-        },
-        "footer": {
+    def create_delete_asset_success(self, asset):
+        """建立刪除資產成功 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "帳戶刪除成功",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_white']
+                    },
+                    {
+                        "type": "text",
+                        "text": "✅ 操作完成",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_white'],
+                        "margin": self.SPACING['md']
+                    }
+                ],
+                "backgroundColor": self.COLORS['success'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "已成功刪除以下帳戶：",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_primary'],
+                        "margin": self.SPACING['md']
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            self._create_info_row("銀行", asset['bank_name']),
+                            self._create_info_row("類型", asset['account_type']),
+                            self._create_info_row("時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                        ],
+                        "backgroundColor": self.COLORS['bg_success'],
+                        "paddingAll": self.SPACING['md'],
+                        "cornerRadius": self.BORDER_RADIUS['md'],
+                        "margin": self.SPACING['md']
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "link",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "查看資產狀況",
+                            "text": "我的資產"
+                        }
+                    }
+                ]
+            }
+        }
+        
+        return FlexSendMessage(
+            alt_text=f"成功刪除 {asset['bank_name']} {asset['account_type']}",
+            contents=flex_content
+        )
+
+    # ======  刪除資產 ======
+
+    def create_delete_transaction_selection(self, transactions, error_message=None):
+        """建立刪除交易選擇 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "刪除交易記錄",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_primary']
+                    },
+                    {
+                        "type": "text",
+                        "text": "步驟 1/2 - 選擇交易",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_secondary'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['bg_warning'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "最近 20 筆交易記錄",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_primary'],
+                        "margin": self.SPACING['md']
+                    }
+                ]
+            }
+        }
+        
+        # 錯誤訊息
+        if error_message:
+            flex_content["body"]["contents"].append(self._create_error_box(error_message))
+        
+        # 交易列表表頭
+        flex_content["body"]["contents"].append({
             "type": "box",
             "layout": "horizontal",
-            "spacing": self.SPACING['sm'],
             "contents": [
-                {
-                    "type": "button",
-                    "style": "secondary",
-                    "height": "sm",
-                    "action": {
-                        "type": "message",
-                        "label": "取消",
-                        "text": "取消刪除"
-                    },
-                    "flex": 1
-                },
-                {
-                    "type": "button",
-                    "style": "primary",
-                    "height": "sm",
-                    "color": self.COLORS['danger'],
-                    "action": {
-                        "type": "message",
-                        "label": "確認刪除",
-                        "text": "確認刪除"
-                    },
-                    "flex": 1
-                }
-            ]
-        }
-    }
-    
-    return FlexSendMessage(
-        alt_text=f"確認刪除 {asset['bank_name']} {asset['account_type']}",
-        contents=flex_content
-    )
-
-def create_delete_asset_success(self, asset):
-    """建立刪除資產成功 Flex Message"""
-    flex_content = {
-        "type": "bubble",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "帳戶刪除成功",
-                    "weight": "bold",
-                    "size": self.FONT_SIZE['lg'],
-                    "color": self.COLORS['text_white']
-                },
-                {
-                    "type": "text",
-                    "text": "✅ 操作完成",
-                    "size": self.FONT_SIZE['md'],
-                    "color": self.COLORS['text_white'],
-                    "margin": self.SPACING['md']
-                }
+                {"type": "text", "text": "日期", "size": self.FONT_SIZE['xs'], "color": self.COLORS['text_muted'], "flex": 1},
+                {"type": "text", "text": "類別", "size": self.FONT_SIZE['xs'], "color": self.COLORS['text_muted'], "flex": 2},
+                {"type": "text", "text": "金額", "size": self.FONT_SIZE['xs'], "color": self.COLORS['text_muted'], "align": "end", "flex": 1}
             ],
-            "backgroundColor": self.COLORS['success'],
-            "paddingAll": self.SPACING['lg']
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "已成功刪除以下帳戶：",
-                    "size": self.FONT_SIZE['md'],
-                    "color": self.COLORS['text_primary'],
-                    "margin": self.SPACING['md']
-                },
-                {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        self._create_info_row("銀行", asset['bank_name']),
-                        self._create_info_row("類型", asset['account_type']),
-                        self._create_info_row("時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
-                    ],
-                    "backgroundColor": self.COLORS['bg_success'],
-                    "paddingAll": self.SPACING['md'],
-                    "cornerRadius": self.BORDER_RADIUS['md'],
-                    "margin": self.SPACING['md']
-                }
-            ]
-        },
-        "footer": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "button",
-                    "style": "link",
-                    "height": "sm",
-                    "action": {
-                        "type": "message",
-                        "label": "查看資產狀況",
-                        "text": "我的資產"
+            "margin": self.SPACING['md']
+        })
+        
+        # 交易列表
+        for transaction in transactions:
+            transaction_id = str(transaction['id'])
+            date = transaction.get('date', 'N/A')
+            date_str = str(date)[-5:] if date != 'N/A' else 'N/A'
+            category = transaction.get('budget_category', 'N/A')
+            amount = transaction.get('amount', 0)
+            transaction_type = transaction.get('type', 'expense')
+            
+            # 根據交易類型設定顏色
+            amount_color = self.COLORS['text_success'] if transaction_type == 'income' else self.COLORS['text_error']
+            amount_text = f"+${amount:,}" if transaction_type == 'income' else f"-${amount:,}"
+            
+            transaction_button = {
+                "type": "box",
+                "layout": "horizontal",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": date_str,
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_primary'],
+                        "flex": 1
+                    },
+                    {
+                        "type": "text",
+                        "text": category,
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_primary'],
+                        "flex": 2,
+                        "wrap": True
+                    },
+                    {
+                        "type": "text",
+                        "text": amount_text,
+                        "size": self.FONT_SIZE['sm'],
+                        "color": amount_color,
+                        "align": "end",
+                        "flex": 1,
+                        "weight": "bold"
                     }
+                ],
+                "margin": self.SPACING['sm'],
+                "backgroundColor": self.COLORS['bg_card'],
+                "paddingAll": self.SPACING['sm'],
+                "cornerRadius": self.BORDER_RADIUS['sm'],
+                "action": {
+                    "type": "message",
+                    "text": f"刪除交易:{transaction_id}"
                 }
-            ]
-        }
-    }
-    
-    return FlexSendMessage(
-        alt_text=f"成功刪除 {asset['bank_name']} {asset['account_type']}",
-        contents=flex_content
-    )
+            }
+            
+            flex_content["body"]["contents"].append(transaction_button)
+        
+        # 取消按鈕
+        flex_content["body"]["contents"].append({
+            "type": "button",
+            "style": "secondary",
+            "height": "sm",
+            "action": {
+                "type": "message",
+                "label": "取消操作",
+                "text": "取消操作"
+            },
+            "margin": self.SPACING['lg']
+        })
+        
+        return FlexSendMessage(
+            alt_text="選擇要刪除的交易",
+            contents=flex_content
+        )
 
-# ======  刪除資產 ======
-def create_delete_transaction_selection(self, transactions, error_message=None):
-    """建立刪除交易選擇 Flex Message"""
-    flex_content = {
-        "type": "bubble",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "刪除交易記錄",
-                    "weight": "bold",
-                    "size": self.FONT_SIZE['lg'],
-                    "color": self.COLORS['text_primary']
-                },
-                {
-                    "type": "text",
-                    "text": "步驟 1/2 - 選擇交易",
-                    "size": self.FONT_SIZE['sm'],
-                    "color": self.COLORS['text_secondary'],
-                    "margin": self.SPACING['sm']
-                }
-            ],
-            "backgroundColor": self.COLORS['bg_warning'],
-            "paddingAll": self.SPACING['lg']
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "最近 20 筆交易記錄",
-                    "weight": "bold",
-                    "size": self.FONT_SIZE['md'],
-                    "color": self.COLORS['text_primary'],
-                    "margin": self.SPACING['md']
-                }
-            ]
-        }
-    }
-    
-    # 錯誤訊息
-    if error_message:
-        flex_content["body"]["contents"].append(self._create_error_box(error_message))
-    
-    # 交易列表表頭
-    flex_content["body"]["contents"].append({
-        "type": "box",
-        "layout": "horizontal",
-        "contents": [
-            {"type": "text", "text": "日期", "size": self.FONT_SIZE['xs'], "color": self.COLORS['text_muted'], "flex": 1},
-            {"type": "text", "text": "類別", "size": self.FONT_SIZE['xs'], "color": self.COLORS['text_muted'], "flex": 2},
-            {"type": "text", "text": "金額", "size": self.FONT_SIZE['xs'], "color": self.COLORS['text_muted'], "align": "end", "flex": 1}
-        ],
-        "margin": self.SPACING['md']
-    })
-    
-    # 交易列表
-    for transaction in transactions:
-        transaction_id = str(transaction['id'])
+    def create_delete_transaction_confirmation(self, transaction):
+        """建立刪除交易確認 Flex Message"""
         date = transaction.get('date', 'N/A')
-        date_str = str(date)[-5:] if date != 'N/A' else 'N/A'
+        category = transaction.get('budget_category', 'N/A')
+        amount = transaction.get('amount', 0)
+        transaction_type = transaction.get('type', 'expense')
+        description = transaction.get('description', '')
+        
+        # 根據交易類型設定樣式
+        type_text = "收入" if transaction_type == 'income' else "支出"
+        type_color = self.COLORS['text_success'] if transaction_type == 'income' else self.COLORS['text_error']
+        amount_text = f"+${amount:,}" if transaction_type == 'income' else f"-${amount:,}"
+        
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "⚠️ 確認刪除交易",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_white']
+                    },
+                    {
+                        "type": "text",
+                        "text": "步驟 2/2 - 最終確認",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_white'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['danger'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "您即將刪除以下交易：",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_primary'],
+                        "margin": self.SPACING['md']
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            self._create_info_row("類型", type_text, type_color),
+                            self._create_info_row("日期", str(date)),
+                            self._create_info_row("分類", category),
+                            self._create_info_row("金額", amount_text, type_color),
+                            self._create_info_row("備註", description if description else "無")
+                        ],
+                        "backgroundColor": self.COLORS['bg_card'],
+                        "paddingAll": self.SPACING['md'],
+                        "cornerRadius": self.BORDER_RADIUS['md'],
+                        "margin": self.SPACING['md']
+                    },
+                    {
+                        "type": "text",
+                        "text": "⚠️ 此操作無法復原，請謹慎考慮！",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_error'],
+                        "weight": "bold",
+                        "wrap": True,
+                        "margin": self.SPACING['lg']
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "horizontal",
+                "spacing": self.SPACING['sm'],
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "取消",
+                            "text": "取消操作"
+                        },
+                        "flex": 1
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "color": self.COLORS['danger'],
+                        "action": {
+                            "type": "message",
+                            "label": "確認刪除",
+                            "text": "確認刪除"
+                        },
+                        "flex": 1
+                    }
+                ]
+            }
+        }
+        
+        return FlexSendMessage(
+            alt_text=f"確認刪除{type_text} ${amount:,}",
+            contents=flex_content
+        )
+
+    def create_delete_transaction_success(self, transaction):
+        """建立刪除交易成功 Flex Message"""
+        date = transaction.get('date', 'N/A')
         category = transaction.get('budget_category', 'N/A')
         amount = transaction.get('amount', 0)
         transaction_type = transaction.get('type', 'expense')
         
-        # 根據交易類型設定顏色
-        amount_color = self.COLORS['text_success'] if transaction_type == 'income' else self.COLORS['text_error']
+        type_text = "收入" if transaction_type == 'income' else "支出"
+        type_color = self.COLORS['text_success'] if transaction_type == 'income' else self.COLORS['text_error']
         amount_text = f"+${amount:,}" if transaction_type == 'income' else f"-${amount:,}"
         
-        transaction_button = {
-            "type": "box",
-            "layout": "horizontal",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": date_str,
-                    "size": self.FONT_SIZE['sm'],
-                    "color": self.COLORS['text_primary'],
-                    "flex": 1
-                },
-                {
-                    "type": "text",
-                    "text": category,
-                    "size": self.FONT_SIZE['sm'],
-                    "color": self.COLORS['text_primary'],
-                    "flex": 2,
-                    "wrap": True
-                },
-                {
-                    "type": "text",
-                    "text": amount_text,
-                    "size": self.FONT_SIZE['sm'],
-                    "color": amount_color,
-                    "align": "end",
-                    "flex": 1,
-                    "weight": "bold"
-                }
-            ],
-            "margin": self.SPACING['sm'],
-            "backgroundColor": self.COLORS['bg_card'],
-            "paddingAll": self.SPACING['sm'],
-            "cornerRadius": self.BORDER_RADIUS['sm'],
-            "action": {
-                "type": "message",
-                "text": f"刪除交易:{transaction_id}"
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "交易刪除成功",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_white']
+                    },
+                    {
+                        "type": "text",
+                        "text": "✅ 操作完成",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_white'],
+                        "margin": self.SPACING['md']
+                    }
+                ],
+                "backgroundColor": self.COLORS['success'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "已成功刪除以下交易：",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_primary'],
+                        "margin": self.SPACING['md']
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            self._create_info_row("類型", type_text, type_color),
+                            self._create_info_row("日期", str(date)),
+                            self._create_info_row("分類", category),
+                            self._create_info_row("金額", amount_text, type_color),
+                            self._create_info_row("刪除時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                        ],
+                        "backgroundColor": self.COLORS['bg_success'],
+                        "paddingAll": self.SPACING['md'],
+                        "cornerRadius": self.BORDER_RADIUS['md'],
+                        "margin": self.SPACING['md']
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "link",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "查看本月支出",
+                            "text": "查詢本月支出"
+                        }
+                    }
+                ]
             }
         }
         
-        flex_content["body"]["contents"].append(transaction_button)
-    
-    # 取消按鈕
-    flex_content["body"]["contents"].append({
-        "type": "button",
-        "style": "secondary",
-        "height": "sm",
-        "action": {
-            "type": "message",
-            "label": "取消操作",
-            "text": "取消操作"
-        },
-        "margin": self.SPACING['lg']
-    })
-    
-    return FlexSendMessage(
-        alt_text="選擇要刪除的交易",
-        contents=flex_content
-    )
+        return FlexSendMessage(
+            alt_text=f"成功刪除{type_text} ${amount:,}",
+            contents=flex_content
+        )
 
-def create_delete_transaction_confirmation(self, transaction):
-    """建立刪除交易確認 Flex Message"""
-    date = transaction.get('date', 'N/A')
-    category = transaction.get('budget_category', 'N/A')
-    amount = transaction.get('amount', 0)
-    transaction_type = transaction.get('type', 'expense')
-    description = transaction.get('description', '')
-    
-    # 根據交易類型設定樣式
-    type_text = "收入" if transaction_type == 'income' else "支出"
-    type_color = self.COLORS['text_success'] if transaction_type == 'income' else self.COLORS['text_error']
-    amount_text = f"+${amount:,}" if transaction_type == 'income' else f"-${amount:,}"
-    
-    flex_content = {
-        "type": "bubble",
-        "header": {
+    # 修正 _create_info_row 方法，支援自定義顏色
+    def _create_info_row(self, label, value, value_color=None):
+        """建立資訊行"""
+        return {
             "type": "box",
-            "layout": "vertical",
+            "layout": "baseline",
             "contents": [
                 {
                     "type": "text",
-                    "text": "⚠️ 確認刪除交易",
-                    "weight": "bold",
-                    "size": self.FONT_SIZE['lg'],
-                    "color": self.COLORS['text_white']
-                },
-                {
-                    "type": "text",
-                    "text": "步驟 2/2 - 最終確認",
+                    "text": label,
+                    "color": self.COLORS['text_secondary'],
                     "size": self.FONT_SIZE['sm'],
-                    "color": self.COLORS['text_white'],
-                    "margin": self.SPACING['sm']
-                }
-            ],
-            "backgroundColor": self.COLORS['danger'],
-            "paddingAll": self.SPACING['lg']
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "您即將刪除以下交易：",
-                    "weight": "bold",
-                    "size": self.FONT_SIZE['md'],
-                    "color": self.COLORS['text_primary'],
-                    "margin": self.SPACING['md']
-                },
-                {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        self._create_info_row("類型", type_text, type_color),
-                        self._create_info_row("日期", str(date)),
-                        self._create_info_row("分類", category),
-                        self._create_info_row("金額", amount_text, type_color),
-                        self._create_info_row("備註", description if description else "無")
-                    ],
-                    "backgroundColor": self.COLORS['bg_card'],
-                    "paddingAll": self.SPACING['md'],
-                    "cornerRadius": self.BORDER_RADIUS['md'],
-                    "margin": self.SPACING['md']
+                    "flex": 2
                 },
                 {
                     "type": "text",
-                    "text": "⚠️ 此操作無法復原，請謹慎考慮！",
-                    "size": self.FONT_SIZE['sm'],
-                    "color": self.COLORS['text_error'],
-                    "weight": "bold",
+                    "text": str(value),
                     "wrap": True,
-                    "margin": self.SPACING['lg']
-                }
-            ]
-        },
-        "footer": {
-            "type": "box",
-            "layout": "horizontal",
-            "spacing": self.SPACING['sm'],
-            "contents": [
-                {
-                    "type": "button",
-                    "style": "secondary",
-                    "height": "sm",
-                    "action": {
-                        "type": "message",
-                        "label": "取消",
-                        "text": "取消刪除"
-                    },
-                    "flex": 1
-                },
-                {
-                    "type": "button",
-                    "style": "primary",
-                    "height": "sm",
-                    "color": self.COLORS['danger'],
-                    "action": {
-                        "type": "message",
-                        "label": "確認刪除",
-                        "text": "確認刪除"
-                    },
-                    "flex": 1
-                }
-            ]
-        }
-    }
-    
-    return FlexSendMessage(
-        alt_text=f"確認刪除{type_text} ${amount:,}",
-        contents=flex_content
-    )
-
-def create_delete_transaction_success(self, transaction):
-    """建立刪除交易成功 Flex Message"""
-    date = transaction.get('date', 'N/A')
-    category = transaction.get('budget_category', 'N/A')
-    amount = transaction.get('amount', 0)
-    transaction_type = transaction.get('type', 'expense')
-    
-    type_text = "收入" if transaction_type == 'income' else "支出"
-    type_color = self.COLORS['text_success'] if transaction_type == 'income' else self.COLORS['text_error']
-    amount_text = f"+${amount:,}" if transaction_type == 'income' else f"-${amount:,}"
-    
-    flex_content = {
-        "type": "bubble",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "交易刪除成功",
-                    "weight": "bold",
-                    "size": self.FONT_SIZE['lg'],
-                    "color": self.COLORS['text_white']
-                },
-                {
-                    "type": "text",
-                    "text": "✅ 操作完成",
-                    "size": self.FONT_SIZE['md'],
-                    "color": self.COLORS['text_white'],
-                    "margin": self.SPACING['md']
+                    "color": value_color or self.COLORS['text_primary'],
+                    "size": self.FONT_SIZE['sm'],
+                    "flex": 3,
+                    "weight": "bold" if value_color else "normal"
                 }
             ],
-            "backgroundColor": self.COLORS['success'],
-            "paddingAll": self.SPACING['lg']
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "已成功刪除以下交易：",
-                    "size": self.FONT_SIZE['md'],
-                    "color": self.COLORS['text_primary'],
-                    "margin": self.SPACING['md']
-                },
-                {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        self._create_info_row("類型", type_text, type_color),
-                        self._create_info_row("日期", str(date)),
-                        self._create_info_row("分類", category),
-                        self._create_info_row("金額", amount_text, type_color),
-                        self._create_info_row("刪除時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
-                    ],
-                    "backgroundColor": self.COLORS['bg_success'],
-                    "paddingAll": self.SPACING['md'],
-                    "cornerRadius": self.BORDER_RADIUS['md'],
-                    "margin": self.SPACING['md']
-                }
-            ]
-        },
-        "footer": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "button",
-                    "style": "link",
-                    "height": "sm",
-                    "action": {
-                        "type": "message",
-                        "label": "查看本月支出",
-                        "text": "查詢本月支出"
-                    }
-                }
-            ]
+            "margin": self.SPACING['sm']
         }
-    }
-    
-    return FlexSendMessage(
-        alt_text=f"成功刪除{type_text} ${amount:,}",
-        contents=flex_content
-    )
-
-# 修正 _create_info_row 方法，支援自定義顏色
-def _create_info_row(self, label, value, value_color=None):
-    """建立資訊行"""
-    return {
-        "type": "box",
-        "layout": "baseline",
-        "contents": [
-            {
-                "type": "text",
-                "text": label,
-                "color": self.COLORS['text_secondary'],
-                "size": self.FONT_SIZE['sm'],
-                "flex": 2
-            },
-            {
-                "type": "text",
-                "text": str(value),
-                "wrap": True,
-                "color": value_color or self.COLORS['text_primary'],
-                "size": self.FONT_SIZE['sm'],
-                "flex": 3,
-                "weight": "bold" if value_color else "normal"
-            }
-        ],
-        "margin": self.SPACING['sm']
-    }
