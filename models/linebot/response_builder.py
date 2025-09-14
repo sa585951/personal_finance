@@ -1,4 +1,4 @@
-from linebot.models import TextSendMessage
+from linebot.models import TextSendMessage, FlexSendMessage
 from .themes import AccountingTheme, StatisticsTheme, OperationTheme
 
 class ResponseBuilder:
@@ -27,34 +27,230 @@ class ResponseBuilder:
         """建立資產總覽回應"""
         return self.statistics_theme.create_asset_overview(totals)
     
+    # === 目標相關回應 ===
+    def create_goal_overview(self, goals, summary):
+        """建立財務目標總覽回應"""
+        return self.statistics_theme.create_goal_overview(goals, summary)
+    
     # === 錯誤和幫助訊息 ===
     def create_error_message(self, message):
         """建立錯誤訊息"""
         return TextSendMessage(text=f"❌ {message}")
     
     def create_help_message(self, is_cold_start=False):
-        """建立幫助訊息"""
-        base_message = """歡迎使用個人財務助手！
-
-支援功能：
-💰 記帳：
-- "午餐花了150"
-- "買咖啡50元"  
-- "薪水入帳30000"
-
-📊 查詢：
-- "查詢本月支出"
-- "我的資產"
-
-🏦 資產管理：
-- "新增銀行帳戶"
-- "我要轉帳"
-- "更新餘額"
-
-範例：
-早餐花80元、搭捷運30、薪水45000"""
+        """建立幫助訊息 - 使用 Flex Message 按鈕"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "個人財務助手",
+                        "weight": "bold",
+                        "size": "xl",
+                        "color": "#4CAF50"
+                    },
+                    {
+                        "type": "text",
+                        "text": "選擇您要使用的功能",
+                        "size": "md",
+                        "color": "#666666",
+                        "margin": "sm"
+                    }
+                ],
+                "backgroundColor": "#F8F9FA",
+                "paddingAll": "20px"
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "contents": [
+                    # 記帳區塊
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "💰 記帳功能",
+                                "weight": "bold",
+                                "size": "md",
+                                "color": "#333333",
+                                "margin": "sm"
+                            },
+                            {
+                                "type": "box",
+                                "layout": "horizontal",
+                                "spacing": "sm",
+                                "contents": [
+                                    {
+                                        "type": "button",
+                                        "style": "primary",
+                                        "height": "sm",
+                                        "color": "#4CAF50",
+                                        "action": {
+                                            "type": "message",
+                                            "label": "快速記帳",
+                                            "text": "午餐花了150"
+                                        },
+                                        "flex": 1
+                                    },
+                                    {
+                                        "type": "button",
+                                        "style": "link",
+                                        "height": "sm",
+                                        "action": {
+                                            "type": "message",
+                                            "label": "記錄收入",
+                                            "text": "薪水入帳30000"
+                                        },
+                                        "flex": 1
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    
+                    # 查詢區塊
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "📊 查詢統計",
+                                "weight": "bold",
+                                "size": "md",
+                                "color": "#333333",
+                                "margin": "sm"
+                            },
+                            {
+                                "type": "box",
+                                "layout": "horizontal",
+                                "spacing": "sm",
+                                "contents": [
+                                    {
+                                        "type": "button",
+                                        "style": "link",
+                                        "height": "sm",
+                                        "action": {
+                                            "type": "message",
+                                            "label": "本月支出",
+                                            "text": "查詢本月支出"
+                                        },
+                                        "flex": 1
+                                    },
+                                    {
+                                        "type": "button",
+                                        "style": "link",
+                                        "height": "sm",
+                                        "action": {
+                                            "type": "message",
+                                            "label": "資產狀況",
+                                            "text": "我的資產"
+                                        },
+                                        "flex": 1
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    
+                    # 管理區塊
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "🏦 帳戶管理",
+                                "weight": "bold",
+                                "size": "md",
+                                "color": "#333333",
+                                "margin": "sm"
+                            },
+                            {
+                                "type": "box",
+                                "layout": "horizontal",
+                                "spacing": "sm",
+                                "contents": [
+                                    {
+                                        "type": "button",
+                                        "style": "link",
+                                        "height": "sm",
+                                        "action": {
+                                            "type": "message",
+                                            "label": "新增帳戶",
+                                            "text": "新增銀行帳戶"
+                                        },
+                                        "flex": 1
+                                    },
+                                    {
+                                        "type": "button",
+                                        "style": "link",
+                                        "height": "sm",
+                                        "action": {
+                                            "type": "message",
+                                            "label": "帳戶轉帳",
+                                            "text": "我要轉帳"
+                                        },
+                                        "flex": 1
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    
+                    # 目標區塊
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "🎯 財務目標",
+                                "weight": "bold",
+                                "size": "md",
+                                "color": "#333333",
+                                "margin": "sm"
+                            },
+                            {
+                                "type": "button",
+                                "style": "link",
+                                "height": "sm",
+                                "action": {
+                                    "type": "message",
+                                    "label": "查看目標",
+                                    "text": "我的財務目標"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
         
+        # 冷啟動提示
         if is_cold_start:
-            base_message += "\n\n💡 提示：系統剛啟動，如無回應請重新發送"
+            flex_content["footer"] = {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "💡 提示：系統剛啟動，如無回應請重新發送",
+                        "size": "xs",
+                        "color": "#FF9800",
+                        "wrap": True,
+                        "align": "center"
+                    }
+                ]
+            }
         
-        return TextSendMessage(text=base_message)
+        return FlexSendMessage(
+            alt_text="歡迎使用個人財務助手",
+            contents=flex_content
+        )

@@ -120,8 +120,19 @@ class QuickParser:
         if any(word in message_lower for word in ['資產', '總資產']):
             return {"type": "asset_query"}
         
-        # 移除單獨的 "餘額" 關鍵字，因為會與其他功能衝突
+        # 目標相關
+        if any(word in message_lower for word in ['財務目標', '我的目標', '目標查詢']):
+            return {"type": "goal_query"}
+
+        if any(word in message_lower for word in ['新增目標', '設定目標']):
+            return {"type": "start_add_goal"}
         
+        if any(word in message_lower for word in ['管理目標', '編輯目標']):
+            return {"type": "manage_goal"}
+
+        if any(word in message_lower for word in ['目標進度', '進度查詢']):
+            return {"type": "goal_progress"}
+
         if any(word in message_lower for word in ['幫助', '說明', '功能', '測試']):
             return {"type": "other"}
         

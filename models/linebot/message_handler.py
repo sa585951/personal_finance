@@ -1,23 +1,26 @@
-from .handlers import ExpenseHandler, IncomeHandler, QueryHandler, AssetHandler
+from .handlers import ExpenseHandler, IncomeHandler, QueryHandler, AssetHandler, GoalHandler
 from .flow_handlers.transfer_flow_handler import TransferFlowHandler
 from .flow_handlers.add_account_flow_handler import AddAccountFlowHandler
 from .flow_handlers.update_balance_flow_handler import UpdateBalanceFlowHandler
 from .flow_handlers.delete_asset_flow_handler import DeleteAssetFlowHandler
 from .flow_handlers.delete_transaction_flow_handler import DeleteTransactionFlowHandler
+from .flow_handlers.add_goal_flow_handler import AddGoalFlowHandler
 from .response_builder import ResponseBuilder
 
 class MessageHandler:
     """訊息處理器 - 負責訊息路由和處理邏輯"""
-    def __init__(self, budget_manager, asset_manager, user_state_manager):
+    def __init__(self, budget_manager, asset_manager, goal_manager, user_state_manager):
         self.budget_manager = budget_manager
         self.asset_manager = asset_manager
         self.user_state_manager = user_state_manager
+        self.goal_manager = goal_manager
 
         # 初始化各種 handlers
         self.expense_handler = ExpenseHandler(budget_manager)
         self.income_handler = IncomeHandler(budget_manager)
         self.query_handler = QueryHandler(budget_manager)
         self.asset_handler = AssetHandler(asset_manager)
+        self.goal_handler = GoalHandler(budget_manager)
         self.response_builder = ResponseBuilder()
         operation_theme = self.response_builder.operation_theme
 
@@ -27,6 +30,7 @@ class MessageHandler:
         self.update_balance_flow_handler = UpdateBalanceFlowHandler(asset_manager, self.user_state_manager, operation_theme)
         self.delete_asset_flow_handler = DeleteAssetFlowHandler(asset_manager, self.user_state_manager, operation_theme)
         self.delete_transaction_flow_handler = DeleteTransactionFlowHandler(budget_manager, self.user_state_manager, operation_theme)
+        self.add_goal_flow_handler = AddGoalFlowHandler(budget_manager, self.user_state_manager, operation_theme)
 
     def handle_user_message(self, user_id, message, parsed_data):
         """處理用戶訊息的主要入口"""
@@ -52,6 +56,8 @@ class MessageHandler:
             return self.delete_asset_flow_handler.handle_flow_message(user_id, message, user_state)
         elif state_type == "delete_transaction_flow":
             return self.delete_transaction_flow_handler.handle_flow_message(user_id, message, user_state)
+        elif state_type == "add_goal_flow":
+            return self.add_goal_flow_handler.handle_flow_message(user_id, message, user_state)
         else:
             self.user_state_manager.clear_user_state(user_id)
             return "操作流程已重置，請重新開始"
@@ -68,6 +74,8 @@ class MessageHandler:
             return self._handle_query(user_id)
         elif message_type == "asset_query":
             return self._handle_asset_query(user_id)
+        elif message_type == "goal_query":
+            return self.goal_handler.handle_goal_query(user_id)
         elif message_type == "start_transfer":
             return self.transfer_flow_handler.start_flow(user_id)
         elif message_type == "start_add_account":
@@ -78,6 +86,12 @@ class MessageHandler:
             return self.delete_asset_flow_handler.start_flow(user_id)
         elif message_type == "start_delete_transaction":
             return self.delete_transaction_flow_handler.start_flow(user_id)
+        elif message_type == "start_add_goal":
+            return self.add_goal_flow_handler.start_flow(user_id)
+        elif message_type == "manage_goal":
+            return self._handle_manage_goal(user_id)
+        elif message_type == "goal_progress":
+            return self._handle_goal_progress(user_id)
         else:
             return self._get_help_message()
         
@@ -121,6 +135,31 @@ class MessageHandler:
             return self.response_builder.create_asset_overview(result["totals"])
         else:
             return self.response_builder.create_error_message(f"查詢失敗: {result['message']}")
+    
+    def _handle_goal_query(self, user_id):
+        """處理目標查詢"""
+        result = self.goal_handler.handle_goal_query(user_id)
+        if result["success"]:
+            return self.response_builder.create_goal_overview(result["goals"])
+        else:
+            return self.response_builder.create_error_message({result['message']})
+        
+    def _handle_manage_goal(self, user_id):
+        """處理管理目標"""
+        # 顯示目標列表供編輯/刪除
+        result = self.goal_handler.handle_goal_query(user_id)
+        if result["success"]:
+            return self.response_builder.create_goal_management(result["goals"])
+        else:
+            return self.response_builder.create_error_message(result["message"])
+
+    def _handle_goal_progress(self, user_id):
+        """處理目標進度查詢"""
+        result = self.goal_handler.handle_goal_query(user_id)
+        if result["success"]:
+            return self.response_builder.create_goal_progress(result["goals"])
+        else:
+            return self.response_builder.create_error_message(result["message"])
     
     def _get_help_message(self):
         """取得幫助訊息"""

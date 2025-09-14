@@ -239,3 +239,26 @@ class AssetHandler:
             return {"success": True, "totals": totals}
         except Exception as e:
             return {"success": False, "message": str(e)}
+
+class GoalHandler:
+    """財務目標處理器"""
+    
+    def __init__(self, goal_manager):
+        self.goal_manager = goal_manager
+    
+    def handle_goal_query(self, user_id):
+        """處理目標查詢"""
+        try:
+            goals_data = self.goal_manager.get_all_goals()
+            summary = self.goal_manager.calculate_goal_summary()
+            
+            return {
+                "success": True,
+                "goals": goals_data,
+                "summary": summary
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"查詢財務目標失敗: {str(e)}"
+            }
