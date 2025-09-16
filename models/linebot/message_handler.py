@@ -5,6 +5,8 @@ from .flow_handlers.update_balance_flow_handler import UpdateBalanceFlowHandler
 from .flow_handlers.delete_asset_flow_handler import DeleteAssetFlowHandler
 from .flow_handlers.delete_transaction_flow_handler import DeleteTransactionFlowHandler
 from .flow_handlers.add_goal_flow_handler import AddGoalFlowHandler
+from .flow_handlers.add_expense_flow_handler import AddExpenseFlowHandler
+from .flow_handlers.add_income_flow_handler import AddIncomeFlowHandler
 from .response_builder import ResponseBuilder
 
 class MessageHandler:
@@ -31,6 +33,8 @@ class MessageHandler:
         self.delete_asset_flow_handler = DeleteAssetFlowHandler(asset_manager, self.user_state_manager, operation_theme)
         self.delete_transaction_flow_handler = DeleteTransactionFlowHandler(budget_manager, self.user_state_manager, operation_theme)
         self.add_goal_flow_handler = AddGoalFlowHandler(goal_manager, self.user_state_manager, operation_theme)
+        self.add_expense_flow_handler = AddExpenseFlowHandler(budget_manager, self.user_state_manager, operation_theme)
+        self.add_income_flow_handler = AddIncomeFlowHandler(budget_manager, self.user_state_manager, operation_theme)
 
     def handle_user_message(self, user_id, message, parsed_data):
         """處理用戶訊息的主要入口"""
@@ -58,6 +62,10 @@ class MessageHandler:
             return self.delete_transaction_flow_handler.handle_flow_message(user_id, message, user_state)
         elif state_type == "add_goal_flow":
             return self.add_goal_flow_handler.handle_flow_message(user_id, message, user_state)
+        elif state_type == "add_expense_flow":
+            return self.add_expense_flow_handler.handle_flow_message(user_id, message, user_state)
+        elif state_type == "add_income_flow":
+            return self.add_income_flow_handler.handle_flow_message(user_id, message, user_state)
         else:
             self.user_state_manager.clear_user_state(user_id)
             return "操作流程已重置，請重新開始"
@@ -75,7 +83,7 @@ class MessageHandler:
         elif message_type == "asset_query":
             return self._handle_asset_query(user_id)
         elif message_type == "goal_query":
-            return self.goal_handler.handle_goal_query(user_id)
+            return self._handle_goal_query(user_id)
         elif message_type == "start_transfer":
             return self.transfer_flow_handler.start_flow(user_id)
         elif message_type == "start_add_account":
@@ -88,6 +96,10 @@ class MessageHandler:
             return self.delete_transaction_flow_handler.start_flow(user_id)
         elif message_type == "start_add_goal":
             return self.add_goal_flow_handler.start_flow(user_id)
+        elif message_type == "start_add_expense":
+            return self.add_expense_flow_handler.start_flow(user_id)
+        elif message_type == "start_add_income":
+            return self.add_income_flow_handler.start_flow(user_id)
         elif message_type == "manage_goal":
             return self._handle_manage_goal(user_id)
         elif message_type == "goal_progress":
@@ -132,9 +144,9 @@ class MessageHandler:
         """處理資產查詢"""
         result = self.asset_handler.handle(user_id)
         if result["success"]:
-            return self.response_builder.create_asset_overview(result["totals"])
+            return self.response_builder.create_goal_overview(result["goals"], result["summary"])
         else:
-            return self.response_builder.create_error_message(f"查詢失敗: {result['message']}")
+            return self.response_builder.create_error_message(result['message'])
     
     def _handle_goal_query(self, user_id):
         """處理目標查詢"""

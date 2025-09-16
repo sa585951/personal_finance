@@ -98,7 +98,7 @@ class QuickParser:
         if any(word in message_lower for word in ['刪除帳戶', '刪除資產', '移除帳戶']):
             return {"type": "start_delete_asset"}
         
-        if any(word in message_lower for word in ['刪除交易', '刪除記錄', '刪除支出']):
+        if message_lower in ['刪除交易', '刪除記錄', '刪除支出']:
             return {"type": "start_delete_transaction"}
         
         # 更新相關
@@ -106,6 +106,12 @@ class QuickParser:
             return {"type": "start_update_balance"}
         
         # 新增相關
+        if any(word in message_lower for word in ['快速記帳', '新增支出']):
+            return {"type": "start_add_expense"}
+
+        if any(word in message_lower for word in ['紀錄收入', '新增收入']):
+            return {"type": "start_add_income"}
+
         if any(word in message_lower for word in ['新增銀行帳戶', '新增帳戶', '加入帳戶']):
             return {"type": "start_add_account"}
         

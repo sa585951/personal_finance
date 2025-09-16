@@ -1503,7 +1503,7 @@ class OperationTheme(BaseTheme):
                 "cornerRadius": self.BORDER_RADIUS['sm'],
                 "action": {
                     "type": "message",
-                    "text": f"刪除交易:{transaction_id}"
+                    "text": f"選擇刪除交易: {category} ({transaction_id})"
                 }
             }
             
@@ -1751,3 +1751,241 @@ class OperationTheme(BaseTheme):
             ],
             "margin": self.SPACING['sm']
         }
+
+    # ====== 新增交易流程相關方法 ======
+
+    def create_category_selection(self, categories, transaction_type, error_message=None):
+        """建立類別選擇 Flex Message"""
+        title = f"新增{transaction_type.capitalize()}"
+        alt_text = f"選擇{transaction_type.capitalize()}類別"
+        
+        buttons = []
+        for category in categories:
+            buttons.append({
+                "type": "button",
+                "style": "link",
+                "height": "sm",
+                "action": {
+                    "type": "message",
+                    "label": category,
+                    "text": f"選擇類別:{category}"
+                }
+            })
+
+        flex_content = self._create_step_bubble(
+            title=title,
+            step_text="步驟 1/3 - 選擇類別",
+            body_contents=buttons,
+            error_message=error_message
+        )
+        
+        return FlexSendMessage(alt_text=alt_text, contents=flex_content)
+
+    def create_amount_input(self, transaction_type, error_message=None):
+        """建立金額輸入 Flex Message"""
+        title = f"新增{transaction_type.capitalize()}"
+        alt_text = f"輸入{transaction_type.capitalize()}金額"
+        
+        body_contents = [
+            {
+                "type": "text",
+                "text": "請輸入金額",
+                "weight": "bold",
+                "size": self.FONT_SIZE['md'],
+                "margin": self.SPACING['lg']
+            },
+            {
+                "type": "text",
+                "text": "💡 範例: 150",
+                "size": self.FONT_SIZE['sm'],
+                "color": self.COLORS['text_muted'],
+                "margin": self.SPACING['md']
+            }
+        ]
+        
+        flex_content = self._create_step_bubble(
+            title=title,
+            step_text="步驟 2/3 - 輸入金額",
+            body_contents=body_contents,
+            error_message=error_message
+        )
+        
+        return FlexSendMessage(alt_text=alt_text, contents=flex_content)
+
+    def create_description_input(self):
+        """建立描述輸入 Flex Message"""
+        body_contents = [
+            {
+                "type": "text",
+                "text": "請輸入備註 (可選)",
+                "weight": "bold",
+                "size": self.FONT_SIZE['md'],
+                "margin": self.SPACING['lg']
+            },
+            {
+                "type": "text",
+                "text": "💡 輸入任何文字作為備註，或點擊「跳過」",
+                "size": self.FONT_SIZE['sm'],
+                "color": self.COLORS['text_muted'],
+                "margin": self.SPACING['md'],
+                "wrap": True
+            }
+        ]
+        
+        flex_content = self._create_step_bubble(
+            title="新增交易",
+            step_text="步驟 3/3 - 輸入備註",
+            body_contents=body_contents
+        )
+        
+        # 添加跳過按鈕
+        flex_content["footer"]["contents"].append({
+            "type": "button",
+            "style": "link",
+            "height": "sm",
+            "action": {
+                "type": "message",
+                "label": "跳過",
+                "text": "跳過"
+            }
+        })
+        
+        return FlexSendMessage(alt_text="請輸入備註", contents=flex_content)
+
+    def create_transaction_confirmation(self, transaction_type, data):
+        """建立交易確認 Flex Message"""
+        type_text = "收入" if transaction_type == 'income' else "支出"
+        amount_color = self.COLORS['text_success'] if transaction_type == 'income' else self.COLORS['text_error']
+        amount_text = f"+${data['amount']:,}" if transaction_type == 'income' else f"-${data['amount']:,}"
+
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": f"確認新增{type_text}",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg']
+                    }
+                ],
+                "backgroundColor": self.COLORS['bg_primary'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    self._create_info_row("類型", type_text, amount_color),
+                    self._create_info_row("分類", data['category']),
+                    self._create_info_row("金額", amount_text, amount_color),
+                    self._create_info_row("備註", data.get('description') or "無")
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "horizontal",
+                "spacing": self.SPACING['sm'],
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {"type": "message", "label": "取消", "text": "取消新增"}
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "color": self.COLORS['primary_green'],
+                        "action": {"type": "message", "label": "確認新增", "text": "確認新增"}
+                    }
+                ]
+            }
+        }
+        return FlexSendMessage(alt_text=f"確認新增{type_text}", contents=flex_content)
+
+    def create_add_transaction_success(self, transaction_type, data):
+        """建立新增交易成功 Flex Message"""
+        type_text = "收入" if transaction_type == 'income' else "支出"
+        header_color = self.COLORS['success'] if transaction_type == 'income' else self.COLORS['primary_blue']
+        amount_text = f"+${data['amount']:,}" if transaction_type == 'income' else f"-${data['amount']:,}"
+
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": f"{type_text}記錄成功",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_white']
+                    },
+                    {
+                        "type": "text",
+                        "text": amount_text,
+                        "weight": "bold",
+                        "size": "3xl",
+                        "color": self.COLORS['text_white'],
+                        "margin": self.SPACING['md']
+                    }
+                ],
+                "backgroundColor": header_color,
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    self._create_info_row("分類", data['category']),
+                    self._create_info_row("備註", data.get('description') or "無"),
+                    self._create_info_row("時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                ]
+            }
+        }
+        return FlexSendMessage(alt_text=f"{type_text}成功", contents=flex_content)
+
+    def _create_step_bubble(self, title, step_text, body_contents, error_message=None):
+        """建立一個帶有步驟說明的標準泡泡"""
+        bubble = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {"type": "text", "text": title, "weight": "bold", "size": self.FONT_SIZE['lg']},
+                    {"type": "text", "text": step_text, "size": self.FONT_SIZE['sm'], "color": self.COLORS['text_secondary'], "margin": self.SPACING['sm']}
+                ],
+                "backgroundColor": self.COLORS['bg_primary'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [],
+                "paddingAll": self.SPACING['lg']
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {"type": "message", "label": "取消操作", "text": "取消操作"}
+                    }
+                ]
+            }
+        }
+        
+        if error_message:
+            bubble["body"]["contents"].append(self._create_error_box(error_message))
+            
+        bubble["body"]["contents"].extend(body_contents)
+        return bubble

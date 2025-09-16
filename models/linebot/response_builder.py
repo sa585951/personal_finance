@@ -94,7 +94,7 @@ class ResponseBuilder:
                                         "action": {
                                             "type": "message",
                                             "label": "快速記帳",
-                                            "text": "午餐花了150"
+                                            "text": "快速記帳"
                                         },
                                         "flex": 1
                                     },
@@ -105,7 +105,7 @@ class ResponseBuilder:
                                         "action": {
                                             "type": "message",
                                             "label": "記錄收入",
-                                            "text": "薪水入帳30000"
+                                            "text": "紀錄收入"
                                         },
                                         "flex": 1
                                     }
