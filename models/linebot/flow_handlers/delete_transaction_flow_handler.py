@@ -48,30 +48,7 @@ class DeleteTransactionFlowHandler:
             return "刪除交易已取消"
         
         # 使用正規表示式從 "選擇刪除交易: {category} ({transaction_id})" 中提取 ID
-        match = re.search(r'\((\S+)\)
-    
-    def _handle_confirmation(self, user_id, message, current_state):
-        """處理確認刪除"""
-        if message == "確認刪除":
-            # 執行刪除操作
-            data = current_state['data']
-            success, result_message = self.budget_manager.delete_transaction(
-                data['transaction_id']
-            )
-            
-            # 清除狀態
-            self.user_state_manager.clear_user_state(user_id)
-            
-            if success:
-                return self.theme.create_delete_transaction_success(data['selected_transaction'])
-            else:
-                return f"刪除交易失敗: {result_message}"
-        
-        elif message == "取消操作":
-            self.user_state_manager.clear_user_state(user_id)
-            return "刪除交易已取消"
-        else:
-            return "請點擊「確認刪除」或「取消刪除」", message)
+        match = re.search(r'\((\S+)\), message)
         if not message.startswith("選擇刪除交易:") or not match:
             return "請點擊按鈕選擇要刪除的交易，或輸入「取消操作」"
         
