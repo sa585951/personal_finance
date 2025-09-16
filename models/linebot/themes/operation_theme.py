@@ -1177,7 +1177,7 @@ class OperationTheme(BaseTheme):
             # 根據餘額決定按鈕樣式
             if balance == 0:
                 button_style = "primary"
-                button_color = self.COLORS['danger']
+                button_color = self.COLORS['text_error']
                 button_text = f"刪除 {asset['bank_name']} {asset['account_type']}"
                 action_text = f"刪除帳戶:{account_key}"
             else:
@@ -1244,7 +1244,7 @@ class OperationTheme(BaseTheme):
                         "margin": self.SPACING['sm']
                     }
                 ],
-                "backgroundColor": self.COLORS['danger'],
+                "backgroundColor": self.COLORS['text_error'],
                 "paddingAll": self.SPACING['lg']
             },
             "body": {
@@ -1303,7 +1303,7 @@ class OperationTheme(BaseTheme):
                         "type": "button",
                         "style": "primary",
                         "height": "sm",
-                        "color": self.COLORS['danger'],
+                        "color": self.COLORS['text_error'],
                         "action": {
                             "type": "message",
                             "label": "確認刪除",
@@ -1343,7 +1343,7 @@ class OperationTheme(BaseTheme):
                         "margin": self.SPACING['md']
                     }
                 ],
-                "backgroundColor": self.COLORS['success'],
+                "backgroundColor": self.COLORS['text_success'],
                 "paddingAll": self.SPACING['lg']
             },
             "body": {
@@ -1561,7 +1561,7 @@ class OperationTheme(BaseTheme):
                         "margin": self.SPACING['sm']
                     }
                 ],
-                "backgroundColor": self.COLORS['danger'],
+                "backgroundColor": self.COLORS['text_error'],
                 "paddingAll": self.SPACING['lg']
             },
             "body": {
@@ -1622,7 +1622,7 @@ class OperationTheme(BaseTheme):
                         "type": "button",
                         "style": "primary",
                         "height": "sm",
-                        "color": self.COLORS['danger'],
+                        "color": self.COLORS['text_error'],
                         "action": {
                             "type": "message",
                             "label": "確認刪除",
@@ -1671,7 +1671,7 @@ class OperationTheme(BaseTheme):
                         "margin": self.SPACING['md']
                     }
                 ],
-                "backgroundColor": self.COLORS['success'],
+                "backgroundColor": self.COLORS['text_success'],
                 "paddingAll": self.SPACING['lg']
             },
             "body": {
@@ -1910,7 +1910,7 @@ class OperationTheme(BaseTheme):
     def create_add_transaction_success(self, transaction_type, data):
         """建立新增交易成功 Flex Message"""
         type_text = "收入" if transaction_type == 'income' else "支出"
-        header_color = self.COLORS['success'] if transaction_type == 'income' else self.COLORS['dark_green']
+        header_color = self.COLORS['text_success'] if transaction_type == 'income' else self.COLORS['dark_green']
         amount_text = f"+${data['amount']:,}" if transaction_type == 'income' else f"-${data['amount']:,}"
 
         flex_content = {

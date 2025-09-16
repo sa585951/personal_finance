@@ -152,9 +152,9 @@ class MessageHandler:
         """處理目標查詢"""
         result = self.goal_handler.handle_goal_query(user_id)
         if result["success"]:
-            return self.response_builder.create_goal_overview(result["goals"])
+            return self.response_builder.create_goal_overview(result["goals"], result["summary"])
         else:
-            return self.response_builder.create_error_message({result['message']})
+            return self.response_builder.create_error_message(result['message'])
         
     def _handle_manage_goal(self, user_id):
         """處理管理目標"""
