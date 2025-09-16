@@ -1746,7 +1746,7 @@ class OperationTheme(BaseTheme):
                     "color": value_color or self.COLORS['text_primary'],
                     "size": self.FONT_SIZE['sm'],
                     "flex": 3,
-                    "weight": "bold" if value_color else "normal"
+                    "weight": "bold" if value_color else "regular"
                 }
             ],
             "margin": self.SPACING['sm']
