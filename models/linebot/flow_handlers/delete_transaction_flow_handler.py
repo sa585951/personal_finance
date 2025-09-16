@@ -1,3 +1,5 @@
+import re
+
 class DeleteTransactionFlowHandler:
     """刪除交易流程處理器"""
     
@@ -41,14 +43,12 @@ class DeleteTransactionFlowHandler:
     
     def _handle_transaction_selection(self, user_id, message):
         """處理交易選擇"""
-        import re
-
         if message == "取消操作":
             self.user_state_manager.clear_user_state(user_id)
             return "刪除交易已取消"
         
         # 使用正規表示式從 "選擇刪除交易: {category} ({transaction_id})" 中提取 ID
-        match = re.search(r'\((\S+)\), message)
+        match = re.search(r'\((\S+)\)$', message)
         if not message.startswith("選擇刪除交易:") or not match:
             return "請點擊按鈕選擇要刪除的交易，或輸入「取消操作」"
         
