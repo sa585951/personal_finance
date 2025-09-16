@@ -22,7 +22,7 @@ app_state = AppStateManager()
 asset_manager = AssetManager()
 budget_manager = BudgetManager()
 goal_manager = GoalManager()
-linebot_manager = LineBotManager(budget_manager, asset_manager, app_state)
+linebot_manager = LineBotManager(budget_manager, asset_manager, goal_manager, app_state)
 
 @app.route("/")
 def home():

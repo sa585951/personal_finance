@@ -20,7 +20,7 @@ class MessageHandler:
         self.income_handler = IncomeHandler(budget_manager)
         self.query_handler = QueryHandler(budget_manager)
         self.asset_handler = AssetHandler(asset_manager)
-        self.goal_handler = GoalHandler(budget_manager)
+        self.goal_handler = GoalHandler(goal_manager)
         self.response_builder = ResponseBuilder()
         operation_theme = self.response_builder.operation_theme
 
@@ -30,7 +30,7 @@ class MessageHandler:
         self.update_balance_flow_handler = UpdateBalanceFlowHandler(asset_manager, self.user_state_manager, operation_theme)
         self.delete_asset_flow_handler = DeleteAssetFlowHandler(asset_manager, self.user_state_manager, operation_theme)
         self.delete_transaction_flow_handler = DeleteTransactionFlowHandler(budget_manager, self.user_state_manager, operation_theme)
-        self.add_goal_flow_handler = AddGoalFlowHandler(budget_manager, self.user_state_manager, operation_theme)
+        self.add_goal_flow_handler = AddGoalFlowHandler(goal_manager, self.user_state_manager, operation_theme)
 
     def handle_user_message(self, user_id, message, parsed_data):
         """處理用戶訊息的主要入口"""

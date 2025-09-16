@@ -12,7 +12,7 @@ from linebot.models import (
 )
 
 class LineBotManager:
-    def __init__(self, budget_manager=None, asset_manager=None, app_state=None):
+    def __init__(self, budget_manager=None, asset_manager=None, goal_manager=None, app_state=None):
 
         self.app_state = app_state
         #Line Bot設定
@@ -53,7 +53,7 @@ class LineBotManager:
         )
 
         # 建立 Handler實例
-        self.message_handler = MessageHandler(budget_manager, asset_manager, self.user_state_manager)
+        self.message_handler = MessageHandler(budget_manager, asset_manager, goal_manager, self.user_state_manager)
         # 註冊事件處理器
         self.register_handlers()
 
