@@ -89,7 +89,7 @@ class LineBotManager:
             # 出錯時清除狀態
             self.user_state_manager.clear_user_state(user_id)
             # 如果是啟動期間的錯誤，可能是資源尚未載入
-            error_msg = "系統正在啟動中，請稍後重新發送訊息" if self._is_cold_start() else "抱歉，系統暫時無法處理，請稍後再試"
+            error_msg = "系統正在啟動中，請稍後重新發送訊息" if self.app_state.is_cold_start() else "抱歉，系統暫時無法處理，請稍後再試"
             self.reply_message_flex(event.reply_token, error_msg)
         
     def get_help_message(self):
@@ -110,7 +110,7 @@ class LineBotManager:
         早餐花80元、搭捷運30、薪水45000"""
         
         #若是冷啟動期間，加入提示
-        if self._is_cold_start():
+        if self.app_state.is_cold_start():
             base_message += "\n\n💡 提示：系統剛啟動，如無回應請重新發送"
         return base_message
 

@@ -1910,7 +1910,7 @@ class OperationTheme(BaseTheme):
     def create_add_transaction_success(self, transaction_type, data):
         """建立新增交易成功 Flex Message"""
         type_text = "收入" if transaction_type == 'income' else "支出"
-        header_color = self.COLORS['success'] if transaction_type == 'income' else self.COLORS['primary_blue']
+        header_color = self.COLORS['success'] if transaction_type == 'income' else self.COLORS['dark_green']
         amount_text = f"+${data['amount']:,}" if transaction_type == 'income' else f"-${data['amount']:,}"
 
         flex_content = {
