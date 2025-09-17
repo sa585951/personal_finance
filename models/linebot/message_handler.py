@@ -144,7 +144,7 @@ class MessageHandler:
         """處理資產查詢"""
         result = self.asset_handler.handle(user_id)
         if result["success"]:
-            return self.response_builder.create_goal_overview(result["goals"], result["summary"])
+            return self.response_builder.create_asset_overview(result["totals"])
         else:
             return self.response_builder.create_error_message(result['message'])
     

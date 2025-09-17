@@ -31,6 +31,14 @@ class ResponseBuilder:
     def create_goal_overview(self, goals, summary):
         """建立財務目標總覽回應"""
         return self.statistics_theme.create_goal_overview(goals, summary)
+
+    def create_goal_management(self, goals):
+        """建立財務目標管理回應"""
+        return self.statistics_theme.create_goal_management(goals)
+
+    def create_goal_progress(self, goals):
+        """建立財務目標進度回應"""
+        return self.statistics_theme.create_goal_progress(goals)
     
     # === 錯誤和幫助訊息 ===
     def create_error_message(self, message):

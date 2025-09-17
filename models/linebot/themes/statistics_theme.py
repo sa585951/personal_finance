@@ -581,136 +581,222 @@ class StatisticsTheme(BaseTheme):
             contents=flex_content
         )
 
-    def _create_goal_card(self, goal):
-        """建立單個目標卡片"""
+    def create_goal_management(self, goals):
+        """建立財務目標管理 Flex Message"""
+        if not goals:
+            return FlexSendMessage(
+                alt_text="管理目標",
+                contents=self._create_message_bubble("沒有可管理的目標", "請先新增您的財務目標")
+            )
+
+        bubbles = []
+        for goal in goals:
+            bubbles.append(self._create_goal_management_card(goal))
+
+        carousel = {"type": "carousel", "contents": bubbles}
+        return FlexSendMessage(alt_text="管理您的財務目標", contents=carousel)
+
+    def create_goal_progress(self, goals):
+        """建立財務目標進度 Flex Message"""
+        if not goals:
+            return FlexSendMessage(
+                alt_text="目標進度",
+                contents=self._create_message_bubble("沒有目標可以顯示進度", "請先新增您的財務目標")
+            )
+
+        bubbles = []
+        for goal in goals:
+            bubbles.append(self._create_goal_card(goal, is_progress_view=True))
+
+        carousel = {"type": "carousel", "contents": bubbles}
+        return FlexSendMessage(alt_text="查看目標進度", contents=carousel)
+
+    def _create_goal_card(self, goal, is_progress_view=False):
+        """建立單個目標卡片 (可擴充為進度視圖)"""
         title = goal.get('title', '未命名目標')
         goal_type = goal.get('type', '儲蓄')
         target_amount = goal.get('target_amount', 0)
         current_amount = goal.get('current_amount', 0)
         target_date = goal.get('target_date', '')
         
-        # 計算進度百分比
         progress = (current_amount / target_amount * 100) if target_amount > 0 else 0
-        progress = min(progress, 100)  # 最大100%
+        progress = min(progress, 100)
         
-        # 根據目標類型設定顏色
+        type_color = self.get_goal_type_color(goal_type)
+        progress_color = self.get_progress_color(progress)
+        
+        card = {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": title,
+                                "weight": "bold",
+                                "size": self.FONT_SIZE['md'],
+                                "color": self.COLORS['text_primary'],
+                                "flex": 3,
+                                "wrap": True
+                            },
+                            {
+                                "type": "text",
+                                "text": goal_type,
+                                "size": self.FONT_SIZE['xs'],
+                                "color": type_color,
+                                "backgroundColor": self.COLORS['bg_card'],
+                                "paddingAll": self.SPACING['xs'],
+                                "cornerRadius": self.BORDER_RADIUS['sm'],
+                                "flex": 1,
+                                "align": "center"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": f"${current_amount:,.0f}",
+                                "size": self.FONT_SIZE['sm'],
+                                "color": self.COLORS['text_primary'],
+                                "weight": "bold"
+                            },
+                            {
+                                "type": "text",
+                                "text": f"/ ${target_amount:,.0f}",
+                                "size": self.FONT_SIZE['sm'],
+                                "color": self.COLORS['text_secondary']
+                            },
+                            {
+                                "type": "text",
+                                "text": f"{progress:.0f}%",
+                                "size": self.FONT_SIZE['sm'],
+                                "color": progress_color,
+                                "align": "end",
+                                "weight": "bold"
+                            }
+                        ],
+                        "margin": self.SPACING['sm']
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "horizontal",
+                                "contents": [{"type": "filler"}],
+                                "backgroundColor": progress_color,
+                                "width": f"{max(progress, 5)}%",
+                                "height": "6px",
+                                "cornerRadius": "3px"
+                            }
+                        ],
+                        "backgroundColor": self.COLORS['bg_card'],
+                        "height": "6px",
+                        "cornerRadius": "3px",
+                        "margin": self.SPACING['sm']
+                    },
+                    {
+                        "type": "text",
+                        "text": f"目標日期：{target_date}",
+                        "size": self.FONT_SIZE['xs'],
+                        "color": self.COLORS['text_muted'],
+                        "margin": self.SPACING['xs']
+                    }
+                ]
+            }
+        }
+        if not is_progress_view:
+            card["action"] = {
+                "type": "message",
+                "text": f"查看目標:{goal.get('id', '')}"
+            }
+        return card
+
+    def _create_goal_management_card(self, goal):
+        """建立單個目標管理卡片"""
+        card = self._create_goal_card(goal)
+        card["footer"] = {
+            "type": "box",
+            "layout": "horizontal",
+            "spacing": self.SPACING['sm'],
+            "contents": [
+                {
+                    "type": "button",
+                    "style": "link",
+                    "height": "sm",
+                    "action": {
+                        "type": "message",
+                        "label": "編輯",
+                        "text": f"編輯目標:{goal.get('id', '')}"
+                    }
+                },
+                {
+                    "type": "button",
+                    "style": "link",
+                    "height": "sm",
+                    "action": {
+                        "type": "message",
+                        "label": "刪除",
+                        "text": f"刪除目標:{goal.get('id', '')}"
+                    },
+                    "color": self.COLORS['text_error']
+                }
+            ]
+        }
+        # Remove the top-level action if it exists
+        card.pop('action', None)
+        return card
+
+    def get_goal_type_color(self, goal_type):
         type_colors = {
             '儲蓄': self.COLORS['primary_green'],
             '投資': self.COLORS['accent_orange'],
             '債務': self.COLORS['text_error']
         }
-        type_color = type_colors.get(goal_type, self.COLORS['text_muted'])
-        
-        # 進度條顏色
+        return type_colors.get(goal_type, self.COLORS['text_muted'])
+
+    def get_progress_color(self, progress):
         if progress >= 100:
-            progress_color = self.COLORS['primary_green']
+            return self.COLORS['primary_green']
         elif progress >= 70:
-            progress_color = self.COLORS['accent_orange']
+            return self.COLORS['accent_orange']
         else:
-            progress_color = self.COLORS['text_muted']
-        
+            return self.COLORS['text_muted']
+
+    def _create_message_bubble(self, title, text):
         return {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                # 目標標題和類型
-                {
-                    "type": "box",
-                    "layout": "horizontal",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": title,
-                            "weight": "bold",
-                            "size": self.FONT_SIZE['md'],
-                            "color": self.COLORS['text_primary'],
-                            "flex": 3,
-                            "wrap": True
-                        },
-                        {
-                            "type": "text",
-                            "text": goal_type,
-                            "size": self.FONT_SIZE['xs'],
-                            "color": type_color,
-                            "backgroundColor": self.COLORS['bg_card'],
-                            "paddingAll": self.SPACING['xs'],
-                            "cornerRadius": self.BORDER_RADIUS['sm'],
-                            "flex": 1,
-                            "align": "center"
-                        }
-                    ]
-                },
-                
-                # 進度資訊
-                {
-                    "type": "box",
-                    "layout": "horizontal",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": f"${current_amount:,.0f}",
-                            "size": self.FONT_SIZE['sm'],
-                            "color": self.COLORS['text_primary'],
-                            "weight": "bold"
-                        },
-                        {
-                            "type": "text",
-                            "text": f"/ ${target_amount:,.0f}",
-                            "size": self.FONT_SIZE['sm'],
-                            "color": self.COLORS['text_secondary']
-                        },
-                        {
-                            "type": "text",
-                            "text": f"{progress:.0f}%",
-                            "size": self.FONT_SIZE['sm'],
-                            "color": progress_color,
-                            "align": "end",
-                            "weight": "bold"
-                        }
-                    ],
-                    "margin": self.SPACING['sm']
-                },
-                
-                # 進度條
-                {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {
-                            "type": "box",
-                            "layout": "horizontal",
-                            "contents": [
-                                {
-                                    "type": "filler"
-                                }
-                            ],
-                            "backgroundColor": progress_color,
-                            "width": f"{max(progress, 5)}%",  # 最小5%顯示
-                            "height": "6px",
-                            "cornerRadius": "3px"
-                        }
-                    ],
-                    "backgroundColor": self.COLORS['bg_card'],
-                    "height": "6px",
-                    "cornerRadius": "3px",
-                    "margin": self.SPACING['sm']
-                },
-                
-                # 目標日期
-                {
-                    "type": "text",
-                    "text": f"目標日期：{target_date}",
-                    "size": self.FONT_SIZE['xs'],
-                    "color": self.COLORS['text_muted'],
-                    "margin": self.SPACING['xs']
-                }
-            ],
-            "backgroundColor": self.COLORS['bg_card'],
-            "paddingAll": self.SPACING['md'],
-            "cornerRadius": self.BORDER_RADIUS['md'],
-            "margin": self.SPACING['md'],
-            "action": {
-                "type": "message",
-                "text": f"查看目標:{goal.get('id', '')}"
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": title,
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_primary'],
+                        "align": "center"
+                    },
+                    {
+                        "type": "text",
+                        "text": text,
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_secondary'],
+                        "align": "center",
+                        "margin": self.SPACING['sm'],
+                        "wrap": True
+                    }
+                ],
+                "paddingAll": self.SPACING['xl']
             }
         }
