@@ -1989,3 +1989,876 @@ class OperationTheme(BaseTheme):
             
         bubble["body"]["contents"].extend(body_contents)
         return bubble
+
+    # 修正 _create_info_row 方法，支援自定義顏色
+    def _create_info_row(self, label, value, value_color=None):
+        """建立資訊行"""
+        return {
+            "type": "box",
+            "layout": "baseline",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": label,
+                    "color": self.COLORS['text_secondary'],
+                    "size": self.FONT_SIZE['sm'],
+                    "flex": 2
+                },
+                {
+                    "type": "text",
+                    "text": str(value),
+                    "wrap": True,
+                    "color": value_color or self.COLORS['text_primary'],
+                    "size": self.FONT_SIZE['sm'],
+                    "flex": 3,
+                    "weight": "bold" if value_color else "regular"
+                }
+            ],
+            "margin": self.SPACING['sm']
+        }
+
+    # ====== 目標相關方法 ======
+    def create_goal_title_input(self, error_message=None):
+        """建立目標名稱輸入 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "新增目標",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_primary']
+                    },
+                    {
+                        "type": "text",
+                        "text": "步驟 1/5 - 輸入目標名稱",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_secondary'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['bg_primary'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "請輸入您的目標名稱：",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_primary'],
+                        "margin": self.SPACING['lg']
+                    },
+                    {
+                        "type": "text",
+                        "text": "💡 範例：買房頭期款、環遊世界基金",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_muted'],
+                        "margin": self.SPACING['md']
+                    }
+                ]
+            }
+        }
+        
+        if error_message:
+            flex_content["body"]["contents"].insert(0, self._create_error_box(error_message))
+        
+        flex_content["footer"] = {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "button",
+                    "style": "secondary",
+                    "height": "sm",
+                    "action": {
+                        "type": "message",
+                        "label": "取消操作",
+                        "text": "取消操作"
+                    }
+                }
+            ]
+        }
+        
+        return FlexSendMessage(
+            alt_text="請輸入目標名稱",
+            contents=flex_content
+        )
+
+    def create_goal_type_selection(self, error_message=None):
+        """建立目標類型選擇 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "新增目標",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_primary']
+                    },
+                    {
+                        "type": "text",
+                        "text": "步驟 2/5 - 選擇目標類型",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_secondary'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['bg_primary'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": []
+            }
+        }
+
+        if error_message:
+            flex_content["body"]["contents"].append(self._create_error_box(error_message))
+
+        goal_types = ["儲蓄", "投資", "債務"] # 這裡應該從 handler 傳入或定義在 theme 裡
+        for goal_type in goal_types:
+            flex_content["body"]["contents"].append({
+                "type": "button",
+                "style": "link",
+                "height": "sm",
+                "action": {
+                    "type": "message",
+                    "label": goal_type,
+                    "text": f"選擇類型:{goal_type}"
+                },
+                "margin": self.SPACING['sm']
+            })
+        
+        flex_content["footer"] = {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "button",
+                    "style": "secondary",
+                    "height": "sm",
+                    "action": {
+                        "type": "message",
+                        "label": "取消操作",
+                        "text": "取消操作"
+                    }
+                }
+            ]
+        }
+        
+        return FlexSendMessage(
+            alt_text="選擇目標類型",
+            contents=flex_content
+        )
+
+    def create_goal_amount_input(self, goal_type, error_message=None):
+        """建立目標金額輸入 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "新增目標",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_primary']
+                    },
+                    {
+                        "type": "text",
+                        "text": f"步驟 3/5 - 輸入{goal_type}金額",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_secondary'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['bg_primary'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": f"請輸入您的{goal_type}目標金額：",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_primary'],
+                        "margin": self.SPACING['lg']
+                    },
+                    {
+                        "type": "text",
+                        "text": "💡 範例：100000",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_muted'],
+                        "margin": self.SPACING['md']
+                    }
+                ]
+            }
+        }
+        
+        if error_message:
+            flex_content["body"]["contents"].insert(0, self._create_error_box(error_message))
+        
+        flex_content["footer"] = {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "button",
+                    "style": "secondary",
+                    "height": "sm",
+                    "action": {
+                        "type": "message",
+                        "label": "取消操作",
+                        "text": "取消操作"
+                    }
+                }
+            ]
+        }
+        
+        return FlexSendMessage(
+            alt_text=f"請輸入{goal_type}目標金額",
+            contents=flex_content
+        )
+
+    def create_goal_date_input(self, error_message=None):
+        """建立目標日期輸入 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "新增目標",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_primary']
+                    },
+                    {
+                        "type": "text",
+                        "text": "步驟 4/5 - 輸入目標完成日期",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_secondary'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['bg_primary'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "請輸入您的目標完成日期 (YYYY-MM-DD)：",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_primary'],
+                        "margin": self.SPACING['lg']
+                    },
+                    {
+                        "type": "text",
+                        "text": "💡 範例：2025-12-31",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_muted'],
+                        "margin": self.SPACING['md']
+                    }
+                ]
+            }
+        }
+        
+        if error_message:
+            flex_content["body"]["contents"].insert(0, self._create_error_box(error_message))
+        
+        flex_content["footer"] = {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "button",
+                    "style": "secondary",
+                    "height": "sm",
+                    "action": {
+                        "type": "message",
+                        "label": "取消操作",
+                        "text": "取消操作"
+                    }
+                }
+            ]
+        }
+        
+        return FlexSendMessage(
+            alt_text="請輸入目標完成日期",
+            contents=flex_content
+        )
+
+    def create_add_goal_confirmation(self, data):
+        """建立新增目標確認 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "確認新增目標",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_primary']
+                    },
+                    {
+                        "type": "text",
+                        "text": "步驟 5/5 - 最終確認",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_secondary'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['bg_primary'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    self._create_info_row("目標名稱", data['title']),
+                    self._create_info_row("目標類型", data['goal_type']),
+                    self._create_info_row("目標金額", f"${data['target_amount']:,}"),
+                    self._create_info_row("目標日期", data['target_date'])
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "horizontal",
+                "spacing": self.SPACING['sm'],
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "取消新增",
+                            "text": "取消新增"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "color": self.COLORS['primary_green'],
+                        "action": {
+                            "type": "message",
+                            "label": "確認新增",
+                            "text": "確認新增"
+                        }
+                    }
+                ]
+            }
+        }
+        
+        return FlexSendMessage(
+            alt_text=f"確認新增目標: {data['title']}",
+            contents=flex_content
+        )
+
+    def create_add_goal_success(self, data):
+        """建立新增目標成功 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "目標新增成功",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_white']
+                    },
+                    {
+                        "type": "text",
+                        "text": "✅ 操作完成",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_white'],
+                        "margin": self.SPACING['md']
+                    }
+                ],
+                "backgroundColor": self.COLORS['text_success'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    self._create_info_row("目標名稱", data['title']),
+                    self._create_info_row("目標類型", data['goal_type']),
+                    self._create_info_row("目標金額", f"${data['target_amount']:,}"),
+                    self._create_info_row("目標日期", data['target_date']),
+                    self._create_info_row("新增時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "link",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "查看所有目標",
+                            "text": "我的目標"
+                        }
+                    }
+                ]
+            }
+        }
+        
+        return FlexSendMessage(
+            alt_text=f"成功新增目標: {data['title']}",
+            contents=flex_content
+        )
+
+    def create_goal_list_for_selection(self, goals, message=None):
+        """建立目標列表供選擇 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "選擇目標",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_primary']
+                    },
+                    {
+                        "type": "text",
+                        "text": message or "請輸入您要編輯的目標ID：",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_secondary'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['bg_primary'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": []
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "取消操作",
+                            "text": "取消操作"
+                        }
+                    }
+                ]
+            }
+        }
+
+        for goal in goals:
+            flex_content["body"]["contents"].append({
+                "type": "box",
+                "layout": "horizontal",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": f"ID: {goal['id']}",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_primary'],
+                        "flex": 1
+                    },
+                    {
+                        "type": "text",
+                        "text": goal['title'],
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_primary'],
+                        "flex": 2,
+                        "wrap": True
+                    },
+                    {
+                        "type": "text",
+                        "text": f"${goal['target_amount']:,}",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_primary'],
+                        "align": "end",
+                        "flex": 1
+                    }
+                ],
+                "margin": self.SPACING['sm']
+            })
+        
+        return FlexSendMessage(
+            alt_text="選擇目標",
+            contents=flex_content
+        )
+
+    def create_edit_goal_selection(self, goal, editable_fields_keys, message=None):
+        """建立編輯目標選擇 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "編輯目標",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_primary']
+                    },
+                    {
+                        "type": "text",
+                        "text": "請選擇要編輯的欄位或確認編輯",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_secondary'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['bg_primary'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    # 顯示目標資訊
+                    self._create_info_row("目標名稱", goal['title']),
+                    self._create_info_row("目標類型", goal['goal_type']),
+                    self._create_info_row("目標金額", f"${goal['target_amount']:,}"),
+                    self._create_info_row("目標日期", goal['target_date']),
+                    {
+                        "type": "separator",
+                        "margin": self.SPACING['md']
+                    },
+                    {
+                        "type": "text",
+                        "text": "選擇要編輯的項目:",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_primary'],
+                        "margin": self.SPACING['md']
+                    },
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": self.SPACING['sm'],
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "color": self.COLORS['primary_green'],
+                        "action": {
+                            "type": "message",
+                            "label": "確認編輯",
+                            "text": "5" # This corresponds to "confirm_edit" in field_map
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "取消編輯",
+                            "text": "取消操作"
+                        }
+                    }
+                ]
+            }
+        }
+
+        # Add editable fields as buttons
+        for i, field_name in enumerate(editable_fields_keys):
+            flex_content["body"]["contents"].append({
+                "type": "button",
+                "style": "link",
+                "height": "sm",
+                "action": {
+                    "type": "message",
+                    "label": f"{i+1}. 編輯{field_name}",
+                    "text": f"{i+1}"
+                },
+                "margin": self.SPACING['sm']
+            })
+
+        if message:
+            flex_content["body"]["contents"].insert(0, {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": message,
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_success'],
+                        "weight": "bold",
+                        "wrap": True
+                    }
+                ],
+                "backgroundColor": self.COLORS['bg_success'],
+                "paddingAll": self.SPACING['sm'],
+                "cornerRadius": self.BORDER_RADIUS['sm'],
+                "margin": self.SPACING['md']
+            })
+        
+        return FlexSendMessage(
+            alt_text=f"編輯目標: {goal['title']}",
+            contents=flex_content
+        )
+
+    def create_edit_goal_success(self, goal, field, new_value):
+        """建立編輯目標成功 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "目標編輯成功",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_white']
+                    },
+                    {
+                        "type": "text",
+                        "text": "✅ 操作完成",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_white'],
+                        "margin": self.SPACING['md']
+                    }
+                ],
+                "backgroundColor": self.COLORS['text_success'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    self._create_info_row("目標名稱", goal['title']),
+                    self._create_info_row("目標類型", goal['goal_type']),
+                    self._create_info_row("目標金額", f"${goal['target_amount']:,}"),
+                    self._create_info_row("目標日期", goal['target_date']),
+                    self._create_info_row("編輯時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "link",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "查看所有目標",
+                            "text": "我的目標"
+                        }
+                    }
+                ]
+            }
+        }
+        
+        # Add specific field updated
+        field_name_map = {
+            "title": "目標名稱",
+            "goal_type": "目標類型",
+            "target_amount": "目標金額",
+            "target_date": "目標日期"
+        }
+        display_field_name = field_name_map.get(field, field)
+        
+        if field == "target_amount":
+            new_value_display = f"${new_value:,}"
+        else:
+            new_value_display = new_value
+
+        flex_content['body']['contents'].insert(0, self._create_info_row(f"更新欄位: {display_field_name}", new_value_display))
+
+        return FlexSendMessage(
+            alt_text=f"成功編輯目標: {goal['title']}",
+            contents=flex_content
+        )
+
+    def create_edit_goal_field_input(self, field_name, goal, error_message=None):
+        """建立編輯目標欄位輸入 Flex Message"""
+        title_map = {
+            "title": "目標名稱",
+            "goal_type": "目標類型",
+            "target_amount": "目標金額",
+            "target_date": "目標日期"
+        }
+
+        title = f"編輯{title_map.get(field_name, field_name)}"
+        step_text = f"請輸入新的{title_map.get(field_name, field_name)}"
+
+        # Get current value from goal object
+        current_value = goal.get(field_name, "N/A")
+        if field_name == "target_amount":
+            current_value = f"${current_value:,}"
+
+        body_contents = [
+            {
+                "type": "text",
+                "text": f"目前值: {current_value}",
+                "size": self.FONT_SIZE['sm'],
+                "color": self.COLORS['text_muted'],
+                "margin": self.SPACING['md']
+            },
+            {
+                "type": "text",
+                "text": step_text,
+                "weight": "bold",
+                "size": self.FONT_SIZE['md'],
+                "color": self.COLORS['text_primary'],
+                "margin": self.SPACING['lg']
+            }
+        ]
+
+        if field_name == "target_date":
+            body_contents.append({
+                "type": "text",
+                "text": "💡 格式：YYYY-MM-DD (例如: 2025-12-31)",
+                "size": self.FONT_SIZE['sm'],
+                "color": self.COLORS['text_muted'],
+                "margin": self.SPACING['md']
+            })
+        elif field_name == "target_amount":
+            body_contents.append({
+                "type": "text",
+                "text": "💡 範例：100000",
+                "size": self.FONT_SIZE['sm'],
+                "color": self.COLORS['text_muted'],
+                "margin": self.SPACING['md']
+            })
+
+        flex_content = self._create_step_bubble(
+            title=title,
+            step_text="", # Step text is handled by body_contents
+            body_contents=body_contents,
+            error_message=error_message
+        )
+
+        return FlexSendMessage(
+            alt_text=title,
+            contents=flex_content
+        )
+    
+    def create_edit_goal_confirmation(self, goal, field, new_value):
+        """建立編輯目標確認 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "確認編輯目標",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_primary']
+                    },
+                    {
+                        "type": "text",
+                        "text": "請確認以下變更",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_secondary'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['bg_primary'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": []
+            },
+            "footer": {
+                "type": "box",
+                "layout": "horizontal",
+                "spacing": self.SPACING['sm'],
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "取消編輯",
+                            "text": "取消編輯"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "color": self.COLORS['primary_green'],
+                        "action": {
+                            "type": "message",
+                            "label": "確認編輯",
+                            "text": "確認編輯"
+                        }
+                    }
+                ]
+            }
+        }
+
+        # Display the change
+        old_value = goal.get(field, "N/A")
+        if field == "target_amount":
+            old_value = f"${old_value:,}"
+            new_value_display = f"${new_value:,}"
+        else:
+            new_value_display = new_value
+
+        flex_content['body']['contents'].append(self._create_info_row(field, f"{old_value} -> {new_value_display}"))
+
+        return FlexSendMessage(
+            alt_text=f"確認編輯目標: {goal['title']}",
+            contents=flex_content
+        )

@@ -15,6 +15,15 @@ class GoalManager:
             goals = [dict(row._mapping) for row in result]
             return goals
 
+    def get_goal_by_id(self, goal_id):
+        """根據 ID 從資料庫獲取單個目標"""
+        stmt = select(goals_table).where(goals_table.c.id == goal_id)
+        with engine.connect() as conn:
+            result = conn.execute(stmt).first()
+            if result:
+                return dict(result._mapping)
+            return None
+
     def add_goal(self, title, goal_type, target_amount, target_date, description=""):
         """新增一個目標到資料庫"""
         if target_amount <= 0:

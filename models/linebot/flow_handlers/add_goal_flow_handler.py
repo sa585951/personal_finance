@@ -1,4 +1,5 @@
 # models/linebot/flow_handlers/add_goal_flow_handler.py
+import re
 class AddGoalFlowHandler:
     """新增目標流程處理器"""
     
@@ -118,13 +119,16 @@ class AddGoalFlowHandler:
             return "新增目標已取消"
         
         # 簡單的日期格式驗證
-        import re
-        date_pattern = r'^\d{4}-\d{2}-\d{2}$'
+        date_pattern = r'^\d{4}-\d{2}-\d{2}'
         if not re.match(date_pattern, message):
             return self.theme.create_goal_date_input("請輸入正確的日期格式 (YYYY-MM-DD)")
         
         target_date = message
         
+        # 準備確認訊息的資料
+        confirmation_data = current_state['data'].copy()
+        confirmation_data['target_date'] = target_date
+
         # 更新狀態
         self.user_state_manager.update_user_state(
             user_id,
@@ -132,7 +136,7 @@ class AddGoalFlowHandler:
             data={'target_date': target_date}
         )
         
-        return self.theme.create_add_goal_confirmation(current_state['data'])
+        return self.theme.create_add_goal_confirmation(confirmation_data)
     
     def _handle_confirmation(self, user_id, message, current_state):
         """處理確認新增"""

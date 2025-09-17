@@ -39,7 +39,8 @@ class LineBotManager:
         5. 轉帳請求：{{"type": "start_transfer"}}
         6. 新增帳戶：{{"type": "start_add_account"}}
         7. 更新餘額：{{"type": "start_update_balance"}}
-        8. 非記帳訊息：{{"type": "other"}}
+        8. 編輯目標：如果訊息是 "編輯目標:ID"，解析出ID。格式: {{"type": "start_edit_goal", "goal_id": "ID"}}
+        9. 非記帳訊息：{{"type": "other"}}
 
         類別限制：伙食、交通、購物、娛樂、醫療、投資、生活、其他
 
