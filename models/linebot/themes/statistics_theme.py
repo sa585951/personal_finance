@@ -1331,7 +1331,7 @@ class StatisticsTheme(BaseTheme):
                 }
             ],
             "spacing": self.SPACING['sm'],
-            "margin": self.SPACING['none']
+            "margin": "none"
         }
 
     def get_goal_type_color(self, goal_type):
