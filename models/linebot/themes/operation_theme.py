@@ -2546,7 +2546,7 @@ class OperationTheme(BaseTheme):
                     },
                     {
                         "type": "text",
-                        "text": "請選擇要編輯的欄位或確認編輯",
+                        "text": "請選擇要編輯的欄位",
                         "size": self.FONT_SIZE['sm'],
                         "color": self.COLORS['text_secondary'],
                         "margin": self.SPACING['sm']
@@ -2585,17 +2585,6 @@ class OperationTheme(BaseTheme):
                 "contents": [
                     {
                         "type": "button",
-                        "style": "primary",
-                        "height": "sm",
-                        "color": self.COLORS['primary_green'],
-                        "action": {
-                            "type": "message",
-                            "label": "確認編輯",
-                            "text": "5" # This corresponds to "confirm_edit" in field_map
-                        }
-                    },
-                    {
-                        "type": "button",
                         "style": "secondary",
                         "height": "sm",
                         "action": {
@@ -2609,20 +2598,20 @@ class OperationTheme(BaseTheme):
         }
 
         # Add editable fields as buttons
-        for i, field_name in enumerate(editable_fields_keys):
+        for field_name in editable_fields_keys:
             flex_content["body"]["contents"].append({
                 "type": "button",
                 "style": "link",
                 "height": "sm",
                 "action": {
                     "type": "message",
-                    "label": f"{i+1}. 編輯{field_name}",
-                    "text": f"{i+1}"
+                    "label": f"編輯{field_name}",
+                    "text": field_name
                 },
                 "margin": self.SPACING['sm']
             })
 
-        if message:
+        if message: 
             flex_content["body"]["contents"].insert(0, {
                 "type": "box",
                 "layout": "vertical",
@@ -2631,12 +2620,12 @@ class OperationTheme(BaseTheme):
                         "type": "text",
                         "text": message,
                         "size": self.FONT_SIZE['sm'],
-                        "color": self.COLORS['text_success'],
+                        "color": self.COLORS['text_error'],
                         "weight": "bold",
                         "wrap": True
                     }
                 ],
-                "backgroundColor": self.COLORS['bg_success'],
+                "backgroundColor": self.COLORS['bg_warning'],
                 "paddingAll": self.SPACING['sm'],
                 "cornerRadius": self.BORDER_RADIUS['sm'],
                 "margin": self.SPACING['md']

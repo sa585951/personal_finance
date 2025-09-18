@@ -1293,7 +1293,7 @@ class StatisticsTheme(BaseTheme):
                     "contents": [
                         {
                             "type": "text",
-                            "text": str(summary.get('completed', 0)),
+                            "text": str(summary.get('completed_goals', 0)),
                             "weight": "bold",
                             "size": self.FONT_SIZE['xl'],
                             "color": self.COLORS['primary_green']
@@ -1314,7 +1314,7 @@ class StatisticsTheme(BaseTheme):
                     "contents": [
                         {
                             "type": "text",
-                            "text": str(summary.get('in_progress', 0)),
+                            "text": str(summary.get('active_goals', 0)),
                             "weight": "bold",
                             "size": self.FONT_SIZE['xl'],
                             "color": self.COLORS['accent_orange']
