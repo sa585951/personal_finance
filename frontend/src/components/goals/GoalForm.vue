@@ -21,7 +21,7 @@
           <input
             type="text"
             id="goalType"
-            v-model="newGoal.goal_type"
+            v-model="newGoal.type"
             placeholder="例如：投資、儲蓄"
             required
           />
@@ -74,7 +74,7 @@ export default {
     return {
       newGoal: {
         title: "",
-        goal_type: "",
+        type: "",
         target_amount: null,
         target_date: null,
         description: "",
@@ -116,7 +116,7 @@ export default {
     resetForm() {
       this.newGoal = {
         title: "",
-        goal_type: "",
+        type: "",
         target_amount: null,
         target_date: null,
         description: "",

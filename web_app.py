@@ -202,15 +202,15 @@ def get_all_goals():
 def add_goal():
     data = request.get_json()
     title = data.get("title")
-    goal_type = data.get("type") # 前端傳來的 goal_type
+    type = data.get("type") # 前端傳來的 type
     target_amount = data.get("target_amount")
     target_date = data.get("target_date")
     description = data.get("description", "")
 
-    if not all([title, goal_type, target_amount, target_date]):
+    if not all([title, type, target_amount, target_date]):
         return jsonify({"success": False, "message": "缺少必要欄位"}), 400
 
-    success, result = goal_manager.add_goal(title, goal_type, target_amount, target_date, description)
+    success, result = goal_manager.add_goal(title, type, target_amount, target_date, description)
     if success:
         return jsonify({"success": True, "message": "目標新增成功", "data": result}), 201
     else:

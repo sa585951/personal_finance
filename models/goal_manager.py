@@ -24,14 +24,14 @@ class GoalManager:
                 return dict(result._mapping)
             return None
 
-    def add_goal(self, title, goal_type, target_amount, target_date, description=""):
+    def add_goal(self, title, type, target_amount, target_date, description=""):
         """新增一個目標到資料庫"""
         if target_amount <= 0:
             return False, "目標金額必須大於0"
 
         stmt = insert(goals_table).values(
             title=title,
-            type=goal_type,
+            type=type,
             target_amount=target_amount,
             target_date=target_date,
             current_amount=0,

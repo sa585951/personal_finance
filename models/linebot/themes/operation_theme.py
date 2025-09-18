@@ -2128,16 +2128,16 @@ class OperationTheme(BaseTheme):
         if error_message:
             flex_content["body"]["contents"].append(self._create_error_box(error_message))
 
-        goal_types = ["儲蓄", "投資", "債務"] # 這裡應該從 handler 傳入或定義在 theme 裡
-        for goal_type in goal_types:
+        selected_types = ["儲蓄", "投資", "債務"] # 這裡應該從 handler 傳入或定義在 theme 裡
+        for type in selected_types:
             flex_content["body"]["contents"].append({
                 "type": "button",
                 "style": "link",
                 "height": "sm",
                 "action": {
                     "type": "message",
-                    "label": goal_type,
-                    "text": f"選擇類型:{goal_type}"
+                    "label": type,
+                    "text": f"選擇類型:{type}"
                 },
                 "margin": self.SPACING['sm']
             })
@@ -2164,7 +2164,7 @@ class OperationTheme(BaseTheme):
             contents=flex_content
         )
 
-    def create_goal_amount_input(self, goal_type, error_message=None):
+    def create_goal_amount_input(self, type, error_message=None):
         """建立目標金額輸入 Flex Message"""
         flex_content = {
             "type": "bubble",
@@ -2181,7 +2181,7 @@ class OperationTheme(BaseTheme):
                     },
                     {
                         "type": "text",
-                        "text": f"步驟 3/5 - 輸入{goal_type}金額",
+                        "text": f"步驟 3/5 - 輸入{type}金額",
                         "size": self.FONT_SIZE['sm'],
                         "color": self.COLORS['text_secondary'],
                         "margin": self.SPACING['sm']
@@ -2196,7 +2196,7 @@ class OperationTheme(BaseTheme):
                 "contents": [
                     {
                         "type": "text",
-                        "text": f"請輸入您的{goal_type}目標金額：",
+                        "text": f"請輸入您的{type}目標金額：",
                         "weight": "bold",
                         "size": self.FONT_SIZE['md'],
                         "color": self.COLORS['text_primary'],
@@ -2234,7 +2234,7 @@ class OperationTheme(BaseTheme):
         }
         
         return FlexSendMessage(
-            alt_text=f"請輸入{goal_type}目標金額",
+            alt_text=f"請輸入{type}目標金額",
             contents=flex_content
         )
 
@@ -2343,7 +2343,7 @@ class OperationTheme(BaseTheme):
                 "layout": "vertical",
                 "contents": [
                     self._create_info_row("目標名稱", data['title']),
-                    self._create_info_row("目標類型", data['goal_type']),
+                    self._create_info_row("目標類型", data['type']),
                     self._create_info_row("目標金額", f"${data['target_amount']:,}"),
                     self._create_info_row("目標日期", data['target_date'])
                 ]
@@ -2414,7 +2414,7 @@ class OperationTheme(BaseTheme):
                 "layout": "vertical",
                 "contents": [
                     self._create_info_row("目標名稱", data['title']),
-                    self._create_info_row("目標類型", data['goal_type']),
+                    self._create_info_row("目標類型", data['type']),
                     self._create_info_row("目標金額", f"${data['target_amount']:,}"),
                     self._create_info_row("目標日期", data['target_date']),
                     self._create_info_row("新增時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
@@ -2561,7 +2561,7 @@ class OperationTheme(BaseTheme):
                 "contents": [
                     # 顯示目標資訊
                     self._create_info_row("目標名稱", goal['title']),
-                    self._create_info_row("目標類型", goal['goal_type']),
+                    self._create_info_row("目標類型", goal['type']),
                     self._create_info_row("目標金額", f"${goal['target_amount']:,}"),
                     self._create_info_row("目標日期", goal['target_date']),
                     {
@@ -2678,7 +2678,7 @@ class OperationTheme(BaseTheme):
                 "layout": "vertical",
                 "contents": [
                     self._create_info_row("目標名稱", goal['title']),
-                    self._create_info_row("目標類型", goal['goal_type']),
+                    self._create_info_row("目標類型", goal['type']),
                     self._create_info_row("目標金額", f"${goal['target_amount']:,}"),
                     self._create_info_row("目標日期", goal['target_date']),
                     self._create_info_row("編輯時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
@@ -2705,7 +2705,7 @@ class OperationTheme(BaseTheme):
         # Add specific field updated
         field_name_map = {
             "title": "目標名稱",
-            "goal_type": "目標類型",
+            "type": "目標類型",
             "target_amount": "目標金額",
             "target_date": "目標日期"
         }
@@ -2727,7 +2727,7 @@ class OperationTheme(BaseTheme):
         """建立編輯目標欄位輸入 Flex Message"""
         title_map = {
             "title": "目標名稱",
-            "goal_type": "目標類型",
+            "type": "目標類型",
             "target_amount": "目標金額",
             "target_date": "目標日期"
         }
@@ -2906,7 +2906,7 @@ class OperationTheme(BaseTheme):
                         "layout": "vertical",
                         "contents": [
                             self._create_info_row("目標名稱", goal['title']),
-                            self._create_info_row("目標類型", goal['goal_type']),
+                            self._create_info_row("目標類型", goal['type']),
                             self._create_info_row("目標金額", f"${goal['target_amount']:,}"),
                             self._create_info_row("目標日期", goal['target_date'])
                         ],

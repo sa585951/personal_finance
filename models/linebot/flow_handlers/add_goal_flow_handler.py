@@ -73,19 +73,19 @@ class AddGoalFlowHandler:
         if not message.startswith("選擇類型:"):
             return "請點擊按鈕選擇目標類型，或輸入「取消操作」"
         
-        goal_type = message.replace("選擇類型:", "")
+        selected_type = message.replace("選擇類型:", "")
         
-        if goal_type not in self.goal_types:
+        if selected_type not in self.goal_types:
             return "請選擇有效的目標類型"
         
         # 更新狀態
         self.user_state_manager.update_user_state(
             user_id,
             step='input_amount',
-            data={'goal_type': goal_type}
+            data={'type': selected_type}
         )
         
-        return self.theme.create_goal_amount_input(goal_type)
+        return self.theme.create_goal_amount_input(selected_type)
     
     def _handle_amount_input(self, user_id, message, current_state):
         """處理目標金額輸入"""
@@ -96,8 +96,8 @@ class AddGoalFlowHandler:
         try:
             amount = float(message.replace(',', ''))
             if amount <= 0:
-                goal_type = current_state['data']['goal_type']
-                return self.theme.create_goal_amount_input(goal_type, "金額必須大於0，請重新輸入")
+                selected_type = current_state['data']['type']
+                return self.theme.create_goal_amount_input(selected_type, "金額必須大於0，請重新輸入")
             
             # 更新狀態
             self.user_state_manager.update_user_state(
@@ -109,8 +109,8 @@ class AddGoalFlowHandler:
             return self.theme.create_goal_date_input()
             
         except ValueError:
-            goal_type = current_state['data']['goal_type']
-            return self.theme.create_goal_amount_input(goal_type, "請輸入有效的數字金額")
+            selected_type = current_state['data']['type']
+            return self.theme.create_goal_amount_input(selected_type, "請輸入有效的數字金額")
     
     def _handle_date_input(self, user_id, message, current_state):
         """處理目標日期輸入"""
@@ -145,7 +145,7 @@ class AddGoalFlowHandler:
             data = current_state['data']
             success, result = self.goal_manager.add_goal(
                 data['title'],
-                data['goal_type'],
+                data['type'],
                 data['target_amount'],
                 data['target_date'],
                 ""  # description 暫時為空

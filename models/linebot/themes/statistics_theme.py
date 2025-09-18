@@ -1140,7 +1140,7 @@ class StatisticsTheme(BaseTheme):
     def _create_goal_card(self, goal, is_progress_view=False):
         """建立單個目標卡片 (Bubble) """
         title = goal.get('title', '未命名目標')
-        goal_type = goal.get('type', '儲蓄')
+        type = goal.get('type', '儲蓄')
         target_amount = goal.get('target_amount', 0)
         current_amount = goal.get('current_amount', 0)
         target_date = goal.get('target_date', '')
@@ -1148,7 +1148,7 @@ class StatisticsTheme(BaseTheme):
         progress = (current_amount / target_amount * 100) if target_amount > 0 else 0
         progress = min(progress, 100)
         
-        type_color = self.get_goal_type_color(goal_type)
+        type_color = self.get_goal_type_color(type)
         progress_color = self.get_progress_color(progress)
         
         card_body = {
@@ -1170,7 +1170,7 @@ class StatisticsTheme(BaseTheme):
                         },
                         {
                             "type": "text",
-                            "text": goal_type,
+                            "text": type,
                             "size": self.FONT_SIZE['xs'],
                             "color": type_color,
                             "backgroundColor": self.COLORS['bg_card'],
@@ -1334,13 +1334,13 @@ class StatisticsTheme(BaseTheme):
             "margin": "none"
         }
 
-    def get_goal_type_color(self, goal_type):
+    def get_goal_type_color(self, type):
         type_colors = {
             '儲蓄': self.COLORS['primary_green'],
             '投資': self.COLORS['accent_orange'],
             '債務': self.COLORS['text_error']
         }
-        return type_colors.get(goal_type, self.COLORS['text_muted'])
+        return type_colors.get(type, self.COLORS['text_muted'])
 
     def get_progress_color(self, progress):
         if progress >= 100:
@@ -1415,13 +1415,13 @@ class StatisticsTheme(BaseTheme):
         card.pop('action', None)
         return card
 
-    def get_goal_type_color(self, goal_type):
+    def get_goal_type_color(self, type):
         type_colors = {
             '儲蓄': self.COLORS['primary_green'],
             '投資': self.COLORS['accent_orange'],
             '債務': self.COLORS['text_error']
         }
-        return type_colors.get(goal_type, self.COLORS['text_muted'])
+        return type_colors.get(type, self.COLORS['text_muted'])
 
     def get_progress_color(self, progress):
         if progress >= 100:

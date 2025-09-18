@@ -19,7 +19,7 @@
         <tbody>
           <tr v-for="goal in goals" :key="goal.id">
             <td>{{ goal.title }}</td>
-            <td>{{ goal.goal_type }}</td>
+            <td>{{ goal.type }}</td>
             <td>${{ goal.target_amount.toLocaleString() }}</td>
             <td>${{ goal.current_amount.toLocaleString() }}</td>
             <td>
@@ -80,7 +80,7 @@ export default {
           `<label for="swal-input1">目標名稱:</label>` +
           `<input id="swal-input1" class="swal2-input" value="${goal.title}">` +
           `<label for="swal-input2">目標類型:</label>` +
-          `<input id="swal-input2" class="swal2-input" value="${goal.goal_type}">` +
+          `<input id="swal-input2" class="swal2-input" value="${goal.type}">` +
           `<label for="swal-input3">目標金額:</label>` +
           `<input id="swal-input3" type="number" class="swal2-input" value="${goal.target_amount}">` +
           `<label for="swal-input4">已達成金額:</label>` +
@@ -91,11 +91,11 @@ export default {
         cancelButtonText: "取消",
         preConfirm: () => {
           const title = this.$swal.getPopup().querySelector('#swal-input1').value;
-          const goal_type = this.$swal.getPopup().querySelector('#swal-input2').value;
+          const type = this.$swal.getPopup().querySelector('#swal-input2').value;
           const target_amount = parseFloat(this.$swal.getPopup().querySelector('#swal-input3').value);
           const current_amount = parseFloat(this.$swal.getPopup().querySelector('#swal-input4').value);
 
-          if (!title || !goal_type || isNaN(target_amount) || isNaN(current_amount)) {
+          if (!title || !type || isNaN(target_amount) || isNaN(current_amount)) {
             this.$swal.showValidationMessage(`請填寫所有欄位並確保金額為數字`);
             return false;
           }
@@ -103,7 +103,7 @@ export default {
             this.$swal.showValidationMessage(`金額不能為負數`);
             return false;
           }
-          return { title: title, goal_type: goal_type, target_amount: target_amount, current_amount: current_amount };
+          return { title: title, type: type, target_amount: target_amount, current_amount: current_amount };
         }
       });
 
