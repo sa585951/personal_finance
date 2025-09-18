@@ -2862,3 +2862,103 @@ class OperationTheme(BaseTheme):
             alt_text=f"確認編輯目標: {goal['title']}",
             contents=flex_content
         )
+    
+    def create_delete_goal_confirmation(self, goal):
+        """建立刪除目標確認 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "⚠️ 確認刪除目標",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_white']
+                    },
+                    {
+                        "type": "text",
+                        "text": "步驟 2/2 - 最終確認",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_white'],
+                        "margin": self.SPACING['sm']
+                    }
+                ],
+                "backgroundColor": self.COLORS['text_error'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "您即將刪除以下目標：",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_primary'],
+                        "margin": self.SPACING['md']
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            self._create_info_row("目標名稱", goal['title']),
+                            self._create_info_row("目標類型", goal['goal_type']),
+                            self._create_info_row("目標金額", f"${goal['target_amount']:,}"),
+                            self._create_info_row("目標日期", goal['target_date'])
+                        ],
+                        "backgroundColor": self.COLORS['bg_card'],
+                        "paddingAll": self.SPACING['md'],
+                        "cornerRadius": self.BORDER_RADIUS['md'],
+                        "margin": self.SPACING['md']
+                    },
+                    {
+                        "type": "text",
+                        "text": "⚠️ 此操作無法復原，請謹慎考慮！",
+                        "size": self.FONT_SIZE['sm'],
+                        "color": self.COLORS['text_error'],
+                        "weight": "bold",
+                        "wrap": True,
+                        "margin": self.SPACING['lg']
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "horizontal",
+                "spacing": self.SPACING['sm'],
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "取消",
+                            "text": "取消操作"
+                        },
+                        "flex": 1
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "color": self.COLORS['text_error'],
+                        "action": {
+                            "type": "message",
+                            "label": "確認刪除",
+                            "text": "確認刪除"
+                        },
+                        "flex": 1
+                    }
+                ]
+            }
+        }
+        
+        return FlexSendMessage(
+            alt_text=f"確認刪除目標: {goal['title']}",
+            contents=flex_content
+        )
