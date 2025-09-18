@@ -2962,3 +2962,78 @@ class OperationTheme(BaseTheme):
             alt_text=f"確認刪除目標: {goal['title']}",
             contents=flex_content
         )
+    
+    def create_delete_goal_success(self, goal):
+        """建立刪除目標成功 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "目標刪除成功",
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['lg'],
+                        "color": self.COLORS['text_white']
+                    },
+                    {
+                        "type": "text",
+                        "text": "✅ 操作完成",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_white'],
+                        "margin": self.SPACING['md']
+                    }
+                ],
+                "backgroundColor": self.COLORS['text_success'],
+                "paddingAll": self.SPACING['lg']
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "已成功刪除以下目標：",
+                        "size": self.FONT_SIZE['md'],
+                        "color": self.COLORS['text_primary'],
+                        "margin": self.SPACING['md']
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            self._create_info_row("目標名稱", goal['title']),
+                            self._create_info_row("目標類型", goal['type']),
+                            self._create_info_row("刪除時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                        ],
+                        "backgroundColor": self.COLORS['bg_success'],
+                        "paddingAll": self.SPACING['md'],
+                        "cornerRadius": self.BORDER_RADIUS['md'],
+                        "margin": self.SPACING['md']
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "link",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "查看所有目標",
+                            "text": "我的目標"
+                        }
+                    }
+                ]
+            }
+        }
+        
+        return FlexSendMessage(
+            alt_text=f"成功刪除目標: {goal['title']}",
+            contents=flex_content
+        )
