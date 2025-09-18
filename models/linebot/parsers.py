@@ -92,6 +92,23 @@ class QuickParser:
         Returns:
             dict or None: 解析結果，如果返回 None 表示需要 Gemini 處理
         """
+        # 處理帶有 ID 的目標操作
+        if message.startswith("編輯目標:"):
+            try:
+                goal_id = message.split(":")[1]
+                if goal_id:
+                    return {"type": "start_edit_goal", "goal_id": goal_id}
+            except IndexError:
+                pass  # 格式不符，讓後續規則處理
+        
+        if message.startswith("刪除目標:"):
+            try:
+                goal_id = message.split(":")[1]
+                if goal_id:
+                    return {"type": "start_delete_goal", "goal_id": goal_id}
+            except IndexError:
+                pass  # 格式不符，讓後續規則處理
+
         message_lower = message.lower()
 
         # 刪除相關 - 最具體的先匹配
