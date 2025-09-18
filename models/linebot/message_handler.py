@@ -8,6 +8,7 @@ from .flow_handlers.add_goal_flow_handler import AddGoalFlowHandler
 from .flow_handlers.add_expense_flow_handler import AddExpenseFlowHandler
 from .flow_handlers.add_income_flow_handler import AddIncomeFlowHandler
 from .flow_handlers.edit_goal_flow_handler import EditGoalFlowHandler
+from .flow_handlers.delete_goal_flow_handler import DeleteGoalFlowHandler
 from .response_builder import ResponseBuilder
 
 class MessageHandler:
@@ -37,6 +38,7 @@ class MessageHandler:
         self.add_expense_flow_handler = AddExpenseFlowHandler(budget_manager, self.user_state_manager, operation_theme)
         self.add_income_flow_handler = AddIncomeFlowHandler(budget_manager, self.user_state_manager, operation_theme)
         self.edit_goal_flow_handler = EditGoalFlowHandler(goal_manager, self.user_state_manager, operation_theme)
+        self.delete_goal_flow_handler = DeleteGoalFlowHandler(goal_manager, self.user_state_manager, operation_theme)
 
     def handle_user_message(self, user_id, message, parsed_data):
         """處理用戶訊息的主要入口"""
@@ -70,6 +72,8 @@ class MessageHandler:
             return self.add_income_flow_handler.handle_flow_message(user_id, message, user_state)
         elif state_type == "edit_goal_flow":
             return self.edit_goal_flow_handler.handle_flow_message(user_id, message, user_state)
+        elif state_type == "delete_goal_flow":
+            return self.delete_goal_flow_handler.handle_flow_message(user_id, message, user_state)
         else:
             self.user_state_manager.clear_user_state(user_id)
             return "操作流程已重置，請重新開始"
@@ -106,6 +110,8 @@ class MessageHandler:
             return self.add_income_flow_handler.start_flow(user_id)
         elif message_type == "start_edit_goal":
             return self.edit_goal_flow_handler.start_flow(user_id, parsed_data.get("goal_id"))
+        elif message_type == "start_delete_goal":
+            return self.delete_goal_flow_handler.start_flow(user_id, parsed_data.get("goal_id"))
         elif message_type == "manage_goal":
             return self._handle_manage_goal(user_id)
         elif message_type == "goal_progress":

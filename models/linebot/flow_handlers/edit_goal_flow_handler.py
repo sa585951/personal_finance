@@ -54,6 +54,11 @@ class EditGoalFlowHandler:
             self.user_state_manager.clear_user_state(user_id)
             return "編輯操作已取消"
 
+        # 檢查使用者是否點擊了舊的按鈕，導致流程問題
+        if "start_edit_goal" in message or "start_delete_goal" in message:
+            goal = current_state['data']['goal']
+            return self.theme.create_edit_goal_selection(goal, list(self.editable_fields.keys()), "您已在編輯流程中，請點擊下方按鈕選擇要編輯的欄位，或輸入「取消操作」。")
+
         field_to_edit = message.replace("選擇編輯:", "").strip()
         if field_to_edit not in self.editable_fields:
             goal = current_state['data']['goal']
