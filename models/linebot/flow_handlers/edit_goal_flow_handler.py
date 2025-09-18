@@ -148,6 +148,6 @@ class EditGoalFlowHandler:
         
         elif message == "取消修改":
             self.user_state_manager.clear_user_state(user_id)
-            return "編輯操作已取消"
+            return "修改操作已取消"
         else:
             return "請點擊「確認修改」或「取消修改」"

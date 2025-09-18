@@ -2571,7 +2571,7 @@ class OperationTheme(BaseTheme):
                     # 顯示目標資訊
                     self._create_info_row("目標名稱", goal['title']),
                     self._create_info_row("目標類型", goal['type']),
-                    self._create_info_row("目標金額", f"${goal['target_amount']:,}"),
+                    self._create_info_row("目前金額", f"${goal['current_amount']:,}"),
                     self._create_info_row("目標日期", goal['target_date']),
                     {
                         "type": "separator",
@@ -2677,7 +2677,7 @@ class OperationTheme(BaseTheme):
                 "contents": [
                     self._create_info_row("目標名稱", goal['title']),
                     self._create_info_row("目標類型", goal['type']),
-                    self._create_info_row("目標金額", f"${goal['target_amount']:,}"),
+                    self._create_info_row("目標金額", f"${goal['current_amount']:,}"),
                     self._create_info_row("目標日期", goal['target_date']),
                     self._create_info_row("編輯時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
                 ]
@@ -2704,12 +2704,12 @@ class OperationTheme(BaseTheme):
         field_name_map = {
             "title": "目標名稱",
             "type": "目標類型",
-            "target_amount": "目標金額",
+            "current_amount": "目前金額",
             "target_date": "目標日期"
         }
         display_field_name = field_name_map.get(field, field)
         
-        if field == "target_amount":
+        if field == "current_amount":
             new_value_display = f"${new_value:,}"
         else:
             new_value_display = new_value
@@ -2726,7 +2726,7 @@ class OperationTheme(BaseTheme):
         title_map = {
             "title": "目標名稱",
             "type": "目標類型",
-            "target_amount": "目標金額",
+            "current_amount": "目前金額",
             "target_date": "目標日期"
         }
 
@@ -2735,7 +2735,7 @@ class OperationTheme(BaseTheme):
 
         # Get current value from goal object
         current_value = goal.get(field_name, "N/A")
-        if field_name == "target_amount":
+        if field_name == "current_amount":
             current_value = f"${current_value:,}"
 
         body_contents = [
@@ -2764,7 +2764,7 @@ class OperationTheme(BaseTheme):
                 "color": self.COLORS['text_muted'],
                 "margin": self.SPACING['md']
             })
-        elif field_name == "target_amount":
+        elif field_name == "current_amount":
             body_contents.append({
                 "type": "text",
                 "text": "💡 範例：100000",
@@ -2795,7 +2795,7 @@ class OperationTheme(BaseTheme):
                 "contents": [
                     {
                         "type": "text",
-                        "text": "確認編輯目標",
+                        "text": "確認修改目標",
                         "weight": "bold",
                         "size": self.FONT_SIZE['lg'],
                         "color": self.COLORS['text_primary']
@@ -2827,8 +2827,8 @@ class OperationTheme(BaseTheme):
                         "height": "sm",
                         "action": {
                             "type": "message",
-                            "label": "取消編輯",
-                            "text": "取消編輯"
+                            "label": "取消修改",
+                            "text": "取消修改"
                         }
                     },
                     {
@@ -2838,8 +2838,8 @@ class OperationTheme(BaseTheme):
                         "color": self.COLORS['primary_green'],
                         "action": {
                             "type": "message",
-                            "label": "確認編輯",
-                            "text": "確認編輯"
+                            "label": "確認修改",
+                            "text": "確認修改"
                         }
                     }
                 ]
@@ -2848,7 +2848,7 @@ class OperationTheme(BaseTheme):
 
         # Display the change
         old_value = goal.get(field, "N/A")
-        if field == "target_amount":
+        if field == "current_amount":
             old_value = f"${old_value:,}"
             new_value_display = f"${new_value:,}"
         else:
@@ -2857,7 +2857,7 @@ class OperationTheme(BaseTheme):
         flex_content['body']['contents'].append(self._create_info_row(field, f"{old_value} -> {new_value_display}"))
 
         return FlexSendMessage(
-            alt_text=f"確認編輯目標: {goal['title']}",
+            alt_text=f"確認修改目標: {goal['title']}",
             contents=flex_content
         )
     
