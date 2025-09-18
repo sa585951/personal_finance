@@ -99,7 +99,9 @@ class BudgetManager:
                     
                     return True, "預算設定成功"
                 except Exception as e:
-                    return False, f"設定預算時發生錯誤: {e}"
+                    import traceback
+                    print(f"詳細錯誤: {traceback.format_exc()}")
+                    return False, f"詳細錯誤: {type(e).__name__} -> {str(e)}"
 
     def delete_budget(self, month, category):
         """刪除某月某類別的預算"""

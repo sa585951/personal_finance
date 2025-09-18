@@ -1952,15 +1952,24 @@ class OperationTheme(BaseTheme):
 
     def _create_step_bubble(self, title, step_text, body_contents, error_message=None):
         """建立一個帶有步驟說明的標準泡泡"""
+        header_contents = [
+            {"type": "text", "text": title, "weight": "bold", "size": self.FONT_SIZE['lg']},
+        ]
+        if step_text:
+            header_contents.append({
+                "type": "text", 
+                "text": step_text, 
+                "size": self.FONT_SIZE['sm'], 
+                "color": self.COLORS['text_secondary'], 
+                "margin": self.SPACING['sm']
+            })
+
         bubble = {
             "type": "bubble",
             "header": {
                 "type": "box",
                 "layout": "vertical",
-                "contents": [
-                    {"type": "text", "text": title, "weight": "bold", "size": self.FONT_SIZE['lg']},
-                    {"type": "text", "text": step_text, "size": self.FONT_SIZE['sm'], "color": self.COLORS['text_secondary'], "margin": self.SPACING['sm']}
-                ],
+                "contents": header_contents,
                 "backgroundColor": self.COLORS['bg_primary'],
                 "paddingAll": self.SPACING['lg']
             },
