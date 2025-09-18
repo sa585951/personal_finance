@@ -17,7 +17,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(goal, goalId) in goals" :key="goalId">
+          <tr v-for="goal in goals" :key="goal.id">
             <td>{{ goal.title }}</td>
             <td>{{ goal.goal_type }}</td>
             <td>${{ goal.target_amount.toLocaleString() }}</td>
@@ -38,10 +38,10 @@
               </span>
             </td>
             <td class="table-buttons">
-              <button class="update-btn" @click="promptUpdate(goalId, goal)">
+              <button class="update-btn" @click="promptUpdate(goal.id, goal)">
                 更新
               </button>
-              <button class="delete-btn" @click="promptDelete(goalId)">
+              <button class="delete-btn" @click="promptDelete(goal.id)">
                 刪除
               </button>
             </td>

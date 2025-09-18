@@ -16,7 +16,14 @@ class BudgetManager:
         stmt = select(transactions_table).order_by(transactions_table.c.date.desc())
         with engine.connect() as conn:
             result = conn.execute(stmt)
-            return [dict(row._mapping) for row in result]
+            transactions = []
+            for row in result:
+                transaction = dict(row._mapping)
+                # Ensure date is formatted as YYYY-MM-DD string
+                if isinstance(transaction['date'], datetime):
+                    transaction['date'] = transaction['date'].strftime('%Y-%m-%d')
+                transactions.append(transaction)
+            return transactions
 
     def add_transaction(self, date, item, amount, transaction_type, budget_category, description=""):
         """新增一筆交易紀錄"""

@@ -73,7 +73,7 @@ export default {
       newBudget: {
         month: format(new Date(), "yyyy-MM"),
         category: "",
-        amount: null,
+        amount: 0,
         notes: "",
       },
       selectedMonth: format(new Date(), "yyyy-MM"),

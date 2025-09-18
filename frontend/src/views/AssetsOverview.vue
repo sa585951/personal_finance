@@ -80,17 +80,34 @@ export default {
         totals[type] += balance;
       }
 
-      // 處理完所有帳戶後，將「其他」類別的金額重新計算
-      // 這是為了避免「其他」這個鍵可能被覆蓋的問題
-      let totalOther = totals["總資產"];
-      for (const type in totals) {
-        if (type !== "總資產" && type !== "其他") {
-          totalOther -= totals[type];
+      const calculatedTotals = {
+        總資產: 0,
+        活存: 0, // Explicitly initialize common types if they are expected
+        定存: 0,
+        投資: 0,
+        其他: 0,
+      };
+
+      for (const accountId in assets) {
+        const asset = assets[accountId];
+        const balance = parseFloat(asset.balance); // Ensure balance is a number
+        const type = asset.account_type;
+
+        if (isNaN(balance)) {
+          console.warn(`Asset ${accountId} has invalid balance: ${asset.balance}`);
+          continue; // Skip if balance is not a valid number
+        }
+
+        calculatedTotals["總資產"] += balance;
+
+        if (type === "活存" || type === "定存" || type === "投資") {
+          calculatedTotals[type] += balance;
+        } else {
+          calculatedTotals["其他"] += balance;
         }
       }
-      totals["其他"] = totalOther;
 
-      return totals;
+      return calculatedTotals;
     },
     async deleteAccount(accountId) {
       if (confirm(`確定要刪除此帳戶嗎？`)) {
