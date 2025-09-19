@@ -2562,7 +2562,7 @@ class OperationTheme(BaseTheme):
                         "text": goal['title'],
                         "weight": "bold",
                         "size": self.FONT_SIZE['xl'],
-                        "color": self.COLORS['primary_blue'],
+                        "color": self.COLORS['primary_green'],
                         "margin": self.SPACING['md'],
                         "wrap": True
                     }
@@ -2710,7 +2710,7 @@ class OperationTheme(BaseTheme):
                 "text": "🎉 恭喜！您已達成此目標！",
                 "weight": "bold",
                 "size": self.FONT_SIZE['md'],
-                "color": self.COLORS['primary_blue'],
+                "color": self.COLORS['primary_green'],
                 "margin": "xl",
                 "align": "center"
             })

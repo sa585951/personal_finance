@@ -1264,7 +1264,7 @@ class StatisticsTheme(BaseTheme):
                         "label": "增加進度",
                         "text": f"編輯目標:{goal.get('id', '')}"
                     },
-                    "color": self.COLORS['primary_blue']
+                    "color": self.COLORS['primary_green']
                 },
                 {
                     "type": "button",
