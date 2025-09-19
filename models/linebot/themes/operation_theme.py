@@ -3,6 +3,26 @@ from .base_theme import BaseTheme
 from linebot.models import FlexSendMessage
 
 class OperationTheme(BaseTheme):
+    def _create_error_box(self, error_message):
+        """建立一個標準的錯誤訊息 Box"""
+        return {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": "⚠️ " + error_message,
+                    "size": self.FONT_SIZE['sm'],
+                    "color": self.COLORS['text_error'],
+                    "weight": "bold",
+                    "wrap": True
+                }
+            ],
+            "backgroundColor": self.COLORS['bg_warning'],
+            "paddingAll": self.SPACING['md'],
+            "cornerRadius": self.BORDER_RADIUS['sm'],
+            "margin": self.SPACING['md']
+        }
     """操作主題 - 步驟化、引導式風格"""
     # ====== Add Account ======
     def create_add_account_confirmation(self, data, balance):
