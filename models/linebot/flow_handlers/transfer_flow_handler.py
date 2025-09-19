@@ -164,7 +164,16 @@ class TransferFlowHandler:
             self.user_state_manager.clear_user_state(user_id)
             
             if success:
-                return self.theme.create_transfer_success(data)
+                # 獲取更新後的帳戶資訊以顯示
+                updated_assets = self.asset_manager.get_all_assets()
+                source_account = updated_assets.get(data['source_account'])
+                target_account = updated_assets.get(data['target_account'])
+                amount = data['amount']
+                
+                if source_account and target_account:
+                    return self.theme.create_transfer_success(source_account, target_account, amount)
+                else:
+                    return "轉帳成功，但顯示結果時發生錯誤。"
             else:
                 return f"轉帳失敗: {result_message}"
         

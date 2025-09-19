@@ -151,7 +151,7 @@ class AssetManager:
             result = conn.execute(stmt)
             
             # 初始化結果
-            totals = {"總資產": 0, "活存": 0, "定存": 0, "投資": 0, "其他": 0}
+            totals = {"總資產": 0, "活存": 0, "定存": 0, "投資": 0, "信用卡": 0, "其他": 0}
             for row in result:
                 balance = float(row.total_balance)
                 totals["總資產"] += balance

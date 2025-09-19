@@ -369,6 +369,7 @@ class OperationTheme(BaseTheme):
             "活存": "#4CAF50",
             "定存": "#2196F3", 
             "投資": "#FF9800",
+            "信用卡": "#FF5722",
             "其他": "#9E9E9E"
         }
         
@@ -638,13 +639,8 @@ class OperationTheme(BaseTheme):
             contents=flex_content
         )
     
-    def create_transfer_success(self, data):
+    def create_transfer_success(self, source_account, target_account, amount):
         """建立轉帳成功 Flex Message"""
-        assets = self.asset_manager.get_all_assets()
-        source_account = assets[data['source_account']]
-        target_account = assets[data['target_account']]
-        amount = data['amount']
-        
         flex_content = {
             "type": "bubble",
             "header": {

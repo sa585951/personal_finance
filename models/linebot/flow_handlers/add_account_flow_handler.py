@@ -7,7 +7,7 @@ class AddAccountFlowHandler:
         self.theme = operation_theme
         
         # 帳戶類型選項
-        self.account_types = ["活存", "定存", "投資", "其他"]
+        self.account_types = ["活存", "定存", "投資", "信用卡", "其他"]
     
     def start_flow(self, user_id):
         """開始新增帳戶流程"""
