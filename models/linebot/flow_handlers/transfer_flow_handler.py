@@ -88,6 +88,17 @@ class TransferFlowHandler:
         
         target_account_key = message.replace("選擇帳戶:", "")
         
+        # 獲取完整帳戶資訊
+        current_state = self.user_state_manager.get_user_state(user_id)
+        source_key = current_state['data']['source_account']
+        assets = self.asset_manager.get_all_assets()
+        source_account = assets.get(source_key)
+        target_account = assets.get(target_account_key)
+
+        if not source_account or not target_account:
+            self.user_state_manager.clear_user_state(user_id)
+            return "發生錯誤：找不到帳戶資訊，流程已重置。"
+
         # 更新狀態
         self.user_state_manager.update_user_state(
             user_id,
@@ -95,13 +106,8 @@ class TransferFlowHandler:
             data={'target_account': target_account_key}
         )
         
-        # 獲取來源帳戶資訊
-        current_state = self.user_state_manager.get_user_state(user_id)
-        source_key = current_state['data']['source_account']
-        assets = self.asset_manager.get_all_assets()
-        source_balance = assets[source_key]['balance']
-        
-        return f"請輸入轉帳金額\n\n來源帳戶餘額: ${source_balance:,.0f}\n\n輸入範例: 1000"
+        # 呼叫新的主題函式來產生 Flex Message
+        return self.theme.create_transfer_amount_input(source_account, target_account)
     
     def _handle_amount_input(self, user_id, message, current_state):
         """處理金額輸入"""
@@ -114,13 +120,21 @@ class TransferFlowHandler:
             if amount <= 0:
                 return "金額必須大於 0，請重新輸入"
             
-            # 檢查餘額
-            source_key = current_state['data']['source_account']
+            # 獲取完整帳戶資訊
+            data = current_state['data']
+            source_key = data['source_account']
+            target_key = data['target_account']
             assets = self.asset_manager.get_all_assets()
-            source_balance = assets[source_key]['balance']
-            
-            if amount > source_balance:
-                return f"金額超過帳戶餘額 ${source_balance:,.0f}，請重新輸入"
+            source_account = assets.get(source_key)
+            target_account = assets.get(target_key)
+
+            if not source_account or not target_account:
+                self.user_state_manager.clear_user_state(user_id)
+                return "發生錯誤：找不到帳戶資訊，流程已重置。"
+
+            # 檢查餘額
+            if amount > source_account['balance']:
+                return f"金額超過帳戶餘額 ${source_account['balance']:,.0f}，請重新輸入"
             
             # 更新狀態
             self.user_state_manager.update_user_state(
@@ -129,7 +143,8 @@ class TransferFlowHandler:
                 data={'amount': amount}
             )
             
-            return self.theme.create_transfer_confirmation(current_state['data'], amount)
+            # 將完整的帳戶物件傳遞給 theme
+            return self.theme.create_transfer_confirmation(source_account, target_account, amount)
             
         except ValueError:
             return "請輸入有效的數字金額"

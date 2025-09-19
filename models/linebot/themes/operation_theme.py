@@ -550,12 +550,8 @@ class OperationTheme(BaseTheme):
         )
     
     # ====== Transfer ======    
-    def create_transfer_confirmation(self, data, amount):
+    def create_transfer_confirmation(self, source_account, target_account, amount):
         """建立轉帳確認 Flex Message"""
-        assets = self.asset_manager.get_all_assets()
-        source_account = assets[data['source_account']]
-        target_account = assets[data['target_account']]
-        
         flex_content = {
             "type": "bubble",
             "header": {
@@ -727,6 +723,84 @@ class OperationTheme(BaseTheme):
         
         return FlexSendMessage(
             alt_text=f"轉帳成功 ${amount:,.0f}",
+            contents=flex_content
+        )
+
+    def create_transfer_amount_input(self, source_account, target_account, error_message=None):
+        """建立轉帳金額輸入 Flex Message"""
+        flex_content = {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "轉帳",
+                        "weight": "bold",
+                        "size": "lg",
+                        "color": "#333333"
+                    },
+                    {
+                        "type": "text",
+                        "text": "步驟 3/4 - 輸入金額",
+                        "size": "sm",
+                        "color": "#666666",
+                        "margin": "sm"
+                    }
+                ],
+                "backgroundColor": "#E3F2FD",
+                "paddingAll": "16px"
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    self._create_info_row("轉出帳戶", f"{source_account['bank_name']} {source_account['account_type']}"),
+                    self._create_info_row("轉入帳戶", f"{target_account['bank_name']} {target_account['account_type']}"),
+                    {
+                        "type": "separator",
+                        "margin": "lg"
+                    },
+                    {
+                        "type": "text",
+                        "text": "請輸入轉帳金額",
+                        "weight": "bold",
+                        "size": "md",
+                        "margin": "lg"
+                    },
+                    {
+                        "type": "text",
+                        "text": f"(轉出帳戶餘額: ${source_account['balance']:,.0f})",
+                        "size": "xs",
+                        "color": "#666666",
+                        "margin": "sm"
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {
+                            "type": "message",
+                            "label": "取消操作",
+                            "text": "取消操作"
+                        }
+                    }
+                ]
+            }
+        }
+
+        if error_message:
+            flex_content["body"]["contents"].append(self._create_error_box(error_message))
+
+        return FlexSendMessage(
+            alt_text="請輸入轉帳金額",
             contents=flex_content
         )
     
