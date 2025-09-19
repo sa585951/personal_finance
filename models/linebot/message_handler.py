@@ -120,23 +120,65 @@ class MessageHandler:
             return self._get_help_message()
         
     def _handle_expense(self, parsed_data, user_id):
-        """處理支出記錄"""
+        """處理支出記錄並更新資產餘額"""
+        # 1. 新增交易紀錄
         result = self.expense_handler.handle(parsed_data, user_id)
-        if result["success"]:
-            return self.response_builder.create_expense_success(
+        if not result["success"]:
+            return self.response_builder.create_error_message(f"紀錄失敗: {result['message']}")
+
+        # 2. 處理資產餘額更新
+        asset_update_msg = ""
+        target_asset_name = parsed_data.get("target_asset")
+        if target_asset_name:
+            asset = self.asset_manager.find_asset_by_name(target_asset_name)
+            if asset:
+                amount_change = -float(parsed_data["amount"])
+                self.asset_manager.adjust_asset_balance(asset['account_key'], amount_change)
+                asset_update_msg = f"\n已從 {asset['bank_name']} 扣款。"
+            else:
+                asset_update_msg = f"\n⚠️ 但找不到名為 {target_asset_name} 的資產。"
+
+        # 3. 建立成功回應
+        base_response = self.response_builder.create_expense_success(
             result["data"], 
             result.get("budget_status")
         )
-        else:
-            return self.response_builder.create_error_message(f"紀錄失敗: {result['message']}")
-        
+        # 將文字和 Flex Message 合併
+        if isinstance(base_response, str):
+            return base_response + asset_update_msg
+        else: # 假設是 FlexSendMessage
+            # 這裡我們簡單地在文字回覆中附加訊息
+            # 注意：Flex Message 的內容是固定的，較難動態附加文字
+            # 一個簡單的作法是，如果需要附加資產訊息，就改用純文字回覆
+            original_text = f"✅ 支出 {parsed_data['amount']}元 紀錄成功！"
+            return original_text + asset_update_msg
+
     def _handle_income(self, parsed_data, user_id):
-        """處理收入記錄"""  
+        """處理收入記錄並更新資產餘額"""  
+        # 1. 新增交易紀錄
         result = self.income_handler.handle(parsed_data, user_id)
-        if result["success"]:
-            return self.response_builder.create_income_success(result["data"])
-        else:
+        if not result["success"]:
             return self.response_builder.create_error_message(f"紀錄失敗: {result['message']}")
+
+        # 2. 處理資產餘額更新
+        asset_update_msg = ""
+        target_asset_name = parsed_data.get("target_asset")
+        if target_asset_name:
+            asset = self.asset_manager.find_asset_by_name(target_asset_name)
+            if asset:
+                amount_change = float(parsed_data["amount"])
+                self.asset_manager.adjust_asset_balance(asset['account_key'], amount_change)
+                asset_update_msg = f"\n已存入 {asset['bank_name']}。"
+            else:
+                asset_update_msg = f"\n⚠️ 但找不到名為 {target_asset_name} 的資產。"
+
+        # 3. 建立成功回應
+        base_response = self.response_builder.create_income_success(result["data"])
+        if isinstance(base_response, str):
+            return base_response + asset_update_msg
+        else:
+            original_text = f"✅ 收入 {parsed_data['amount']}元 紀錄成功！"
+            return original_text + asset_update_msg
     
     def _handle_query(self, user_id):
         """處理查詢請求"""

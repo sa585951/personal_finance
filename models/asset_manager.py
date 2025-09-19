@@ -20,6 +20,23 @@ class AssetManager:
             assets = {row.account_key: dict(row._mapping) for row in result}
             return assets
 
+    def find_asset_by_name(self, name):
+        """根據自然語言名稱尋找資產。
+
+        Args:
+            name (str): 欲尋找的資產名稱 (例如: 國泰銀行, 現金)
+
+        Returns:
+            dict or None: 找到的資產資料，或 None
+        """
+        # 未來可擴展模糊比對 (e.g., a LIKE query or a library like fuzzywuzzy)
+        stmt = select(assets_table).where(assets_table.c.bank_name == name)
+        with engine.connect() as conn:
+            result = conn.execute(stmt).first()
+            if result:
+                return dict(result._mapping)
+        return None
+
     def add_account(self, bank_name, account_type, balance):
         """新增銀行帳戶到資料庫"""
         account_key = self._get_account_key(bank_name, account_type)
@@ -40,6 +57,22 @@ class AssetManager:
             except Exception as e:
                 print(f"❌ 新增帳戶失敗: {e}")
                 return False, "新增帳戶失敗，帳戶可能已存在。"
+
+    def adjust_asset_balance(self, account_key, amount_change):
+        """調整指定帳戶的餘額 (可正可負)"""
+        stmt = (
+            assets_table.update()
+            .where(assets_table.c.account_key == account_key)
+            .values(balance=assets_table.c.balance + amount_change, last_update=datetime.now())
+        )
+        with engine.connect() as conn:
+            result = conn.execute(stmt)
+            conn.commit()
+            if result.rowcount == 0:
+                print(f"❌ 調整餘額失敗: 找不到帳戶 {account_key}")
+                return False, "找不到此帳戶"
+            print(f"🔄 已調整帳戶 {account_key} 的餘額 {amount_change:+,}")
+            return True, "餘額調整成功"
 
     def update_balance(self, account_key, new_balance):
         """更新指定帳戶的餘額"""
@@ -80,7 +113,7 @@ class AssetManager:
                 try:
                     balance_stmt = select(assets_table.c.balance).where(assets_table.c.account_key == source_key)
                     source_balance = conn.execute(balance_stmt).scalar_one_or_none()
-                    if source_balance is None:
+                    if source_balance == None:
                         transaction.rollback()
                         return False, "來源帳戶不存在"
                     if source_balance < amount:

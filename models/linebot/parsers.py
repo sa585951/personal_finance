@@ -69,6 +69,8 @@ class GeminiParser:
                 result["category"] = "其他"
             if "description" not in result:
                 result["description"] = original_message[:20]
+            if "target_asset" not in result:
+                result["target_asset"] = None
 
         elif result["type"] == "income":
             if "amount" not in result or not isinstance(result["amount"], (int, float)):
@@ -76,6 +78,8 @@ class GeminiParser:
                 result["error"] = "無法識別收入金額"
             if "description" not in result:
                 result["description"] = original_message[:20]
+            if "target_asset" not in result:
+                result["target_asset"] = None
 
         return result
 

@@ -1257,13 +1257,14 @@ class StatisticsTheme(BaseTheme):
             "contents": [
                 {
                     "type": "button",
-                    "style": "link",
+                    "style": "primary",
                     "height": "sm",
                     "action": {
                         "type": "message",
-                        "label": "編輯",
+                        "label": "增加進度",
                         "text": f"編輯目標:{goal.get('id', '')}"
-                    }
+                    },
+                    "color": self.COLORS['primary_blue']
                 },
                 {
                     "type": "button",

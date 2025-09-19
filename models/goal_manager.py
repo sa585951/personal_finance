@@ -53,6 +53,46 @@ class GoalManager:
                 print(f"❌ 新增目標失敗: {e}")
                 return False, f"新增目標失敗: {e}"
 
+    def add_goal_progress(self, goal_id, amount_to_add):
+        """為目標增加已存金額（進度）"""
+        if amount_to_add <= 0:
+            return False, "增加的金額必須大於0"
+
+        with engine.connect() as conn:
+            with conn.begin() as transaction:
+                try:
+                    # 1. 鎖定並獲取當前目標
+                    goal_stmt = select(goals_table).where(goals_table.c.id == goal_id).with_for_update()
+                    current_goal = conn.execute(goal_stmt).first()
+
+                    if not current_goal:
+                        return False, "找不到此目標"
+
+                    # 2. 計算新金額和狀態
+                    new_current_amount = current_goal.current_amount + amount_to_add
+                    new_status = current_goal.status
+                    if new_current_amount >= current_goal.target_amount:
+                        new_status = "completed"
+                    
+                    # 3. 執行更新
+                    update_stmt = (
+                        update(goals_table)
+                        .where(goals_table.c.id == goal_id)
+                        .values(
+                            current_amount=new_current_amount,
+                            status=new_status,
+                            last_update=datetime.now()
+                        )
+                    )
+                    conn.execute(update_stmt)
+                    
+                    print(f"✅ 已為目標 ID: {goal_id} 增加進度 {amount_to_add}")
+                    return True, "目標進度更新成功"
+                except Exception as e:
+                    print(f"❌ 更新目標進度失敗: {e}")
+                    transaction.rollback()
+                    return False, "更新目標進度時發生錯誤"
+
     def update_goal(self, goal_id, **updates):
         """通用更新目標方法，可同時更新多個欄位"""
         with engine.connect() as conn:

@@ -27,25 +27,26 @@ class LineBotManager:
         self.user_state_manager = UserStateManager()
         # Prompt模板
         self.prompt_template = """
-        分析以下中文記帳訊息，回傳 JSON 格式：
+        分析以下中文記帳訊息，並嚴格回傳 JSON 格式。
 
         訊息："{message}"
 
         規則：
-        1. 支出記錄：{{"type": "expense", "category": "類別", "amount": 數字, "description": "簡短描述"}}
-        2. 收入記錄：{{"type": "income", "amount": 數字, "description": "簡短描述"}}
-        3. 查詢請求：{{"type": "query", "action": "查詢類型"}}
-        4. 資產查詢：{{"type": "asset_query"}}
-        5. 轉帳請求：{{"type": "start_transfer"}}
-        6. 新增帳戶：{{"type": "start_add_account"}}
-        7. 更新餘額：{{"type": "start_update_balance"}}
-        8. 編輯目標：如果訊息是 "編輯目標:ID"，解析出ID。格式: {{"type": "start_edit_goal", "goal_id": "ID"}}
-        9. 刪除目標：如果訊息是 "刪除目標:ID"，解析出ID。格式: {{"type": "start_delete_goal", "goal_id": "ID"}}
-        10. 非記帳訊息：{{"type": "other"}}
+        1. 支出記錄：{{"type": "expense", "category": "類別", "amount": 數字, "description": "簡短描述", "target_asset": "資產名稱"}}
+        2. 收入記錄：{{"type": "income", "amount": 數字, "description": "簡短描述", "target_asset": "資產名稱"}}
+        3. 關鍵字提取：如果訊息包含 "從 xx 銀行"、"用現金"、"到 xx 帳戶" 等詞語，請將 "xx 銀行"、"現金"、"xx 帳戶" 提取到 "target_asset" 欄位。如果沒有提到，此欄位可為 null。
+        4. 查詢請求：{{"type": "query", "action": "查詢類型"}}
+        5. 資產查詢：{{"type": "asset_query"}}
+        6. 轉帳請求：{{"type": "start_transfer"}}
+        7. 新增帳戶：{{"type": "start_add_account"}}
+        8. 更新餘額：{{"type": "start_update_balance"}}
+        9. 編輯目標：如果訊息是 "編輯目標:ID"，解析出ID。格式: {{"type": "start_edit_goal", "goal_id": "ID"}}
+        10. 刪除目標：如果訊息是 "刪除目標:ID"，解析出ID。格式: {{"type": "start_delete_goal", "goal_id": "ID"}}
+        11. 非記帳訊息：{{"type": "other"}}
 
         類別限制：伙食、交通、購物、娛樂、醫療、投資、生活、其他
 
-        注意：只回傳純 JSON，不要 markdown 標記
+        注意：只回傳純 JSON，不要 markdown 標記。
         """
 
         #注入Message Parser

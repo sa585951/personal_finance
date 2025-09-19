@@ -2538,8 +2538,12 @@ class OperationTheme(BaseTheme):
             contents=flex_content
         )
 
-    def create_edit_goal_selection(self, goal, editable_fields_keys, message=None):
-        """建立編輯目標選擇 Flex Message"""
+    def create_add_goal_progress_input(self, goal, error_message=None):
+        """建立為目標增加進度的輸入 Flex Message"""
+        current_amount = float(goal['current_amount'])
+        target_amount = float(goal['target_amount'])
+        progress = (current_amount / target_amount) * 100 if target_amount > 0 else 0
+
         flex_content = {
             "type": "bubble",
             "header": {
@@ -2548,17 +2552,19 @@ class OperationTheme(BaseTheme):
                 "contents": [
                     {
                         "type": "text",
-                        "text": "編輯目標",
+                        "text": "增加目標進度",
                         "weight": "bold",
                         "size": self.FONT_SIZE['lg'],
                         "color": self.COLORS['text_primary']
                     },
                     {
                         "type": "text",
-                        "text": "請選擇要編輯的欄位",
-                        "size": self.FONT_SIZE['sm'],
-                        "color": self.COLORS['text_secondary'],
-                        "margin": self.SPACING['sm']
+                        "text": goal['title'],
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['xl'],
+                        "color": self.COLORS['primary_blue'],
+                        "margin": self.SPACING['md'],
+                        "wrap": True
                     }
                 ],
                 "backgroundColor": self.COLORS['bg_primary'],
@@ -2568,29 +2574,38 @@ class OperationTheme(BaseTheme):
                 "type": "box",
                 "layout": "vertical",
                 "contents": [
-                    # 顯示目標資訊
-                    self._create_info_row("目標名稱", goal['title']),
-                    self._create_info_row("目標類型", goal['type']),
-                    self._create_info_row("目前金額", f"${goal['current_amount']:,}"),
-                    self._create_info_row("目標日期", goal['target_date']),
+                    self._create_info_row("目前進度", f"${current_amount:,.0f} / ${target_amount:,.0f}"),
                     {
-                        "type": "separator",
-                        "margin": self.SPACING['md']
+                        "type": "box",
+                        "layout": "vertical",
+                        "margin": "lg",
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "vertical",
+                                "contents": [],
+                                "width": f"{min(progress, 100)}%",
+                                "height": "8px",
+                                "backgroundColor": self.COLORS['primary_green']
+                            }
+                        ],
+                        "backgroundColor": "#E0E0E0",
+                        "height": "8px",
+                        "cornerRadius": "md"
                     },
                     {
                         "type": "text",
-                        "text": "選擇要編輯的項目:",
+                        "text": "您想為此目標增加多少存款？",
                         "weight": "bold",
                         "size": self.FONT_SIZE['md'],
-                        "color": self.COLORS['text_primary'],
-                        "margin": self.SPACING['md']
-                    },
+                        "margin": "xxl",
+                        "wrap": True
+                    }
                 ]
             },
             "footer": {
                 "type": "box",
                 "layout": "vertical",
-                "spacing": self.SPACING['sm'],
                 "contents": [
                     {
                         "type": "button",
@@ -2598,7 +2613,7 @@ class OperationTheme(BaseTheme):
                         "height": "sm",
                         "action": {
                             "type": "message",
-                            "label": "取消編輯",
+                            "label": "取消操作",
                             "text": "取消操作"
                         }
                     }
@@ -2606,47 +2621,20 @@ class OperationTheme(BaseTheme):
             }
         }
 
-        # Add editable fields as buttons
-        for field_name in editable_fields_keys:
-            flex_content["body"]["contents"].append({
-                "type": "button",
-                "style": "link",
-                "height": "sm",
-                "action": {
-                    "type": "message",
-                    "label": f"編輯{field_name}",
-                    "text": field_name
-                },
-                "margin": self.SPACING['sm']
-            })
+        if error_message:
+            flex_content["body"]["contents"].append(self._create_error_box(error_message))
 
-        if message: 
-            flex_content["body"]["contents"].insert(0, {
-                "type": "box",
-                "layout": "vertical",
-                "contents": [
-                    {
-                        "type": "text",
-                        "text": message,
-                        "size": self.FONT_SIZE['sm'],
-                        "color": self.COLORS['text_error'],
-                        "weight": "bold",
-                        "wrap": True
-                    }
-                ],
-                "backgroundColor": self.COLORS['bg_warning'],
-                "paddingAll": self.SPACING['sm'],
-                "cornerRadius": self.BORDER_RADIUS['sm'],
-                "margin": self.SPACING['md']
-            })
-        
         return FlexSendMessage(
-            alt_text=f"編輯目標: {goal['title']}",
+            alt_text=f"為目標 {goal['title']} 增加進度",
             contents=flex_content
         )
 
-    def create_edit_goal_success(self, goal, field, new_value):
-        """建立編輯目標成功 Flex Message"""
+    def create_add_goal_progress_success(self, updated_goal, amount_added):
+        """建立增加目標進度成功的 Flex Message"""
+        current_amount = float(updated_goal['current_amount'])
+        target_amount = float(updated_goal['target_amount'])
+        progress = (current_amount / target_amount) * 100 if target_amount > 0 else 0
+
         flex_content = {
             "type": "bubble",
             "header": {
@@ -2655,17 +2643,10 @@ class OperationTheme(BaseTheme):
                 "contents": [
                     {
                         "type": "text",
-                        "text": "目標編輯成功",
+                        "text": "✅ 進度更新成功",
                         "weight": "bold",
                         "size": self.FONT_SIZE['lg'],
                         "color": self.COLORS['text_white']
-                    },
-                    {
-                        "type": "text",
-                        "text": "✅ 操作完成",
-                        "size": self.FONT_SIZE['md'],
-                        "color": self.COLORS['text_white'],
-                        "margin": self.SPACING['md']
                     }
                 ],
                 "backgroundColor": self.COLORS['text_success'],
@@ -2675,11 +2656,34 @@ class OperationTheme(BaseTheme):
                 "type": "box",
                 "layout": "vertical",
                 "contents": [
-                    self._create_info_row("目標名稱", goal['title']),
-                    self._create_info_row("目標類型", goal['type']),
-                    self._create_info_row("目標金額", f"${goal['current_amount']:,}"),
-                    self._create_info_row("目標日期", goal['target_date']),
-                    self._create_info_row("編輯時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                    {
+                        "type": "text",
+                        "text": updated_goal['title'],
+                        "weight": "bold",
+                        "size": self.FONT_SIZE['xl'],
+                        "color": self.COLORS['text_primary'],
+                        "wrap": True
+                    },
+                    self._create_info_row("本次存入", f"${float(amount_added):,.0f}", self.COLORS['primary_green']),
+                    self._create_info_row("目前進度", f"${current_amount:,.0f} / ${target_amount:,.0f}"),
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "margin": "lg",
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "vertical",
+                                "contents": [],
+                                "width": f"{min(progress, 100)}%",
+                                "height": "8px",
+                                "backgroundColor": self.COLORS['primary_green']
+                            }
+                        ],
+                        "backgroundColor": "#E0E0E0",
+                        "height": "8px",
+                        "cornerRadius": "md"
+                    }
                 ]
             },
             "footer": {
@@ -2700,164 +2704,19 @@ class OperationTheme(BaseTheme):
             }
         }
         
-        # Add specific field updated
-        field_name_map = {
-            "title": "目標名稱",
-            "type": "目標類型",
-            "current_amount": "目前金額",
-            "target_date": "目標日期"
-        }
-        display_field_name = field_name_map.get(field, field)
-        
-        if field == "current_amount":
-            new_value_display = f"${new_value:,}"
-        else:
-            new_value_display = new_value
-
-        flex_content['body']['contents'].insert(0, self._create_info_row(f"更新欄位: {display_field_name}", new_value_display))
-
-        return FlexSendMessage(
-            alt_text=f"成功編輯目標: {goal['title']}",
-            contents=flex_content
-        )
-
-    def create_edit_goal_field_input(self, field_name, goal, error_message=None):
-        """建立編輯目標欄位輸入 Flex Message"""
-        title_map = {
-            "title": "目標名稱",
-            "type": "目標類型",
-            "current_amount": "目前金額",
-            "target_date": "目標日期"
-        }
-
-        title = f"編輯{title_map.get(field_name, field_name)}"
-        step_text = f"請輸入新的{title_map.get(field_name, field_name)}"
-
-        # Get current value from goal object
-        current_value = goal.get(field_name, "N/A")
-        if field_name == "current_amount":
-            current_value = f"${current_value:,}"
-
-        body_contents = [
-            {
+        if updated_goal['status'] == 'completed':
+            flex_content['body']['contents'].append({
                 "type": "text",
-                "text": f"目前值: {current_value}",
-                "size": self.FONT_SIZE['sm'],
-                "color": self.COLORS['text_muted'],
-                "margin": self.SPACING['md']
-            },
-            {
-                "type": "text",
-                "text": step_text,
+                "text": "🎉 恭喜！您已達成此目標！",
                 "weight": "bold",
                 "size": self.FONT_SIZE['md'],
-                "color": self.COLORS['text_primary'],
-                "margin": self.SPACING['lg']
-            }
-        ]
-
-        if field_name == "target_date":
-            body_contents.append({
-                "type": "text",
-                "text": "💡 格式：YYYY-MM-DD (例如: 2025-12-31)",
-                "size": self.FONT_SIZE['sm'],
-                "color": self.COLORS['text_muted'],
-                "margin": self.SPACING['md']
-            })
-        elif field_name == "current_amount":
-            body_contents.append({
-                "type": "text",
-                "text": "💡 範例：100000",
-                "size": self.FONT_SIZE['sm'],
-                "color": self.COLORS['text_muted'],
-                "margin": self.SPACING['md']
+                "color": self.COLORS['primary_blue'],
+                "margin": "xl",
+                "align": "center"
             })
 
-        flex_content = self._create_step_bubble(
-            title=title,
-            step_text="", # Step text is handled by body_contents
-            body_contents=body_contents,
-            error_message=error_message
-        )
-
         return FlexSendMessage(
-            alt_text=title,
-            contents=flex_content
-        )
-    
-    def create_edit_goal_confirmation(self, goal, field, new_value):
-        """建立編輯目標確認 Flex Message"""
-        flex_content = {
-            "type": "bubble",
-            "header": {
-                "type": "box",
-                "layout": "vertical",
-                "contents": [
-                    {
-                        "type": "text",
-                        "text": "確認修改目標",
-                        "weight": "bold",
-                        "size": self.FONT_SIZE['lg'],
-                        "color": self.COLORS['text_primary']
-                    },
-                    {
-                        "type": "text",
-                        "text": "請確認以下變更",
-                        "size": self.FONT_SIZE['sm'],
-                        "color": self.COLORS['text_secondary'],
-                        "margin": self.SPACING['sm']
-                    }
-                ],
-                "backgroundColor": self.COLORS['bg_primary'],
-                "paddingAll": self.SPACING['lg']
-            },
-            "body": {
-                "type": "box",
-                "layout": "vertical",
-                "contents": []
-            },
-            "footer": {
-                "type": "box",
-                "layout": "horizontal",
-                "spacing": self.SPACING['sm'],
-                "contents": [
-                    {
-                        "type": "button",
-                        "style": "secondary",
-                        "height": "sm",
-                        "action": {
-                            "type": "message",
-                            "label": "取消修改",
-                            "text": "取消修改"
-                        }
-                    },
-                    {
-                        "type": "button",
-                        "style": "primary",
-                        "height": "sm",
-                        "color": self.COLORS['primary_green'],
-                        "action": {
-                            "type": "message",
-                            "label": "確認修改",
-                            "text": "確認修改"
-                        }
-                    }
-                ]
-            }
-        }
-
-        # Display the change
-        old_value = goal.get(field, "N/A")
-        if field == "current_amount":
-            old_value = f"${old_value:,}"
-            new_value_display = f"${new_value:,}"
-        else:
-            new_value_display = new_value
-
-        flex_content['body']['contents'].append(self._create_info_row(field, f"{old_value} -> {new_value_display}"))
-
-        return FlexSendMessage(
-            alt_text=f"確認修改目標: {goal['title']}",
+            alt_text=f"成功更新目標 {updated_goal['title']} 的進度",
             contents=flex_content
         )
     
