@@ -21,6 +21,7 @@ class ExpenseHandler:
         """
         try:
             success, message = self.budget_manager.add_transaction(
+                user_id=user_id,
                 date = datetime.now().strftime("%Y-%m-%d"),
                 item = data.get("description", "Line記帳"),
                 amount = data["amount"],
@@ -31,7 +32,7 @@ class ExpenseHandler:
 
             if success:
                 # 獲取預算狀況
-                budget_status = self._get_budget_status(data["category"])
+                budget_status = self._get_budget_status(user_id, data["category"])
                 return {
                     "success": True, 
                     "data": data, 
@@ -44,12 +45,13 @@ class ExpenseHandler:
         except Exception as e:
             return {"success": False, "data": data, "message": str(e)}
 
-    def _get_budget_status(self, category):
-        """獲取預算狀況"""
+    def _get_budget_status(self, user_id, category):
+        """獲取指定使用者的預算狀況"""
         try:
             current_month = datetime.now().strftime("%Y-%m")
 
             stmt = select(budget_categories_table).where(
+                budget_categories_table.c.user_id == user_id,
                 budget_categories_table.c.month == current_month,
                 budget_categories_table.c.category_name == category
             )
@@ -62,10 +64,10 @@ class ExpenseHandler:
             budget_amount = float(budget_result.amount)
 
             # 計算已花費
-            expenses = self.budget_manager.calculate_monthly_expenses(current_month)
+            expenses = self.budget_manager.calculate_monthly_expenses(user_id, current_month)
             spent = expenses.get(category, 0)
-            remaining = budget_amount - spent
-            usage_rate = (spent / budget_amount) * 100
+            remaining = budget_amount - float(spent)
+            usage_rate = (float(spent) / budget_amount) * 100
 
             # 根據使用率回應
             if usage_rate >= 100:
@@ -104,6 +106,7 @@ class IncomeHandler:
     def handle(self, data, user_id):
         try:
             success, message = self.budget_manager.add_transaction(
+                user_id=user_id,
                 date=datetime.now().strftime("%Y-%m-%d"),
                 item=data.get("description", "Line收入"),
                 amount=data["amount"],
@@ -138,17 +141,17 @@ class QueryHandler:
         """
         try:
             current_month = datetime.now().strftime("%Y-%m")
-            expenses = self.budget_manager.calculate_monthly_expenses(current_month)
+            expenses = self.budget_manager.calculate_monthly_expenses(user_id, current_month)
 
             if not expenses:
                 return {"success": False, "message": "本月尚無支出記錄"}
             
             # 獲取詳細交易記錄
-            recent_transactions = self._get_recent_transactions(current_month, limit=5)
+            recent_transactions = self._get_recent_transactions(user_id, current_month, limit=5)
             total_expenses = sum(expenses.values())
-            transaction_count = self._get_all_month_transactions(current_month)
+            transaction_count = self._get_all_month_transactions(user_id, current_month)
 
-            category_stats = self._get_category_expenses(current_month)
+            category_stats = self._get_category_expenses(user_id, current_month)
 
             return {
                 "success": True,
@@ -161,10 +164,11 @@ class QueryHandler:
         except Exception as e:
             return {"success": False, "message": str(e)}
         
-    def _get_recent_transactions(self, month, limit=5):
-        """獲取最近交易記錄"""
+    def _get_recent_transactions(self, user_id, month, limit=5):
+        """獲取指定使用者最近交易記錄"""
         try:
             stmt = select(transactions_table).where(
+                transactions_table.c.user_id == user_id,
                 func.to_char(transactions_table.c.date, 'YYYY-MM') == month,
                 transactions_table.c.type == 'expense'
             ).order_by(desc(transactions_table.c.date)).limit(limit)
@@ -177,10 +181,11 @@ class QueryHandler:
             print(f"獲取交易記錄失敗: {e}")
             return []
         
-    def _get_all_month_transactions(self, month):
-        """獲取整月交易數量"""
+    def _get_all_month_transactions(self, user_id, month):
+        """獲取指定使用者整月交易數量"""
         try:
             stmt = select(func.count(transactions_table.c.id)).where(
+                transactions_table.c.user_id == user_id,
                 func.to_char(transactions_table.c.date, 'YYYY-MM') == month,
                 transactions_table.c.type == 'expense'
             )
@@ -192,13 +197,14 @@ class QueryHandler:
         except Exception as e:
             return 0
         
-    def _get_category_expenses(self, month):
-        """獲取分類支出統計"""
+    def _get_category_expenses(self, user_id, month):
+        """獲取指定使用者分類支出統計"""
         try:
             stmt = select(transactions_table.c.budget_category,
                 func.sum(transactions_table.c.amount).label('total'),
                 func.count(transactions_table.c.id).label('count')
             ).where(
+                transactions_table.c.user_id == user_id,
                 func.to_char(transactions_table.c.date, 'YYYY-MM') == month,
                 transactions_table.c.type == 'expense'
             ).group_by(transactions_table.c.budget_category).order_by(
@@ -235,7 +241,7 @@ class AssetHandler:
             dict: 資產數據
         """
         try:
-            totals = self.asset_manager.calculate_totals()
+            totals = self.asset_manager.calculate_totals(user_id)
             return {"success": True, "totals": totals}
         except Exception as e:
             return {"success": False, "message": str(e)}
@@ -249,8 +255,8 @@ class GoalHandler:
     def handle_goal_query(self, user_id):
         """處理目標查詢"""
         try:
-            goals_data = self.goal_manager.get_all_goals()
-            summary = self.goal_manager.calculate_goal_summary()
+            goals_data = self.goal_manager.get_all_goals(user_id)
+            summary = self.goal_manager.calculate_goal_summary(user_id)
             
             return {
                 "success": True,

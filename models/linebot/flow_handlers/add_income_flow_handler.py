@@ -98,13 +98,14 @@ class AddIncomeFlowHandler:
         """處理最終確認"""
         if message == "確認新增":
             data = current_state['data']
-            success, result = self.budget_manager.add_transaction(
-                date=datetime.now().strftime('%Y-%m-%d'),
-                item=data['category'],
-                amount=data['amount'],
-                transaction_type='income',
-                budget_category=data['category'], # 收入的 budget_category 可能是 '收入'
-                description=data.get('description', '')
+            success, msg = self.budget_manager.add_transaction(
+                user_id=user_id,
+                date=datetime.now().strftime("%Y-%m-%d"),
+                item="收入",
+                amount=flow_data["amount"],
+                transaction_type="income",
+                budget_category="收入",
+                description=flow_data["description"]
             )
             
             self.user_state_manager.clear_user_state(user_id)

@@ -12,7 +12,7 @@ class DeleteTransactionFlowHandler:
         """開始刪除交易流程"""
         try:
             # 獲取最近的交易記錄（限制數量避免太多）
-            transactions = self.budget_manager.get_all_transactions()
+            transactions = self.budget_manager.get_all_transactions(user_id)
             if not transactions:
                 return "您還沒有任何交易記錄，無法執行刪除操作"
             
@@ -76,9 +76,8 @@ class DeleteTransactionFlowHandler:
         if message == "確認刪除":
             # 執行刪除操作
             data = current_state['data']
-            success, result_message = self.budget_manager.delete_transaction(
-                data['transaction_id']
-            )
+            transaction_id = data['transaction_id']
+            success, msg = self.budget_manager.delete_transaction(user_id, transaction_id)
             
             # 清除狀態
             self.user_state_manager.clear_user_state(user_id)
@@ -86,7 +85,7 @@ class DeleteTransactionFlowHandler:
             if success:
                 return self.theme.create_delete_transaction_success(data['selected_transaction'])
             else:
-                return f"刪除交易失敗: {result_message}"
+                return f"刪除交易失敗: {msg}"
         
         elif message == "取消操作":
             self.user_state_manager.clear_user_state(user_id)

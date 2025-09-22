@@ -100,13 +100,14 @@ class AddExpenseFlowHandler:
         """處理最終確認"""
         if message == "確認新增":
             data = current_state['data']
-            success, result = self.budget_manager.add_transaction(
-                date=datetime.now().strftime('%Y-%m-%d'),
-                item=data['category'],
-                amount=data['amount'],
-                transaction_type='expense',
-                budget_category=data['category'],
-                description=data.get('description', '')
+            success, msg = self.budget_manager.add_transaction(
+                user_id=user_id,
+                date=datetime.now().strftime("%Y-%m-%d"),
+                item=flow_data["category"],
+                amount=flow_data["amount"],
+                transaction_type="expense",
+                budget_category=flow_data["category"],
+                description=flow_data["description"]
             )
             
             self.user_state_manager.clear_user_state(user_id)

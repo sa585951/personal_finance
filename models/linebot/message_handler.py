@@ -130,10 +130,10 @@ class MessageHandler:
         asset_update_msg = ""
         target_asset_name = parsed_data.get("target_asset")
         if target_asset_name:
-            asset = self.asset_manager.find_asset_by_name(target_asset_name)
+            asset = self.asset_manager.find_asset_by_name(user_id, target_asset_name)
             if asset:
                 amount_change = -float(parsed_data["amount"])
-                self.asset_manager.adjust_asset_balance(asset['account_key'], amount_change)
+                self.asset_manager.adjust_asset_balance(user_id, asset['account_key'], amount_change)
                 asset_update_msg = f"\n已從 {asset['bank_name']} 扣款。"
             else:
                 asset_update_msg = f"\n⚠️ 但找不到名為 {target_asset_name} 的資產。"
@@ -164,10 +164,10 @@ class MessageHandler:
         asset_update_msg = ""
         target_asset_name = parsed_data.get("target_asset")
         if target_asset_name:
-            asset = self.asset_manager.find_asset_by_name(target_asset_name)
+            asset = self.asset_manager.find_asset_by_name(user_id, target_asset_name)
             if asset:
                 amount_change = float(parsed_data["amount"])
-                self.asset_manager.adjust_asset_balance(asset['account_key'], amount_change)
+                self.asset_manager.adjust_asset_balance(user_id, asset['account_key'], amount_change)
                 asset_update_msg = f"\n已存入 {asset['bank_name']}。"
             else:
                 asset_update_msg = f"\n⚠️ 但找不到名為 {target_asset_name} 的資產。"

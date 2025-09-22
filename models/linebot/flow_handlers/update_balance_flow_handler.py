@@ -13,7 +13,7 @@ class UpdateBalanceFlowHandler:
         """開始更新餘額流程"""
         try:
             # 獲取所有帳戶
-            assets = self.asset_manager.get_all_assets()
+            assets = self.asset_manager.get_all_assets(user_id)
             if not assets:
                 return "您還沒有任何帳戶，請先新增帳戶"
             
@@ -105,6 +105,7 @@ class UpdateBalanceFlowHandler:
             # 執行餘額更新
             data = current_state['data']
             success, result_message = self.asset_manager.update_balance(
+                user_id,
                 data['account_key'],
                 data['new_balance']
             )

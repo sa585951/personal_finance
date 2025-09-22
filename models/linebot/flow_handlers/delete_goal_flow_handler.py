@@ -9,7 +9,7 @@ class DeleteGoalFlowHandler:
     def start_flow(self, user_id, goal_id):
         """開始刪除目標流程"""
         try:
-            goal = self.goal_manager.get_goal_by_id(goal_id)
+            goal = self.goal_manager.get_goal_by_id(user_id, goal_id)
             if not goal:
                 return "找不到指定的目標，請重新操作。"
 
@@ -42,7 +42,7 @@ class DeleteGoalFlowHandler:
             goal = current_state['data']['goal']
             goal_id = goal['id']
             
-            success, msg = self.goal_manager.delete_goal(goal_id)
+            success, msg = self.goal_manager.delete_goal(user_id, goal_id)
             
             self.user_state_manager.clear_user_state(user_id)
             

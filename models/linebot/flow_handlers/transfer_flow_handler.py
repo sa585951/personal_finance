@@ -12,8 +12,7 @@ class TransferFlowHandler:
     def start_flow(self, user_id):
         """開始轉帳流程"""
         try:
-            # 獲取所有帳戶
-            assets = self.asset_manager.get_all_assets()
+            assets = self.asset_manager.get_all_assets(user_id)
             
             if len(assets) < 2:
                 return "您需要至少兩個帳戶才能進行轉帳\n請先新增更多帳戶"
@@ -124,7 +123,7 @@ class TransferFlowHandler:
             data = current_state['data']
             source_key = data['source_account']
             target_key = data['target_account']
-            assets = self.asset_manager.get_all_assets()
+            assets = self.asset_manager.get_all_assets(user_id)
             source_account = assets.get(source_key)
             target_account = assets.get(target_key)
 
@@ -154,10 +153,11 @@ class TransferFlowHandler:
         if message == "確認轉帳":
             # 執行轉帳
             data = current_state['data']
-            success, result_message = self.asset_manager.transfer(
-                data['source_account'],
-                data['target_account'],
-                data['amount']
+            success, msg = self.asset_manager.transfer(
+                user_id,
+                data["source_account"],
+                data["target_account"],
+                data["amount"]
             )
             
             # 清除狀態
@@ -165,7 +165,7 @@ class TransferFlowHandler:
             
             if success:
                 # 獲取更新後的帳戶資訊以顯示
-                updated_assets = self.asset_manager.get_all_assets()
+                updated_assets = self.asset_manager.get_all_assets(user_id)
                 source_account = updated_assets.get(data['source_account'])
                 target_account = updated_assets.get(data['target_account'])
                 amount = data['amount']
@@ -175,7 +175,7 @@ class TransferFlowHandler:
                 else:
                     return "轉帳成功，但顯示結果時發生錯誤。"
             else:
-                return f"轉帳失敗: {result_message}"
+                return f"轉帳失敗: {msg}"
         
         elif message == "取消轉帳":
             self.user_state_manager.clear_user_state(user_id)

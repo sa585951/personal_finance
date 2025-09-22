@@ -1,35 +1,39 @@
 from datetime import datetime
 from sqlalchemy import select, insert, update, delete
 
-from .database import engine
+from .database import engine as global_engine # Rename to avoid conflict
 from .schema import goals_table
 
 class GoalManager:
     """管理財務目標，所有操作直接對資料庫進行。"""
 
-    def get_all_goals(self):
-        """從資料庫獲取所有目標"""
-        stmt = select(goals_table)
-        with engine.connect() as conn:
+    def __init__(self, engine=None):
+        self.engine = engine or global_engine
+
+    def get_all_goals(self, user_id):
+        """從資料庫獲取指定使用者的所有目標"""
+        stmt = select(goals_table).where(goals_table.c.user_id == user_id)
+        with self.engine.connect() as conn:
             result = conn.execute(stmt)
             goals = [dict(row._mapping) for row in result]
             return goals
 
-    def get_goal_by_id(self, goal_id):
-        """根據 ID 從資料庫獲取單個目標"""
-        stmt = select(goals_table).where(goals_table.c.id == goal_id)
-        with engine.connect() as conn:
+    def get_goal_by_id(self, user_id, goal_id):
+        """根據 ID 從資料庫獲取指定使用者的單個目標"""
+        stmt = select(goals_table).where(goals_table.c.user_id == user_id, goals_table.c.id == goal_id)
+        with self.engine.connect() as conn:
             result = conn.execute(stmt).first()
             if result:
                 return dict(result._mapping)
             return None
 
-    def add_goal(self, title, type, target_amount, target_date, description=""):
-        """新增一個目標到資料庫"""
+    def add_goal(self, user_id, title, type, target_amount, target_date, description=""):
+        """新增一個目標到資料庫，並與使用者綁定"""
         if target_amount <= 0:
             return False, "目標金額必須大於0"
 
         stmt = insert(goals_table).values(
+            user_id=user_id,
             title=title,
             type=type,
             target_amount=target_amount,
@@ -41,7 +45,7 @@ class GoalManager:
             description=description
         )
         
-        with engine.connect() as conn:
+        with self.engine.connect() as conn:
             try:
                 result = conn.execute(stmt)
                 conn.commit()
@@ -53,20 +57,23 @@ class GoalManager:
                 print(f"❌ 新增目標失敗: {e}")
                 return False, f"新增目標失敗: {e}"
 
-    def add_goal_progress(self, goal_id, amount_to_add):
-        """為目標增加已存金額（進度）"""
+    def add_goal_progress(self, user_id, goal_id, amount_to_add):
+        """為指定使用者的目標增加已存金額（進度）"""
         if amount_to_add <= 0:
             return False, "增加的金額必須大於0"
 
-        with engine.connect() as conn:
+        with self.engine.connect() as conn:
             with conn.begin() as transaction:
                 try:
-                    # 1. 鎖定並獲取當前目標
-                    goal_stmt = select(goals_table).where(goals_table.c.id == goal_id).with_for_update()
+                    # 1. 鎖定並獲取當前目標，同時驗證使用者
+                    goal_stmt = select(goals_table).where(
+                        goals_table.c.user_id == user_id, 
+                        goals_table.c.id == goal_id
+                    ).with_for_update()
                     current_goal = conn.execute(goal_stmt).first()
 
                     if not current_goal:
-                        return False, "找不到此目標"
+                        return False, "找不到此目標或權限不足"
 
                     # 2. 計算新金額和狀態
                     new_current_amount = current_goal.current_amount + amount_to_add
@@ -77,7 +84,7 @@ class GoalManager:
                     # 3. 執行更新
                     update_stmt = (
                         update(goals_table)
-                        .where(goals_table.c.id == goal_id)
+                        .where(goals_table.c.user_id == user_id, goals_table.c.id == goal_id)
                         .values(
                             current_amount=new_current_amount,
                             status=new_status,
@@ -93,14 +100,14 @@ class GoalManager:
                     transaction.rollback()
                     return False, "更新目標進度時發生錯誤"
 
-    def update_goal(self, goal_id, **updates):
-        """通用更新目標方法，可同時更新多個欄位"""
-        with engine.connect() as conn:
-            # 1. 先獲取目標的當前狀態
-            goal_stmt = select(goals_table).where(goals_table.c.id == goal_id)
+    def update_goal(self, user_id, goal_id, **updates):
+        """通用更新目標方法，可同時更新多個欄位，並驗證使用者"""
+        with self.engine.connect() as conn:
+            # 1. 先獲取目標的當前狀態，並驗證使用者
+            goal_stmt = select(goals_table).where(goals_table.c.user_id == user_id, goals_table.c.id == goal_id)
             current_goal = conn.execute(goal_stmt).first()
             if not current_goal:
-                return False, "找不到此目標"
+                return False, "找不到此目標或權限不足"
 
             # 2. 準備要更新的資料
             update_values = updates.copy()
@@ -116,27 +123,27 @@ class GoalManager:
                 update_values['status'] = "active"
 
             # 4. 執行更新
-            stmt = update(goals_table).where(goals_table.c.id == goal_id).values(**update_values)
+            stmt = update(goals_table).where(goals_table.c.user_id == user_id, goals_table.c.id == goal_id).values(**update_values)
             conn.execute(stmt)
             conn.commit()
             print(f"✅ 已更新目標 ID: {goal_id}")
             return True, "目標更新成功"
 
-    def delete_goal(self, goal_id):
-        """從資料庫刪除目標"""
-        stmt = delete(goals_table).where(goals_table.c.id == goal_id)
-        with engine.connect() as conn:
+    def delete_goal(self, user_id, goal_id):
+        """從資料庫刪除目標，並驗證使用者"""
+        stmt = delete(goals_table).where(goals_table.c.user_id == user_id, goals_table.c.id == goal_id)
+        with self.engine.connect() as conn:
             result = conn.execute(stmt)
             conn.commit()
             if result.rowcount == 0:
-                print(f"❌ 刪除失敗: 找不到目標 ID: {goal_id}")
+                print(f"❌ 刪除失敗: 找不到目標 ID: {goal_id} 或權限不足")
                 return False, "找不到要刪除的目標"
             print(f"🗑️ 已從資料庫刪除目標 ID: {goal_id}")
             return True, "成功刪除目標"
 
-    def calculate_goal_summary(self):
-        """計算所有目標的總覽"""
-        all_goals = self.get_all_goals()
+    def calculate_goal_summary(self, user_id):
+        """計算指定使用者的所有目標的總覽"""
+        all_goals = self.get_all_goals(user_id)
         summary = {
             "total_goals": len(all_goals),
             "active_goals": 0,

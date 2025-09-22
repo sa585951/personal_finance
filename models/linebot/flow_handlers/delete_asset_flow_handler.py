@@ -10,7 +10,7 @@ class DeleteAssetFlowHandler:
         """開始刪除資產流程"""
         try:
             # 獲取所有帳戶
-            assets = self.asset_manager.get_all_assets()
+            assets = self.asset_manager.get_all_assets(user_id)
             if not assets:
                 return "您還沒有任何帳戶，無法執行刪除操作"
             
@@ -73,9 +73,7 @@ class DeleteAssetFlowHandler:
         if message == "確認刪除":
             # 執行刪除操作
             data = current_state['data']
-            success, result_message = self.asset_manager.delete_account(
-                data['account_key']
-            )
+            success, msg = self.asset_manager.delete_account(user_id, account_key)
             
             # 清除狀態
             self.user_state_manager.clear_user_state(user_id)

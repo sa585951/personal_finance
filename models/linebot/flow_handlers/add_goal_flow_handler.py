@@ -143,12 +143,13 @@ class AddGoalFlowHandler:
         if message == "確認新增":
             # 執行新增目標
             data = current_state['data']
-            success, result = self.goal_manager.add_goal(
-                data['title'],
-                data['type'],
-                data['target_amount'],
-                data['target_date'],
-                ""  # description 暫時為空
+            success, msg = self.goal_manager.add_goal(
+                user_id,
+                flow_data["title"],
+                flow_data["type"],
+                flow_data["target_amount"],
+                flow_data["target_date"],
+                flow_data["description"]
             )
             
             # 清除狀態
