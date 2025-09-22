@@ -55,7 +55,7 @@ class DeleteTransactionFlowHandler:
         transaction_id = match.group(1)
         
         # 驗證交易是否存在
-        transactions = self.budget_manager.get_all_transactions()
+        transactions = self.budget_manager.get_all_transactions(user_id)
         transactions_dict = {str(t['id']): t for t in transactions}
         selected_transaction = transactions_dict.get(transaction_id)
         

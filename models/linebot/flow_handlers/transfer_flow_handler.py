@@ -58,7 +58,7 @@ class TransferFlowHandler:
         source_account_key = message.replace("選擇帳戶:", "")
         
         # 驗證帳戶存在
-        assets = self.asset_manager.get_all_assets()
+        assets = self.asset_manager.get_all_assets(user_id)
         if source_account_key not in assets:
             return "選擇的帳戶不存在，請重新選擇"
         

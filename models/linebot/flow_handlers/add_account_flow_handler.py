@@ -113,21 +113,21 @@ class AddAccountFlowHandler:
         if message == "確認新增":
             # 執行新增帳戶
             data = current_state['data']
-                success, msg = self.asset_manager.add_account(
-                    user_id,
-                    flow_data["bank_name"],
-                    flow_data["account_type"],
-                    flow_data["balance"]
-                )
-            
+            success, msg = self.asset_manager.add_account(
+                user_id,
+                data["bank_name"],
+                data["account_type"],
+                data["balance"]
+            )
+
             # 清除狀態
             self.user_state_manager.clear_user_state(user_id)
-            
+
             if success:
                 return self.theme.create_add_account_success_flex(data)
             else:
-                return f"新增帳戶失敗: {result_message}"
-        
+                return f"新增帳戶失敗: {msg}"
+
         elif message == "取消操作":
             self.user_state_manager.clear_user_state(user_id)
             return "新增帳戶已取消"

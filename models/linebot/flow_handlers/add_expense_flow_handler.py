@@ -97,28 +97,28 @@ class AddExpenseFlowHandler:
         return self.theme.create_transaction_confirmation("支出", confirm_data)
 
     def _handle_confirmation(self, user_id, message, current_state):
-        """處理最終確認"""
-        if message == "確認新增":
-            data = current_state['data']
-            success, msg = self.budget_manager.add_transaction(
-                user_id=user_id,
-                date=datetime.now().strftime("%Y-%m-%d"),
-                item=flow_data["category"],
-                amount=flow_data["amount"],
-                transaction_type="expense",
-                budget_category=flow_data["category"],
-                description=flow_data["description"]
-            )
-            
-            self.user_state_manager.clear_user_state(user_id)
-            
-            if success:
-                return self.theme.create_add_transaction_success("支出", data)
+            """處理最終確認"""
+            if message == "確認新增":
+                data = current_state['data']
+                success, msg = self.budget_manager.add_transaction(
+                    user_id=user_id,
+                    date=datetime.now().strftime("%Y-%m-%d"),
+                    item=data["category"],
+                    amount=data["amount"],
+                    transaction_type="expense",
+                    budget_category=data["category"],
+                    description=data["description"]
+                )
+
+                self.user_state_manager.clear_user_state(user_id)
+
+                if success:
+                    return self.theme.create_add_transaction_success("支出", data)
+                else:
+                    return f"新增支出失敗: {msg}"
+
+            elif message == "取消新增":
+                self.user_state_manager.clear_user_state(user_id)
+                return "新增支出已取消"
             else:
-                return f"新增支出失敗: {result}"
-        
-        elif message == "取消新增":
-            self.user_state_manager.clear_user_state(user_id)
-            return "新增支出已取消"
-        else:
-            return "請點擊「確認新增」或「取消新增」"
+                return "請點擊「確認新增」或「取消新增」"

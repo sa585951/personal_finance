@@ -48,7 +48,7 @@ class DeleteAssetFlowHandler:
         account_key = message.replace("刪除帳戶:", "")
         
         # 驗證帳戶是否存在
-        assets = self.asset_manager.get_all_assets()
+        assets = self.asset_manager.get_all_assets(user_id)
         selected_asset = assets.get(account_key)        
         
         if not selected_asset:
@@ -73,16 +73,17 @@ class DeleteAssetFlowHandler:
         if message == "確認刪除":
             # 執行刪除操作
             data = current_state['data']
+            account_key = data['account_key']
             success, msg = self.asset_manager.delete_account(user_id, account_key)
-            
+
             # 清除狀態
             self.user_state_manager.clear_user_state(user_id)
-            
+
             if success:
                 return self.theme.create_delete_asset_success(data['selected_asset'])
             else:
-                return f"刪除帳戶失敗: {result_message}"
-        
+                return f"刪除帳戶失敗: {msg}"
+
         elif message == "取消操作":
             self.user_state_manager.clear_user_state(user_id)
             return "刪除資產已取消"

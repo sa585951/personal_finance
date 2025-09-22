@@ -54,7 +54,7 @@ class UpdateBalanceFlowHandler:
         account_key = message.replace("選擇帳戶:", "")
         
         # 驗證帳戶是否存在
-        assets = self.asset_manager.get_all_assets()
+        assets = self.asset_manager.get_all_assets(user_id)
         selected_asset = assets.get(account_key)
         if not selected_asset:
             return "選擇的帳戶不存在，請重新選擇"

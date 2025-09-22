@@ -101,20 +101,20 @@ class AddIncomeFlowHandler:
             success, msg = self.budget_manager.add_transaction(
                 user_id=user_id,
                 date=datetime.now().strftime("%Y-%m-%d"),
-                item="收入",
-                amount=flow_data["amount"],
+                item=data["category"], # Use category from data
+                amount=data["amount"],
                 transaction_type="income",
-                budget_category="收入",
-                description=flow_data["description"]
+                budget_category=data["category"], # Use category from data
+                description=data["description"]
             )
-            
+
             self.user_state_manager.clear_user_state(user_id)
-            
+
             if success:
                 return self.theme.create_add_transaction_success("收入", data)
             else:
-                return f"新增收入失敗: {result}"
-        
+                return f"新增收入失敗: {msg}"
+
         elif message == "取消新增":
             self.user_state_manager.clear_user_state(user_id)
             return "新增收入已取消"

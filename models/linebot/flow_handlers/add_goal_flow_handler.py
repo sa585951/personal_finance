@@ -145,21 +145,21 @@ class AddGoalFlowHandler:
             data = current_state['data']
             success, msg = self.goal_manager.add_goal(
                 user_id,
-                flow_data["title"],
-                flow_data["type"],
-                flow_data["target_amount"],
-                flow_data["target_date"],
-                flow_data["description"]
+                data["title"],
+                data["type"],
+                data["target_amount"],
+                data["target_date"],
+                description=""  # Assuming description is optional or not collected yet
             )
-            
+
             # 清除狀態
             self.user_state_manager.clear_user_state(user_id)
-            
+
             if success:
                 return self.theme.create_add_goal_success(data)
             else:
-                return f"新增目標失敗: {result}"
-        
+                return f"新增目標失敗: {msg}"
+
         elif message == "取消新增":
             self.user_state_manager.clear_user_state(user_id)
             return "新增目標已取消"
