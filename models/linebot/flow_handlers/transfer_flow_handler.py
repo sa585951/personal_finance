@@ -90,7 +90,7 @@ class TransferFlowHandler:
         # 獲取完整帳戶資訊
         current_state = self.user_state_manager.get_user_state(user_id)
         source_key = current_state['data']['source_account']
-        assets = self.asset_manager.get_all_assets()
+        assets = self.asset_manager.get_all_assets(user_id)
         source_account = assets.get(source_key)
         target_account = assets.get(target_account_key)
 

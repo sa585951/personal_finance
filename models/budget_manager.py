@@ -14,8 +14,10 @@ class BudgetManager:
 
     # --- Transaction Methods ---
 
-    def get_all_transactions(self, user_id):
+    def get_all_transactions(self, user_id=None):
         """獲取指定使用者的所有交易紀錄"""
+        if not user_id:
+            return []
         stmt = select(transactions_table).where(transactions_table.c.user_id == user_id).order_by(transactions_table.c.date.desc())
         with self.engine.connect() as conn:
             result = conn.execute(stmt)
@@ -30,6 +32,8 @@ class BudgetManager:
 
     def add_transaction(self, user_id, date, item, amount, transaction_type, budget_category, description=""):
         """新增一筆交易紀錄，並綁定使用者"""
+        if not user_id:
+            return False, "使用者ID未提供"
         if amount <= 0:
             return False, "金額必須大於0"
 
@@ -54,6 +58,8 @@ class BudgetManager:
 
     def delete_transaction(self, user_id, transaction_id):
         """刪除一筆交易，並驗證使用者"""
+        if not user_id:
+            return False, "使用者ID未提供"
         stmt = delete(transactions_table).where(
             transactions_table.c.id == transaction_id,
             transactions_table.c.user_id == user_id
@@ -65,8 +71,10 @@ class BudgetManager:
                 return False, "找不到要刪除的交易或權限不足"
             return True, "交易刪除成功"
 
-    def get_all_transaction_months(self, user_id):
+    def get_all_transaction_months(self, user_id=None):
         """從指定使用者的交易紀錄中提取所有唯一的月份 (YYYY-MM)"""
+        if not user_id:
+            return []
         month_expr = func.to_char(transactions_table.c.date, 'YYYY-MM')
         stmt = select(distinct(month_expr)).where(transactions_table.c.user_id == user_id).order_by(month_expr.desc())
         with self.engine.connect() as conn:
@@ -77,6 +85,8 @@ class BudgetManager:
 
     def set_budget(self, user_id, month, category, amount, notes=""):
         """設定某位使用者在某月某類別的預算 (使用 Upsert 邏輯)"""
+        if not user_id:
+            return False, "使用者ID未提供"
         if amount <= 0:
             return False, "預算金額必須大於0"
 
@@ -114,6 +124,8 @@ class BudgetManager:
 
     def delete_budget(self, user_id, month, category):
         """刪除某位使用者在某月某類別的預算"""
+        if not user_id:
+            return False, "使用者ID未提供"
         stmt = delete(budget_categories_table).where(
             budget_categories_table.c.user_id == user_id,
             budget_categories_table.c.month == month,
@@ -126,8 +138,10 @@ class BudgetManager:
                 return False, "找不到要刪除的預算或權限不足"
             return True, "預算刪除成功"
 
-    def get_all_budget_categories(self, user_id):
+    def get_all_budget_categories(self, user_id=None):
         """獲取指定使用者所有已設定預算的類別"""
+        if not user_id:
+            return []
         # 從預算類別表和交易表中都獲取，確保完整性
         stmt1 = select(distinct(budget_categories_table.c.category_name)).where(budget_categories_table.c.user_id == user_id)
         stmt2 = select(distinct(transactions_table.c.budget_category)).where(
@@ -149,6 +163,8 @@ class BudgetManager:
 
     def calculate_monthly_expenses(self, user_id, year_month):
         """使用 SQL彙總指定使用者在某月的支出"""
+        if not user_id:
+            return {}
         stmt = (
             select(transactions_table.c.budget_category, func.sum(transactions_table.c.amount).label("total_spent"))
             .where(transactions_table.c.user_id == user_id)
@@ -162,6 +178,8 @@ class BudgetManager:
 
     def get_transactions_by_category_over_time(self, user_id, interval='month'):
         """按時間間隔和類別匯總指定使用者的支出數據"""
+        if not user_id:
+            return {"labels": [], "datasets": []}
         if interval == 'month':
             time_format = 'YYYY-MM'
         elif interval == 'year':
@@ -220,6 +238,8 @@ class BudgetManager:
 
     def check_over_warnings(self, user_id, month=None):
         """檢查指定使用者的超支警告"""
+        if not user_id:
+            return []
         overspend_items = []
         # 1. 獲取指定使用者的所有預算
         budget_stmt = select(budget_categories_table).where(budget_categories_table.c.user_id == user_id)

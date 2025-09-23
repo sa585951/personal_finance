@@ -15,8 +15,10 @@ class AssetManager:
         """生成唯一的帳戶 key，用於內部存取"""
         return f"{bank_name}-{account_type}"
 
-    def get_all_assets(self, user_id):
+    def get_all_assets(self, user_id=None):
         """從資料庫獲取指定使用者的所有資產"""
+        if not user_id:
+            return {}
         stmt = select(assets_table).where(assets_table.c.user_id == user_id)
         with self.engine.connect() as conn:
             result = conn.execute(stmt)
@@ -33,6 +35,8 @@ class AssetManager:
         Returns:
             dict or None: 找到的資產資料，或 None
         """
+        if not user_id:
+            return None
         # 未來可擴展模糊比對 (e.g., a LIKE query or a library like fuzzywuzzy)
         stmt = select(assets_table).where(assets_table.c.user_id == user_id, assets_table.c.bank_name == name)
         with self.engine.connect() as conn:
@@ -43,6 +47,8 @@ class AssetManager:
 
     def add_account(self, user_id, bank_name, account_type, balance):
         """新增銀行帳戶到資料庫，並與使用者綁定"""
+        if not user_id:
+            return False, "使用者ID未提供"
         account_key = self._get_account_key(bank_name, account_type)
         stmt = assets_table.insert().values(
             user_id=user_id,
@@ -65,6 +71,8 @@ class AssetManager:
 
     def adjust_asset_balance(self, user_id, account_key, amount_change):
         """調整指定帳戶的餘額 (可正可負)，並驗證使用者"""
+        if not user_id:
+            return False, "使用者ID未提供"
         stmt = (
             assets_table.update()
             .where(assets_table.c.user_id == user_id, assets_table.c.account_key == account_key)
@@ -81,6 +89,8 @@ class AssetManager:
 
     def update_balance(self, user_id, account_key, new_balance):
         """更新指定帳戶的餘額，並驗證使用者"""
+        if not user_id:
+            return False, "使用者ID未提供"
         if new_balance < 0:
             return False, "餘額不能為負數"
         stmt = (
@@ -99,6 +109,8 @@ class AssetManager:
 
     def delete_account(self, user_id, account_key):
         """從資料庫刪除帳戶，並驗證使用者"""
+        if not user_id:
+            return False, "使用者ID未提供"
         stmt = assets_table.delete().where(assets_table.c.user_id == user_id, assets_table.c.account_key == account_key)
         with self.engine.connect() as conn:
             result = conn.execute(stmt)
@@ -111,6 +123,8 @@ class AssetManager:
 
     def transfer(self, user_id, source_key, dest_key, amount):
         """處理帳戶間轉帳，使用資料庫 transaction 確保原子性並驗證使用者"""
+        if not user_id:
+            return False, "使用者ID未提供"
         if amount <= 0:
             return False, "轉帳金額必須大於0"
         with self.engine.connect() as conn:
@@ -157,8 +171,13 @@ class AssetManager:
                     print(f"❌ 轉帳過程中發生錯誤: {e}")
                     return False, "轉帳過程中發生錯誤"
 
-    def calculate_totals(self, user_id):
+    def calculate_totals(self, user_id=None):
         """使用 SQL 查詢計算指定使用者的各種總額"""
+        # 初始化結果
+        totals = {"總資產": 0, "活存": 0, "定存": 0, "投資": 0, "信用卡": 0, "其他": 0}
+        if not user_id:
+            return totals
+
         stmt = select(
             assets_table.c.account_type,
             func.sum(assets_table.c.balance).label('total_balance')
@@ -167,8 +186,6 @@ class AssetManager:
         with self.engine.connect() as conn:
             result = conn.execute(stmt)
             
-            # 初始化結果
-            totals = {"總資產": 0, "活存": 0, "定存": 0, "投資": 0, "信用卡": 0, "其他": 0}
             for row in result:
                 balance = float(row.total_balance)
                 totals["總資產"] += balance
