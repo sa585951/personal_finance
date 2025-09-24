@@ -20,15 +20,15 @@ from models.user_manager import UserManager # Import UserManager
 
 LINE_CHANNEL_ID = os.getenv("LINE_LOGIN_CHANNEL_ID")
 LINE_CHANNEL_SECRET = os.getenv("LINE_LOGIN_CHANNEL_SECRET")
-BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL")
+VITE_BACKEND_BASE_URL = os.getenv("VITE_BACKEND_BASE_URL")
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173") # 預設為 Vite 的開發伺服器
 
 if not all([LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, JWT_SECRET_KEY]):
     raise EnvironmentError("LINE_LOGIN_CHANNEL_ID, LINE_LOGIN_CHANNEL_SECRET, or JWT_SECRET_KEY 環境變數未設定，請檢查 .env 檔案。")
 
-if not BACKEND_BASE_URL:
-    raise EnvironmentError("BACKEND_BASE_URL 環境變數未設定，請檢查 .env 檔案。")
+if not VITE_BACKEND_BASE_URL:
+    raise EnvironmentError("VITE_BACKEND_BASE_URL 環境變數未設定，請檢查 .env 檔案。")
 
 # 實例化 Flask 應用程式
 app = Flask(__name__)
@@ -418,7 +418,7 @@ def line_login_callback():
 
     # 1. 向 Line 交換 Access Token 和 ID Token
     token_url = "https://api.line.me/oauth2/v2.1/token"
-    redirect_uri = f"{BACKEND_BASE_URL}/line-login-callback"
+    redirect_uri = f"{VITE_BACKEND_BASE_URL}/line-login-callback"
 
     headers = {
         'Content-Type': 'application/x-www-form-urlencoded'
@@ -426,7 +426,7 @@ def line_login_callback():
     data = {
         'grant_type': 'authorization_code',
         'code': code,
-        'redirect_uri': redirect_uri, # 使用 BACKEND_BASE_URL
+        'redirect_uri': redirect_uri, # 使用 VITE_BACKEND_BASE_URL
         'client_id': LINE_CHANNEL_ID,
         'client_secret': LINE_CHANNEL_SECRET
     }
