@@ -71,7 +71,7 @@ export default {
     },
     lineLogin() {
       const LINE_CHANNEL_ID = import.meta.env.VITE_LINE_LOGIN_CHANNEL_ID;
-      const backendBaseUrl = import.meta.env.VITE_BACKEND_BASE_URL;
+      const backendBaseUrl = import.meta.env.BACKEND_BASE_URL;
       const redirectUri = `${backendBaseUrl}/line-login-callback`;
       const state = Math.random().toString(36).substring(2, 15);
 
