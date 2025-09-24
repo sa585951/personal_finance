@@ -1,10 +1,17 @@
-from sqlalchemy import MetaData, Table, Column, Integer, String, Date, Numeric, Text, DateTime, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Table, Column, String, Float, DateTime, MetaData, Integer, UniqueConstraint, Text, Boolean, Date, func, Numeric, UUID
 
-# 建立一個可供整個應用程式共用的 MetaData 實例
 metadata = MetaData()
 
-# 1. assets 資料表
+# 使用者資料表
+users_table = Table(
+    'users', metadata,
+    Column('user_id', String(255), primary_key=True, index=True),
+    Column('display_name', String(255), nullable=True),
+    Column('created_at', DateTime, default=func.now()),
+    # 可以根據需要添加更多用戶相關的欄位
+)
+
+# 資產資料表
 assets_table = Table('assets', metadata,
     Column('id', Integer, primary_key=True),
     Column('user_id', String(255), nullable=False, index=True),

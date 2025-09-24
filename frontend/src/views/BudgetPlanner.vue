@@ -58,8 +58,7 @@
 </template>
 
 <script>
-import axios from "axios";
-const API_URL = import.meta.env.VITE_APP_API_URL;
+import apiClient from "@/api";
 import { format } from "date-fns";
 import BudgetSummaryTable from "@/components/budgets/BudgetSummaryTable.vue";
 
@@ -82,7 +81,7 @@ export default {
   methods: {
     async setBudget() {
       try {
-        const response = await axios.post(`${API_URL}/api/budgets`, this.newBudget);
+        const response = await apiClient.post(`/api/budgets`, this.newBudget);
         this.$swal.fire("成功！", response.data.message, "success");
         this.$refs.budgetSummaryTable.fetchBudgetSummary();
         this.newBudget.category = "";
@@ -95,7 +94,7 @@ export default {
     },
     async updateBudget(month, category, amount, notes) {
       try {
-        const response = await axios.post(`${API_URL}/api/budgets`, {
+        const response = await apiClient.post(`/api/budgets`, {
           month,
           category,
           amount,

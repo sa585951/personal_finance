@@ -1,6 +1,7 @@
 import os
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
+from .schema import metadata # Import metadata
 
 # 從 .env 檔案載入環境變數
 load_dotenv()
@@ -13,3 +14,6 @@ if not DATABASE_URL:
 
 # 建立一個可供整個應用程式重複使用的 engine
 engine = create_engine(DATABASE_URL)
+
+# 確保所有在 schema.py 中定義的資料表都被創建
+metadata.create_all(engine)

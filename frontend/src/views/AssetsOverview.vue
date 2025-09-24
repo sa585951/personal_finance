@@ -21,8 +21,7 @@
 </template>
 
 <script>
-import axios from "axios";
-const API_URL = import.meta.env.VITE_APP_API_URL;
+import apiClient from "../api";
 import AccountForm from "../components/assets/AccountForm.vue";
 import AssetsTable from "../components/assets/AssetsTable.vue";
 import TotalCards from "../components/assets/TotalCards.vue";
@@ -50,11 +49,12 @@ export default {
   methods: {
     async fetchAssets() {
       try {
-        const response = await axios.get(`${API_URL}/api/assets`);
+        const response = await apiClient.get(`/api/assets`);
         this.assets = response.data.data;
         this.totals = this.calculateTotals(this.assets);
       } catch (err) {
-        this.error = "無法載入資產資料，請檢查後端伺服器是否運行。";
+        console.error("無法載入資產資料:", err); // 改為 console.error
+        this.error = "無法載入資產資料，請檢查後端伺服器或查看主控台錯誤。";
       } finally {
         this.loading = false;
       }
@@ -113,7 +113,7 @@ export default {
       if (confirm(`確定要刪除此帳戶嗎？`)) {
         try {
           // 只傳遞唯一的 accountId
-          await axios.delete(`${API_URL}/api/assets/${accountId}`);
+          await apiClient.delete(`/api/assets/${accountId}`);
           await this.fetchAssets();
         } catch (err) {
           console.error("刪除失敗", err);
@@ -127,7 +127,7 @@ export default {
 
       try {
         // 只傳遞唯一的 accountId 和新的餘額
-        await axios.put(`${API_URL}/api/assets/${accountId}`, {
+        await apiClient.put(`/api/assets/${accountId}`, {
           new_balance: newBalance,
         });
         await this.fetchAssets();

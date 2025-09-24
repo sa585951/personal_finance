@@ -16,7 +16,7 @@
 </template>
 
 <script>
-import axios from "axios";
+import apiClient from "@/api";
 const API_URL = import.meta.env.VITE_APP_API_URL;
 import GoalForm from "../components/goals/GoalForm.vue";
 import GoalList from "../components/goals/GoalList.vue";
@@ -37,7 +37,7 @@ export default {
   methods: {
     async fetchGoals() {
       try {
-        const response = await axios.get(`${API_URL}/api/goals`);
+        const response = await apiClient.get(`/api/goals`);
         this.goals = response.data.data;
       } catch (error) {
         this.$swal.fire({
@@ -49,7 +49,7 @@ export default {
     },
     async updateGoal(goalId, updatedData) {
       try {
-        const response = await axios.put(`${API_URL}/api/goals/${goalId}`, updatedData);
+        const response = await apiClient.put(`/api/goals/${goalId}`, updatedData);
         this.$swal.fire({
           icon: "success",
           title: "成功",
@@ -66,7 +66,7 @@ export default {
     },
     async deleteGoal(goalId) {
       try {
-        const response = await axios.delete(`${API_URL}/api/goals/${goalId}`);
+        const response = await apiClient.delete(`/api/goals/${goalId}`);
         this.$swal.fire({
           icon: "success",
           title: "成功",
@@ -83,7 +83,7 @@ export default {
     },
     async updateGoalProgress(goalId, newCurrentAmount) {
       try {
-        const response = await axios.put(`${API_URL}/api/goals/${goalId}`, {
+        const response = await apiClient.put(`/api/goals/${goalId}`, {
           current_amount: newCurrentAmount,
         });
         this.$swal.fire({

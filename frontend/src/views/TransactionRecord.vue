@@ -21,8 +21,7 @@
 </template>
 
 <script>
-import axios from "axios";
-const API_URL = import.meta.env.VITE_APP_API_URL;
+import apiClient from "@/api";
 import TransactionForm from "../components/budgets/TransactionForm.vue";
 import TransactionTable from "../components/budgets/TransactionTable.vue";
 import TransactionSummary from "../components/budgets/TransactionSummary.vue";
@@ -44,7 +43,7 @@ export default {
   methods: {
     async fetchTransactions() {
       try {
-        const response = await axios.get(`${API_URL}/api/transactions`);
+        const response = await apiClient.get(`/api/transactions`);
         this.transactions = response.data.data || [];
       } catch (error) {
         console.error("無法載入交易資料", error);

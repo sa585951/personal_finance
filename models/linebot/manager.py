@@ -4,6 +4,7 @@ from datetime import datetime
 from .message_handler import MessageHandler
 from .message_parser import MessageParser
 from .user_state_manager import UserStateManager
+from ..user_manager import UserManager # Import UserManager
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError, LineBotApiError
 from linebot.models import (
@@ -12,12 +13,12 @@ from linebot.models import (
 )
 
 class LineBotManager:
-    def __init__(self, budget_manager=None, asset_manager=None, goal_manager=None, app_state=None):
+    def __init__(self, budget_manager, asset_manager, goal_manager, app_state, user_manager):
 
         self.app_state = app_state
         #Line Bot設定
-        self.line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
-        self.handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
+        self.line_bot_api = LineBotApi(os.getenv("LINE_MSG_CHANNEL_ACCESS_TOKEN"))
+        self.handler = WebhookHandler(os.getenv("LINE_MSG_CHANNEL_SECRET"))
         
         # Gemini設定
         genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
@@ -25,6 +26,7 @@ class LineBotManager:
 
         #依賴注入現有 managers
         self.user_state_manager = UserStateManager()
+        self.user_manager = user_manager # Assign the passed user_manager
         # Prompt模板
         self.prompt_template = """
         分析以下中文記帳訊息，並嚴格回傳 JSON 格式。
@@ -70,6 +72,14 @@ class LineBotManager:
         """支援 Flex Message 的訊息處理 - 加入冷啟動檢測"""
         user_message = event.message.text.strip()
         user_id = event.source.user_id
+        print(f"Received message from user_id: {user_id}") # Debug print
+
+        # 獲取使用者 Line 顯示名稱
+        profile = self.line_bot_api.get_profile(user_id)
+        display_name = profile.display_name
+
+        # 確保使用者存在於資料庫中，並更新顯示名稱
+        self.user_manager.get_or_create_user(user_id, display_name) # Call get_or_create_user with display_name
 
         try:
             # 檢測冷啟動狀態

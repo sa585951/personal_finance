@@ -4,6 +4,7 @@ import TransactionRecord from "../views/TransactionRecord.vue";
 import BudgetPlanner from "@/views/BudgetPlanner.vue";
 import Goals from "../views/FinancialGoals.vue";
 import HomeView from "../views/HomeView.vue";
+import AuthCallback from "../views/AuthCallback.vue"; // 匯入新元件
 
 const routes = [
   {
@@ -30,6 +31,11 @@ const routes = [
     path: "/goals",
     name: "Goals",
     component: Goals,
+  },
+  {
+    path: '/auth-callback',
+    name: 'AuthCallback',
+    component: AuthCallback,
   },
 ];
 
