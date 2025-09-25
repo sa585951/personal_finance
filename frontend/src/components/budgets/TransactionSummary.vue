@@ -108,11 +108,11 @@ export default {
 
       // 計算總收入和總支出
       this.totalIncome = monthTransactions
-        .filter((t) => t.type === "收入")
+        .filter((t) => t.type === "income")
         .reduce((sum, t) => sum + t.amount, 0);
 
       this.totalExpense = monthTransactions
-        .filter((t) => t.type === "支出")
+        .filter((t) => t.type === "expense")
         .reduce((sum, t) => sum + t.amount, 0);
 
       // 計算支出分類統計
