@@ -96,6 +96,12 @@ export default {
   },
   methods: {
     calculateSummary() {
+      // --- DEBUGGING --- 
+      console.log("[Summary] Recalculating...");
+      console.log("[Summary] Received transactions:", this.transactions);
+      console.log("[Summary] Filtering for month:", this.selectedMonth);
+      // --- END DEBUGGING ---
+
       if (!this.selectedMonth) {
         this.resetSummary();
         return;
@@ -105,6 +111,10 @@ export default {
       const monthTransactions = this.transactions.filter((transaction) =>
         transaction.date.startsWith(this.selectedMonth)
       );
+
+      // --- DEBUGGING ---
+      console.log("[Summary] Transactions for this month:", monthTransactions);
+      // --- END DEBUGGING ---
 
       // 計算總收入和總支出
       this.totalIncome = monthTransactions
@@ -118,7 +128,7 @@ export default {
       // 計算支出分類統計
       const categoryMap = {};
       monthTransactions
-        .filter((t) => t.type === "支出")
+        .filter((t) => t.type === "expense")
         .forEach((transaction) => {
           if (!categoryMap[transaction.category]) {
             categoryMap[transaction.category] = 0;
