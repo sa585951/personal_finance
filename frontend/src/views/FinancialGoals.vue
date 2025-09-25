@@ -17,7 +17,6 @@
 
 <script>
 import apiClient from "@/api";
-const API_URL = import.meta.env.VITE_APP_API_URL;
 import GoalForm from "../components/goals/GoalForm.vue";
 import GoalList from "../components/goals/GoalList.vue";
 import GoalSummaryCard from "../components/reports/GoalSummaryCard.vue";

@@ -12,7 +12,6 @@
 </template>
 
 <script>
-// 確保路徑正確
 import MonthlyExpensesChart from "../components/charts/MonthlyExpensesChart.vue";
 import AssetAllocationChart from "../components/charts/AssetAllocationChart.vue";
 import IncomeExpenseChart from "../components/charts/IncomeExpenseChart.vue";

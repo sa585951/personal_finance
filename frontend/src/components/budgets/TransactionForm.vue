@@ -61,8 +61,7 @@
 </template>
 
 <script>
-import axios from "axios";
-const API_URL = import.meta.env.VITE_APP_API_URL;
+import apiClient from "@/api";
 import { format } from "date-fns";
 
 export default {
@@ -84,7 +83,7 @@ export default {
   methods: {
     async addTransaction() {
       try {
-        await axios.post(`${API_URL}/api/transactions`, this.newTransaction);
+        await apiClient.post(`/api/transactions`, this.newTransaction);
 
         this.$emit("transaction-added");
         this.resetForm();
@@ -94,7 +93,7 @@ export default {
     },
     async fetchBudgetCategories() {
       try {
-        const response = await axios.get(`${API_URL}/api/budgets/categories`);
+        const response = await apiClient.get(`/api/budgets/categories`);
         this.budgetCategories = response.data.data;
       } catch (error) {
         console.error("無法載入預算類別:", error);

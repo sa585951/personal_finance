@@ -16,19 +16,8 @@
 </template>
 
 <script>
-import { ref, onMounted, watch } from 'vue';
-const API_URL = import.meta.env.VITE_APP_API_URL;
-import {
-  Chart as ChartJS,
-  Title,
-  Tooltip,
-  Legend,
-  BarElement,
-  CategoryScale,
-  LinearScale,
-} from "chart.js";
-import axios from "axios";
 import { Bar } from 'vue-chartjs';
+import apiClient from "../../api";
 
 ChartJS.register(
   Title,
@@ -70,7 +59,7 @@ export default {
   async created() {
     try {
 
-      const response = await axios.get(`${API_URL}/api/reports/income_expense_summary`);
+      const response = await apiClient.get(`/api/reports/income_expense_summary`);
       this.chartData = response.data.data;
     } catch (error) {
       console.error("Error fetching income/expense data:", error);

@@ -39,8 +39,7 @@
 </template>
 
 <script>
-import axios from 'axios';
-const API_URL = import.meta.env.VITE_APP_API_URL;
+import apiClient from '@/api';
 
 export default {
   name: 'GoalSummaryCard',
@@ -52,7 +51,7 @@ export default {
   methods: {
     async fetchGoalSummary() {
       try {
-        const response = await axios.get(`${API_URL}/api/reports/goal_summary`);
+        const response = await apiClient.get(`/api/reports/goal_summary`);
         this.summary = response.data.data;
       } catch (error) {
         console.error("Error fetching goal summary:", error);

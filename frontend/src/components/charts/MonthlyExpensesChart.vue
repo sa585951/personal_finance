@@ -24,8 +24,8 @@ import {
   ArcElement,
   CategoryScale
 } from 'chart.js';
-import axios from 'axios';
-const API_URL = import.meta.env.VITE_APP_API_URL;
+import apiClient from '../../api';
+
 ChartJS.register(Title, Tooltip, Legend, ArcElement, CategoryScale);
 
 export default {
@@ -62,7 +62,7 @@ export default {
   methods: {
     async fetchChartData() {
       try {
-        const response = await axios.get(`${API_URL}/api/reports/monthly_expenses?month=${this.currentMonth}`);
+        const response = await apiClient.get(`/api/reports/monthly_expenses?month=${this.currentMonth}`);
         this.chartData = response.data.data;
       } catch (error) {
         console.error("無法載入圖表資料", error);

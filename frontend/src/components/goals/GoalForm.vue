@@ -64,8 +64,7 @@
 </template>
 
 <script>
-import axios from "axios";
-const API_URL = import.meta.env.VITE_APP_API_URL;
+import apiClient from '@/api';
 
 export default {
   name: "GoalForm",
@@ -96,7 +95,7 @@ export default {
         return;
       }
       try {
-        const response = await axios.post(`${API_URL}/api/goals`, this.newGoal);
+        const response = await apiClient.post(`/api/goals`, this.newGoal);
         this.$swal.fire({
           icon: "success",
           title: "成功",

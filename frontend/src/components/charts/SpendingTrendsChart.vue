@@ -27,7 +27,7 @@
 
 <script>
 import { Bar } from "vue-chartjs";
-const API_URL = import.meta.env.VITE_APP_API_URL;
+import apiClient from "@/api";
 import {
   Chart as ChartJS,
   Title,
@@ -37,7 +37,6 @@ import {
   CategoryScale,
   LinearScale,
 } from "chart.js";
-import axios from "axios";
 
 ChartJS.register(
   Title,
@@ -84,8 +83,8 @@ export default {
   methods: {
     async fetchChartData() {
       try {
-        const response = await axios.get(
-          `${API_URL}/api/reports/transactions_by_category_over_time?interval=${this.selectedInterval}`
+        const response = await apiClient.get(
+          `/api/reports/transactions_by_category_over_time?interval=${this.selectedInterval}`
         );
         this.chartData = response.data.data;
       } catch (error) {

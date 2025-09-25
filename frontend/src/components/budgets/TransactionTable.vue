@@ -48,8 +48,8 @@
 </template>
 
 <script>
-import axios from "axios";
-const API_URL = import.meta.env.VITE_APP_API_URL;
+import apiClient from '@/api';
+
 export default {
   name: "TransactionTable",
   props: {
@@ -76,7 +76,7 @@ export default {
 
       if (result.isConfirmed) {
         try {
-          await axios.delete(`${API_URL}/api/transactions/${id}`);
+          await apiClient.delete(`/api/transactions/${id}`);
           this.$swal.fire("刪除成功！", "交易已成功刪除。", "success");
           this.$emit("transaction-deleted");
         } catch (error) {

@@ -26,8 +26,7 @@
 </template>
 
 <script>
-import axios from 'axios';
-const API_URL = import.meta.env.VITE_APP_API_URL;
+import apiClient from '../../api';
 
 export default {
   name: 'OverspendingWarnings',
@@ -40,7 +39,7 @@ export default {
   methods: {
     async fetchWarnings() {
       try {
-        const response = await axios.get(`${API_URL}/api/reports/overspending_warnings?month=${this.currentMonth}`);
+        const response = await apiClient.get(`/api/reports/overspending_warnings?month=${this.currentMonth}`);
         this.warnings = response.data.data;
       } catch (error) {
         console.error("無法載入超支警告:", error);
