@@ -16,6 +16,15 @@
 </template>
 
 <script>
+import { Pie } from "vue-chartjs";
+import {
+  Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+  CategoryScale,
+} from "chart.js";
 import apiClient from "../../api";
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, CategoryScale);

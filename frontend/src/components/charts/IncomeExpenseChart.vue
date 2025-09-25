@@ -17,6 +17,15 @@
 
 <script>
 import { Bar } from 'vue-chartjs';
+import {
+  Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+} from "chart.js";
 import apiClient from "../../api";
 
 ChartJS.register(
@@ -58,12 +67,11 @@ export default {
   },
   async created() {
     try {
-
       const response = await apiClient.get(`/api/reports/income_expense_summary`);
       this.chartData = response.data.data;
     } catch (error) {
       console.error("Error fetching income/expense data:", error);
-      this.chartData = null; // Set to null to show loading or error message
+      this.chartData = null;
     }
   },
 };
