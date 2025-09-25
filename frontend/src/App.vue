@@ -1,5 +1,5 @@
 <template>
-  <Navbar />
+  <Navbar v-if="!['Login', 'AuthCallback'].includes($route.name)" />
   <main>
   <router-view />
   </main>

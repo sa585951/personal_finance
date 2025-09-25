@@ -430,6 +430,15 @@ def line_login_callback():
         'client_id': LINE_CHANNEL_ID,
         'client_secret': LINE_CHANNEL_SECRET
     }
+
+    print("--- [LINE Login Debug] ---")
+    print(f"Requesting URL: {token_url}")
+    print(f"Payload grant_type: {data.get('grant_type')}")
+    print(f"Payload code: {data.get('code')}")
+    print(f"Payload redirect_uri: {data.get('redirect_uri')}")
+    print(f"Payload client_id: {data.get('client_id')}")
+    print(f"Client Secret Loaded: {'Yes' if LINE_CHANNEL_SECRET else 'No'}")
+    print("--------------------------")
     
     try:
         response = requests.post(token_url, headers=headers, data=data)
