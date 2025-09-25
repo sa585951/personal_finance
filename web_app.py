@@ -479,6 +479,11 @@ def line_login_callback():
     except Exception as e:
         print(f"Unhandled Line Login Callback Error: {e}")
         return jsonify({"success": False, "message": f"登入處理失敗: {e}"}), 500
+    
+@app.route('/healthcheck')
+def healthcheck():
+    """一個簡單的健康檢查端點，只為了讓服務保持啟動"""
+    return "OK", 200
 
 if __name__ == "__main__":
     # 在生產環境中，應使用 Gunicorn 或其他 WSGI 伺服器
