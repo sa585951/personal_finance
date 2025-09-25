@@ -123,7 +123,7 @@ class AssetManager:
             return True, "成功刪除帳戶"
 
     def transfer(self, user_id, source_key, dest_key, amount):
-        """處理帳戶間轉帳，使用資料庫 transaction 確保原子性並驗證使用者"""
+        """處理帳戶間轉帳，使用資料庫 transaction 確保原子性並驗證使用者""" 
         if not user_id:
             return False, "使用者ID未提供"
         if amount <= 0:
@@ -148,7 +148,7 @@ class AssetManager:
                     update_source_stmt = (
                         assets_table.update()
                         .where(assets_table.c.user_id == user_id, assets_table.c.account_key == source_key)
-                        .values(balance=assets_table.c.balance - amount, last_update=datetime.now())
+                        .values(balance=assets_table.c.balance - Decimal(str(amount)), last_update=datetime.now())
                     )
                     conn.execute(update_source_stmt)
                     
@@ -156,7 +156,7 @@ class AssetManager:
                     update_dest_stmt = (
                         assets_table.update()
                         .where(assets_table.c.user_id == user_id, assets_table.c.account_key == dest_key)
-                        .values(balance=assets_table.c.balance + amount, last_update=datetime.now())
+                        .values(balance=assets_table.c.balance + Decimal(str(amount)), last_update=datetime.now())
                     )
                     result = conn.execute(update_dest_stmt)
                     

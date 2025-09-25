@@ -1015,7 +1015,7 @@ class OperationTheme(BaseTheme):
     def create_update_confirmation(self, data, new_balance):
         """建立更新確認 Flex Message"""
         asset = data['selected_asset']
-        old_balance = asset['balance']
+        old_balance = float(asset['balance'])
         difference = new_balance - old_balance
         
         flex_content = {
@@ -1124,7 +1124,7 @@ class OperationTheme(BaseTheme):
     def create_update_success(self, data):
         """建立更新成功 Flex Message"""
         asset = data['selected_asset']
-        old_balance = asset['balance']
+        old_balance = float(asset['balance'])
         new_balance = data['new_balance']
         difference = new_balance - old_balance
         
