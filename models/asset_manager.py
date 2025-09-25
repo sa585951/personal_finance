@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from sqlalchemy import select, func
 
 from config import DEFAULT_CURRENCY
@@ -38,7 +39,7 @@ class AssetManager:
         if not user_id:
             return None
         # 未來可擴展模糊比對 (e.g., a LIKE query or a library like fuzzywuzzy)
-        stmt = select(assets_table).where(assets_table.c.user_id == user_id, assets_table.c.bank_name == name)
+        stmt = select(assets_table).where(assets_table.c.user_id == user_id, func.lower(assets_table.c.bank_name) == name.lower())
         with self.engine.connect() as conn:
             result = conn.execute(stmt).first()
             if result:
@@ -76,7 +77,7 @@ class AssetManager:
         stmt = (
             assets_table.update()
             .where(assets_table.c.user_id == user_id, assets_table.c.account_key == account_key)
-            .values(balance=assets_table.c.balance + amount_change, last_update=datetime.now())
+            .values(balance=assets_table.c.balance + Decimal(str(amount_change)), last_update=datetime.now())
         )
         with self.engine.connect() as conn:
             result = conn.execute(stmt)
