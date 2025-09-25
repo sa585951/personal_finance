@@ -96,25 +96,20 @@ export default {
   },
   methods: {
     calculateSummary() {
-      // --- DEBUGGING --- 
-      console.log("[Summary] Recalculating...");
-      console.log("[Summary] Received transactions:", this.transactions);
-      console.log("[Summary] Filtering for month:", this.selectedMonth);
-      // --- END DEBUGGING ---
-
       if (!this.selectedMonth) {
         this.resetSummary();
         return;
       }
 
       // 篩選該月份的交易
-      const monthTransactions = this.transactions.filter((transaction) =>
-        transaction.date.startsWith(this.selectedMonth)
-      );
-
-      // --- DEBUGGING ---
-      console.log("[Summary] Transactions for this month:", monthTransactions);
-      // --- END DEBUGGING ---
+      const monthTransactions = this.transactions.filter((transaction) => {
+        if (!transaction.date) return false;
+        const transactionDate = new Date(transaction.date);
+        const transactionYearMonth = `${transactionDate.getFullYear()}-${String(
+          transactionDate.getMonth() + 1
+        ).padStart(2, "0")}`;
+        return transactionYearMonth === this.selectedMonth;
+      });
 
       // 計算總收入和總支出
       this.totalIncome = monthTransactions
