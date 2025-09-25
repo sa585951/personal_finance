@@ -19,7 +19,7 @@
         <div class="card-icon">💰</div>
         <div class="card-content">
           <h3>總收入</h3>
-          <p class="amount">${{ totalIncome.toLocaleString() }}</p>
+          <p class="amount">${{ Math.round(totalIncome).toLocaleString() }}</p>
         </div>
       </div>
 
@@ -27,7 +27,7 @@
         <div class="card-icon">💸</div>
         <div class="card-content">
           <h3>總支出</h3>
-          <p class="amount">${{ totalExpense.toLocaleString() }}</p>
+          <p class="amount">${{ Math.round(totalExpense).toLocaleString() }}</p>
         </div>
       </div>
 
@@ -38,27 +38,7 @@
         <div class="card-icon">📊</div>
         <div class="card-content">
           <h3>淨收入</h3>
-          <p class="amount">${{ netIncome.toLocaleString() }}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- 支出分類統計 -->
-    <div v-if="expenseByCategory.length > 0" class="category-breakdown">
-      <h3>支出分類</h3>
-      <div class="category-list">
-        <div
-          v-for="category in expenseByCategory"
-          :key="category.name"
-          class="category-item"
-        >
-          <span class="category-name">{{ category.name }}</span>
-          <span class="category-amount"
-            >${{ category.amount.toLocaleString() }}</span
-          >
-          <span class="category-percentage">
-            ({{ ((category.amount / totalExpense) * 100).toFixed(1) }}%)
-          </span>
+          <p class="amount">${{ Math.round(netIncome).toLocaleString() }}</p>
         </div>
       </div>
     </div>
@@ -81,7 +61,6 @@ export default {
       selectedMonth: "",
       totalIncome: 0,
       totalExpense: 0,
-      expenseByCategory: [],
     };
   },
   computed: {
@@ -114,32 +93,16 @@ export default {
       // 計算總收入和總支出
       this.totalIncome = monthTransactions
         .filter((t) => t.type === "income")
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
       this.totalExpense = monthTransactions
         .filter((t) => t.type === "expense")
-        .reduce((sum, t) => sum + t.amount, 0);
-
-      // 計算支出分類統計
-      const categoryMap = {};
-      monthTransactions
-        .filter((t) => t.type === "expense")
-        .forEach((transaction) => {
-          if (!categoryMap[transaction.category]) {
-            categoryMap[transaction.category] = 0;
-          }
-          categoryMap[transaction.category] += transaction.amount;
-        });
-
-      this.expenseByCategory = Object.entries(categoryMap)
-        .map(([name, amount]) => ({ name, amount }))
-        .sort((a, b) => b.amount - a.amount);
+        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
     },
 
     resetSummary() {
       this.totalIncome = 0;
       this.totalExpense = 0;
-      this.expenseByCategory = [];
     },
   },
   mounted() {
@@ -229,41 +192,6 @@ export default {
   font-size: 1.5rem;
   font-weight: bold;
   color: #333;
-}
-
-.category-breakdown h3 {
-  margin-bottom: 1rem;
-  color: #333;
-}
-
-.category-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.category-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem;
-  background-color: white;
-  border-radius: 4px;
-  border: 1px solid #eee;
-}
-
-.category-name {
-  font-weight: bold;
-}
-
-.category-amount {
-  color: #f44336;
-  font-weight: bold;
-}
-
-.category-percentage {
-  color: #666;
-  font-size: 0.9rem;
 }
 
 .no-selection {

@@ -14,7 +14,7 @@
           </div>
           <div class="card-title">{{ type }}</div>
         </div>
-        <div class="card-amount">${{ amount.toLocaleString() }}</div>
+        <div class="card-amount">${{ Math.round(parseFloat(amount)).toLocaleString() }}</div>
         <div
           v-if="type !== '總資產' && totals['總資產'] > 0"
           class="progress-bar-container"

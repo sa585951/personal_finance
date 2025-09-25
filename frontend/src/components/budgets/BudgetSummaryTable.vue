@@ -22,10 +22,10 @@
       <tbody>
         <tr v-for="item in budgetSummary" :key="item.category">
           <td>{{ item.category }}</td>
-          <td>${{ item.spent.toLocaleString() }}</td>
-          <td>${{ item.budget ? item.budget.toLocaleString() : "未設定" }}</td>
+          <td>${{ Math.round(parseFloat(item.spent)).toLocaleString() }}</td>
+          <td>${{ item.budget ? Math.round(parseFloat(item.budget)).toLocaleString() : "未設定" }}</td>
           <td>
-            ${{ item.remaining ? item.remaining.toLocaleString() : "N/A" }}
+            ${{ item.remaining ? Math.round(parseFloat(item.remaining)).toLocaleString() : "N/A" }}
           </td>
           <td>
             <div class="progress-bar-container">

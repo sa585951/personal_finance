@@ -17,7 +17,7 @@
           <tr v-for="(asset, key) in assets" :key="key">
             <td>{{ asset.bank_name }}</td>
             <td>{{ asset.account_type }}</td>
-            <td>${{ asset.balance.toLocaleString() }}</td>
+            <td>${{ Math.round(parseFloat(asset.balance)).toLocaleString() }}</td>
             <td class="table-buttons">
               <button class="update-btn" @click="promptUpdate(key)">
                 更新

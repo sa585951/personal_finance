@@ -13,7 +13,7 @@
       </thead>
       <tbody>
         <tr v-for="transaction in transactions" :key="transaction.id">
-          <td>{{ transaction.date }}</td>
+          <td>{{ formatDate(transaction.date) }}</td>
           <td>
             <span :class="transaction.type === 'income' ? 'income' : 'expense'">
               {{ translateType(transaction.type) }}
@@ -28,7 +28,7 @@
                   : 'expense-amount'
               "
             >
-              ${{ transaction.amount.toLocaleString() }}
+              ${{ Math.round(parseFloat(transaction.amount)).toLocaleString() }}
             </span>
           </td>
           <td>{{ transaction.description }}</td>
@@ -59,6 +59,14 @@ export default {
     },
   },
   methods: {
+    formatDate(dateString) {
+      if (!dateString) return "";
+      const date = new Date(dateString);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      return `${year}年${month}月${day}日`;
+    },
     translateType(type) {
       return type === "income" ? "收入" : "支出";
     },

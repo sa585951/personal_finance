@@ -20,8 +20,8 @@
           <tr v-for="goal in goals" :key="goal.id">
             <td>{{ goal.title }}</td>
             <td>{{ goal.type }}</td>
-            <td>${{ goal.target_amount.toLocaleString() }}</td>
-            <td>${{ goal.current_amount.toLocaleString() }}</td>
+            <td>${{ Math.round(parseFloat(goal.target_amount)).toLocaleString() }}</td>
+            <td>${{ Math.round(parseFloat(goal.current_amount)).toLocaleString() }}</td>
             <td>
               <div class="progress-bar-container">
                 <div
