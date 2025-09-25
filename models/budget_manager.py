@@ -111,7 +111,8 @@ class BudgetManager:
                         created_date=datetime.now()
                     )
                     # 如果 user_id, 月份和類別名稱衝突，則更新金額和備註
-                    upsert_stmt = category_stmt.on_conflict_on_constraint('uq_user_month_category').do_update(
+                    upsert_stmt = category_stmt.on_conflict_do_update(
+                        index_elements=['user_id', 'month', 'category_name'],
                         set_=dict(amount=category_stmt.excluded.amount, notes=category_stmt.excluded.notes)
                     )
                     conn.execute(upsert_stmt)

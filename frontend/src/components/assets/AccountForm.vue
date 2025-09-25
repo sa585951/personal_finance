@@ -33,8 +33,8 @@
 </template>
 
 <script>
-import axios from "axios";
-const API_URL = import.meta.env.VITE_APP_API_URL;
+import apiClient from "../../api";
+
 export default {
   name: "AccountForm",
   data() {
@@ -53,10 +53,10 @@ export default {
         const payload = {
           bank_name: this.newAccount.bank_name,
           account_type: this.newAccount.account_type,
-          initial_balance: this.newAccount.balance,
+          balance: this.newAccount.balance, // 確保這裡的 key 是 balance
         };
 
-        const response = await axios.post(`${API_URL}/api/assets`, payload);
+        const response = await apiClient.post(`/api/assets`, payload);
         this.submitMessage = response.data.message;
 
         this.$emit("account-added");
