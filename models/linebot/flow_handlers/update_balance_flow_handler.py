@@ -83,14 +83,18 @@ class UpdateBalanceFlowHandler:
                     error_message="餘額不能為負數，請重新輸入"
                 )
             
+            # 將新餘額合併到現有資料中，而不是覆蓋
+            updated_data = current_state['data'].copy()
+            updated_data['new_balance'] = new_balance
+
             # 更新狀態
             self.user_state_manager.update_user_state(
                 user_id,
                 step='confirm',
-                data={'new_balance': new_balance}
+                data=updated_data
             )
             
-            return self.theme.create_update_confirmation(current_state['data'], new_balance)
+            return self.theme.create_update_confirmation(updated_data, new_balance)
             
         except ValueError:
             selected_asset = current_state['data']['selected_asset']
