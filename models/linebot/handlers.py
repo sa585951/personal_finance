@@ -22,17 +22,17 @@ class ExpenseHandler:
         try:
             success, message = self.budget_manager.add_transaction(
                 user_id=user_id,
-                date = datetime.now().strftime("%Y-%m-%d"),
-                item = data.get("description", "Line記帳"),
-                amount = data["amount"],
-                transaction_type = "expense",
-                budget_category = data["category"],
-                description = f"{data.get('description', '')}"
+                date=datetime.now().strftime("%Y-%m-%d"),
+                item=data.get("category", "Line記帳"),
+                amount=data["amount"],
+                transaction_type="expense",
+                budget_category=data.get("budget_category"),
+                description=data.get("description", "")
             )
 
             if success:
                 # 獲取預算狀況
-                budget_status = self._get_budget_status(user_id, data["category"])
+                budget_status = self._get_budget_status(user_id, data.get("budget_category"))
                 return {
                     "success": True, 
                     "data": data, 
@@ -108,11 +108,11 @@ class IncomeHandler:
             success, message = self.budget_manager.add_transaction(
                 user_id=user_id,
                 date=datetime.now().strftime("%Y-%m-%d"),
-                item=data.get("description", "Line收入"),
+                item=data.get("category", "Line收入"),
                 amount=data["amount"],
                 transaction_type="income",
-                budget_category="收入",
-                description=f"{data.get('description', '')}"
+                budget_category=data.get("budget_category", "收入"),
+                description=data.get("description", "")
             )
             
             if success:
