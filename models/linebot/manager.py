@@ -22,7 +22,7 @@ class LineBotManager:
         
         # Gemini設定
         genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-        self.model = genai.GenerativeModel('models/gemini-1.5-flash')
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
 
         #依賴注入現有 managers
         self.user_state_manager = UserStateManager()

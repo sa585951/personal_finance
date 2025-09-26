@@ -4,7 +4,7 @@ class GeminiParser:
     def parse(self, message):
         """使用 Gemini 解析自然語言"""
 
-    def __init__(self, model, prompt_template):
+    def __init__(self, model, prompt_template, cold_start_checker=None):
         """初始化 Gemini 解析器
         
         Args:
@@ -14,6 +14,7 @@ class GeminiParser:
         
         self.model = model
         self.prompt_template = prompt_template
+        self.cold_start_checker = cold_start_checker
 
     def parse(self,message):
         """
