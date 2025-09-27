@@ -3,7 +3,7 @@ from functools import wraps
 from flask import Flask, jsonify, request, redirect, url_for
 from flask_cors import CORS
 from sqlalchemy import select, func
-from linebot import InvalidSignatureError
+from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage
 import os
 import requests
