@@ -1,4 +1,15 @@
-from .handlers import ExpenseHandler, IncomeHandler, QueryHandler, AssetHandler, GoalHandler
+# models/linebot/message_handler.py
+
+from datetime import datetime
+# 移除簡單的 Handler 導入，因為我們會將其邏輯直接整合進來
+# from .handlers import ExpenseHandler, IncomeHandler, QueryHandler, AssetHandler, GoalHandler
+
+# 導入我們需要的 Manager 類別
+from ..budget_manager import BudgetManager
+from ..asset_manager import AssetManager
+from ..goal_manager import GoalManager
+
+# 導入 Flow Handlers
 from .flow_handlers.transfer_flow_handler import TransferFlowHandler
 from .flow_handlers.add_account_flow_handler import AddAccountFlowHandler
 from .flow_handlers.update_balance_flow_handler import UpdateBalanceFlowHandler
@@ -13,219 +24,184 @@ from .response_builder import ResponseBuilder
 
 class MessageHandler:
     """訊息處理器 - 負責訊息路由和處理邏輯"""
-    def __init__(self, budget_manager, asset_manager, goal_manager, user_state_manager):
-        self.budget_manager = budget_manager
-        self.asset_manager = asset_manager
+    def __init__(self, user_state_manager):
         self.user_state_manager = user_state_manager
-        self.goal_manager = goal_manager
-
-        # 初始化各種 handlers
-        self.expense_handler = ExpenseHandler(budget_manager)
-        self.income_handler = IncomeHandler(budget_manager)
-        self.query_handler = QueryHandler(budget_manager)
-        self.asset_handler = AssetHandler(asset_manager)
-        self.goal_handler = GoalHandler(goal_manager)
         self.response_builder = ResponseBuilder()
         operation_theme = self.response_builder.operation_theme
 
-        #初始化流程處理器
-        self.transfer_flow_handler = TransferFlowHandler(asset_manager, self.user_state_manager, operation_theme)
-        self.add_account_flow_handler = AddAccountFlowHandler(asset_manager, self.user_state_manager, operation_theme)
-        self.update_balance_flow_handler = UpdateBalanceFlowHandler(asset_manager, self.user_state_manager, operation_theme)
-        self.delete_asset_flow_handler = DeleteAssetFlowHandler(asset_manager, self.user_state_manager, operation_theme)
-        self.delete_transaction_flow_handler = DeleteTransactionFlowHandler(budget_manager, self.user_state_manager, operation_theme)
-        self.add_goal_flow_handler = AddGoalFlowHandler(goal_manager, self.user_state_manager, operation_theme)
-        self.add_expense_flow_handler = AddExpenseFlowHandler(budget_manager, self.user_state_manager, operation_theme)
-        self.add_income_flow_handler = AddIncomeFlowHandler(budget_manager, self.user_state_manager, operation_theme)
-        self.edit_goal_flow_handler = EditGoalFlowHandler(goal_manager, self.user_state_manager, operation_theme)
-        self.delete_goal_flow_handler = DeleteGoalFlowHandler(goal_manager, self.user_state_manager, operation_theme)
+        # 初始化流程處理器，不再傳入 manager
+        self.flow_handlers = {
+            "transfer_flow": TransferFlowHandler(self.user_state_manager, operation_theme),
+            "add_account_flow": AddAccountFlowHandler(self.user_state_manager, operation_theme),
+            "update_balance_flow": UpdateBalanceFlowHandler(self.user_state_manager, operation_theme),
+            "delete_asset_flow": DeleteAssetFlowHandler(self.user_state_manager, operation_theme),
+            "delete_transaction_flow": DeleteTransactionFlowHandler(self.user_state_manager, operation_theme),
+            "add_goal_flow": AddGoalFlowHandler(self.user_state_manager, operation_theme),
+            "add_expense_flow": AddExpenseFlowHandler(self.user_state_manager, operation_theme),
+            "add_income_flow": AddIncomeFlowHandler(self.user_state_manager, operation_theme),
+            "edit_goal_flow": EditGoalFlowHandler(self.user_state_manager, operation_theme),
+            "delete_goal_flow": DeleteGoalFlowHandler(self.user_state_manager, operation_theme),
+        }
 
-    def handle_user_message(self, user_id, message, parsed_data):
-        """處理用戶訊息的主要入口"""
-        # 檢查是否在流程中
+    def handle_user_message(self, user_id, message, parsed_data, db_session):
+        """處理用戶訊息的主要入口，現在接收 db_session"""
         user_state = self.user_state_manager.get_user_state(user_id)
         if user_state:
-            return self._handle_flow_message(user_id, message, user_state)
+            return self._handle_flow_message(user_id, message, user_state, db_session)
         
-        # 根據解析結果處理訊息
-        return self._handle_parsed_message(user_id, parsed_data)
+        return self._handle_parsed_message(user_id, parsed_data, db_session)
     
-    def _handle_flow_message(self, user_id, message, user_state):
-        """處理流程中的訊息"""
-        state_type = user_state["type"]
+    def _handle_flow_message(self, user_id, message, user_state, db_session):
+        """處理流程中的訊息，傳遞 db_session"""
+        state_type = user_state.get("type")
+        handler = self.flow_handlers.get(state_type)
         
-        if state_type == "transfer_flow":
-            return self.transfer_flow_handler.handle_flow_message(user_id, message, user_state)
-        elif state_type == "add_account_flow":
-            return self.add_account_flow_handler.handle_flow_message(user_id, message, user_state)
-        elif state_type == "update_balance_flow":
-            return self.update_balance_flow_handler.handle_flow_message(user_id, message, user_state)
-        elif state_type == "delete_asset_flow":
-            return self.delete_asset_flow_handler.handle_flow_message(user_id, message, user_state)
-        elif state_type == "delete_transaction_flow":
-            return self.delete_transaction_flow_handler.handle_flow_message(user_id, message, user_state)
-        elif state_type == "add_goal_flow":
-            return self.add_goal_flow_handler.handle_flow_message(user_id, message, user_state)
-        elif state_type == "add_expense_flow":
-            return self.add_expense_flow_handler.handle_flow_message(user_id, message, user_state)
-        elif state_type == "add_income_flow":
-            return self.add_income_flow_handler.handle_flow_message(user_id, message, user_state)
-        elif state_type == "edit_goal_flow":
-            return self.edit_goal_flow_handler.handle_flow_message(user_id, message, user_state)
-        elif state_type == "delete_goal_flow":
-            return self.delete_goal_flow_handler.handle_flow_message(user_id, message, user_state)
+        if handler:
+            return handler.handle_flow_message(user_id, message, user_state, db_session)
         else:
             self.user_state_manager.clear_user_state(user_id)
             return "操作流程已重置，請重新開始"
         
-    def _handle_parsed_message(self, user_id, parsed_data):
-        """處理解析後的訊息"""
+    def _handle_parsed_message(self, user_id, parsed_data, db_session):
+        """處理解析後的訊息，傳遞 db_session"""
         message_type = parsed_data.get("type")
         
         if message_type == "expense":
-            return self._handle_expense(parsed_data, user_id)
+            return self._handle_expense(parsed_data, user_id, db_session)
         elif message_type == "income":
-            return self._handle_income(parsed_data, user_id)
+            return self._handle_income(parsed_data, user_id, db_session)
         elif message_type == "query":
-            return self._handle_query(user_id)
+            return self._handle_query(user_id, db_session)
         elif message_type == "asset_query":
-            return self._handle_asset_query(user_id)
+            return self._handle_asset_query(user_id, db_session)
         elif message_type == "goal_query":
-            return self._handle_goal_query(user_id)
-        elif message_type == "start_transfer":
-            return self.transfer_flow_handler.start_flow(user_id)
-        elif message_type == "start_add_account":
-            return self.add_account_flow_handler.start_flow(user_id)
-        elif message_type == "start_update_balance":
-            return self.update_balance_flow_handler.start_flow(user_id)
-        elif message_type == "start_delete_asset":
-            return self.delete_asset_flow_handler.start_flow(user_id)
-        elif message_type == "start_delete_transaction":
-            return self.delete_transaction_flow_handler.start_flow(user_id)
-        elif message_type == "start_add_goal":
-            return self.add_goal_flow_handler.start_flow(user_id)
-        elif message_type == "start_add_expense":
-            return self.add_expense_flow_handler.start_flow(user_id)
-        elif message_type == "start_add_income":
-            return self.add_income_flow_handler.start_flow(user_id)
-        elif message_type == "start_edit_goal":
-            return self.edit_goal_flow_handler.start_flow(user_id, parsed_data.get("goal_id"))
-        elif message_type == "start_delete_goal":
-            return self.delete_goal_flow_handler.start_flow(user_id, parsed_data.get("goal_id"))
+            return self._handle_goal_query(user_id, db_session)
         elif message_type == "manage_goal":
-            return self._handle_manage_goal(user_id)
+            return self._handle_manage_goal(user_id, db_session)
         elif message_type == "goal_progress":
-            return self._handle_goal_progress(user_id)
-        else:
-            return self._get_help_message()
+            return self._handle_goal_progress(user_id, db_session)
         
-    def _handle_expense(self, parsed_data, user_id):
+        # 啟動流程的指令現在也需要傳遞 db_session
+        elif message_type.startswith("start_"):
+            flow_type = message_type.replace("start_", "") + "_flow"
+            handler = self.flow_handlers.get(flow_type)
+            if handler:
+                # 為了統一架構，所有 start_flow 都接收 db_session，即使它可能不會使用
+                return handler.start_flow(user_id, db_session)
+        
+        return self._get_help_message()
+        
+    def _handle_expense(self, parsed_data, user_id, db_session):
         """處理支出記錄並更新資產餘額"""
-        # 1. 新增交易紀錄
-        result = self.expense_handler.handle(parsed_data, user_id)
-        if not result["success"]:
-            return self.response_builder.create_error_message(f"紀錄失敗: {result['message']}")
+        try:
+            budget_manager = BudgetManager()
+            asset_manager = AssetManager()
 
-        # 2. 處理資產餘額更新
-        asset_update_msg = ""
-        target_asset_name = parsed_data.get("target_asset")
-        if target_asset_name:
-            asset = self.asset_manager.find_asset_by_name(user_id, target_asset_name)
-            if asset:
-                amount_change = -float(parsed_data["amount"])
-                self.asset_manager.adjust_asset_balance(user_id, asset['account_key'], amount_change)
-                asset_update_msg = f"\n已從 {asset['bank_name']} 扣款。"
-            else:
-                asset_update_msg = f"\n⚠️ 但找不到名為 {target_asset_name} 的資產。"
+            # 1. 新增交易紀錄
+            budget_manager.add_transaction(
+                db_session, user_id, datetime.now().strftime("%Y-%m-%d"),
+                parsed_data['category'], parsed_data['amount'], 'expense',
+                parsed_data['budget_category'], parsed_data.get('description', '')
+            )
 
-        # 3. 建立成功回應
-        base_response = self.response_builder.create_expense_success(
-            result["data"], 
-            result.get("budget_status")
-        )
-        # 將文字和 Flex Message 合併
-        if isinstance(base_response, str):
-            return base_response + asset_update_msg
-        else: # 假設是 FlexSendMessage
-            # 這裡我們簡單地在文字回覆中附加訊息
-            # 注意：Flex Message 的內容是固定的，較難動態附加文字
-            # 一個簡單的作法是，如果需要附加資產訊息，就改用純文字回覆
+            # 2. 處理資產餘額更新
+            asset_update_msg = ""
+            target_asset_name = parsed_data.get("target_asset")
+            if target_asset_name:
+                asset = asset_manager.find_asset_by_name(db_session, user_id, target_asset_name)
+                if asset:
+                    amount_change = -float(parsed_data["amount"])
+                    asset_manager.adjust_asset_balance(db_session, user_id, asset['account_key'], amount_change)
+                    asset_update_msg = f"\n已從 {asset['bank_name']} 扣款。"
+                else:
+                    asset_update_msg = f"\n⚠️ 但找不到名為 {target_asset_name} 的資產。"
+            
             original_text = f"✅ 支出 {parsed_data['amount']}元 紀錄成功！"
             return original_text + asset_update_msg
+        except Exception as e:
+            return self.response_builder.create_error_message(f"紀錄失敗: {e}")
 
-    def _handle_income(self, parsed_data, user_id):
-        """處理收入記錄並更新資產餘額"""  
-        # 1. 新增交易紀錄
-        result = self.income_handler.handle(parsed_data, user_id)
-        if not result["success"]:
-            return self.response_builder.create_error_message(f"紀錄失敗: {result['message']}")
+    def _handle_income(self, parsed_data, user_id, db_session):
+        """處理收入記錄並更新資產餘額"""
+        try:
+            budget_manager = BudgetManager()
+            asset_manager = AssetManager()
 
-        # 2. 處理資產餘額更新
-        asset_update_msg = ""
-        target_asset_name = parsed_data.get("target_asset")
-        if target_asset_name:
-            asset = self.asset_manager.find_asset_by_name(user_id, target_asset_name)
-            if asset:
-                amount_change = float(parsed_data["amount"])
-                self.asset_manager.adjust_asset_balance(user_id, asset['account_key'], amount_change)
-                asset_update_msg = f"\n已存入 {asset['bank_name']}。"
-            else:
-                asset_update_msg = f"\n⚠️ 但找不到名為 {target_asset_name} 的資產。"
+            # 1. 新增交易紀錄
+            budget_manager.add_transaction(
+                db_session, user_id, datetime.now().strftime("%Y-%m-%d"),
+                parsed_data['category'], parsed_data['amount'], 'income',
+                parsed_data['budget_category'], parsed_data.get('description', '')
+            )
 
-        # 3. 建立成功回應
-        base_response = self.response_builder.create_income_success(result["data"])
-        if isinstance(base_response, str):
-            return base_response + asset_update_msg
-        else:
+            # 2. 處理資產餘額更新
+            asset_update_msg = ""
+            target_asset_name = parsed_data.get("target_asset")
+            if target_asset_name:
+                asset = asset_manager.find_asset_by_name(db_session, user_id, target_asset_name)
+                if asset:
+                    amount_change = float(parsed_data["amount"])
+                    asset_manager.adjust_asset_balance(db_session, user_id, asset['account_key'], amount_change)
+                    asset_update_msg = f"\n已存入 {asset['bank_name']}。"
+                else:
+                    asset_update_msg = f"\n⚠️ 但找不到名為 {target_asset_name} 的資產。"
+
             original_text = f"✅ 收入 {parsed_data['amount']}元 紀錄成功！"
             return original_text + asset_update_msg
+        except Exception as e:
+            return self.response_builder.create_error_message(f"紀錄失敗: {e}")
     
-    def _handle_query(self, user_id):
+    def _handle_query(self, user_id, db_session):
         """處理查詢請求"""
-        result = self.query_handler.handle(user_id)
-        if result["success"]:
+        try:
+            budget_manager = BudgetManager()
+            month = datetime.now().strftime("%Y-%m")
+            total_expenses = sum(budget_manager.calculate_monthly_expenses(db_session, user_id, month).values())
+            transactions = budget_manager.get_all_transactions(db_session, user_id)
+            
+            # 簡單重構查詢邏輯
+            recent_transactions = [t for t in transactions if t['date'].startswith(month)][:5]
+            transaction_count = len([t for t in transactions if t['date'].startswith(month)])
+            
             return self.response_builder.create_monthly_summary(
-                result["month"],
-                result["total_expenses"],
-                result["transaction_count"],
-                result["recent_transactions"],
-                result["category_stats"]
+                month, total_expenses, transaction_count, recent_transactions, {}
             )
-        else:
-            return self.response_builder.create_error_message(f"查詢失敗: {result['message']}")
+        except Exception as e:
+            return self.response_builder.create_error_message(f"查詢失敗: {e}")
     
-    def _handle_asset_query(self, user_id):
+    def _handle_asset_query(self, user_id, db_session):
         """處理資產查詢"""
-        result = self.asset_handler.handle(user_id)
-        if result["success"]:
-            return self.response_builder.create_asset_overview(result["totals"])
-        else:
-            return self.response_builder.create_error_message(result['message'])
+        try:
+            totals = AssetManager().calculate_totals(db_session, user_id)
+            return self.response_builder.create_asset_overview(totals)
+        except Exception as e:
+            return self.response_builder.create_error_message(f"查詢資產失敗: {e}")
     
-    def _handle_goal_query(self, user_id):
+    def _handle_goal_query(self, user_id, db_session):
         """處理目標查詢"""
-        result = self.goal_handler.handle_goal_query(user_id)
-        if result["success"]:
-            return self.response_builder.create_goal_overview(result["goals"], result["summary"])
-        else:
-            return self.response_builder.create_error_message(result['message'])
+        try:
+            goal_manager = GoalManager()
+            goals = goal_manager.get_all_goals(db_session, user_id)
+            summary = goal_manager.calculate_goal_summary(db_session, user_id)
+            return self.response_builder.create_goal_overview(goals, summary)
+        except Exception as e:
+            return self.response_builder.create_error_message(f"查詢目標失敗: {e}")
         
-    def _handle_manage_goal(self, user_id):
+    def _handle_manage_goal(self, user_id, db_session):
         """處理管理目標"""
-        # 顯示目標列表供編輯/刪除
-        result = self.goal_handler.handle_goal_query(user_id)
-        if result["success"]:
-            return self.response_builder.create_goal_management(result["goals"])
-        else:
-            return self.response_builder.create_error_message(result["message"])
+        try:
+            goals = GoalManager().get_all_goals(db_session, user_id)
+            return self.response_builder.create_goal_management(goals)
+        except Exception as e:
+            return self.response_builder.create_error_message(f"查詢目標失敗: {e}")
 
-    def _handle_goal_progress(self, user_id):
+    def _handle_goal_progress(self, user_id, db_session):
         """處理目標進度查詢"""
-        result = self.goal_handler.handle_goal_query(user_id)
-        if result["success"]:
-            return self.response_builder.create_goal_progress(result["goals"])
-        else:
-            return self.response_builder.create_error_message(result["message"])
+        try:
+            goals = GoalManager().get_all_goals(db_session, user_id)
+            return self.response_builder.create_goal_progress(goals)
+        except Exception as e:
+            return self.response_builder.create_error_message(f"查詢目標進度失敗: {e}")
     
     def _get_help_message(self):
         """取得幫助訊息"""

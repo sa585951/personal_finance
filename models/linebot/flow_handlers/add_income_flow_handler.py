@@ -1,25 +1,22 @@
 from datetime import datetime
+from ...budget_manager import BudgetManager
 
 class AddIncomeFlowHandler:
     """新增收入流程處理器"""
-    
-    def __init__(self, budget_manager, user_state_manager, operation_theme):
-        self.budget_manager = budget_manager
+
+    def __init__(self, user_state_manager, operation_theme):
         self.user_state_manager = user_state_manager
         self.theme = operation_theme
-        self.income_categories = ["薪資", "獎金", "投資", "副業", "其他"]
+        self.income_categories = ["薪資", "獎金", "投資", "利息", "其他"]
 
     def start_flow(self, user_id):
         """開始新增收入流程"""
-        try:
-            self.user_state_manager.set_user_state(
-                user_id, 'add_income_flow', 'select_category'
-            )
-            return self.theme.create_category_selection(self.income_categories, "income")
-        except Exception as e:
-            return f"新增收入流程啟動失敗: {str(e)}"
+        self.user_state_manager.set_user_state(
+            user_id, 'add_income_flow', 'select_category'
+        )
+        return self.theme.create_category_selection(self.income_categories, "income")
 
-    def handle_flow_message(self, user_id, message, current_state):
+    def handle_flow_message(self, user_id, message, current_state, db_session):
         """處理流程中的訊息"""
         step = current_state.get('step')
         
@@ -30,13 +27,12 @@ class AddIncomeFlowHandler:
         elif step == 'input_description':
             return self._handle_description_input(user_id, message, current_state)
         elif step == 'confirm':
-            return self._handle_confirmation(user_id, message, current_state)
+            return self._handle_confirmation(user_id, message, current_state, db_session)
         else:
             self.user_state_manager.clear_user_state(user_id)
             return "流程異常，已重置。請重新開始。"
 
     def _handle_category_selection(self, user_id, message):
-        """處理類別選擇"""
         if message == "取消操作":
             self.user_state_manager.clear_user_state(user_id)
             return "新增收入已取消"
@@ -54,7 +50,6 @@ class AddIncomeFlowHandler:
         return self.theme.create_amount_input("收入")
 
     def _handle_amount_input(self, user_id, message, current_state):
-        """處理金額輸入"""
         if message == "取消操作":
             self.user_state_manager.clear_user_state(user_id)
             return "新增收入已取消"
@@ -75,7 +70,6 @@ class AddIncomeFlowHandler:
             return self.theme.create_amount_input("收入", "請輸入有效的數字金額")
 
     def _handle_description_input(self, user_id, message, current_state):
-        """處理描述輸入"""
         if message.lower() == "取消":
             self.user_state_manager.clear_user_state(user_id)
             return "新增收入已取消"
@@ -94,26 +88,25 @@ class AddIncomeFlowHandler:
         confirm_data['description'] = description
         return self.theme.create_transaction_confirmation("收入", confirm_data)
 
-    def _handle_confirmation(self, user_id, message, current_state):
+    def _handle_confirmation(self, user_id, message, current_state, db_session):
         """處理最終確認"""
         if message == "確認新增":
             data = current_state['data']
-            success, msg = self.budget_manager.add_transaction(
+            
+            budget_manager = BudgetManager()
+            budget_manager.add_transaction(
+                db_session=db_session,
                 user_id=user_id,
                 date=datetime.now().strftime("%Y-%m-%d"),
-                item=data["category"], # Use category from data
+                item=data["category"],
                 amount=data["amount"],
                 transaction_type="income",
-                budget_category=data["category"], # Use category from data
+                budget_category=data["category"],
                 description=data["description"]
             )
 
             self.user_state_manager.clear_user_state(user_id)
-
-            if success:
-                return self.theme.create_add_transaction_success("收入", data)
-            else:
-                return f"新增收入失敗: {msg}"
+            return self.theme.create_add_transaction_success("收入", data)
 
         elif message == "取消新增":
             self.user_state_manager.clear_user_state(user_id)

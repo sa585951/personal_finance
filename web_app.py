@@ -3,7 +3,8 @@ from functools import wraps
 from flask import Flask, jsonify, request, redirect, url_for
 from flask_cors import CORS
 from sqlalchemy import select, func
-from linebot.exceptions import InvalidSignatureError
+from linebot import InvalidSignatureError
+from linebot.models import MessageEvent, TextMessage
 import os
 import requests
 import jwt
@@ -14,7 +15,6 @@ from models.budget_manager import BudgetManager
 from models.goal_manager import GoalManager
 from models.linebot.manager import LineBotManager
 from models.app_state import AppStateManager
-# 匯入新的 get_db_session
 from models.database import get_db_session 
 from models.schema import budget_categories_table, transactions_table 
 from models.user_manager import UserManager
@@ -26,7 +26,7 @@ JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 
 if not all([LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, JWT_SECRET_KEY, VITE_BACKEND_BASE_URL]):
-    raise EnvironmentError("缺少必要的環境變數，請檢查 .env 檔案。")
+    raise EnvironmentError("缺少必要的環境變數，請檢查 .env 檔案。 সন")
 
 # 實例化 Flask 應用程式
 app = Flask(__name__)
@@ -54,10 +54,7 @@ def token_required(f):
         return f(current_user_id, *args, **kwargs)
     return decorated
 
-# 移除全域的 Manager 實例
-# app_state 和 linebot_manager 比較特別，它們不直接操作資料庫，可以保留
 app_state = AppStateManager()
-# 注意：linebot_manager 的重構會是下一步
 linebot_manager = LineBotManager(app_state)
 
 
@@ -429,21 +426,35 @@ def get_goal_summary(current_user_id):
 
 @app.route("/line-webhook", methods=["POST"])
 def line_webhook():
-    """Line Bot Webhook 端點"""
+    """Line Bot Webhook 端點 (已重構)"""
     signature = request.headers.get('X-Line-Signature', '')
     body = request.get_data(as_text=True)
+    app.logger.info(f"Request body: {body}")
 
     try:
-        if app_state.is_cold_start():
-            app.logger.warning("系統冷啟動期間，webhook 請求可能不穩定")
-        
-        # linebot_manager 的 handle 方法也需要改造以接收 db_session
-        # 這部分是下一步
-        linebot_manager.handler.handle(body, signature)
-        return 'OK', 200
+        # 使用 manager 中的 handler 來驗證簽名並解析事件
+        events = linebot_manager.handler.parser.parse(body, signature)
+    except InvalidSignatureError:
+        app.logger.warning("Invalid signature. Please check your channel secret.")
+        return 'Invalid signature', 400
     except Exception as e:
-        app.logger.error(f"LINE Webhook error: {e}")
-        return 'Internal Server Error', 500
+        app.logger.error(f"Error parsing webhook body: {e}")
+        return 'Error parsing request', 400
+
+    # 遍歷所有事件
+    for event in events:
+        # 目前只處理文字訊息事件
+        if isinstance(event, MessageEvent) and isinstance(event.message, TextMessage):
+            try:
+                # 為每一個事件建立獨立的 db_session
+                with get_db_session() as db:
+                    linebot_manager.handle_message_flex(event, db)
+            except Exception as e:
+                app.logger.error(f"Error handling Line event: {e}")
+                # 如果處理過程中發生任何錯誤，回覆使用者一個通用錯誤訊息
+                linebot_manager.reply_message_flex(event.reply_token, "抱歉，處理您的請求時發生內部錯誤，請稍後再試。")
+
+    return 'OK'
 
 @app.route("/line-login-callback", methods=["GET"])
 def line_login_callback():

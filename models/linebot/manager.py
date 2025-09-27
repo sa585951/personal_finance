@@ -1,34 +1,35 @@
+# models/linebot/manager.py
+
 import os
 import google.generativeai as genai
-from datetime import datetime
 from .message_handler import MessageHandler
 from .message_parser import MessageParser
 from .user_state_manager import UserStateManager
-from ..user_manager import UserManager # Import UserManager
+from ..user_manager import UserManager
 from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError, LineBotApiError
-from linebot.models import (
-    MessageEvent, TextMessage, TextSendMessage, 
-    FlexSendMessage
-)
+from linebot.exceptions import LineBotApiError
+from linebot.models import TextSendMessage
 
 class LineBotManager:
-    def __init__(self, budget_manager, asset_manager, goal_manager, app_state, user_manager):
-
+    """
+    管理 Line Bot 的核心邏輯，包含訊息的接收、解析與回覆。
+    現在的設計是作為一個較無狀態的服務，由 web_app 傳入 db_session 來處理請求。
+    """
+    def __init__(self, app_state):
         self.app_state = app_state
-        #Line Bot設定
+        # Line Bot 設定
         self.line_bot_api = LineBotApi(os.getenv("LINE_MSG_CHANNEL_ACCESS_TOKEN"))
         self.handler = WebhookHandler(os.getenv("LINE_MSG_CHANNEL_SECRET"))
         
-        # Gemini設定
+        # Gemini 設定
         genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        # 建議使用較新的模型以獲得更好的解析效果
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
 
-        #依賴注入現有 managers
         self.user_state_manager = UserStateManager()
-        self.user_manager = user_manager # Assign the passed user_manager
-        # Prompt模板
-        self.prompt_template = """
+        
+        # Prompt 模板 (保持不變)
+        self.prompt_template = '''
         分析以下中文記帳訊息，並嚴格回傳 JSON 格式。
 
         訊息："{message}"
@@ -42,9 +43,9 @@ class LineBotManager:
 
         **規則：**
         1. **支出記錄**: 必須包含 `type`, `budget_category`, `category`, `amount`。
-           - JSON: {{"type": "expense", "budget_category": "...", "category": "...", "description": "...", "amount": ..., "target_asset": "..."}}
+           - JSON: {{ "type": "expense", "budget_category": "...", "category": "...", "description": "...", "amount": ..., "target_asset": "..." }}
         2. **收入記錄**:
-           - JSON: {{"type": "income", "budget_category": "收入", "category": "收入來源", "description": "備註", "amount": ..., "target_asset": "..."}}
+           - JSON: {{ "type": "income", "budget_category": "收入", "category": "收入來源", "description": "備註", "amount": ..., "target_asset": "..." }}
         3. **欄位提取邏輯**:
            - `budget_category`: 將消費目的歸類到「類別限制」中的一個。
            - `category`: 從訊息中提取次級消費類型。
@@ -67,117 +68,65 @@ class LineBotManager:
 
 
         注意：只回傳純 JSON，不要 markdown 標記。
-        """
+        '''
 
-        #注入Message Parser
         self.message_parser = MessageParser(
             gemini_model=self.model,
             prompt_template=self.prompt_template,
         )
+        
+        # MessageHandler 也不再需要預先注入所有 manager
+        self.message_handler = MessageHandler(self.user_state_manager)
 
-        # 建立 Handler實例
-        self.message_handler = MessageHandler(budget_manager, asset_manager, goal_manager, self.user_state_manager)
-        # 註冊事件處理器
-        self.register_handlers()
-
-    def register_handlers(self):
-        """註冊 Line Bot 事件處理器"""
-        @self.handler.add(MessageEvent, message=TextMessage)
-        def handle_text_message(event):
-            self.handle_message_flex(event)
-
-    def handle_message_flex(self, event):
-        """支援 Flex Message 的訊息處理 - 加入冷啟動檢測"""
+    def handle_message_flex(self, event, db_session):
+        """
+        處理單一訊息事件的核心邏輯。
+        由 web_app 傳入 event 和 db_session。
+        """
         user_message = event.message.text.strip()
         user_id = event.source.user_id
-        print(f"Received message from user_id: {user_id}") # Debug print
+        print(f"Received message from user_id: {user_id}")
 
         # 獲取使用者 Line 顯示名稱
         profile = self.line_bot_api.get_profile(user_id)
         display_name = profile.display_name
 
-        # 確保使用者存在於資料庫中，並更新顯示名稱
-        self.user_manager.get_or_create_user(user_id, display_name) # Call get_or_create_user with display_name
+        # 確保使用者存在於資料庫中 (現在需要傳入 db_session)
+        UserManager().get_or_create_user(db_session, user_id, display_name)
 
-        try:
-            # 檢測冷啟動狀態
-            if self.app_state and self.app_state.is_cold_start():
-                print(f"冷啟動期間收到訊息: {user_message}")
-                self.reply_message_flex(event.reply_token,
-                    "🚀 系統剛啟動完成！\n請重新發送您的訊息，我現在準備好了 😊")
-                return
+        if self.app_state and self.app_state.is_cold_start():
+            print(f"冷啟動期間收到訊息: {user_message}")
+            self.reply_message_flex(event.reply_token, "🚀 系統剛啟動完成！\n請重新發送您的訊息，我現在準備好了 😊")
+            return
 
-            # 正常的訊息解析流程
-            parsed_data = self.message_parser.parse(user_message)
-            
-            response_message = self.message_handler.handle_user_message(user_id, user_message, parsed_data)
-
-            self.reply_message_flex(event.reply_token, response_message)
-
-        except Exception as e:
-            print(f"LINE Bot 錯誤: {e}")
-
-            # 出錯時清除狀態
-            self.user_state_manager.clear_user_state(user_id)
-            # 如果是啟動期間的錯誤，可能是資源尚未載入
-            error_msg = "系統正在啟動中，請稍後重新發送訊息" if self.app_state.is_cold_start() else "抱歉，系統暫時無法處理，請稍後再試"
-            self.reply_message_flex(event.reply_token, error_msg)
+        # 正常的訊息解析流程
+        parsed_data = self.message_parser.parse(user_message)
         
-    def get_help_message(self):
-        """取得幫助訊息"""
-        base_message =  """歡迎使用個人財務助手！
+        # MessageHandler 的方法也需要傳入 db_session
+        response_message = self.message_handler.handle_user_message(user_id, user_message, parsed_data, db_session)
 
-        支援功能：
-        💰 記帳：
-        • "午餐花了150"
-        • "買咖啡50元"
-        • "薪水入帳30000"
-
-        📊 查詢：
-        • "查詢本月支出"
-        • "我的資產"
-
-        範例：
-        早餐花80元、搭捷運30、薪水45000"""
-        
-        #若是冷啟動期間，加入提示
-        if self.app_state.is_cold_start():
-            base_message += "\n\n💡 提示：系統剛啟動，如無回應請重新發送"
-        return base_message
+        self.reply_message_flex(event.reply_token, response_message)
 
     def reply_message_flex(self, reply_token, message):
-        """支援 Flex Message 的回覆方法"""
+        """
+        支援 Flex Message 的回覆方法
+        """
         try:
             if isinstance(message, str):
-                # 文字訊息
-                self.line_bot_api.reply_message(
-                    reply_token,
-                    TextSendMessage(text=message)
-                )
+                self.line_bot_api.reply_message(reply_token, TextSendMessage(text=message))
             else:
                 self.line_bot_api.reply_message(reply_token, message)
-
         except LineBotApiError as e:
             print(f"Line API Error: {e}")
 
     def push_message_flex(self, user_id, message):
-        """支援 Flex Message 的推送方法"""
+        """
+        支援 Flex Message 的推送方法
+        """
         try:
             if isinstance(message, str):
-                # 文字訊息
-                self.line_bot_api.push_message(
-                    user_id,
-                    TextSendMessage(text=message)
-                )
+                self.line_bot_api.push_message(user_id, TextSendMessage(text=message))
             else:
                 self.line_bot_api.push_message(user_id, message)
         except LineBotApiError as e:
             print(f"Line Push Error: {e}")
-
-    def verify_webhook(self, body, signature):
-        """驗證 webhook 簽名"""
-        try:
-            self.handler.handle(body, signature)
-            return True
-        except InvalidSignatureError:
-            return False
