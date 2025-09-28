@@ -30,7 +30,11 @@ if not all([LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, JWT_SECRET_KEY, VITE_BACKEND_B
 
 # 實例化 Flask 應用程式
 app = Flask(__name__)
-CORS(app)
+CORS(
+    app,
+    origins=["https://personal-finance-gilt.vercel.app", "http://localhost:5173"],
+    supports_credentials=True
+)
 
 def token_required(f):
     """Token 驗證裝飾器"""
