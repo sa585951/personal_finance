@@ -13,7 +13,7 @@ class AddExpenseFlowHandler:
         self.theme = operation_theme
         self.expense_categories = ["伙食", "交通", "購物", "娛樂", "醫療", "投資", "生活", "其他"]
 
-    def start_flow(self, user_id):
+    def start_flow(self, user_id, db_session=None):
         """開始新增支出流程"""
         self.user_state_manager.set_user_state(
             user_id, 'add_expense_flow', 'select_category'

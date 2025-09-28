@@ -9,7 +9,7 @@ class AddIncomeFlowHandler:
         self.theme = operation_theme
         self.income_categories = ["薪資", "獎金", "投資", "利息", "其他"]
 
-    def start_flow(self, user_id):
+    def start_flow(self, user_id, db_session=None):
         """開始新增收入流程"""
         self.user_state_manager.set_user_state(
             user_id, 'add_income_flow', 'select_category'
