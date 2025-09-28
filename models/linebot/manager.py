@@ -24,7 +24,7 @@ class LineBotManager:
         # Gemini 設定
         genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
         # 建議使用較新的模型以獲得更好的解析效果
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
 
         self.user_state_manager = UserStateManager()
         
