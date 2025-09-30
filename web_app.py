@@ -37,10 +37,10 @@ CORS(
 )
 
 # 實例化 Manager
-asset_manager = AssetManager()
-budget_manager = BudgetManager()
-goal_manager = GoalManager()
-user_manager = UserManager()
+asset_manager = AssetManager(db_session)
+budget_manager = BudgetManager(db_session)
+goal_manager = GoalManager(db_session)
+user_manager = UserManager(db_session)
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
