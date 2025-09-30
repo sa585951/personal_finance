@@ -4,19 +4,20 @@ from ...goal_manager import GoalManager
 class AddGoalFlowHandler:
     """新增目標流程處理器"""
     
-    def __init__(self, user_state_manager, operation_theme):
+    def __init__(self, user_state_manager, operation_theme, goal_manager):
         self.user_state_manager = user_state_manager
         self.theme = operation_theme
+        self.goal_manager = goal_manager
         self.goal_types = ["儲蓄", "投資", "債務"]
     
-    def start_flow(self, user_id, db_session=None):
+    def start_flow(self, user_id):
         """開始新增目標流程"""
         self.user_state_manager.set_user_state(
             user_id, 'add_goal_flow', 'input_title'
         )
         return self.theme.create_goal_title_input()
     
-    def handle_flow_message(self, user_id, message, current_state, db_session):
+    def handle_flow_message(self, user_id, message, current_state):
         """處理新增目標流程中的訊息"""
         step = current_state['step']
         
@@ -29,7 +30,7 @@ class AddGoalFlowHandler:
         elif step == 'input_date':
             return self._handle_date_input(user_id, message, current_state)
         elif step == 'confirm':
-            return self._handle_confirmation(user_id, message, current_state, db_session)
+            return self._handle_confirmation(user_id, message, current_state)
         else:
             self.user_state_manager.clear_user_state(user_id)
             return "新增目標流程異常，已重置。"
@@ -115,13 +116,12 @@ class AddGoalFlowHandler:
         )
         return self.theme.create_add_goal_confirmation(confirmation_data)
     
-    def _handle_confirmation(self, user_id, message, current_state, db_session):
+    def _handle_confirmation(self, user_id, message, current_state):
         """處理確認新增"""
         if message == "確認新增":
             data = current_state['data']
             
-            GoalManager().add_goal(
-                db_session,
+            self.goal_manager.add_goal(
                 user_id,
                 data["title"],
                 data["type"],

@@ -15,7 +15,7 @@ from models.budget_manager import BudgetManager
 from models.goal_manager import GoalManager
 from models.linebot.manager import LineBotManager
 from models.app_state import AppStateManager
-from models.database import get_db_session 
+from models.database import db_session 
 from models.schema import budget_categories_table, transactions_table 
 from models.user_manager import UserManager
 
@@ -35,6 +35,24 @@ CORS(
     origins=["https://personal-finance-gilt.vercel.app", "http://localhost:5173"],
     supports_credentials=True
 )
+
+# 實例化 Manager
+asset_manager = AssetManager()
+budget_manager = BudgetManager()
+goal_manager = GoalManager()
+user_manager = UserManager()
+
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    """請求結束後自動關閉 session"""
+    try:
+        if exception is None:
+            db_session.commit()
+    except Exception as e:
+        app.logger.error(f"Session commit failed: {e}")
+        db_session.rollback()
+    finally:
+        db_session.remove()
 
 def token_required(f):
     """Token 驗證裝飾器"""
@@ -59,7 +77,7 @@ def token_required(f):
     return decorated
 
 app_state = AppStateManager()
-linebot_manager = LineBotManager(app_state)
+linebot_manager = LineBotManager(app_state, db_session)
 
 
 @app.route("/")
@@ -73,9 +91,8 @@ def home():
 @token_required
 def get_assets(current_user_id):
     try:
-        with get_db_session() as db:
-            assets = AssetManager().get_all_assets(db, current_user_id)
-            return jsonify({"success": True, "data": assets}), 200
+        assets = asset_manager.get_all_assets(current_user_id)
+        return jsonify({"success": True, "data": assets}), 200
     except Exception as e:
         app.logger.error(f"Error in get_assets: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -88,11 +105,10 @@ def add_asset(current_user_id):
         return jsonify({"success": False, "message": "缺少必要欄位"}), 400
     
     try:
-        with get_db_session() as db:
-            success, message = AssetManager().add_account(
-                db, current_user_id, data["bank_name"], data["account_type"], data["balance"]
-            )
-            return jsonify({"success": success, "message": message}), 201
+        success, message = asset_manager.add_account(
+            current_user_id, data["bank_name"], data["account_type"], data["balance"]
+        )
+        return jsonify({"success": success, "message": message}), 201
     except Exception as e:
         app.logger.error(f"Error in add_asset: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
@@ -105,9 +121,8 @@ def update_asset_balance(current_user_id, account_key):
         return jsonify({"success": False, "message": "缺少 'new_balance' 欄位"}), 400
 
     try:
-        with get_db_session() as db:
-            success, message = AssetManager().update_balance(db, current_user_id, account_key, data['new_balance'])
-            return jsonify({"success": success, "message": message}), 200
+        success, message = asset_manager.update_balance(current_user_id, account_key, data['new_balance'])
+        return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in update_asset_balance: {e}")
         return jsonify({"success": False, "message": str(e)}), 404
@@ -116,9 +131,8 @@ def update_asset_balance(current_user_id, account_key):
 @token_required
 def delete_asset(current_user_id, account_key):
     try:
-        with get_db_session() as db:
-            success, message = AssetManager().delete_account(db, current_user_id, account_key)
-            return jsonify({"success": success, "message": message}), 200
+        success, message = asset_manager.delete_account(current_user_id, account_key)
+        return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in delete_asset: {e}")
         return jsonify({"success": False, "message": str(e)}), 404
@@ -131,9 +145,8 @@ def transfer_funds(current_user_id):
         return jsonify({"success": False, "message": "缺少必要欄位"}), 400
 
     try:
-        with get_db_session() as db:
-            success, message = AssetManager().transfer(db, current_user_id, data["source_id"], data["dest_id"], data["amount"])
-            return jsonify({"success": success, "message": message}), 200
+        success, message = asset_manager.transfer(current_user_id, data["source_id"], data["dest_id"], data["amount"])
+        return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in transfer_funds: {e}")
         return jsonify({"success": False, "message": str(e)}), 400
@@ -144,9 +157,8 @@ def transfer_funds(current_user_id):
 @token_required
 def get_budget_categories(current_user_id):
     try:
-        with get_db_session() as db:
-            categories = BudgetManager().get_all_budget_categories(db, current_user_id)
-            return jsonify({"success": True, "data": categories}), 200
+        categories = budget_manager.get_all_budget_categories(current_user_id)
+        return jsonify({"success": True, "data": categories}), 200
     except Exception as e:
         app.logger.error(f"Error in get_budget_categories: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -159,11 +171,10 @@ def set_budget(current_user_id):
         return jsonify({"success": False, "message": "缺少必要欄位"}), 400
 
     try:
-        with get_db_session() as db:
-            success, message = BudgetManager().set_budget(
-                db, current_user_id, data["month"], data["category"], data["amount"], data.get("notes", "")
-            )
-            return jsonify({"success": success, "message": message}), 201
+        success, message = budget_manager.set_budget(
+            current_user_id, data["month"], data["category"], data["amount"], data.get("notes", "")
+        )
+        return jsonify({"success": success, "message": message}), 201
     except Exception as e:
         app.logger.error(f"Error in set_budget: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
@@ -172,9 +183,8 @@ def set_budget(current_user_id):
 @token_required
 def delete_budget(current_user_id, month, category):
     try:
-        with get_db_session() as db:
-            success, message = BudgetManager().delete_budget(db, current_user_id, month, category)
-            return jsonify({"success": success, "message": message}), 200
+        success, message = budget_manager.delete_budget(current_user_id, month, category)
+        return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in delete_budget: {e}")
         return jsonify({"success": False, "message": str(e)}), 404
@@ -183,9 +193,8 @@ def delete_budget(current_user_id, month, category):
 @token_required
 def get_available_months(current_user_id):
     try:
-        with get_db_session() as db:
-            months = BudgetManager().get_all_transaction_months(db, current_user_id)
-            return jsonify({"success": True, "data": sorted(months, reverse=True)}), 200
+        months = budget_manager.get_all_transaction_months(current_user_id)
+        return jsonify({"success": True, "data": sorted(months, reverse=True)}), 200
     except Exception as e:
         app.logger.error(f"Error in get_available_months: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -194,9 +203,8 @@ def get_available_months(current_user_id):
 @token_required
 def get_transactions(current_user_id):
     try:
-        with get_db_session() as db:
-            transactions_data = BudgetManager().get_all_transactions(db, current_user_id)
-            return jsonify({"success": True, "data": transactions_data}), 200
+        transactions_data = budget_manager.get_all_transactions(current_user_id)
+        return jsonify({"success": True, "data": transactions_data}), 200
     except Exception as e:
         app.logger.error(f"Error in get_transactions: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -210,12 +218,11 @@ def add_transaction(current_user_id):
         return jsonify({"success": False, "message": "缺少必要欄位"}), 400
 
     try:
-        with get_db_session() as db:
-            success, message = BudgetManager().add_transaction(
-                db, current_user_id, data["date"], data["item"], data["amount"], 
-                data["type"], data["budget_category"], data.get("description", "")
-            )
-            return jsonify({"success": success, "message": message}), 201
+        success, message = budget_manager.add_transaction(
+            current_user_id, data["date"], data["item"], data["amount"], 
+            data["type"], data["budget_category"], data.get("description", "")
+        )
+        return jsonify({"success": success, "message": message}), 201
     except Exception as e:
         app.logger.error(f"Error in add_transaction: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
@@ -224,9 +231,8 @@ def add_transaction(current_user_id):
 @token_required
 def delete_transaction(current_user_id, transaction_id):
     try:
-        with get_db_session() as db:
-            success, message = BudgetManager().delete_transaction(db, current_user_id, transaction_id)
-            return jsonify({"success": success, "message": message}), 200
+        success, message = budget_manager.delete_transaction(current_user_id, transaction_id)
+        return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in delete_transaction: {e}")
         return jsonify({"success": False, "message": str(e)}), 404
@@ -235,27 +241,26 @@ def delete_transaction(current_user_id, transaction_id):
 @token_required
 def get_monthly_summary(current_user_id, month):
     try:
-        with get_db_session() as db:
-            budget_stmt = select(budget_categories_table).where(
-                budget_categories_table.c.user_id == current_user_id, 
-                budget_categories_table.c.month == month
-            )
-            budgets_result = db.execute(budget_stmt)
-            budgets = {row.category_name: row.amount for row in budgets_result}
+        budget_stmt = select(budget_categories_table).where(
+            budget_categories_table.c.user_id == current_user_id, 
+            budget_categories_table.c.month == month
+        )
+        budgets_result = db_session.execute(budget_stmt)
+        budgets = {row.category_name: row.amount for row in budgets_result}
 
-            expense_totals = BudgetManager().calculate_monthly_expenses(db, current_user_id, month)
-            
-            all_categories = set(expense_totals.keys()) | set(budgets.keys())
-            response_data = [
-                {
-                    "category": category,
-                    "spent": expense_totals.get(category, 0),
-                    "budget": budgets.get(category),
-                    "remaining": (budgets.get(category) - expense_totals.get(category, 0)) if budgets.get(category) is not None else None
-                }
-                for category in all_categories
-            ]
-            return jsonify({"success": True, "data": response_data})
+        expense_totals = budget_manager.calculate_monthly_expenses(current_user_id, month)
+        
+        all_categories = set(expense_totals.keys()) | set(budgets.keys())
+        response_data = [
+            {
+                "category": category,
+                "spent": expense_totals.get(category, 0),
+                "budget": budgets.get(category),
+                "remaining": (budgets.get(category) - expense_totals.get(category, 0)) if budgets.get(category) is not None else None
+            }
+            for category in all_categories
+        ]
+        return jsonify({"success": True, "data": response_data})
     except Exception as e:
         app.logger.error(f"Error in get_monthly_summary: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -266,9 +271,8 @@ def get_monthly_summary(current_user_id, month):
 @token_required
 def get_all_goals(current_user_id):
     try:
-        with get_db_session() as db:
-            goals_data = GoalManager().get_all_goals(db, current_user_id)
-            return jsonify({"success": True, "data": goals_data})
+        goals_data = goal_manager.get_all_goals(current_user_id)
+        return jsonify({"success": True, "data": goals_data})
     except Exception as e:
         app.logger.error(f"Error in get_all_goals: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -282,12 +286,11 @@ def add_goal(current_user_id):
         return jsonify({"success": False, "message": "缺少必要欄位"}), 400
 
     try:
-        with get_db_session() as db:
-            success, result = GoalManager().add_goal(
-                db, current_user_id, data["title"], data["type"], data["target_amount"], 
-                data["target_date"], data.get("description", "")
-            )
-            return jsonify({"success": success, "message": "目標新增成功", "data": result}), 201
+        success, result = goal_manager.add_goal(
+            current_user_id, data["title"], data["type"], data["target_amount"], 
+            data["target_date"], data.get("description", "")
+        )
+        return jsonify({"success": success, "message": "目標新增成功", "data": result}), 201
     except Exception as e:
         app.logger.error(f"Error in add_goal: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
@@ -300,9 +303,8 @@ def update_goal(current_user_id, goal_id):
         return jsonify({"success": False, "message": "缺少要更新的資料"}), 400
 
     try:
-        with get_db_session() as db:
-            success, message = GoalManager().update_goal(db, current_user_id, goal_id, **data)
-            return jsonify({"success": success, "message": message}), 200
+        success, message = goal_manager.update_goal(current_user_id, goal_id, **data)
+        return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in update_goal: {e}")
         return jsonify({"success": False, "message": str(e)}), 404
@@ -311,9 +313,8 @@ def update_goal(current_user_id, goal_id):
 @token_required
 def delete_goal(current_user_id, goal_id):
     try:
-        with get_db_session() as db:
-            success, message = GoalManager().delete_goal(db, current_user_id, goal_id)
-            return jsonify({"success": success, "message": message}), 200
+        success, message = goal_manager.delete_goal(current_user_id, goal_id)
+        return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in delete_goal: {e}")
         return jsonify({"success": False, "message": str(e)}), 404
@@ -325,17 +326,16 @@ def delete_goal(current_user_id, goal_id):
 def get_monthly_expenses(current_user_id):
     year_month = request.args.get("month", datetime.now().strftime("%Y-%m"))
     try:
-        with get_db_session() as db:
-            expense_data = BudgetManager().calculate_monthly_expenses(db, current_user_id, year_month)
-            chart_data = {
-                "labels": list(expense_data.keys()),
-                "datasets": [{
-                    "label": f"{year_month}月支出",
-                    "backgroundColor": ["#42A5F5", "#66BB6A", "#FFA726", "#26A69A", "#BDBDBD", "#7986CB", "#C0CA33"],
-                    "data": list(expense_data.values())
-                }]
-            }
-            return jsonify({"success": True, "data": chart_data})
+        expense_data = budget_manager.calculate_monthly_expenses(current_user_id, year_month)
+        chart_data = {
+            "labels": list(expense_data.keys()),
+            "datasets": [{
+                "label": f"{year_month}月支出",
+                "backgroundColor": ["#42A5F5", "#66BB6A", "#FFA726", "#26A69A", "#BDBDBD", "#7986CB", "#C0CA33"],
+                "data": list(expense_data.values())
+            }]
+        }
+        return jsonify({"success": True, "data": chart_data})
     except Exception as e:
         app.logger.error(f"Error in get_monthly_expenses: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -344,18 +344,17 @@ def get_monthly_expenses(current_user_id):
 @token_required
 def get_asset_allocation(current_user_id):
     try:
-        with get_db_session() as db:
-            totals = AssetManager().calculate_totals(db, current_user_id)
-            labels = [key for key in totals.keys() if key != "總資產"]
-            data = [totals[key] for key in labels]
-            chart_data = {
-                "labels": labels,
-                "datasets": [{
-                    "backgroundColor": ["#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40"],
-                    "data": data
-                }]
-            }
-            return jsonify({"success": True, "data": chart_data})
+        totals = asset_manager.calculate_totals(current_user_id)
+        labels = [key for key in totals.keys() if key != "總資產"]
+        data = [totals[key] for key in labels]
+        chart_data = {
+            "labels": labels,
+            "datasets": [{
+                "backgroundColor": ["#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40"],
+                "data": data
+            }]
+        }
+        return jsonify({"success": True, "data": chart_data})
     except Exception as e:
         app.logger.error(f"Error in get_asset_allocation: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -365,30 +364,29 @@ def get_asset_allocation(current_user_id):
 def get_income_expense_summary(current_user_id):
     month = request.args.get("month")
     try:
-        with get_db_session() as db:
-            stmt = select(transactions_table.c.type, func.sum(transactions_table.c.amount).label("total")) \
-                .where(transactions_table.c.user_id == current_user_id)
-            if month:
-                stmt = stmt.where(func.to_char(transactions_table.c.date, 'YYYY-MM') == month)
-            stmt = stmt.group_by(transactions_table.c.type)
+        stmt = select(transactions_table.c.type, func.sum(transactions_table.c.amount).label("total")) \
+            .where(transactions_table.c.user_id == current_user_id)
+        if month:
+            stmt = stmt.where(func.to_char(transactions_table.c.date, 'YYYY-MM') == month)
+        stmt = stmt.group_by(transactions_table.c.type)
 
-            income, expense = 0, 0
-            result = db.execute(stmt)
-            for row in result:
-                if row.type == 'income':
-                    income = row.total or 0
-                elif row.type == 'expense':
-                    expense = row.total or 0
+        income, expense = 0, 0
+        result = db_session.execute(stmt)
+        for row in result:
+            if row.type == 'income':
+                income = row.total or 0
+            elif row.type == 'expense':
+                expense = row.total or 0
 
-            chart_data = {
-                "labels": ["收入", "支出"],
-                "datasets": [{
-                    "label": f"{month if month else '總計'}收入與支出",
-                    "backgroundColor": ["#4CAF50", "#F44336"],
-                    "data": [float(income), float(expense)]
-                }]
-            }
-            return jsonify({"success": True, "data": chart_data})
+        chart_data = {
+            "labels": ["收入", "支出"],
+            "datasets": [{
+                "label": f"{month if month else '總計'}收入與支出",
+                "backgroundColor": ["#4CAF50", "#F44336"],
+                "data": [float(income), float(expense)]
+            }]
+        }
+        return jsonify({"success": True, "data": chart_data})
     except Exception as e:
         app.logger.error(f"Error in get_income_expense_summary: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -398,9 +396,8 @@ def get_income_expense_summary(current_user_id):
 def get_transactions_by_category_over_time(current_user_id):
     interval = request.args.get("interval", "month")
     try:
-        with get_db_session() as db:
-            chart_data = BudgetManager().get_transactions_by_category_over_time(db, current_user_id, interval)
-            return jsonify({"success": True, "data": chart_data})
+        chart_data = budget_manager.get_transactions_by_category_over_time(current_user_id, interval)
+        return jsonify({"success": True, "data": chart_data})
     except Exception as e:
         app.logger.error(f"Error in get_transactions_by_category_over_time: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -410,9 +407,8 @@ def get_transactions_by_category_over_time(current_user_id):
 def get_overspending_warnings(current_user_id):
     month = request.args.get("month")
     try:
-        with get_db_session() as db:
-            warnings = BudgetManager().check_over_warnings(db, current_user_id, month)
-            return jsonify({"success": True, "data": warnings})
+        warnings = budget_manager.check_over_warnings(current_user_id, month)
+        return jsonify({"success": True, "data": warnings})
     except Exception as e:
         app.logger.error(f"Error in get_overspending_warnings: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -421,9 +417,8 @@ def get_overspending_warnings(current_user_id):
 @token_required
 def get_goal_summary(current_user_id):
     try:
-        with get_db_session() as db:
-            summary = GoalManager().calculate_goal_summary(db, current_user_id)
-            return jsonify({"success": True, "data": summary})
+        summary = goal_manager.calculate_goal_summary(current_user_id)
+        return jsonify({"success": True, "data": summary})
     except Exception as e:
         app.logger.error(f"Error in get_goal_summary: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -450,9 +445,8 @@ def line_webhook():
         # 目前只處理文字訊息事件
         if isinstance(event, MessageEvent) and isinstance(event.message, TextMessage):
             try:
-                # 為每一個事件建立獨立的 db_session
-                with get_db_session() as db:
-                    linebot_manager.handle_message_flex(event, db)
+                # 現在 handle_message_flex 會自動從 db_session 獲取 session
+                linebot_manager.handle_message_flex(event)
             except Exception as e:
                 app.logger.error(f"Error handling Line event: {e}")
                 # 如果處理過程中發生任何錯誤，回覆使用者一個通用錯誤訊息
@@ -490,8 +484,7 @@ def line_login_callback():
             raise ValueError("無法從 ID Token 獲取使用者 ID")
 
         # 3. 獲取或創建使用者 (使用新的 DB Session 模式)
-        with get_db_session() as db:
-            user = UserManager().get_or_create_user(db, user_id, display_name)
+        user = user_manager.get_or_create_user(user_id, display_name)
 
         # 4. 產生應用程式 JWT
         payload = {

@@ -3,14 +3,14 @@ from ...asset_manager import AssetManager
 class TransferFlowHandler:
     """處理帳戶間轉帳的流程"""
     
-    def __init__(self, user_state_manager, operation_theme):
+    def __init__(self, user_state_manager, operation_theme, asset_manager):
         self.user_state_manager = user_state_manager
         self.theme = operation_theme
+        self.asset_manager = asset_manager
     
-    # start_flow 現在需要 db_session
-    def start_flow(self, user_id, db_session):
+    def start_flow(self, user_id):
         """開始轉帳流程"""
-        assets = AssetManager().get_all_assets(db_session, user_id)
+        assets = self.asset_manager.get_all_assets(user_id)
         
         if len(assets) < 2:
             return "您需要至少兩個帳戶才能進行轉帳\n請先新增更多帳戶"
@@ -18,31 +18,30 @@ class TransferFlowHandler:
         self.user_state_manager.set_user_state(user_id, 'transfer_flow', 'select_source')
         return self.theme.create_transfer_account_selection(assets, "請選擇轉出帳戶", "source")
     
-    # handle_flow_message 也需要 db_session
-    def handle_flow_message(self, user_id, message, current_state, db_session):
+    def handle_flow_message(self, user_id, message, current_state):
         """處理轉帳流程中的訊息"""
         step = current_state['step']
         
         if step == 'select_source':
-            return self._handle_source_selection(user_id, message, db_session)
+            return self._handle_source_selection(user_id, message)
         elif step == 'select_target':
-            return self._handle_target_selection(user_id, message, db_session)
+            return self._handle_target_selection(user_id, message)
         elif step == 'input_amount':
-            return self._handle_amount_input(user_id, message, current_state, db_session)
+            return self._handle_amount_input(user_id, message, current_state)
         elif step == 'confirm':
-            return self._handle_confirmation(user_id, message, current_state, db_session)
+            return self._handle_confirmation(user_id, message, current_state)
         else:
             self.user_state_manager.clear_user_state(user_id)
             return "轉帳流程異常，已重置。請重新開始"
     
-    def _handle_source_selection(self, user_id, message, db_session):
+    def _handle_source_selection(self, user_id, message):
         """處理來源帳戶選擇"""
         if message == "取消操作":
             self.user_state_manager.clear_user_state(user_id)
             return "轉帳已取消"
         
         source_account_key = message.replace("選擇帳戶:", "")
-        assets = AssetManager().get_all_assets(db_session, user_id)
+        assets = self.asset_manager.get_all_assets(user_id)
         if source_account_key not in assets:
             return "選擇的帳戶不存在，請重新選擇"
         
@@ -53,7 +52,7 @@ class TransferFlowHandler:
         target_assets = {k: v for k, v in assets.items() if k != source_account_key}
         return self.theme.create_transfer_account_selection(target_assets, "請選擇轉入帳戶", "target")
     
-    def _handle_target_selection(self, user_id, message, db_session):
+    def _handle_target_selection(self, user_id, message):
         """處理目標帳戶選擇"""
         if message == "取消操作":
             self.user_state_manager.clear_user_state(user_id)
@@ -63,7 +62,7 @@ class TransferFlowHandler:
         current_state = self.user_state_manager.get_user_state(user_id)
         source_key = current_state['data']['source_account']
         
-        assets = AssetManager().get_all_assets(db_session, user_id)
+        assets = self.asset_manager.get_all_assets(user_id)
         source_account = assets.get(source_key)
         target_account = assets.get(target_account_key)
 
@@ -76,7 +75,7 @@ class TransferFlowHandler:
         )
         return self.theme.create_transfer_amount_input(source_account, target_account)
     
-    def _handle_amount_input(self, user_id, message, current_state, db_session):
+    def _handle_amount_input(self, user_id, message, current_state):
         """處理金額輸入"""
         if message == "取消操作":
             self.user_state_manager.clear_user_state(user_id)
@@ -87,7 +86,7 @@ class TransferFlowHandler:
             if amount <= 0: return "金額必須大於 0，請重新輸入"
             
             data = current_state['data']
-            assets = AssetManager().get_all_assets(db_session, user_id)
+            assets = self.asset_manager.get_all_assets(user_id)
             source_account = assets.get(data['source_account'])
 
             if not source_account:
@@ -104,20 +103,19 @@ class TransferFlowHandler:
         except ValueError:
             return "請輸入有效的數字金額"
     
-    def _handle_confirmation(self, user_id, message, current_state, db_session):
+    def _handle_confirmation(self, user_id, message, current_state):
         """處理確認轉帳"""
         if message == "確認轉帳":
             data = current_state['data']
-            asset_manager = AssetManager()
             
             # 執行轉帳
-            asset_manager.transfer(
-                db_session, user_id, data["source_account"], data["target_account"], data["amount"]
+            self.asset_manager.transfer(
+                user_id, data["source_account"], data["target_account"], data["amount"]
             )
             self.user_state_manager.clear_user_state(user_id)
             
             # 獲取更新後的帳戶資訊以顯示
-            updated_assets = asset_manager.get_all_assets(db_session, user_id)
+            updated_assets = self.asset_manager.get_all_assets(user_id)
             source_account = updated_assets.get(data['source_account'])
             target_account = updated_assets.get(data['target_account'])
             

@@ -3,17 +3,18 @@ from ...goal_manager import GoalManager
 class DeleteGoalFlowHandler:
     """刪除目標流程處理器"""
 
-    def __init__(self, user_state_manager, operation_theme):
+    def __init__(self, user_state_manager, operation_theme, goal_manager):
         self.user_state_manager = user_state_manager
         self.theme = operation_theme
+        self.goal_manager = goal_manager
 
-    def start_flow(self, user_id, db_session, goal_id=None):
+    def start_flow(self, user_id, goal_id=None):
         """開始刪除目標流程"""
         # goal_id is passed from message_handler when user clicks a specific goal
         if not goal_id:
             return "缺少目標 ID，無法開始刪除流程。"
 
-        goal = GoalManager().get_goal_by_id(db_session, user_id, goal_id)
+        goal = self.goal_manager.get_goal_by_id(user_id, goal_id)
         if not goal:
             return "找不到指定的目標，請重新操作。"
 
@@ -25,23 +26,23 @@ class DeleteGoalFlowHandler:
         )
         return self.theme.create_delete_goal_confirmation(goal)
 
-    def handle_flow_message(self, user_id, message, current_state, db_session):
+    def handle_flow_message(self, user_id, message, current_state):
         """處理刪除目標流程中的訊息"""
         step = current_state.get('step')
 
         if step == 'confirm':
-            return self._handle_confirmation(user_id, message, current_state, db_session)
+            return self._handle_confirmation(user_id, message, current_state)
         else:
             self.user_state_manager.clear_user_state(user_id)
             return "刪除目標流程異常，已重置。"
 
-    def _handle_confirmation(self, user_id, message, current_state, db_session):
+    def _handle_confirmation(self, user_id, message, current_state):
         """處理確認刪除"""
         if message == "確認刪除":
             goal = current_state['data']['goal']
             goal_id = goal['id']
             
-            GoalManager().delete_goal(db_session, user_id, goal_id)
+            self.goal_manager.delete_goal(user_id, goal_id)
             
             self.user_state_manager.clear_user_state(user_id)
             return self.theme.create_delete_goal_success(goal)

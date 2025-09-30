@@ -3,13 +3,14 @@ from ...asset_manager import AssetManager
 class UpdateBalanceFlowHandler:
     """更新帳戶餘額流程處理器"""
     
-    def __init__(self, user_state_manager, operation_theme):
+    def __init__(self, user_state_manager, operation_theme, asset_manager):
         self.user_state_manager = user_state_manager
         self.theme = operation_theme
+        self.asset_manager = asset_manager
     
-    def start_flow(self, user_id, db_session):
+    def start_flow(self, user_id):
         """開始更新餘額流程"""
-        assets = AssetManager().get_all_assets(db_session, user_id)
+        assets = self.asset_manager.get_all_assets(user_id)
         if not assets:
             return "您還沒有任何帳戶，請先新增帳戶"
         
@@ -18,21 +19,21 @@ class UpdateBalanceFlowHandler:
         )
         return self.theme.create_update_balance_account_selection(list(assets.values()))
     
-    def handle_flow_message(self, user_id, message, current_state, db_session):
+    def handle_flow_message(self, user_id, message, current_state):
         """處理更新餘額流程中的訊息"""
         step = current_state['step']
         
         if step == 'select_account':
-            return self._handle_account_selection(user_id, message, db_session)
+            return self._handle_account_selection(user_id, message)
         elif step == 'input_balance':
             return self._handle_balance_input(user_id, message, current_state)
         elif step == 'confirm':
-            return self._handle_confirmation(user_id, message, current_state, db_session)
+            return self._handle_confirmation(user_id, message, current_state)
         else:
             self.user_state_manager.clear_user_state(user_id)
             return "更新餘額流程異常，已重置。"
     
-    def _handle_account_selection(self, user_id, message, db_session):
+    def _handle_account_selection(self, user_id, message):
         """處理帳戶選擇"""
         if message == "取消操作":
             self.user_state_manager.clear_user_state(user_id)
@@ -40,7 +41,7 @@ class UpdateBalanceFlowHandler:
         
         account_key = message.replace("選擇帳戶:", "")
         
-        assets = AssetManager().get_all_assets(db_session, user_id)
+        assets = self.asset_manager.get_all_assets(user_id)
         selected_asset = assets.get(account_key)
         if not selected_asset:
             return "選擇的帳戶不存在，請重新選擇"
@@ -77,13 +78,13 @@ class UpdateBalanceFlowHandler:
                 error_message="請輸入有效的數字金額"
             )
     
-    def _handle_confirmation(self, user_id, message, current_state, db_session):
+    def _handle_confirmation(self, user_id, message, current_state):
         """處理確認更新"""
         if message == "確認更新":
             data = current_state['data']
             
-            AssetManager().update_balance(
-                db_session, user_id, data['account_key'], data['new_balance']
+            self.asset_manager.update_balance(
+                user_id, data['account_key'], data['new_balance']
             )
             
             self.user_state_manager.clear_user_state(user_id)

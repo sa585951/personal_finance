@@ -15,8 +15,9 @@ class LineBotManager:
     管理 Line Bot 的核心邏輯，包含訊息的接收、解析與回覆。
     現在的設計是作為一個較無狀態的服務，由 web_app 傳入 db_session 來處理請求。
     """
-    def __init__(self, app_state):
+    def __init__(self, app_state, db_session):
         self.app_state = app_state
+        self.db_session = db_session
         # Line Bot 設定
         self.line_bot_api = LineBotApi(os.getenv("LINE_MSG_CHANNEL_ACCESS_TOKEN"))
         self.handler = WebhookHandler(os.getenv("LINE_MSG_CHANNEL_SECRET"))
@@ -27,6 +28,7 @@ class LineBotManager:
         self.model = genai.GenerativeModel('gemini-2.5-flash')
 
         self.user_state_manager = UserStateManager()
+        self.user_manager = UserManager(self.db_session)
         
         # Prompt 模板 (保持不變)
         self.prompt_template = '''
@@ -44,9 +46,9 @@ class LineBotManager:
         **規則：**
         1. **支出記錄**: 必須包含 `type`, `budget_category`, `category`, `amount`。
            - JSON: {{ "type": "expense", "budget_category": "...", "category": "...", "description": "...", "amount": ..., "target_asset": "..." }}
-        2. **收入記錄**:
+        2. **收入記錄**: 
            - JSON: {{ "type": "income", "budget_category": "收入", "category": "收入來源", "description": "備註", "amount": ..., "target_asset": "..." }}
-        3. **欄位提取邏輯**:
+        3. **欄位提取邏輯**: 
            - `budget_category`: 將消費目的歸類到「類別限制」中的一個。
            - `category`: 從訊息中提取次級消費類型。
            - `description`: 從訊息中提取最詳細的品項或地點。若 `category` 和 `description` 相似，優先將具體名詞填入 `description`。
@@ -75,10 +77,9 @@ class LineBotManager:
             prompt_template=self.prompt_template,
         )
         
-        # MessageHandler 也不再需要預先注入所有 manager
-        self.message_handler = MessageHandler(self.user_state_manager)
+        self.message_handler = MessageHandler(self.user_state_manager, self.db_session)
 
-    def handle_message_flex(self, event, db_session):
+    def handle_message_flex(self, event):
         """
         處理單一訊息事件的核心邏輯。
         由 web_app 傳入 event 和 db_session。
@@ -91,8 +92,8 @@ class LineBotManager:
         profile = self.line_bot_api.get_profile(user_id)
         display_name = profile.display_name
 
-        # 確保使用者存在於資料庫中 (現在需要傳入 db_session)
-        UserManager().get_or_create_user(db_session, user_id, display_name)
+        # 確保使用者存在於資料庫中
+        self.user_manager.get_or_create_user(user_id, display_name)
 
         if self.app_state and self.app_state.is_cold_start():
             print(f"冷啟動期間收到訊息: {user_message}")
@@ -102,11 +103,9 @@ class LineBotManager:
         # 正常的訊息解析流程
         parsed_data = self.message_parser.parse(user_message)
         
-        # MessageHandler 的方法也需要傳入 db_session
-        response_message = self.message_handler.handle_user_message(user_id, user_message, parsed_data, db_session)
+        response_message = self.message_handler.handle_user_message(user_id, user_message, parsed_data)
 
         self.reply_message_flex(event.reply_token, response_message)
-
     def reply_message_flex(self, reply_token, message):
         """
         支援 Flex Message 的回覆方法

@@ -30,25 +30,9 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # 使用 scoped_session 來確保每個 Web 請求都使用獨立的 Session
-# 這是一個執行緒安全的 Session 物件
+# 這是一個執行緒安全的 Session 物件。
+# 我們將在應用程式層級 (例如 Flask 的 @app.teardown_appcontext) 中管理 session 的生命週期。
 db_session = scoped_session(SessionLocal)
-
-@contextmanager
-def get_db_session():
-    """提供一個交易性的資料庫 session。
-    
-    這個 context manager 會處理 session 的生命週期，
-    包含交易的 commit、rollback 和 session 的關閉。
-    """
-    session = SessionLocal()
-    try:
-        yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
 
 # 確保所有在 schema.py 中定義的資料表都被創建
 # 這行可以保留，用於初次啟動時建表

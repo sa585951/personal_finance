@@ -3,20 +3,20 @@ from ...asset_manager import AssetManager
 class AddAccountFlowHandler:
     """新增帳戶流程處理器"""
     
-    def __init__(self, user_state_manager, operation_theme):
+    def __init__(self, user_state_manager, operation_theme, asset_manager):
         self.user_state_manager = user_state_manager
         self.theme = operation_theme
+        self.asset_manager = asset_manager
         self.account_types = ["活存", "定存", "投資", "信用卡", "其他"]
     
-    # 為了架構統一，接收 db_session，即使此處未使用
-    def start_flow(self, user_id, db_session=None):
+    def start_flow(self, user_id):
         """開始新增帳戶流程"""
         self.user_state_manager.set_user_state(
             user_id, 'add_account_flow', 'input_bank_name'
         )
         return self.theme.create_bank_name_input()
             
-    def handle_flow_message(self, user_id, message, current_state, db_session):
+    def handle_flow_message(self, user_id, message, current_state):
         """處理新增帳戶流程中的訊息"""
         step = current_state['step']
         
@@ -27,7 +27,7 @@ class AddAccountFlowHandler:
         elif step == 'input_balance':
             return self._handle_balance_input(user_id, message, current_state)
         elif step == 'confirm':
-            return self._handle_confirmation(user_id, message, current_state, db_session)
+            return self._handle_confirmation(user_id, message, current_state)
         else:
             self.user_state_manager.clear_user_state(user_id)
             return "新增帳戶流程異常，已重置。"
@@ -90,14 +90,12 @@ class AddAccountFlowHandler:
         except ValueError:
             return self.theme.create_balance_input_flex(error_message="請輸入有效的數字金額")
         
-    def _handle_confirmation(self, user_id, message, current_state, db_session):
+    def _handle_confirmation(self, user_id, message, current_state):
         """處理確認新增"""
         if message == "確認新增":
             data = current_state['data']
             
-            asset_manager = AssetManager()
-            asset_manager.add_account(
-                db_session,
+            self.asset_manager.add_account(
                 user_id,
                 data["bank_name"],
                 data["account_type"],
