@@ -35,5 +35,5 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 db_session = scoped_session(SessionLocal)
 
 # 確保所有在 schema.py 中定義的資料表都被創建
-# 這行可以保留，用於初次啟動時建表
-metadata.create_all(engine)
+# 這行可以保留，用於初次啟動時建表，但在生產環境中建議註解掉
+# metadata.create_all(engine)
