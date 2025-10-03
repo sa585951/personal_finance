@@ -438,7 +438,7 @@ def get_overspending_warnings(current_user_id):
 def get_goal_summary(current_user_id):
     try:
         summary = goal_manager.calculate_goal_summary(current_user_id)
-        return jsonify({"success": True, "data": summary
+        return jsonify({"success": True, "data": summary})
     except Exception as e:
         app.logger.error(f"Error in get_goal_summary: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
