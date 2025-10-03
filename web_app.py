@@ -46,11 +46,10 @@ user_manager = UserManager(db_session)
 def shutdown_session(exception=None):
     """請求結束後自動關閉 session"""
     try:
-        if exception is None:
-            db_session.commit()
+        if exception:
+            db_session.rollback()
     except Exception as e:
-        app.logger.error(f"Session commit failed: {e}")
-        db_session.rollback()
+        app.logger.error(f"Session rollback failed: {e}")
     finally:
         db_session.remove()
 
@@ -108,6 +107,8 @@ def add_asset(current_user_id):
         success, message = asset_manager.add_account(
             current_user_id, data["bank_name"], data["account_type"], data["balance"]
         )
+        if success:
+            db_session.commit()
         return jsonify({"success": success, "message": message}), 201
     except Exception as e:
         app.logger.error(f"Error in add_asset: {e}")
@@ -122,6 +123,8 @@ def update_asset_balance(current_user_id, account_key):
 
     try:
         success, message = asset_manager.update_balance(current_user_id, account_key, data['new_balance'])
+        if success:
+            db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in update_asset_balance: {e}")
@@ -132,6 +135,8 @@ def update_asset_balance(current_user_id, account_key):
 def delete_asset(current_user_id, account_key):
     try:
         success, message = asset_manager.delete_account(current_user_id, account_key)
+        if success:
+            db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in delete_asset: {e}")
@@ -146,6 +151,8 @@ def transfer_funds(current_user_id):
 
     try:
         success, message = asset_manager.transfer(current_user_id, data["source_id"], data["dest_id"], data["amount"])
+        if success:
+            db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in transfer_funds: {e}")
@@ -169,21 +176,24 @@ def set_budget(current_user_id):
     data = request.get_json()
     if not data or not all(k in data for k in ["month", "category", "amount"]):
         return jsonify({"success": False, "message": "缺少必要欄位"}), 400
-
+    
     try:
         success, message = budget_manager.set_budget(
             current_user_id, data["month"], data["category"], data["amount"], data.get("notes", "")
         )
+        if success:
+            db_session.commit()
         return jsonify({"success": success, "message": message}), 201
     except Exception as e:
         app.logger.error(f"Error in set_budget: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
-
 @app.route("/api/budgets/<string:month>/<string:category>", methods=["DELETE"])
 @token_required
 def delete_budget(current_user_id, month, category):
     try:
         success, message = budget_manager.delete_budget(current_user_id, month, category)
+        if success:
+            db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in delete_budget: {e}")
@@ -222,6 +232,8 @@ def add_transaction(current_user_id):
             current_user_id, data["date"], data["item"], data["amount"], 
             data["type"], data["budget_category"], data.get("description", "")
         )
+        if success:
+            db_session.commit()
         return jsonify({"success": success, "message": message}), 201
     except Exception as e:
         app.logger.error(f"Error in add_transaction: {e}")
@@ -232,6 +244,8 @@ def add_transaction(current_user_id):
 def delete_transaction(current_user_id, transaction_id):
     try:
         success, message = budget_manager.delete_transaction(current_user_id, transaction_id)
+        if success:
+            db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in delete_transaction: {e}")
@@ -290,6 +304,8 @@ def add_goal(current_user_id):
             current_user_id, data["title"], data["type"], data["target_amount"], 
             data["target_date"], data.get("description", "")
         )
+        if success:
+            db_session.commit()
         return jsonify({"success": success, "message": "目標新增成功", "data": result}), 201
     except Exception as e:
         app.logger.error(f"Error in add_goal: {e}")
@@ -304,6 +320,8 @@ def update_goal(current_user_id, goal_id):
 
     try:
         success, message = goal_manager.update_goal(current_user_id, goal_id, **data)
+        if success:
+            db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in update_goal: {e}")
@@ -314,6 +332,8 @@ def update_goal(current_user_id, goal_id):
 def delete_goal(current_user_id, goal_id):
     try:
         success, message = goal_manager.delete_goal(current_user_id, goal_id)
+        if success:
+            db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in delete_goal: {e}")
@@ -418,7 +438,7 @@ def get_overspending_warnings(current_user_id):
 def get_goal_summary(current_user_id):
     try:
         summary = goal_manager.calculate_goal_summary(current_user_id)
-        return jsonify({"success": True, "data": summary})
+        return jsonify({"success": True, "data": summary
     except Exception as e:
         app.logger.error(f"Error in get_goal_summary: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -447,6 +467,7 @@ def line_webhook():
             try:
                 # 現在 handle_message_flex 會自動從 db_session 獲取 session
                 linebot_manager.handle_message_flex(event)
+                db_session.commit() # Add commit after successful handling
             except Exception as e:
                 app.logger.error(f"Error handling Line event: {e}")
                 # 如果處理過程中發生任何錯誤，回覆使用者一個通用錯誤訊息
@@ -485,6 +506,7 @@ def line_login_callback():
 
         # 3. 獲取或創建使用者 (使用新的 DB Session 模式)
         user = user_manager.get_or_create_user(user_id, display_name)
+        db_session.commit() # Commit after user creation/retrieval
 
         # 4. 產生應用程式 JWT
         payload = {
