@@ -181,8 +181,16 @@ class MessageHandler:
             total_expenses = sum(self.budget_manager.calculate_monthly_expenses(user_id, month).values())
             transactions = self.budget_manager.get_all_transactions(user_id)
             
-            recent_transactions = [t for t in transactions if t['date'].startswith(month)][:5]
-            transaction_count = len([t for t in transactions if t['date'].startswith(month)])
+            # 處理 date 可能是 datetime.date 物件或字串的情況
+            def get_date_str(transaction):
+                date_val = transaction['date']
+                if isinstance(date_val, str):
+                    return date_val
+                # 如果是 datetime.date 物件，轉換為字串
+                return date_val.strftime("%Y-%m-%d") if hasattr(date_val, 'strftime') else str(date_val)
+            
+            recent_transactions = [t for t in transactions if get_date_str(t).startswith(month)][:5]
+            transaction_count = len([t for t in transactions if get_date_str(t).startswith(month)])
             
             return self.response_builder.create_monthly_summary(
                 month, total_expenses, transaction_count, recent_transactions, {}
