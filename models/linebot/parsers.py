@@ -148,6 +148,10 @@ class QuickParser:
         if any(word in message_lower for word in ['資產', '總資產']):
             return {"type": "asset_query"}
         
+        # 預算相關
+        if any(word in message_lower for word in ['設定預算', '新增預算', '調整預算']):
+            return {"type": "start_set_budget"}
+
         # 目標相關
         if any(word in message_lower for word in ['財務目標', '我的目標', '目標查詢']):
             return {"type": "goal_query"}
