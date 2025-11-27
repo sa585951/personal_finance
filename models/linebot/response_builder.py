@@ -226,8 +226,7 @@ class ResponseBuilder:
                                         "flex": 1
                                     },
                                     {
-                                        "type": "spacer",
-                                        "size": "sm",
+                                        "type": "filler",
                                         "flex": 1
                                     }
                                 ]
