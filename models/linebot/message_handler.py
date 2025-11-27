@@ -59,6 +59,29 @@ class MessageHandler:
         
         return self._handle_parsed_message(user_id, parsed_data)
     
+    def handle_postback(self, user_id, data, params):
+        """處理 Postback 事件"""
+        user_state = self.user_state_manager.get_user_state(user_id)
+        if user_state:
+            # 如果有進行中的流程，將 Postback 資料視為輸入
+            # 我們將 params 合併到 message 中，或者特殊處理
+            # 對於 DatetimePicker，params 會有 'date', 'time' 或 'datetime'
+            
+            message = data # 預設使用 data 作為訊息
+            
+            # 如果是日期選擇器回傳
+            if params:
+                if 'date' in params:
+                    message = params['date']
+                elif 'time' in params:
+                    message = params['time']
+                elif 'datetime' in params:
+                    message = params['datetime']
+            
+            return self._handle_flow_message(user_id, message, user_state)
+        
+        return None
+    
     def _handle_flow_message(self, user_id, message, user_state):
         """處理流程中的訊息"""
         state_type = user_state.get("type")

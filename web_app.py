@@ -4,7 +4,7 @@ from flask import Flask, jsonify, request, redirect, url_for
 from flask_cors import CORS
 from sqlalchemy import select, func
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage
+from linebot.models import MessageEvent, TextMessage, PostbackEvent
 import os
 import requests
 import jwt
@@ -462,16 +462,19 @@ def line_webhook():
 
     # 遍歷所有事件
     for event in events:
-        # 目前只處理文字訊息事件
-        if isinstance(event, MessageEvent) and isinstance(event.message, TextMessage):
-            try:
-                # 現在 handle_message_flex 會自動從 db_session 獲取 session
+        try:
+            # 處理文字訊息事件
+            if isinstance(event, MessageEvent) and isinstance(event.message, TextMessage):
                 linebot_manager.handle_message_flex(event)
-                db_session.commit() # Add commit after successful handling
-            except Exception as e:
-                app.logger.error(f"Error handling Line event: {e}")
-                # 如果處理過程中發生任何錯誤，回覆使用者一個通用錯誤訊息
-                linebot_manager.reply_message_flex(event.reply_token, "抱歉，處理您的請求時發生內部錯誤，請稍後再試。")
+                db_session.commit()
+            # 處理 Postback 事件 (例如 DatetimePicker)
+            elif isinstance(event, PostbackEvent):
+                linebot_manager.handle_postback_event(event)
+                db_session.commit()
+        except Exception as e:
+            app.logger.error(f"Error handling Line event: {e}")
+            # 如果處理過程中發生任何錯誤，回覆使用者一個通用錯誤訊息
+            linebot_manager.reply_message_flex(event.reply_token, "抱歉，處理您的請求時發生內部錯誤，請稍後再試。")
 
     return 'OK'
 

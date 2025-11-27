@@ -24,6 +24,60 @@ class OperationTheme(BaseTheme):
             "margin": self.SPACING['md']
         }
     """操作主題 - 步驟化、引導式風格"""
+    
+    def create_text_message(self, text, quick_reply=None):
+        """建立純文字訊息 (可選 QuickReply)"""
+        from linebot.models import TextSendMessage
+        return TextSendMessage(text=text, quick_reply=quick_reply)
+
+    def create_month_selection_message(self, title="請選擇月份"):
+        """建立月份選擇 Flex Message (使用 DatetimePicker)"""
+        from linebot.models import DatetimePickerAction
+        
+        flex_content = {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": title,
+                        "weight": "bold",
+                        "size": "md",
+                        "align": "center"
+                    },
+                    {
+                        "type": "button",
+                        "action": {
+                            "type": "datetimepicker",
+                            "label": "點擊選擇月份",
+                            "data": "action=select_month",
+                            "mode": "date",
+                            "initial": datetime.now().strftime("%Y-%m-%d"),
+                            "max": (datetime.now().replace(year=datetime.now().year + 1)).strftime("%Y-%m-%d"),
+                            "min": "2020-01-01"
+                        },
+                        "style": "primary",
+                        "color": "#4CAF50",
+                        "margin": "md"
+                    },
+                    {
+                        "type": "button",
+                        "action": {
+                            "type": "message",
+                            "label": "取消",
+                            "text": "取消"
+                        },
+                        "style": "link",
+                        "margin": "sm"
+                    }
+                ],
+                "paddingAll": "20px"
+            }
+        }
+        return FlexSendMessage(alt_text="請選擇月份", contents=flex_content)
+
     # ====== Add Account ======
     def create_add_account_confirmation(self, data, balance):
         """建立新增帳戶確認 Flex Message"""

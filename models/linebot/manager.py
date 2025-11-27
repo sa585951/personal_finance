@@ -106,6 +106,26 @@ class LineBotManager:
         response_message = self.message_handler.handle_user_message(user_id, user_message, parsed_data)
 
         self.reply_message_flex(event.reply_token, response_message)
+
+    def handle_postback_event(self, event):
+        """
+        處理 Postback 事件 (例如 DatetimePicker)
+        """
+        user_id = event.source.user_id
+        data = event.postback.data
+        params = event.postback.params if event.postback.params else {}
+        
+        print(f"Received postback from user_id: {user_id}, data: {data}, params: {params}")
+
+        # 確保使用者存在
+        profile = self.line_bot_api.get_profile(user_id)
+        self.user_manager.get_or_create_user(user_id, profile.display_name)
+
+        # 交給 MessageHandler 處理
+        response_message = self.message_handler.handle_postback(user_id, data, params)
+        
+        if response_message:
+            self.reply_message_flex(event.reply_token, response_message)
     def reply_message_flex(self, reply_token, message):
         """
         支援 Flex Message 的回覆方法

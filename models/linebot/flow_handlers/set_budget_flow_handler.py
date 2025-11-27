@@ -18,23 +18,15 @@ class SetBudgetFlowHandler:
         """啟動流程"""
         self.user_state_manager.set_user_state(user_id, "set_budget_flow", step=1, data={})
         
-        # 產生月份選項 (本月與下個月)
-        now = datetime.now()
-        current_month = now.strftime("%Y-%m")
-        next_month_date = (now.replace(day=1) + datetime.timedelta(days=32)).replace(day=1)
-        next_month = next_month_date.strftime("%Y-%m")
-        
-        quick_reply_buttons = [
-            QuickReplyButton(action=MessageAction(label="本月", text=current_month)),
-            QuickReplyButton(action=MessageAction(label="下個月", text=next_month))
-        ]
-        
-        return self.operation_theme.create_text_message(
-            "請問要設定哪一個月份的預算？(格式: YYYY-MM)",
-            quick_reply=QuickReply(items=quick_reply_buttons)
-        )
+        # 使用新的日期選擇器介面
+        return self.operation_theme.create_month_selection_message("請問要設定哪一個月份的預算？")
 
     def handle_flow_message(self, user_id, message, user_state):
+        # 處理取消指令
+        if message in ["取消", "取消操作"]:
+            self.user_state_manager.clear_user_state(user_id)
+            return "已取消設定預算。"
+
         step = user_state.get("step")
         data = user_state.get("data", {})
 
@@ -48,12 +40,21 @@ class SetBudgetFlowHandler:
         return "發生錯誤，請重新開始。"
 
     def _handle_step_1_month(self, user_id, message, data):
-        # 簡單驗證月份格式
-        import re
-        if not re.match(r"^\d{4}-\d{2}$", message):
-            return "月份格式不正確，請輸入 YYYY-MM (例如 2023-10)"
+        # 處理 DatetimePicker 回傳的日期 (格式 YYYY-MM-DD)
+        # 我們只需要 YYYY-MM
+        try:
+            # 嘗試解析日期
+            date_obj = datetime.strptime(message, "%Y-%m-%d")
+            month_str = date_obj.strftime("%Y-%m")
+        except ValueError:
+            # 如果不是完整日期，嘗試解析 YYYY-MM
+            import re
+            if re.match(r"^\d{4}-\d{2}$", message):
+                month_str = message
+            else:
+                return "日期格式不正確，請使用按鈕選擇或輸入 YYYY-MM"
         
-        data['month'] = message
+        data['month'] = month_str
         self.user_state_manager.update_user_state(user_id, step=2, data=data)
         
         # 取得預算類別建議
