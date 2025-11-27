@@ -226,7 +226,9 @@ class ResponseBuilder:
                                         "flex": 1
                                     },
                                     {
-                                        "type": "filler",
+                                        "type": "box",
+                                        "layout": "vertical",
+                                        "contents": [],
                                         "flex": 1
                                     }
                                 ]
