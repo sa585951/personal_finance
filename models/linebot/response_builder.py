@@ -208,6 +208,29 @@ class ResponseBuilder:
                                         "flex": 1
                                     }
                                 ]
+                            },
+                            {
+                                "type": "box",
+                                "layout": "horizontal",
+                                "spacing": "sm",
+                                "contents": [
+                                    {
+                                        "type": "button",
+                                        "style": "link",
+                                        "height": "sm",
+                                        "action": {
+                                            "type": "message",
+                                            "label": "設定預算",
+                                            "text": "設定預算"
+                                        },
+                                        "flex": 1
+                                    },
+                                    {
+                                        "type": "spacer",
+                                        "size": "sm",
+                                        "flex": 1
+                                    }
+                                ]
                             }
                         ]
                     },

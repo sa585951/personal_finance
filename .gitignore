@@ -13,3 +13,6 @@ __pycache__/
 
 # Render 部署日誌檔案
 .render
+
+# 測試腳本
+scripts/simulate_webhook.py

@@ -20,6 +20,7 @@ from .flow_handlers.add_expense_flow_handler import AddExpenseFlowHandler
 from .flow_handlers.add_income_flow_handler import AddIncomeFlowHandler
 from .flow_handlers.edit_goal_flow_handler import EditGoalFlowHandler
 from .flow_handlers.delete_goal_flow_handler import DeleteGoalFlowHandler
+from .flow_handlers.set_budget_flow_handler import SetBudgetFlowHandler
 from .response_builder import ResponseBuilder
 
 class MessageHandler:
@@ -47,6 +48,7 @@ class MessageHandler:
             "add_income_flow": AddIncomeFlowHandler(self.user_state_manager, operation_theme, self.budget_manager, self.asset_manager),
             "edit_goal_flow": EditGoalFlowHandler(self.user_state_manager, operation_theme, self.goal_manager),
             "delete_goal_flow": DeleteGoalFlowHandler(self.user_state_manager, operation_theme, self.goal_manager),
+            "set_budget_flow": SetBudgetFlowHandler(self.user_state_manager, operation_theme, self.budget_manager),
         }
 
     def handle_user_message(self, user_id, message, parsed_data):
