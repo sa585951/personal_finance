@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Money Journey">
+  <rect width="512" height="512" rx="112" fill="#0f766e"/>
+  <path d="M130 142h252c19 0 34 15 34 34v160c0 19-15 34-34 34H130c-19 0-34-15-34-34V176c0-19 15-34 34-34Z" fill="#f8fafc"/>
+  <path d="M126 196h260" stroke="#0f766e" stroke-width="34" stroke-linecap="round"/>
+  <circle cx="194" cy="286" r="46" fill="#2563eb"/>
+  <path d="M268 280h82M268 324h56" stroke="#0f766e" stroke-width="26" stroke-linecap="round"/>
+  <path d="M167 122l89-54 89 54" fill="none" stroke="#ccfbf1" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

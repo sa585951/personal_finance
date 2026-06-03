@@ -1,118 +1,101 @@
 <template>
-  <div class="page-container">
-    <h1>財務目標規劃</h1>
+  <div class="goals-screen">
+    <header class="goals-header">
+      <p class="eyebrow">Deferred</p>
+      <h1>財務目標</h1>
+    </header>
 
-    <GoalSummaryCard />
-
-    <GoalForm @goal-added="fetchGoals" />
-
-    <GoalList
-      :goals="goals"
-      @update-goal="updateGoal"
-      @delete-goal="deleteGoal"
-      @update-progress="updateGoalProgress"
-    />
+    <section class="placeholder-card">
+      <div class="status-pill">MVP 後開放</div>
+      <h2>這個功能尚未開啟</h2>
+      <p>
+        財務目標會先暫緩，等日常記帳、旅行帳本、多幣別與分帳流程穩定後再重新設計。
+      </p>
+      <router-link class="primary-link" to="/">回首頁</router-link>
+    </section>
   </div>
 </template>
 
 <script>
-import apiClient from "@/api";
-import GoalForm from "../components/goals/GoalForm.vue";
-import GoalList from "../components/goals/GoalList.vue";
-import GoalSummaryCard from "../components/reports/GoalSummaryCard.vue";
-
 export default {
   name: "FinancialGoals",
-  components: {
-    GoalForm,
-    GoalList,
-    GoalSummaryCard,
-  },
-  data() {
-    return {
-      goals: {},
-    };
-  },
-  methods: {
-    async fetchGoals() {
-      try {
-        const response = await apiClient.get(`/api/goals`);
-        this.goals = response.data.data;
-      } catch (error) {
-        this.$swal.fire({
-          icon: "error",
-          title: "錯誤",
-          text: "無法載入目標資料，請稍後再試。",
-        });
-      }
-    },
-    async updateGoal(goalId, updatedData) {
-      try {
-        const response = await apiClient.put(`/api/goals/${goalId}`, updatedData);
-        this.$swal.fire({
-          icon: "success",
-          title: "成功",
-          text: response.data.message,
-        });
-        this.fetchGoals();
-      } catch (error) {
-        this.$swal.fire({
-          icon: "error",
-          title: "更新失敗",
-          text: "無法更新目標，請稍後再試。",
-        });
-      }
-    },
-    async deleteGoal(goalId) {
-      try {
-        const response = await apiClient.delete(`/api/goals/${goalId}`);
-        this.$swal.fire({
-          icon: "success",
-          title: "成功",
-          text: response.data.message,
-        });
-        this.fetchGoals();
-      } catch (error) {
-        this.$swal.fire({
-          icon: "error",
-          title: "刪除失敗",
-          text: "無法刪除目標，請稍後再試。",
-        });
-      }
-    },
-    async updateGoalProgress(goalId, newCurrentAmount) {
-      try {
-        const response = await apiClient.put(`/api/goals/${goalId}`, {
-          current_amount: newCurrentAmount,
-        });
-        this.$swal.fire({
-          icon: "success",
-          title: "成功",
-          text: response.data.message,
-        });
-        this.fetchGoals();
-      } catch (error) {
-        this.$swal.fire({
-          icon: "error",
-          title: "更新失敗",
-          text: "無法更新進度，請稍後再試。",
-        });
-      }
-    },
-  },
-  created() {
-    this.fetchGoals();
-  },
 };
 </script>
 
 <style scoped>
-.page-container {
-  max-width: 900px;
-  margin: 40px auto;
+.goals-screen {
+  max-width: 520px;
+  min-height: calc(100vh - 80px);
+  margin: 0 auto;
+  padding: 24px 14px calc(var(--app-bottom-nav-height) + 22px);
+  color: #1f2933;
+}
+
+.goals-header {
+  margin-bottom: 1rem;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h1 {
+  color: var(--text-color);
+  font-size: 1.85rem;
+}
+
+.placeholder-card {
   padding: 20px;
-  background-color: var(--card-bg);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.placeholder-card h2 {
+  margin-top: 14px;
+  color: #1f2933;
+  font-size: 1.35rem;
+}
+
+.placeholder-card p {
+  margin: 10px 0 18px;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+.primary-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  width: 100%;
+  border-radius: 8px;
+  background: #0f766e;
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: none;
 }
 </style>

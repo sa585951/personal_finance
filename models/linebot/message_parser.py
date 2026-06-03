@@ -1,4 +1,4 @@
-from .parsers import QuickParser, GeminiParser
+from ..ai_parse_service import AIParseService
 
 
 class MessageParser:
@@ -13,9 +13,8 @@ class MessageParser:
             prompt_template (str): Prompt 模板
             cold_start_checker (callable, optional): 冷啟動檢測函數
         """
-        self.quick_parser = QuickParser()
-        self.gemini_parser = GeminiParser(
-            model = gemini_model,
+        self.ai_parse_service = AIParseService(
+            gemini_model=gemini_model,
             prompt_template=prompt_template,
         )
     
@@ -29,12 +28,8 @@ class MessageParser:
         Returns:
             dict: 解析結果
         """
-        return self._parse_hybrid(message)
-    
-    def _parse_hybrid(self, message):
-        """混和解析策略"""
-        quick_result = self.quick_parser.parse(message)
-        if quick_result:
-            return quick_result
-        
-        return self.gemini_parser.parse(message)
+        return self.ai_parse_service.parse_legacy(message)
+
+    def parse_shared(self, message):
+        """解析訊息並回傳跨平台共用格式。"""
+        return self.ai_parse_service.parse(message)

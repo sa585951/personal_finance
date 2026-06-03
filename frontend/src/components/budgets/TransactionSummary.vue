@@ -1,10 +1,10 @@
 <template>
   <div class="summary-container">
-    <h2>收支統計</h2>
-
-    <!-- 月份選擇 -->
-    <div class="month-selector">
-      <label for="selectedMonth">選擇月份:</label>
+    <div class="summary-header">
+      <div>
+        <span>日常本月摘要</span>
+        <strong>{{ netIncome >= 0 ? "結餘" : "超支" }} {{ formatMoney(Math.abs(netIncome)) }}</strong>
+      </div>
       <input
         type="month"
         id="selectedMonth"
@@ -13,37 +13,17 @@
       />
     </div>
 
-    <!-- 總計卡片 -->
     <div class="summary-cards">
       <div class="summary-card income">
-        <div class="card-icon">💰</div>
-        <div class="card-content">
-          <h3>總收入</h3>
-          <p class="amount">${{ Math.round(totalIncome).toLocaleString() }}</p>
-        </div>
+        <h3>收入</h3>
+        <p class="amount">{{ formatMoney(totalIncome) }}</p>
       </div>
 
       <div class="summary-card expense">
-        <div class="card-icon">💸</div>
-        <div class="card-content">
-          <h3>總支出</h3>
-          <p class="amount">${{ Math.round(totalExpense).toLocaleString() }}</p>
-        </div>
-      </div>
-
-      <div
-        class="summary-card net"
-        :class="netIncome >= 0 ? 'positive' : 'negative'"
-      >
-        <div class="card-icon">📊</div>
-        <div class="card-content">
-          <h3>淨收入</h3>
-          <p class="amount">${{ Math.round(netIncome).toLocaleString() }}</p>
-        </div>
+        <h3>支出</h3>
+        <p class="amount">{{ formatMoney(totalExpense) }}</p>
       </div>
     </div>
-
-    <div v-if="!selectedMonth" class="no-selection">請選擇月份查看統計</div>
   </div>
 </template>
 
@@ -74,6 +54,11 @@ export default {
     },
   },
   methods: {
+    formatMoney(amount) {
+      return `TWD ${Number(amount || 0).toLocaleString("zh-TW", {
+        maximumFractionDigits: 0,
+      })}`;
+    },
     calculateSummary() {
       if (!this.selectedMonth) {
         this.resetSummary();
@@ -118,91 +103,78 @@ export default {
 
 <style scoped>
 .summary-container {
-  margin-top: 2rem;
-  padding: 1.5rem;
-  border: 1px solid #e0e0e0;
+  padding: 16px;
+  border: 1px solid #dbe4ee;
   border-radius: 10px;
-  background-color: #fafafa;
+  background-color: #ffffff;
 }
 
-.month-selector {
-  margin-bottom: 1.5rem;
-  text-align: center;
+.summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
-.month-selector label {
-  font-weight: bold;
-  margin-right: 1rem;
+.summary-header div {
+  display: grid;
+  gap: 2px;
 }
 
-.month-selector input {
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+.summary-header span {
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.summary-header strong {
+  color: #1f2933;
+  font-size: 1.15rem;
+}
+
+.summary-header input {
+  min-height: 38px;
+  max-width: 142px;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
 }
 
 .summary-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .summary-card {
-  padding: 1.5rem;
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: 12px;
   border-radius: 8px;
-  display: flex;
-  align-items: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  box-shadow: none;
 }
 
 .summary-card.income {
-  background-color: #e8f5e9;
-  border-left: 4px solid #4caf50;
+  background-color: #ecfdf5;
 }
 
 .summary-card.expense {
-  background-color: #ffebee;
-  border-left: 4px solid #f44336;
+  background-color: #fff1f2;
 }
 
-.summary-card.net.positive {
-  background-color: #e3f2fd;
-  border-left: 4px solid #2196f3;
-}
-
-.summary-card.net.negative {
-  background-color: #fff3e0;
-  border-left: 4px solid #ff9800;
-}
-
-.card-icon {
-  font-size: 2rem;
-  margin-right: 1rem;
-}
-
-.card-content h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-  color: #666;
+.summary-card h3 {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.86rem;
 }
 
 .amount {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.05rem;
   font-weight: bold;
-  color: #333;
-}
-
-.no-selection {
-  text-align: center;
-  color: #666;
-  padding: 2rem;
-}
-
-h2 {
-  text-align: center;
-  color: var(--text-color);
-  margin-bottom: 1rem;
+  color: #1f2933;
 }
 </style>

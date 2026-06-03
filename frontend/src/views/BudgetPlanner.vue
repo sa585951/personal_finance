@@ -1,11 +1,35 @@
 <template>
-  <div class="page-container">
-    <h1>每月預算規劃</h1>
-    <div class="form-container">
-      <h3>設定預算</h3>
+  <div class="budget-screen">
+    <header class="budget-header">
+      <p class="eyebrow">Budget</p>
+      <h1>每月預算</h1>
+    </header>
+
+    <div class="budget-actions">
+      <button
+        type="button"
+        class="primary-toggle"
+        @click="showBudgetForm = !showBudgetForm"
+      >
+        {{ showBudgetForm ? "收合設定" : "設定預算" }}
+      </button>
+    </div>
+
+    <BudgetSummaryTable
+      ref="budgetSummaryTable"
+      :selected-month="selectedMonth"
+      @update-month="handleSelectedMonthUpdate"
+      @update-budget="updateBudget"
+    />
+
+    <div v-if="showBudgetForm" class="form-container">
+      <div class="form-header">
+        <h3>設定預算</h3>
+        <button class="quiet-button" type="button" @click="showBudgetForm = false">收合</button>
+      </div>
       <form @submit.prevent="setBudget">
         <div class="form-group">
-          <label for="budgetMonth">月份:</label>
+          <label for="budgetMonth">月份</label>
           <input
             type="month"
             id="budgetMonth"
@@ -15,17 +39,25 @@
         </div>
 
         <div class="form-group">
-          <label for="budgetCategory">類別:</label>
-          <input
-            type="text"
+          <label for="budgetCategory">類別</label>
+          <select
             id="budgetCategory"
             v-model="newBudget.category"
             required
-          />
+          >
+            <option disabled value="">請選擇支出類別</option>
+            <option
+              v-for="category in expenseCategories"
+              :key="category.code"
+              :value="category.name"
+            >
+              {{ category.name }}
+            </option>
+          </select>
         </div>
 
         <div class="form-group">
-          <label for="budgetAmount">預算金額:</label>
+          <label for="budgetAmount">預算金額</label>
           <input
             type="number"
             id="budgetAmount"
@@ -35,7 +67,7 @@
         </div>
 
         <div class="form-group">
-          <label for="budgetNotes">備註:</label>
+          <label for="budgetNotes">備註</label>
           <input
             type="text"
             id="budgetNotes"
@@ -43,17 +75,9 @@
             placeholder="例如：餐費包含週末外食"
           />
         </div>
+        <button type="submit">設定預算</button>
       </form>
-      <div class="button-wrapper">
-        <button type="submit" @click="setBudget">設定</button>
-      </div>
     </div>
-    <BudgetSummaryTable
-      ref="budgetSummaryTable"
-      :selected-month="selectedMonth"
-      @update-month="selectedMonth = $event"
-      @update-budget="updateBudget"
-    />
   </div>
 </template>
 
@@ -76,17 +100,50 @@ export default {
         notes: "",
       },
       selectedMonth: format(new Date(), "yyyy-MM"),
+      budgetCategories: [],
+      showBudgetForm: false,
     };
   },
+  computed: {
+    expenseCategories() {
+      return this.budgetCategories.filter(
+        (category) => category.kind === "expense" || category.kind === "both"
+      );
+    },
+  },
   methods: {
+    handleSelectedMonthUpdate(month) {
+      this.selectedMonth = month;
+      this.newBudget.month = month;
+    },
+    ensureBudgetCategory() {
+      if (
+        this.expenseCategories.some(
+          (category) => category.name === this.newBudget.category
+        )
+      ) {
+        return;
+      }
+      this.newBudget.category = this.expenseCategories[0]?.name || "";
+    },
+    async fetchBudgetCategories() {
+      try {
+        const response = await apiClient.get(`/api/budgets/categories?include_meta=true`);
+        this.budgetCategories = response.data.data || [];
+        this.ensureBudgetCategory();
+      } catch (error) {
+        console.error("無法載入預算類別:", error);
+      }
+    },
     async setBudget() {
       try {
         const response = await apiClient.post(`/api/budgets`, this.newBudget);
         this.$swal.fire("成功！", response.data.message, "success");
         this.$refs.budgetSummaryTable.fetchBudgetSummary();
-        this.newBudget.category = "";
+        this.ensureBudgetCategory();
         this.newBudget.amount = null;
         this.newBudget.notes = "";
+        this.showBudgetForm = false;
       } catch (error) {
         console.error("預算設定失敗:", error);
         this.$swal.fire("失敗！", "預算設定失敗，請稍後再試。", "error");
@@ -109,6 +166,7 @@ export default {
     },
   },
   mounted() {
+    this.fetchBudgetCategories();
     if (this.$refs.budgetSummaryTable) {
       this.$refs.budgetSummaryTable.fetchAvailableMonths();
       this.$refs.budgetSummaryTable.fetchBudgetSummary();
@@ -118,82 +176,133 @@ export default {
 </script>
 
 <style scoped>
-.page-container {
-  max-width: 900px;
-  margin: 40px auto;
-  padding: 20px;
-  background-color: var(--card-bg);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+.budget-screen {
+  max-width: 520px;
+  min-height: calc(100vh - 80px);
+  margin: 0 auto;
+  padding: 24px 14px calc(var(--app-bottom-nav-height) + 22px);
+  color: #1f2933;
 }
 
-h1 {
-  text-align: center;
-  color: var(--text-color);
-  font-size: 2.5rem;
+.budget-header {
   margin-bottom: 1rem;
 }
 
-/* 表單容器樣式 - 與其他頁面一致 */
+.budget-actions {
+  margin-bottom: 1rem;
+}
+
+.primary-toggle {
+  width: 100%;
+  min-height: 46px;
+  color: #ffffff;
+  background: #0f766e;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.primary-toggle:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h3 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h1 {
+  color: var(--text-color);
+  font-size: 1.85rem;
+}
+
 .form-container {
-  margin-bottom: 2rem;
-  padding: 2rem;
-  border: 1px solid var(--border-color);
+  margin-top: 1rem;
+  padding: 16px;
+  border: 1px solid #dbe4ee;
   border-radius: 10px;
-  background-color: var(--secondary-color);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  background-color: #ffffff;
+  box-shadow: none;
+}
+
+.form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 1rem;
 }
 
 .form-container h3 {
-  margin-top: 0;
-  color: var(--light-text-color);
+  color: #1f2933;
 }
 
-/* 表單使用 Flexbox 布局 - 取代 Grid */
+.quiet-button {
+  min-height: 34px;
+  padding: 0 10px;
+  color: #334155;
+  background: #e2e8f0;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.quiet-button:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 .form-container form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
 }
 
-/* 表單群組樣式 - 每個佔約一半寬度 */
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  flex: 1 1 45%; /* 彈性增長，基礎寬度45% */
-  min-width: 200px; /* 最小寬度，避免太窄 */
+  gap: 6px;
+  min-width: 0;
 }
 
 .form-group label {
   font-weight: bold;
-  color: var(--light-text-color);
-  margin-bottom: 0.5rem;
+  color: #475569;
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
+  min-height: 44px;
+  min-width: 0;
+  width: 100%;
   padding: 0.8rem 1rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
   transition: all 0.3s ease;
 }
 
-.form-group input:focus {
+.form-group input:focus,
+.form-group select:focus {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
 
-/* 按鈕容器 - 獨立在表單外，置中 */
-.button-wrapper {
-  text-align: center;
-  margin-top: 1.5rem;
-}
-
-/* 按鈕樣式 - 正常大小 */
 .form-container button {
-  background-color: var(--primary-color);
-  padding: 12px 40px;
+  grid-column: 1 / -1;
+  min-height: 46px;
+  background-color: #0f766e;
+  padding: 10px 20px;
   border: none;
   border-radius: 8px;
   color: white;
@@ -201,7 +310,6 @@ h1 {
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  display: inline-block;
 }
 
 .form-container button:hover {
@@ -209,7 +317,6 @@ h1 {
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* 響應式設計 - 小螢幕時改為單列 */
 @media (max-width: 768px) {
   .form-container form {
     grid-template-columns: 1fr;

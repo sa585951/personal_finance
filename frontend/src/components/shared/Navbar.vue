@@ -1,44 +1,67 @@
 <template>
-  <nav class="navbar">
+  <nav class="navbar" aria-label="主要導覽">
     <div class="logo">
-      <router-link to="/">財務管理</router-link>
+      <router-link to="/">Ledger</router-link>
     </div>
     <ul class="nav-links">
-      <li>
-        <router-link to="/">首頁</router-link>
-      </li>
-      <li>
-        <router-link to="/assets">資產</router-link>
-      </li>
-      <li>
-        <router-link to="/transactions">收支</router-link>
-      </li>
-      <li>
-        <router-link to="/budgets">預算</router-link>
-      </li>
-      <li>
-        <router-link to="/goals">目標</router-link>
+      <li v-for="item in navItems" :key="item.to">
+        <router-link :to="item.to" :aria-label="item.label">
+          <component :is="item.icon" />
+          <span>{{ item.label }}</span>
+        </router-link>
       </li>
     </ul>
     <div class="auth-section">
-      <template v-if="isLoggedIn">
-        <span>歡迎, {{ userName }}</span>
-        <button @click="logout" style="margin-left: 20px; background-color: red;">登出</button>
+      <template v-if="devAuthBypass">
+        <label class="dev-user-switcher">
+          <span>測試使用者</span>
+          <select v-model="selectedDevUser" @change="switchDevUser">
+            <option v-for="user in devUsers" :key="user.id" :value="user.id">
+              {{ user.name }}
+            </option>
+          </select>
+        </label>
       </template>
-      <!-- 登入按鈕已被移除 -->
+      <template v-if="isLoggedIn">
+        <span>{{ userName }}</span>
+        <button class="logout-button" @click="logout">登出</button>
+      </template>
     </div>
   </nav>
 </template>
 
 <script>
 import { jwtDecode } from 'jwt-decode';
+import { HomeFilled, Money, PieChart, Suitcase, Wallet } from '@element-plus/icons-vue';
 
 export default {
   name: 'Navbar',
+  components: {
+    HomeFilled,
+    Money,
+    PieChart,
+    Suitcase,
+    Wallet,
+  },
   data() {
     return {
       isLoggedIn: false,
       userName: '',
+      devAuthBypass: import.meta.env.VITE_DEV_AUTH_BYPASS === "true",
+      selectedDevUser: localStorage.getItem('devAuthUser') || 'local-dev-user',
+      devUsers: [
+        { id: 'local-dev-user', name: 'Dev User' },
+        { id: 'amy-dev-user', name: 'Amy' },
+        { id: 'ben-dev-user', name: 'Ben' },
+        { id: 'cara-dev-user', name: 'Cara' },
+      ],
+      navItems: [
+        { to: "/", label: "首頁", icon: "HomeFilled" },
+        { to: "/transactions", label: "收支", icon: "Money" },
+        { to: "/trips", label: "旅行", icon: "Suitcase" },
+        { to: "/budgets", label: "預算", icon: "PieChart" },
+        { to: "/assets", label: "帳戶", icon: "Wallet" },
+      ],
     };
   },
   mounted() {
@@ -46,6 +69,12 @@ export default {
   },
   methods: {
     checkLoginStatus() {
+      if (this.devAuthBypass) {
+        this.isLoggedIn = false;
+        this.userName = "Dev";
+        return;
+      }
+
       const token = localStorage.getItem('authToken');
       if (token) {
         try {
@@ -76,43 +105,124 @@ export default {
         this.$router.push('/login');
       }
     },
+    switchDevUser() {
+      localStorage.setItem('devAuthUser', this.selectedDevUser);
+      window.location.reload();
+    },
   },
 };
 </script>
 
 <style scoped>
 .navbar {
-  background-color: var(--card-bg);
-  padding: 1rem 2rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
+  min-height: var(--app-bottom-nav-height);
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
 }
 
-.logo a {
-  font-weight: bold;
-  font-size: 1.5rem;
-  color: var(--primary-color);
-  text-decoration: none;
+.logo,
+.auth-section {
+  display: none;
+}
+
+.dev-user-switcher {
+  display: none;
 }
 
 .nav-links {
   list-style: none;
   display: flex;
-  gap: 2rem;
+  justify-content: space-between;
+  gap: 0;
+  width: min(520px, 100%);
+  margin: 0;
+  padding: 0;
+}
+
+.nav-links li {
+  flex: 1;
 }
 
 .nav-links a {
-  color: var(--text-color);
+  color: #64748b;
   text-decoration: none;
   font-weight: 500;
   transition: color 0.3s ease;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  min-height: 58px;
+  padding: 0 2px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+}
+
+.nav-links svg {
+  width: 20px;
+  height: 20px;
 }
 
 .nav-links a:hover,
-.nav-links a.router-link-active {
-  color: var(--primary-color);
-  border-bottom: 2px solid var(--primary-color);
+.nav-links a.router-link-active,
+.nav-links a.router-link-exact-active {
+  color: #0f766e;
+  background: #f0fdfa;
+  border-bottom: 0;
+  transform: none;
+}
+
+.nav-links a.router-link-active svg,
+.nav-links a.router-link-exact-active svg {
+  color: #0f766e;
+}
+
+.nav-links a span {
+  line-height: 1;
+}
+
+@media (min-width: 1px) {
+  .auth-section:has(.dev-user-switcher) {
+    display: block;
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    z-index: 30;
+  }
+
+  .dev-user-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    color: #334155;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid #dbe4ee;
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .dev-user-switcher select {
+    min-height: 28px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #ffffff;
+    font-size: 0.78rem;
+  }
 }
 </style>

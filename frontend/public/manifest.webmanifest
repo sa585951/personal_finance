@@ -1,0 +1,21 @@
+{
+  "name": "Money Journey",
+  "short_name": "Money",
+  "description": "手機優先的日常記帳、旅行帳本與輕量分帳工具",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f766e",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "productivity", "travel"],
+  "lang": "zh-Hant"
+}

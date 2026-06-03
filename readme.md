@@ -1,76 +1,592 @@
-# 個人財務管理系統 (Personal Finance App)
+# Personal Finance Companion
 
-這是一個以 Python 和 Flask 打造的 RESTful API 後端，用於管理個人資產、預算與財務目標。
+一個手機優先的個人收支工具，專注於「日常記帳」與「出國/跨幣別情境」，並支援旅行中的輕量分帳結算。
 
-## 🎯 專案定位
-- **類型**：全端 Side Project
-- **功能**：資產追蹤、預算管理、財務目標、報表視覺化
-- **技術亮點**：Flask + Vue 3 + PostgreSQL + Render/Vercel 部署
-- **實用性**：幫助使用者管理個人財務，適合擴展為 SaaS 應用
+本專案一開始是為了讓自己能更方便地記錄日常支出，後續加入了 Web 管理介面、LINE Login、LINE Bot 自然語言記帳、資產、預算與報表等功能。接下來的開發方向會收斂，不再追求全功能理財 App，而是聚焦在自己真正會使用的場景：平常快速記帳，出國時能獨立記錄旅行支出，回來後可換算成本幣並產生結算。
 
-## 🛠 技術棧
-- **後端**: Python (Flask)
-- **前端**: Vue 3 + Vite
-- **資料庫**: PostgreSQL
-- **圖表**: Chart.js + vue-chartjs
-- **部署**: Render (後端/DB), Vercel (前端)
+## 專案定位
 
-## 📈 功能列表
-- 資產管理：多銀行帳戶追蹤  
-- 交易紀錄：收入 / 支出分類  
-- 預算設定：每月類別預算 + 超支追蹤  
-- 財務目標：進度追蹤  
-- 視覺化：月度支出分佈圖、資產變化圖表  
+**Personal Finance Companion** 的定位是：
 
-## 🚀 未來優化方向
-- 多使用者系統 (登入、權限控管)  
-- 自動化 API（股價、匯率）  
-- ML 預算/支出預測  
-- CI/CD + Docker + Kubernetes 部署  
+> 給經常需要在日常生活與出國情境間切換的人使用的跨幣別個人記帳工具，並能處理旅行中常見的朋友分帳與回國結算。
 
+核心不是取代完整投資管理 App，也不是做成大型 SaaS，而是做一個自己真的願意持續使用的財務操作工具。
+
+目前的產品重心：
+
+- 日常收入與支出記錄
+- 出國/旅行支出記錄
+- 多幣別與匯率換算
+- 旅行成員與輕量分帳
+- 旅行結算與本幣彙總
+- 手機優先操作體驗
+- LINE / Web 兩種快速輸入入口
+
+## 目前進度
+
+目前專案已完成 Phase 1 的主要 MVP 收斂、Phase 2 的手機優先第一輪整理，以及 Phase 3 的旅行前操作核心打磨。核心流程已可在本地環境操作：
+
+- 日常收入 / 支出可記錄，並可連動帳戶餘額。
+- 旅行帳本可建立、切換、封存、軟刪除與復原。
+- 旅行支出可指定付款人、幣別、匯率與是否連動自己的帳戶。
+- 若付款人不是目前登入使用者，交易不會連動自己的帳戶，避免未來多人帳本時誤扣他人操作造成的帳戶餘額。
+- 旅行支出支援平均分攤與自訂分攤。
+- 分帳頁可顯示每位旅伴的已付款、應分攤、待收 / 待付狀態。
+- 建議結算可標記為已付款，也可撤銷；結算只影響分帳淨額，不異動帳戶餘額。
+- 旅行總覽已區分「我的分攤」、「整團花費」與「待收 / 待付 / 已平衡」狀態。
+- 旅伴可新增與刪除；若旅伴已有付款、分攤或結算紀錄，會保守阻擋刪除以保留帳務完整性。
+- 首頁月統計可切換「含旅行」與「日常」範圍。
+- 預算目前以日常月預算為主；併入月報的旅行支出會進月報統計，但不吃掉日常預算。
+
+尚未進入的範圍：
+
+- 多人登入後共同編輯同一趟旅行已進入第一版實作：owner 可建立邀請連結，受邀使用者可加入帳本，role 會限制可操作範圍。
+- 自動匯率 API。
+- PWA / iOS App 原生體驗。
+- 旅行分類預算與進階旅行報表。
+
+## 為什麼要調整方向
+
+原本專案已經包含資產、預算、財務目標、報表與 LINE Bot 等功能，但功能範圍偏大，容易變成一般記帳 App 或全功能理財 App。
+
+實際使用後發現，最需要解決的痛點是：
+
+- 出國支出不想直接混進日常帳本
+- 旅行途中想用當地幣別快速記錄
+- 回來後想知道換算成本幣後實際花費
+- 跟朋友出國時，想知道誰先付、誰該分攤、最後誰欠誰
+- 想區分日常支出與旅行支出，但必要時又能合併分析
+- 手機上要能很快完成記帳，不想操作複雜後台
+
+因此接下來會將產品方向收斂為「日常 + 旅行 + 跨幣別 + 輕量分帳」。
+
+## 核心使用情境
+
+### 1. 日常記帳
+
+平常記錄 TWD 收入與支出，例如餐費、交通、購物、娛樂等，並能查看本月支出、分類統計與簡單預算狀態。
+
+### 2. 出國/旅行記帳
+
+出國前建立一趟旅行，例如：
+
+- 日本 2027
+- 韓國自由行
+- 歐洲出差
+
+旅行期間可以用當地幣別記帳，例如 JPY、KRW、USD、EUR。每筆交易保留原始幣別與原始金額，同時可換算成主要幣別。
+
+### 3. 旅行結算
+
+旅行結束後產生結算：
+
+- 旅行總支出
+- 換算成本幣後的總金額
+- 每日平均支出
+- 分類支出占比
+- 現金 / 信用卡 / 其他付款方式統計
+- 旅伴分帳結果
+- 誰欠誰多少
+- 是否納入日常月報
+
+### 4. 輕量分帳
+
+旅行中可建立同行成員，並在每筆旅行支出中記錄：
+
+- 誰付款
+- 誰需要分攤
+- 是否平均分攤
+- 分攤後每個人應付多少
+
+第一階段先完成「單人維護的分帳」並保留外部旅伴；Phase 5 開始加入多人帳本雛形，讓旅伴可透過邀請連結加入同一帳本。外部旅伴與真實登入使用者的自動合併仍暫緩，避免 MVP 流程過度複雜。
+
+### 5. 手機快速輸入
+
+手機是主要使用場景。Web 端會逐步調整成 App-like / PWA 體驗，並保留 LINE Bot 作為快速記帳入口。
+
+## 目前已具備的功能
+
+### 後端
+
+- Flask REST API
+- JWT 驗證
+- LINE Login callback
+- PostgreSQL 資料庫
+- SQLAlchemy 資料存取
+- 使用者資料隔離
+- 資產帳戶管理
+- 收入/支出交易管理
+- 預算設定與超支檢查
+- 財務目標管理
+- 報表 API
+- LINE Bot webhook
+- Gemini 自然語言解析
+
+### 前端
+
+- Vue 3 + Vite
+- LINE Login 登入頁
+- 資產總覽
+- 交易紀錄
+- 預算規劃
+- 財務目標
+- 儀表板圖表
+- Vue Router 權限檢查
+- Axios API client
+
+### LINE Bot
+
+- 自然語言記帳
+- 查詢本月支出
+- 查詢資產
+- 新增收入/支出流程
+- 新增帳戶流程
+- 更新餘額流程
+- 轉帳流程
+- 設定預算流程
+
+## 接下來的產品收斂
+
+接下來會將功能分成三個層級。
+
+### 主線功能
+
+這些是優先強化的核心功能：
+
+- 快速記帳
+- 日常帳本
+- 旅行帳本
+- 多幣別交易
+- 匯率換算
+- 旅行成員
+- 輕量分帳
+- 旅行結算
+- 手機優先 UI
+- PWA 體驗
+- LINE 快速輸入
+
+### 保留但降級的功能
+
+這些功能暫時保留，但不作為產品主軸：
+
+- 資產帳戶
+- 基本預算
+- 基本報表
+
+資產帳戶仍有價值，因為旅行時可能需要記錄現金、信用卡或不同付款方式。預算也會保留，但會優先思考如何服務「月支出上限」與「旅行預算」。
+
+### 暫緩或從主流程移除的功能
+
+這些功能短期不再擴充，必要時會先從主導航或主要流程移除：
+
+- 財務目標
+- 股票與投資資產管理
+- 複雜資產配置分析
+- 完整理財規劃
+- 多使用者 SaaS 化
+- 多人即時共同編輯分帳
+- 催款與付款通知
+- AI 理財顧問
+
+原因是這些方向容易讓產品變得過大，也會與現有成熟投資/資產管理 App 高度重疊。
+
+## 開發 Roadmap
+
+本專案以 Phase 作為主要開發階段。早期文件中的 Stage 已整併到下列 Phase，避免同時維護兩套進度表。
+
+### Phase 1: 核心 MVP 與定位收斂
+
+狀態：已完成。
+
+目標：把產品收斂為「日常 + 旅行 + 跨幣別 + 輕量分帳」，並完成可本地測試的核心資料流。
+
+已完成：
+
+- 更新 README 與產品定位。
+- 導入新版 PostgreSQL schema 與 Alembic。
+- 建立旅行帳本、旅行成員、旅行交易、分帳、結算等核心資料模型。
+- 日常交易與旅行交易可分開統計，也可透過「併入月報」合併到首頁月統計。
+- 旅行交易支援原始幣別、匯率與本幣換算。
+- 旅行支出可指定付款人，且只有目前使用者付款時才可連動自己的帳戶。
+- 支援平均分攤、自訂分攤、建議結算、確認結算與撤銷結算。
+- 支援旅行封存、軟刪除、復原與永久刪除。
+- Goals 暫時改為尚未開啟狀態。
+- 補上核心 schema smoke test 與資料流文件。
+
+### Phase 2: 手機優先體驗與 PWA 雛形
+
+狀態：已完成第一輪收斂。
+
+目標：讓 Web 端在手機上更像日常會打開的 App，優先處理入口、導航、表單與資訊密度。
+
+預計任務：
+
+- 重新整理手機版首頁資訊層級。
+- 改善底部導航與主要操作入口。
+- 建立快速新增交易入口。
+- 讓日常記帳與旅行記帳的切換更直覺。
+- 收斂旅行頁、收支頁、資產頁的 mobile layout。
+- 補 PWA manifest 與基本安裝體驗。
+- 評估是否加入基本離線殼層快取。
+
+### Phase 3: 實際旅行前的操作打磨
+
+狀態：核心完成，保留實際旅行前微調。
+
+目標：在真實出國前，把旅行建立、記支出、分帳、結算流程調整到可以實戰使用。
+
+已完成：
+
+- 旅行支出表單再簡化。
+- 匯率輸入與預設匯率體驗優化。
+- 旅行總覽補上更清楚的支出、分帳與結算摘要。
+- 旅行支出已更明顯區分「整團花費」、「我的分攤」與「待收 / 待付 / 已平衡」。
+- 建議結算已調整為「誰付給誰多少」的方向式呈現。
+- 旅行支出付款人若不是目前使用者，不會連動目前使用者的帳戶餘額。
+- 已補資料流 smoke test，確認旅行支出、日常月報、近期紀錄、帳戶扣款與分帳摘要的關係。
+- 旅伴支援刪除未使用成員；已被付款、分攤或結算引用的旅伴會被保護，不直接刪除。
+- 分帳頁已提供文字版結算摘要複製，先支援手動貼給旅伴核對。
+- 旅行交易支援編輯，更新金額、付款人、帳戶、匯率與分帳後會同步重算帳戶餘額與分帳摘要。
+- 若旅行已有確認結算，編輯交易前會提示可能影響剩餘待收 / 待付金額。
+- 分帳頁已加入旅行收尾檢查，提示支出筆數、待收待付與已確認付款狀態。
+- 旅行交易可產生 CSV 內容，方便 Web 端備份、核對或用試算表檢視；直接下載體驗留待部署/瀏覽器環境驗證。
+
+進行中：
+
+- 實際旅行前用真實情境再檢查旅行支出表單是否足夠快、欄位是否還需要再收斂。
+
+待評估：
+
+- 直接下載 CSV / Excel 的跨瀏覽器體驗。
+- 分享連結或圖片版結算摘要。
+- 是否需要正式的旅行完成/鎖定流程。
+
+Phase 3 到此先不再擴大旅行頁功能。後續若沒有實測發現阻塞，下一階段會轉向 Phase 4 的 LINE / AI 快速輸入整合，讓記帳入口更快，而不是繼續增加管理型功能。
+
+### Phase 4: LINE / AI 快速輸入整合
+
+狀態：核心完成。
+
+目標：把原本 LINE Bot 語意記帳能力整理成可共用的後端解析服務，未來 Web / PWA / iOS 都能使用。
+
+已完成：
+
+- 建立 `AIParseService` 作為共用解析服務入口。
+- LINE `MessageParser` 已改為包裝共用解析服務，保留既有 LINE legacy parse 格式。
+- 建立 `AIParseEventManager`，LINE Bot 解析後會先寫入 `ai_parse_events`，作為後續 Web / PWA / iOS 共用解析紀錄的基礎。
+- 建立 `POST /api/ai/parse` Web 快速輸入 API 雛形，目前只回傳解析結果並寫入 parse event，不直接建立交易。
+- 收支頁已加入 AI 快速輸入欄初版，可先解析一句話並套用到既有表單，正式送出前仍由使用者確認。
+- AI 解析結果套用後若成功新增交易，對應 `ai_parse_events` 會標記為 `confirmed` 並寫入交易 ID，方便後續追蹤解析採用率。
+- LINE Bot 自然語言直接建立收入/支出時，也會把對應 parse event 標記為 `confirmed`，與 Web 快速輸入共用同一套採用追蹤語意。
+- 建立 `GET /api/ai/parse-events` 查詢 API，可用於驗證最近解析紀錄與 confirmed 狀態。
+- 收支頁在開發模式下顯示可收合的 AI 解析紀錄面板，用於檢查解析品質；正式使用與未來 App 主流程不一定顯示。
+- 補上 parser 單元測試，避免 Phase 4 調整時破壞 LINE 既有解析契約。
+
+後續維護項：
+
+- Gemini API key / model 設定需在部署前重新確認。
+- LINE Bot SDK 目前有 v3 deprecation warnings，後續可另開維護任務升級。
+- AI 解析紀錄面板目前只作為 dev-only 觀察工具，不列入正式產品主流程。
+
+### Phase 5: 實際旅行驗證與商品化評估
+
+狀態：進行中。
+
+目標：用真實旅行資料驗證產品定位，再決定是否商品化。
+
+驗證文件：
+
+- `docs/phase5-validation-plan.md`
+- `docs/phase5-simulation-test-script.md`
+- `docs/multi-user-login-rollout-plan.md`
+- `docs/deployment-checklist.md`
+
+驗證重點：
+
+- 記帳流程是否夠快。
+- 幣別切換是否自然。
+- 匯率輸入是否麻煩。
+- 分帳流程是否足夠簡單。
+- 結算結果是否容易和朋友核對。
+- 邀請連結、owner / editor / viewer 權限是否足夠支援約 10 人旅行共同記帳。
+- LINE 與 PWA 哪個入口更順。
+- 哪些功能應該保留、簡化或移除。
+- 正式 LINE Login / 邀請連結 / 多人權限是否可在部署環境穩定運作。
+- LINE Login 已改為後端發起並驗證 signed state，讓邀請連結登入導回流程更適合正式部署。
+
+## 進度 Check
+
+| 項目 | 狀態 | 備註 |
+| --- | --- | --- |
+| 產品定位收斂 | 完成 | 定位為日常 + 旅行 + 跨幣別 + 輕量分帳 |
+| README 與方向文件 | 完成 | 已補目前進度、核心資料流與測試方式 |
+| 新版 schema / Alembic | 完成 | 本地 migration 與 smoke test 可跑 |
+| 日常收支 | 完成 | 支援收入、支出、帳戶餘額連動 |
+| 旅行帳本 | 完成 | 支援建立、切換、封存、軟刪除、復原、永久刪除 |
+| 多幣別旅行交易 | 完成 | 支援原幣別、匯率、本幣換算 |
+| 分帳 MVP | 完成 | 支援平均分攤、自訂分攤、建議結算 |
+| 結算確認 | 完成 | 可確認 / 撤銷，不連動帳戶餘額 |
+| 月報含旅行切換 | 完成 | 首頁支援含旅行 / 日常範圍切換 |
+| 預算邏輯收斂 | 完成 | 日常預算不被旅行支出吃掉 |
+| 手機優先 UI | 完成第一輪 | 已整理底部導航、首頁、收支、旅行、帳戶、預算入口 |
+| PWA | 完成基礎 | 已補 manifest、app icon 與 production service worker 基礎 |
+| 旅行前操作打磨 | 核心完成 | 已完成表單簡化、匯率/帳戶提示、分帳摘要、結算方向呈現、資料流一致性 smoke test、文字版結算摘要複製、旅行交易編輯與 CSV 內容產生 |
+| LINE / AI 共用解析服務 | 核心完成 | 已建立共用解析服務入口、parse event 紀錄、Web parse API、查詢 API、收支頁快速輸入欄與 dev-only 解析紀錄面板 |
+| Phase 5 MVP 模擬測試 | 進行中 | 已補 10 人旅行假資料測試，並修正交易/分帳失敗時的 atomic rollback 問題 |
+| 多人共同編輯 | 第一版實作中 | 已補邀請連結、加入/重新加入、member 上限、owner/editor/viewer 權限、共享旅行交易查詢、帳戶資訊隔離與 dev 測試使用者切換 |
+| 自動匯率 API | 暫緩 | 實際旅行前再評估 |
+
+## 核心資料流
+
+### 日常收支
+
+1. 使用者在 Web / LINE / 未來 App 建立一筆日常收入或支出。
+2. 交易寫入 `transactions`，`trip_id` 為空。
+3. 若有選擇自己的帳戶，且帳戶有追蹤餘額，支出會扣帳戶餘額，收入會加回帳戶餘額。
+4. 日常交易會進入日常月報、日常近期紀錄與日常預算計算。
+
+### 旅行支出
+
+1. 使用者先建立 `trips`，系統會自動建立 owner 對應的 `trip_members`。
+2. 新增旅行支出時，交易寫入 `transactions`，並帶入 `trip_id`、`paid_by_member_id`、原幣別、匯率與換算後本幣金額。
+3. 若付款人是目前登入使用者，才允許連動自己的帳戶餘額。
+4. 若付款人是外部旅伴或未來其他使用者，MVP 不連動目前使用者的帳戶。
+5. 分攤結果寫入 `transaction_splits`，用於計算每位旅伴的已付款、應分攤與淨額。
+6. 若旅行設定為「併入月報」，該旅行支出會出現在首頁月統計的「含旅行」範圍；若未併入，僅在旅行帳本內呈現。
+
+### 多人旅行帳本
+
+1. owner 可建立一組有效 30 天的邀請連結；同一趟旅行同時間只保留一組 active invite。
+2. 邀請連結可重複使用，active member 上限先固定為 15 人。
+3. 受邀使用者登入後接受邀請，會建立自己的 `trip_members` 紀錄；若曾退出，會重新啟用原 member。
+4. owner 可關閉邀請連結，也可調整非 owner 成員的 `editor` / `viewer` 權限。
+5. editor 可新增旅行交易，但只能編輯或刪除自己建立的交易。
+6. 若 editor 後續被降為 viewer，便不可再編輯或刪除自己過去建立的交易。
+7. owner 可編輯或刪除同帳本內所有旅行交易，並且只有 owner 可封存、刪除或復原旅行帳本。
+8. viewer 只能閱讀；前端也會隱藏新增支出入口，避免誤以為可以操作。
+9. 分帳還款確認只允許 owner 或付款方本人操作；撤銷結算只允許 owner 或該筆結算記錄者操作。
+10. 個人帳戶資訊仍以使用者隔離；共享旅行交易可見，但不會洩漏其他使用者的帳戶名稱或餘額。
+11. owner 手動新增的外部旅伴與真實登入使用者自動合併仍暫緩，後續再設計避免誤合併。
+
+### 多人功能本地測試
+
+在 `DEV_AUTH_BYPASS=true` 與 `VITE_DEV_AUTH_BYPASS=true` 的本地開發環境中，前端右上角會顯示 dev-only 的測試使用者切換器，可切換 `Dev User`、`Amy`、`Ben`、`Cara`。
+
+此切換器只用於本地測試多人邀請與權限流程：
+
+- 一般視窗可用 `Dev User` 建立旅行與邀請連結。
+- 無痕視窗可切成 `Amy` 接受邀請，模擬另一位使用者加入。
+- owner 可將 Amy 在 `editor` / `viewer` 間切換，驗證新增、編輯、刪除與分帳結算權限。
+- 此機制透過 `X-Dev-User` header 傳給後端，且後端只在非 production 的 `DEV_AUTH_BYPASS=true` 下接受。
+
+### 分帳與結算
+
+1. 分帳摘要由 `transactions`、`transaction_splits` 與 `settlements` 即時計算。
+2. 建議結算會依每位旅伴的淨額產生「誰付給誰多少」。
+3. 標記已付款會新增 `settlements` 紀錄。
+4. 撤銷已付款會軟刪除該 `settlements` 紀錄。
+5. 結算紀錄只調整分帳淨額與建議結算，不會異動任何帳戶餘額。
+
+### 封存與軟刪除
+
+1. 封存旅行會將 `trips.status` 改為 `archived`，資料仍保留，可解除封存。
+2. 刪除旅行目前採軟刪除，寫入 `deleted_at` 與 `purge_after`，預設保留 30 天。
+3. 軟刪除帳本可在旅行管理區復原。
+4. 刪除暫存區可執行永久刪除；此操作不可復原，正式產品流程仍建議保留二次確認。
+
+## 技術棧
+
+### Backend
+
+- Python
+- Flask
+- Flask-CORS
+- SQLAlchemy
+- PostgreSQL
+- PyJWT
+- python-dotenv
+- LINE Bot SDK
+- Google Gemini API
+- gunicorn
+
+### Frontend
+
+- Vue 3
+- Vite
+- Vue Router
+- Axios
+- Chart.js
+- vue-chartjs
+- SweetAlert2
+- date-fns
+
+### Deployment
+
+- Backend: Render
+- Frontend: Vercel
+- Database: Supabase PostgreSQL
+
+目前部署使用免費額度，因此可能會遇到冷啟動問題。短期可透過 healthcheck 定時喚醒改善；若未來需要穩定使用，可評估付費 instance 或改用其他部署方案。
 
 ## 專案架構
 
--   `main.py`: 專案的主程式入口，提供一個命令列介面 (CLI) 進行測試與互動。
--   `web_app.py`: Flask 網頁應用程式的入口，提供完整的 RESTful API 接口。
--   `models/`: 包含核心業務邏輯。
-    -   `asset_manager.py`: 管理資產帳戶。
-    -   `budget_manager.py`: 管理預算與支出。
-    -   `goal_manager.py`: 管理財務目標。
--   `reports/`: 包含所有顯示報表與格式化的邏輯。
--   `data/`: 存放所有 JSON 格式的資料檔案。
--   `config.py`: 專案的通用設定檔。
--   `utils.py`: 專案的通用工具函數。
+```text
+.
+├── web_app.py                 # Flask API 與 LINE callback / webhook 入口
+├── config.py                  # 共用設定
+├── models/
+│   ├── schema.py              # SQLAlchemy table schema
+│   ├── database.py            # DB engine / session
+│   ├── asset_manager.py       # 資產帳戶管理
+│   ├── budget_manager.py      # 交易與預算管理
+│   ├── goal_manager.py        # 財務目標管理
+│   ├── user_manager.py        # 使用者管理
+│   └── linebot/               # LINE Bot parsing / flows / responses
+├── reports/                   # 報表格式化邏輯
+├── scripts/                   # 手動測試與 LINE rich menu 工具
+├── data/                      # 早期 JSON 資料，現階段主要資料來源已改為 DB
+└── frontend/
+    ├── src/
+    │   ├── views/             # Vue pages
+    │   ├── components/        # Vue components
+    │   ├── router/            # Vue Router
+    │   └── api.js             # Axios client
+    ├── vite.config.js
+    └── vercel.json
+```
 
+## 本地開發
 
-## 🔗 Demo / GitHub
-- [GitHub Repo](#)  
-- [Demo 連結](#)  
+### Local Database
 
-## 安裝與執行
-
-### 1. 克隆專案
-
-首先，從 GitHub 將專案克隆到你的電腦上。
+本地開發建議使用 Docker / OrbStack 啟動獨立 PostgreSQL，避免直接操作 Supabase production。
 
 ```bash
-git clone [https://github.com/你的用戶名/你的專案名.git](https://github.com/你的用戶名/你的專案名.git)
-cd 你的專案名
+docker compose up -d postgres
+```
 
-# 建立一個名為 .venv 的虛擬環境
-python -m venv .venv
+本地資料庫連線：
 
-# 啟用虛擬環境
-# 在 Windows 上 (使用 PowerShell 或 CMD)：
-.\.venv\Scripts\activate
+```env
+DATABASE_URL=postgresql://personal_finance:personal_finance@localhost:5433/personal_finance
+```
 
-# 在 macOS / Linux 上：
-source ./.venv/bin/activate
+目前 production DB 在 Supabase PostgreSQL。接下來旅行、多幣別與分帳功能會先在本地 DB 驗證 schema，再決定如何重建或遷移 production。
 
-pip install Flask
+本地套用新版 schema：
 
-# 請確保你在專案的根目錄
-python main.py
-# 請確保你在專案的根目錄
+```bash
+alembic upgrade head
+```
+
+本地 schema smoke test：
+
+```bash
+docker exec personal_finance_postgres createdb -U personal_finance personal_finance_test
+RUN_DB_SMOKE_TESTS=1 TEST_DATABASE_URL=postgresql://personal_finance:personal_finance@localhost:5433/personal_finance_test pytest -q tests/test_schema_smoke.py
+```
+
+Smoke test 會重建測試資料庫內的 schema，因此必須使用 `TEST_DATABASE_URL`，且資料庫名稱需以 `_test` 結尾。不要把 `TEST_DATABASE_URL` 指向本地開發 DB 或 Supabase production。
+
+目前 smoke test 覆蓋的關鍵資料流：
+
+- 建立使用者與登入身份。
+- 建立帳戶與幣別。
+- 建立旅行與 owner member。
+- 新增外部旅伴。
+- 旅行封存、解除封存、軟刪除、復原與永久刪除。
+- 新增旅行支出，並驗證只有自己付款時才可連動自己的帳戶。
+- 平均分攤與自訂分攤。
+- 日常支出、收入與刪除收入後的帳戶餘額回復。
+- 日常月預算不被旅行支出吃掉。
+- 首頁月報邏輯可包含「併入月報」的旅行支出。
+- 建議結算、確認結算與撤銷結算。
+- 結算紀錄不異動帳戶餘額。
+
+一般測試與前端 build：
+
+```bash
+pytest -q
+
+cd frontend
+npm run build
+```
+
+### Backend
+
+建議使用 Python 3.12。Python 3.14 目前可能讓部分套件缺少 wheel，導致 `psycopg2-binary`、`grpcio` 等套件需要從原始碼編譯。
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 python web_app.py
 ```
+
+後端需要設定環境變數，例如：
+
+- `DATABASE_URL`
+- `JWT_SECRET_KEY`
+- `LINE_LOGIN_CHANNEL_ID`
+- `LINE_LOGIN_CHANNEL_SECRET`
+- `LINE_MSG_CHANNEL_ACCESS_TOKEN`
+- `LINE_MSG_CHANNEL_SECRET`
+- `GEMINI_API_KEY`
+- `VITE_BACKEND_BASE_URL`
+- `FRONTEND_BASE_URL`
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Production build / PWA 預覽：
+
+```bash
+cd frontend
+npm run build
+npm run preview
+```
+
+Service Worker 只會在 production build 註冊；本地 `npm run dev` 不會啟用快取，避免開發測試時被舊資源影響。
+
+前端需要設定：
+
+- `VITE_APP_API_URL`
+- `VITE_LINE_LOGIN_CHANNEL_ID`
+
+## 商品化方向
+
+短期目標不是立即商品化，而是先做成自己真的會使用的工具。
+
+若未來要商品化，可以考慮聚焦在：
+
+- 常出國的人
+- 留學生
+- 數位遊牧者
+- 跨國工作者
+- 自由工作者
+- 需要同時處理日常、旅行支出與朋友分帳的人
+
+可能的付費功能：
+
+- 多旅行帳本
+- 自動匯率更新
+- 旅行結算進階報表
+- 分帳結果分享連結
+- 進階分帳規則
+- CSV / Excel 匯出
+- 雲端同步
+- PWA / iOS App 體驗
+
+## 現階段原則
+
+- 優先解決自己真實會遇到的問題
+- 不追求全功能理財平台
+- 不與成熟投資管理 App 正面競爭
+- 先讓日常與出國記帳變得順手
+- 分帳先解決旅行中的常見情境，不做完整多人協作平台
+- 實際使用後再決定功能是否保留、簡化或移除

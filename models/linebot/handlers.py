@@ -1,6 +1,6 @@
 from datetime import datetime
-from models.schema import transactions_table,budget_categories_table
-from models.database import engine
+from uuid import UUID
+from models.schema import categories_table, transactions_table
 from sqlalchemy import select, desc, func
 
 class ExpenseHandler:
@@ -49,24 +49,14 @@ class ExpenseHandler:
         """獲取指定使用者的預算狀況"""
         try:
             current_month = datetime.now().strftime("%Y-%m")
+            summary = self.budget_manager.get_budget_summary(user_id, current_month)
+            budget_result = next((item for item in summary if item["category"] == category), None)
+            if not budget_result or budget_result["budget"] is None:
+                return None
 
-            stmt = select(budget_categories_table).where(
-                budget_categories_table.c.user_id == user_id,
-                budget_categories_table.c.month == current_month,
-                budget_categories_table.c.category_name == category
-            )
-
-            with engine.connect() as conn:
-                budget_result = conn.execute(stmt).first()
-                if not budget_result:
-                    return None
-                
-            budget_amount = float(budget_result.amount)
-
-            # 計算已花費
-            expenses = self.budget_manager.calculate_monthly_expenses(user_id, current_month)
-            spent = expenses.get(category, 0)
-            remaining = budget_amount - float(spent)
+            budget_amount = float(budget_result["budget"])
+            spent = float(budget_result["spent"])
+            remaining = float(budget_result["remaining"])
             usage_rate = (float(spent) / budget_amount) * 100
 
             # 根據使用率回應
@@ -167,15 +157,24 @@ class QueryHandler:
     def _get_recent_transactions(self, user_id, month, limit=5):
         """獲取指定使用者最近交易記錄"""
         try:
+            parsed_user_id = UUID(str(user_id))
             stmt = select(transactions_table).where(
-                transactions_table.c.user_id == user_id,
-                func.to_char(transactions_table.c.date, 'YYYY-MM') == month,
-                transactions_table.c.type == 'expense'
-            ).order_by(desc(transactions_table.c.date)).limit(limit)
+                transactions_table.c.user_id == parsed_user_id,
+                func.to_char(transactions_table.c.transaction_date, 'YYYY-MM') == month,
+                transactions_table.c.type == 'expense',
+                transactions_table.c.deleted_at.is_(None),
+            ).order_by(desc(transactions_table.c.transaction_date)).limit(limit)
 
-            with engine.connect() as conn:
-                result = conn.execute(stmt)
-                return [dict(row._mapping) for row in result]
+            result = self.budget_manager.db_session.execute(stmt)
+            transactions = []
+            for row in result:
+                transaction = dict(row._mapping)
+                transaction["id"] = str(transaction["id"])
+                transaction["date"] = transaction["transaction_date"].strftime("%Y-%m-%d")
+                transaction["amount"] = float(transaction["original_amount"])
+                transaction["category"] = transaction["title"]
+                transactions.append(transaction)
+            return transactions
             
         except Exception as e:
             print(f"獲取交易記錄失敗: {e}")
@@ -184,15 +183,16 @@ class QueryHandler:
     def _get_all_month_transactions(self, user_id, month):
         """獲取指定使用者整月交易數量"""
         try:
+            parsed_user_id = UUID(str(user_id))
             stmt = select(func.count(transactions_table.c.id)).where(
-                transactions_table.c.user_id == user_id,
-                func.to_char(transactions_table.c.date, 'YYYY-MM') == month,
-                transactions_table.c.type == 'expense'
+                transactions_table.c.user_id == parsed_user_id,
+                func.to_char(transactions_table.c.transaction_date, 'YYYY-MM') == month,
+                transactions_table.c.type == 'expense',
+                transactions_table.c.deleted_at.is_(None),
             )
 
-            with engine.connect() as conn:
-                result = conn.execute(stmt).scalar()
-                return result if result else 0
+            result = self.budget_manager.db_session.execute(stmt).scalar()
+            return result if result else 0
             
         except Exception as e:
             return 0
@@ -200,27 +200,31 @@ class QueryHandler:
     def _get_category_expenses(self, user_id, month):
         """獲取指定使用者分類支出統計"""
         try:
-            stmt = select(transactions_table.c.budget_category,
-                func.sum(transactions_table.c.amount).label('total'),
+            parsed_user_id = UUID(str(user_id))
+            stmt = select(categories_table.c.name.label("budget_category"),
+                func.sum(transactions_table.c.converted_amount).label('total'),
                 func.count(transactions_table.c.id).label('count')
+            ).join(
+                categories_table,
+                transactions_table.c.category_id == categories_table.c.id
             ).where(
-                transactions_table.c.user_id == user_id,
-                func.to_char(transactions_table.c.date, 'YYYY-MM') == month,
-                transactions_table.c.type == 'expense'
-            ).group_by(transactions_table.c.budget_category).order_by(
-                func.sum(transactions_table.c.amount).desc()
+                transactions_table.c.user_id == parsed_user_id,
+                func.to_char(transactions_table.c.transaction_date, 'YYYY-MM') == month,
+                transactions_table.c.type == 'expense',
+                transactions_table.c.deleted_at.is_(None),
+            ).group_by(categories_table.c.name).order_by(
+                func.sum(transactions_table.c.converted_amount).desc()
             )
 
-            with engine.connect() as conn:
-                result = conn.execute(stmt)
-                return [
-                    {
-                        'category': row.budget_category,
-                        'total': float(row.total),
-                        'count': row.count
-                    }
-                    for row in result
-                ]
+            result = self.budget_manager.db_session.execute(stmt)
+            return [
+                {
+                    'category': row.budget_category,
+                    'total': float(row.total),
+                    'count': row.count
+                }
+                for row in result
+            ]
         except Exception as e:
             print(f"獲取分類統計失敗: {e}")
             return []

@@ -1,44 +1,58 @@
 <template>
-  <div class="form-container">
-    <h3>帳戶間轉帳</h3>
+  <div class="transfer-form">
+    <p v-if="accountOptions.length < 2" class="empty-hint">
+      至少需要兩個帳戶才能轉帳。
+    </p>
     <form @submit.prevent="handleTransfer">
       <div class="transfer-fields">
         <div class="field">
-          <label for="sourceAccount">轉出帳戶:</label>
+          <label for="sourceAccount">轉出帳戶</label>
           <select id="sourceAccount" v-model="transferData.source_id" required>
             <option value="" disabled>請選擇帳戶</option>
-            <option v-for="(asset, key) in assets" :key="key" :value="key">
-              {{ asset.bank_name }} - {{ asset.account_type }} (${{
-                asset.balance.toLocaleString()
-              }})
+            <option
+              v-for="account in accountOptions"
+              :key="account.key"
+              :value="account.key"
+            >
+              {{ account.label }}
             </option>
           </select>
         </div>
 
         <div class="field">
-          <label for="destAccount">轉入帳戶:</label>
+          <label for="destAccount">轉入帳戶</label>
           <select id="destAccount" v-model="transferData.dest_id" required>
             <option value="" disabled>請選擇帳戶</option>
-            <option v-for="(asset, key) in assets" :key="key" :value="key">
-              {{ asset.bank_name }} - {{ asset.account_type }} (${{
-                asset.balance.toLocaleString()
-              }})
+            <option
+              v-for="account in accountOptions"
+              :key="account.key"
+              :value="account.key"
+            >
+              {{ account.label }}
             </option>
           </select>
         </div>
 
         <div class="field">
-          <label for="amount">轉帳金額:</label>
+          <label for="amount">轉帳金額</label>
           <input
             type="number"
             id="amount"
             v-model.number="transferData.amount"
+            min="1"
+            step="1"
             placeholder="請輸入金額"
             required
           />
         </div>
       </div>
-      <button type="submit" class="confirm-btn" style="margin-top: 10px;">確認轉帳</button>
+      <button
+        type="submit"
+        class="confirm-btn"
+        :disabled="accountOptions.length < 2"
+      >
+        確認轉帳
+      </button>
     </form>
   </div>
 </template>
@@ -64,14 +78,22 @@ export default {
       },
     };
   },
+  computed: {
+    accountOptions() {
+      return Object.entries(this.assets || {}).map(([key, asset]) => ({
+        key,
+        label: `${asset.bank_name} - ${this.translateAccountType(asset.account_type)} ($${Number(asset.balance || 0).toLocaleString()})`,
+      }));
+    },
+  },
   methods: {
     async handleTransfer() {
       if (this.transferData.source_id === this.transferData.dest_id) {
-        alert("轉出和轉入帳戶不能是同一個！");
+        this.$swal.fire("無法轉帳", "轉出和轉入帳戶不能是同一個。", "warning");
         return;
       }
       if (this.transferData.amount <= 0) {
-        alert("轉帳金額必須大於0！");
+        this.$swal.fire("金額錯誤", "轉帳金額必須大於 0。", "warning");
         return;
       }
 
@@ -82,13 +104,29 @@ export default {
           amount: this.transferData.amount,
         });
 
-        alert(response.data.message);
+        this.$swal.fire("完成", response.data.message, "success");
         this.$emit("transfer-success");
         this.resetTransferForm();
       } catch (error) {
-        alert(error.response?.data?.message || "轉帳失敗，請稍後再試。");
+        this.$swal.fire(
+          "轉帳失敗",
+          error.response?.data?.message || "請稍後再試。",
+          "error"
+        );
         console.error("轉帳失敗:", error);
       }
+    },
+    translateAccountType(type) {
+      const typeMap = {
+        bank: "銀行",
+        cash: "現金",
+        credit_card: "信用卡",
+        e_wallet: "電子錢包",
+        prepaid_card: "預付卡",
+        external: "外部帳戶",
+        other: "其他",
+      };
+      return typeMap[type] || type || "其他";
     },
     resetTransferForm() {
       this.transferData = {
@@ -102,38 +140,55 @@ export default {
 </script>
 
 <style scoped>
-/* 將轉帳表單的樣式複製到這裡 */
-.form-container {
-  margin-top: 2rem;
-  padding: 1.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background-color: var(--secondary-color);
-}
-.form-container h3 {
-  margin-top: 0;
-  color: var(--light-text-color);
-}
 .transfer-fields {
   display: flex;
-  justify-content: space-around;
-  gap: 1.5rem;
+  flex-direction: column;
+  gap: 12px;
 }
+
 .field {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
+
 .field label {
-  display: block;
   font-weight: bold;
-  color: var(--light-text-color);
-  margin-bottom: 0.5rem;
+  color: #475569;
 }
+
 .field select,
 .field input {
+  min-height: 44px;
   width: 100%;
   padding: 0.8rem 1rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
   transition: all 0.3s ease;
+}
+
+.field select:focus,
+.field input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+.confirm-btn {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 16px;
+  background-color: #0f766e;
+}
+
+.confirm-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.empty-hint {
+  margin: 0 0 12px;
+  color: #64748b;
 }
 </style>

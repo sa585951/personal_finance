@@ -8,6 +8,8 @@ import AssetsOverview from "../views/AssetsOverview.vue";
 import TransactionRecord from "../views/TransactionRecord.vue";
 import BudgetPlanner from "@/views/BudgetPlanner.vue";
 import Goals from "../views/FinancialGoals.vue";
+import TripsView from "../views/TripsView.vue";
+import TripInviteAccept from "../views/TripInviteAccept.vue";
 import AuthCallback from "../views/AuthCallback.vue";
 
 const routes = [
@@ -32,6 +34,18 @@ const routes = [
     path: "/transactions",
     name: "TransactionRecord",
     component: TransactionRecord,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/trips",
+    name: "Trips",
+    component: TripsView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/trips/invite/:token",
+    name: "TripInviteAccept",
+    component: TripInviteAccept,
     meta: { requiresAuth: true },
   },
   {
@@ -61,6 +75,15 @@ const router = createRouter({
 // Navigation Guard
 router.beforeEach((to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
+  if (import.meta.env.VITE_DEV_AUTH_BYPASS === "true") {
+    if (to.name === "Login") {
+      next({ name: "Home" });
+      return;
+    }
+    next();
+    return;
+  }
+
   const token = localStorage.getItem('authToken');
   let isAuthenticated = false;
 
@@ -77,7 +100,7 @@ router.beforeEach((to, from, next) => {
 
   if (requiresAuth && !isAuthenticated) {
     // If route requires auth and user is not authenticated, redirect to login
-    next({ name: 'Login' });
+    next({ name: 'Login', query: { redirect: to.fullPath } });
   } else if (to.name === 'Login' && isAuthenticated) {
     // If user is authenticated and tries to go to login page, redirect to home
     next({ name: 'Home' });

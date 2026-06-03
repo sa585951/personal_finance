@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from flask import Flask, jsonify, request, redirect, url_for
+from uuid import UUID
+from urllib.parse import urlencode
+
+from flask import Flask, jsonify, request, redirect
 from flask_cors import CORS
 from sqlalchemy import select, func
 from linebot.exceptions import InvalidSignatureError
@@ -16,7 +19,8 @@ from models.goal_manager import GoalManager
 from models.linebot.manager import LineBotManager
 from models.app_state import AppStateManager
 from models.database import db_session 
-from models.schema import budget_categories_table, transactions_table 
+from models.schema import transactions_table, trips_table
+from models.trip_manager import TripManager
 from models.user_manager import UserManager
 
 LINE_CHANNEL_ID = os.getenv("LINE_LOGIN_CHANNEL_ID")
@@ -24,6 +28,26 @@ LINE_CHANNEL_SECRET = os.getenv("LINE_LOGIN_CHANNEL_SECRET")
 VITE_BACKEND_BASE_URL = os.getenv("VITE_BACKEND_BASE_URL")
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
+DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS") == "true" and os.getenv("FLASK_ENV") != "production"
+DEV_AUTH_USERS = {
+    "local-dev-user": {
+        "display_name": "Dev User",
+        "provider_email": "dev@example.local",
+    },
+    "amy-dev-user": {
+        "display_name": "Amy",
+        "provider_email": "amy@example.local",
+    },
+    "ben-dev-user": {
+        "display_name": "Ben",
+        "provider_email": "ben@example.local",
+    },
+    "cara-dev-user": {
+        "display_name": "Cara",
+        "provider_email": "cara@example.local",
+    },
+}
+LINE_LOGIN_STATE_TTL_MINUTES = 10
 
 if not all([LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, JWT_SECRET_KEY, VITE_BACKEND_BASE_URL]):
     raise EnvironmentError("缺少必要的環境變數，請檢查 .env 檔案。 সন")
@@ -32,7 +56,16 @@ if not all([LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, JWT_SECRET_KEY, VITE_BACKEND_B
 app = Flask(__name__)
 CORS(
     app,
-    origins=["https://personal-finance-gilt.vercel.app", "http://localhost:5173"],
+    origins=[
+        "https://personal-finance-gilt.vercel.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+        FRONTEND_BASE_URL,
+    ],
     supports_credentials=True
 )
 
@@ -40,6 +73,7 @@ CORS(
 asset_manager = AssetManager(db_session)
 budget_manager = BudgetManager(db_session)
 goal_manager = GoalManager(db_session)
+trip_manager = TripManager(db_session)
 user_manager = UserManager(db_session)
 
 @app.teardown_appcontext
@@ -57,6 +91,18 @@ def token_required(f):
     """Token 驗證裝飾器"""
     @wraps(f)
     def decorated(*args, **kwargs):
+        if DEV_AUTH_BYPASS:
+            provider_user_id = request.headers.get("X-Dev-User", "local-dev-user")
+            dev_user = DEV_AUTH_USERS.get(provider_user_id, DEV_AUTH_USERS["local-dev-user"])
+            user = user_manager.get_or_create_user_for_identity(
+                provider="dev",
+                provider_user_id=provider_user_id if provider_user_id in DEV_AUTH_USERS else "local-dev-user",
+                display_name=dev_user["display_name"],
+                provider_email=dev_user["provider_email"],
+            )
+            db_session.commit()
+            return f(str(user["id"]), *args, **kwargs)
+
         token = None
         if 'Authorization' in request.headers:
             token = request.headers['Authorization'].split(' ')[1]
@@ -75,6 +121,34 @@ def token_required(f):
         return f(current_user_id, *args, **kwargs)
     return decorated
 
+def _safe_frontend_redirect_path(value):
+    """只允許前端站內路徑，避免登入 callback 形成 open redirect。"""
+    if not value:
+        return "/"
+    text = str(value)
+    if not text.startswith("/") or text.startswith("//"):
+        return "/"
+    if "\n" in text or "\r" in text:
+        return "/"
+    return text
+
+def _create_line_login_state(redirect_path):
+    payload = {
+        "type": "line_login_state",
+        "redirect": _safe_frontend_redirect_path(redirect_path),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=LINE_LOGIN_STATE_TTL_MINUTES),
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
+
+def _decode_line_login_state(state):
+    try:
+        payload = jwt.decode(state, JWT_SECRET_KEY, algorithms=["HS256"])
+    except jwt.PyJWTError as exc:
+        raise ValueError("LINE Login state 驗證失敗") from exc
+    if payload.get("type") != "line_login_state":
+        raise ValueError("LINE Login state 類型不正確")
+    return _safe_frontend_redirect_path(payload.get("redirect"))
+
 app_state = AppStateManager()
 linebot_manager = LineBotManager(app_state, db_session)
 
@@ -83,6 +157,49 @@ linebot_manager = LineBotManager(app_state, db_session)
 def home():
     """根路由，回傳歡迎訊息"""
     return "歡迎來到個人財務管理系統的後端 API！"
+
+# --- API - AI 快速輸入 ---
+
+@app.route("/api/ai/parse", methods=["POST"])
+@token_required
+def parse_ai_input(current_user_id):
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or data.get("message") or "").strip()
+    if not text:
+        return jsonify({"success": False, "message": "缺少 text 欄位"}), 400
+
+    try:
+        parse_result = linebot_manager.message_parser.parse_shared(text)
+        parse_event = linebot_manager.ai_parse_event_manager.record_from_parse_result(
+            current_user_id,
+            "web",
+            parse_result,
+        )
+        db_session.commit()
+        return jsonify({
+            "success": True,
+            "data": {
+                "parse_event_id": str(parse_event["id"]),
+                "parse_result": parse_result,
+            },
+        }), 200
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in parse_ai_input: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/api/ai/parse-events", methods=["GET"])
+@token_required
+def get_ai_parse_events(current_user_id):
+    try:
+        events = linebot_manager.ai_parse_event_manager.list_recent_events(
+            current_user_id,
+            limit=request.args.get("limit", 20),
+        )
+        return jsonify({"success": True, "data": events}), 200
+    except Exception as e:
+        app.logger.error(f"Error in get_ai_parse_events: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 # --- API - 資產管理 ---
 
@@ -105,11 +222,30 @@ def add_asset(current_user_id):
     
     try:
         success, message = asset_manager.add_account(
-            current_user_id, data["bank_name"], data["account_type"], data["balance"]
+            current_user_id,
+            data["bank_name"],
+            data["account_type"],
+            data["balance"],
+            currency=data.get("currency"),
         )
         if success:
+            parse_event_id = data.get("parse_event_id")
+            created_transaction_id = getattr(budget_manager, "last_created_transaction_id", None)
+            if parse_event_id and created_transaction_id:
+                linebot_manager.ai_parse_event_manager.confirm_event(
+                    current_user_id,
+                    parse_event_id,
+                    data["type"],
+                    created_transaction_id,
+                )
             db_session.commit()
-        return jsonify({"success": success, "message": message}), 201
+        return jsonify({
+            "success": success,
+            "message": message,
+            "data": {
+                "transaction_id": str(getattr(budget_manager, "last_created_transaction_id", "")) or None,
+            },
+        }), 201
     except Exception as e:
         app.logger.error(f"Error in add_asset: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
@@ -158,13 +294,319 @@ def transfer_funds(current_user_id):
         app.logger.error(f"Error in transfer_funds: {e}")
         return jsonify({"success": False, "message": str(e)}), 400
 
+# --- API - 旅行帳本 ---
+
+@app.route("/api/trips", methods=["GET"])
+@token_required
+def get_trips(current_user_id):
+    include_archived = request.args.get("include_archived") == "true"
+    include_deleted = request.args.get("include_deleted") == "true"
+    try:
+        trips = trip_manager.list_trips(
+            current_user_id,
+            include_archived=include_archived,
+            include_deleted=include_deleted,
+        )
+        return jsonify({"success": True, "data": trips}), 200
+    except Exception as e:
+        app.logger.error(f"Error in get_trips: {e}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+@app.route("/api/trips", methods=["POST"])
+@token_required
+def create_trip(current_user_id):
+    data = request.get_json()
+    required_fields = ["name", "start_date", "end_date"]
+    if not data or not all(k in data for k in required_fields):
+        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+
+    try:
+        trip = trip_manager.create_trip(
+            user_id=current_user_id,
+            name=data["name"],
+            destination=data.get("destination"),
+            start_date=data["start_date"],
+            end_date=data["end_date"],
+            timezone_name=data.get("timezone", "Asia/Taipei"),
+            base_currency=data.get("base_currency", "TWD"),
+            default_currency=data.get("default_currency", data.get("base_currency", "TWD")),
+            include_in_monthly_report=bool(data.get("include_in_monthly_report", False)),
+        )
+        db_session.commit()
+        return jsonify({"success": True, "message": "旅行建立成功", "data": trip}), 201
+    except Exception as e:
+        app.logger.error(f"Error in create_trip: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>", methods=["GET"])
+@token_required
+def get_trip(current_user_id, trip_id):
+    try:
+        trip = trip_manager.get_trip(current_user_id, trip_id)
+        return jsonify({"success": True, "data": trip}), 200
+    except Exception as e:
+        app.logger.error(f"Error in get_trip: {e}")
+        return jsonify({"success": False, "message": str(e)}), 404
+
+@app.route("/api/trips/<string:trip_id>/members", methods=["GET"])
+@token_required
+def get_trip_members(current_user_id, trip_id):
+    try:
+        members = trip_manager.list_trip_members(current_user_id, trip_id)
+        return jsonify({"success": True, "data": members}), 200
+    except Exception as e:
+        app.logger.error(f"Error in get_trip_members: {e}")
+        return jsonify({"success": False, "message": str(e)}), 404
+
+@app.route("/api/trips/<string:trip_id>/members", methods=["POST"])
+@token_required
+def add_trip_member(current_user_id, trip_id):
+    data = request.get_json()
+    if not data or "display_name" not in data:
+        return jsonify({"success": False, "message": "缺少 display_name 欄位"}), 400
+
+    try:
+        member = trip_manager.add_external_member(
+            current_user_id,
+            trip_id,
+            display_name=data["display_name"],
+            role=data.get("role", "viewer"),
+        )
+        db_session.commit()
+        return jsonify({"success": True, "message": "旅伴新增成功", "data": member}), 201
+    except Exception as e:
+        app.logger.error(f"Error in add_trip_member: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/members/<string:member_id>", methods=["DELETE"])
+@token_required
+def delete_trip_member(current_user_id, trip_id, member_id):
+    try:
+        member = trip_manager.remove_member(current_user_id, trip_id, member_id)
+        db_session.commit()
+        return jsonify({"success": True, "message": "旅伴已刪除", "data": member}), 200
+    except Exception as e:
+        app.logger.error(f"Error in delete_trip_member: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/members/<string:member_id>/role", methods=["PATCH"])
+@token_required
+def update_trip_member_role(current_user_id, trip_id, member_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        member = trip_manager.update_member_role(
+            current_user_id,
+            trip_id,
+            member_id,
+            role=data.get("role"),
+        )
+        db_session.commit()
+        return jsonify({"success": True, "message": "旅伴權限已更新", "data": member}), 200
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in update_trip_member_role: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/leave", methods=["POST"])
+@token_required
+def leave_trip(current_user_id, trip_id):
+    try:
+        member = trip_manager.leave_trip(current_user_id, trip_id)
+        db_session.commit()
+        return jsonify({"success": True, "message": "已退出旅行帳本", "data": member}), 200
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in leave_trip: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/invite", methods=["GET"])
+@token_required
+def get_trip_invite(current_user_id, trip_id):
+    try:
+        invite = trip_manager.get_active_invite(current_user_id, trip_id)
+        return jsonify({"success": True, "data": invite}), 200
+    except Exception as e:
+        app.logger.error(f"Error in get_trip_invite: {e}")
+        return jsonify({"success": False, "message": str(e)}), 404
+
+@app.route("/api/trips/<string:trip_id>/invite", methods=["POST"])
+@token_required
+def create_trip_invite(current_user_id, trip_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        invite = trip_manager.create_invite(
+            current_user_id,
+            trip_id,
+            role=data.get("role", "editor"),
+            expires_in_days=int(data.get("expires_in_days", 30)),
+        )
+        invite["invite_url"] = f"{FRONTEND_BASE_URL.rstrip('/')}/trips/invite/{invite['token']}"
+        db_session.commit()
+        return jsonify({"success": True, "message": "邀請連結已建立", "data": invite}), 201
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in create_trip_invite: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/invite", methods=["DELETE"])
+@token_required
+def close_trip_invite(current_user_id, trip_id):
+    try:
+        invite = trip_manager.close_invite(current_user_id, trip_id)
+        db_session.commit()
+        return jsonify({"success": True, "message": "邀請連結已關閉", "data": invite}), 200
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in close_trip_invite: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trip-invites/<string:token>/accept", methods=["POST"])
+@token_required
+def accept_trip_invite(current_user_id, token):
+    try:
+        result = trip_manager.accept_invite(current_user_id, token)
+        db_session.commit()
+        return jsonify({"success": True, "message": "已加入旅行帳本", "data": result}), 200
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in accept_trip_invite: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/split-summary", methods=["GET"])
+@token_required
+def get_trip_split_summary(current_user_id, trip_id):
+    try:
+        summary = budget_manager.get_trip_split_summary(current_user_id, trip_id)
+        return jsonify({"success": True, "data": summary}), 200
+    except Exception as e:
+        app.logger.error(f"Error in get_trip_split_summary: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/settlement-suggestions", methods=["GET"])
+@token_required
+def get_trip_settlement_suggestions(current_user_id, trip_id):
+    try:
+        suggestions = budget_manager.get_trip_settlement_suggestions(current_user_id, trip_id)
+        return jsonify({"success": True, "data": suggestions}), 200
+    except Exception as e:
+        app.logger.error(f"Error in get_trip_settlement_suggestions: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/settlements", methods=["GET"])
+@token_required
+def get_trip_settlements(current_user_id, trip_id):
+    try:
+        settlements = budget_manager.get_trip_settlements(current_user_id, trip_id)
+        return jsonify({"success": True, "data": settlements}), 200
+    except Exception as e:
+        app.logger.error(f"Error in get_trip_settlements: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/settlements", methods=["POST"])
+@token_required
+def add_trip_settlement(current_user_id, trip_id):
+    data = request.get_json()
+    required_fields = ["from_member_id", "to_member_id", "amount"]
+    if not data or not all(k in data for k in required_fields):
+        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+
+    try:
+        success, message = budget_manager.add_trip_settlement(
+            current_user_id,
+            trip_id,
+            data["from_member_id"],
+            data["to_member_id"],
+            data["amount"],
+            note=data.get("note"),
+        )
+        if success:
+            created_transaction_id = getattr(budget_manager, "last_created_transaction_id", None)
+            parse_event_id = data.get("parse_event_id")
+            if parse_event_id and created_transaction_id:
+                linebot_manager.ai_parse_event_manager.confirm_event(
+                    current_user_id,
+                    parse_event_id,
+                    data["type"],
+                    created_transaction_id,
+                )
+            db_session.commit()
+        return jsonify({
+            "success": success,
+            "message": message,
+            "data": {
+                "transaction_id": str(getattr(budget_manager, "last_created_transaction_id", "")) or None,
+            },
+        }), 201
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in add_trip_settlement: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/settlements/<string:settlement_id>", methods=["DELETE"])
+@token_required
+def delete_trip_settlement(current_user_id, trip_id, settlement_id):
+    try:
+        success, message = budget_manager.delete_trip_settlement(current_user_id, trip_id, settlement_id)
+        if success:
+            db_session.commit()
+        return jsonify({"success": success, "message": message}), 200
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in delete_trip_settlement: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/archive", methods=["POST"])
+@token_required
+def archive_trip(current_user_id, trip_id):
+    try:
+        trip = trip_manager.archive_trip(current_user_id, trip_id)
+        db_session.commit()
+        return jsonify({"success": True, "message": "旅行已封存", "data": trip}), 200
+    except Exception as e:
+        app.logger.error(f"Error in archive_trip: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/unarchive", methods=["POST"])
+@token_required
+def unarchive_trip(current_user_id, trip_id):
+    try:
+        trip = trip_manager.unarchive_trip(current_user_id, trip_id)
+        db_session.commit()
+        return jsonify({"success": True, "message": "旅行已解除封存", "data": trip}), 200
+    except Exception as e:
+        app.logger.error(f"Error in unarchive_trip: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>/restore", methods=["POST"])
+@token_required
+def restore_trip(current_user_id, trip_id):
+    try:
+        trip = trip_manager.restore_trip(current_user_id, trip_id)
+        db_session.commit()
+        return jsonify({"success": True, "message": "旅行已復原", "data": trip}), 200
+    except Exception as e:
+        app.logger.error(f"Error in restore_trip: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/trips/<string:trip_id>", methods=["DELETE"])
+@token_required
+def delete_trip(current_user_id, trip_id):
+    try:
+        trip = trip_manager.delete_trip(current_user_id, trip_id)
+        db_session.commit()
+        return jsonify({"success": True, "message": "旅行已刪除", "data": trip}), 200
+    except Exception as e:
+        app.logger.error(f"Error in delete_trip: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
 # --- API - 預算與支出管理 ---
 
 @app.route("/api/budgets/categories", methods=["GET"])
 @token_required
 def get_budget_categories(current_user_id):
     try:
-        categories = budget_manager.get_all_budget_categories(current_user_id)
+        include_meta = request.args.get("include_meta") == "true"
+        categories = budget_manager.get_all_budget_categories(current_user_id, include_meta=include_meta)
         return jsonify({"success": True, "data": categories}), 200
     except Exception as e:
         app.logger.error(f"Error in get_budget_categories: {e}")
@@ -181,9 +623,24 @@ def set_budget(current_user_id):
         success, message = budget_manager.set_budget(
             current_user_id, data["month"], data["category"], data["amount"], data.get("notes", "")
         )
+        created_transaction_id = getattr(budget_manager, "last_created_transaction_id", None)
         if success:
+            parse_event_id = data.get("parse_event_id")
+            if parse_event_id and created_transaction_id:
+                linebot_manager.ai_parse_event_manager.confirm_event(
+                    current_user_id,
+                    parse_event_id,
+                    data["type"],
+                    created_transaction_id,
+                )
             db_session.commit()
-        return jsonify({"success": success, "message": message}), 201
+        return jsonify({
+            "success": success,
+            "message": message,
+            "data": {
+                "transaction_id": str(created_transaction_id) if created_transaction_id else None,
+            },
+        }), 201
     except Exception as e:
         app.logger.error(f"Error in set_budget: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
@@ -213,7 +670,12 @@ def get_available_months(current_user_id):
 @token_required
 def get_transactions(current_user_id):
     try:
-        transactions_data = budget_manager.get_all_transactions(current_user_id)
+        transactions_data = budget_manager.get_all_transactions(
+            current_user_id,
+            trip_id=request.args.get("trip_id"),
+            include_trips=request.args.get("include_trips") == "true",
+            monthly_report=request.args.get("monthly_report") == "true",
+        )
         return jsonify({"success": True, "data": transactions_data}), 200
     except Exception as e:
         app.logger.error(f"Error in get_transactions: {e}")
@@ -230,14 +692,86 @@ def add_transaction(current_user_id):
     try:
         success, message = budget_manager.add_transaction(
             current_user_id, data["date"], data["item"], data["amount"], 
-            data["type"], data["budget_category"], data.get("description", "")
+            data["type"], data["budget_category"], data.get("description", ""),
+            account_id=data.get("account_id"),
+            trip_id=data.get("trip_id"),
+            paid_by_member_id=data.get("paid_by_member_id"),
+            merchant=data.get("merchant"),
+            original_currency=data.get("original_currency"),
+            exchange_rate=data.get("exchange_rate"),
+            timezone_name=data.get("timezone", "Asia/Taipei"),
+            split_member_ids=data.get("split_member_ids"),
+            split_allocations=data.get("split_allocations"),
+            review_status=data.get("review_status", "confirmed"),
+        )
+        created_transaction_id = getattr(budget_manager, "last_created_transaction_id", None)
+        if success:
+            parse_event_id = data.get("parse_event_id")
+            if parse_event_id and created_transaction_id:
+                linebot_manager.ai_parse_event_manager.confirm_event(
+                    current_user_id,
+                    parse_event_id,
+                    data["type"],
+                    created_transaction_id,
+                )
+            db_session.commit()
+        return jsonify({
+            "success": success,
+            "message": message,
+            "data": {
+                "transaction_id": str(created_transaction_id) if created_transaction_id else None,
+            },
+        }), 201
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in add_transaction: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/api/transactions/<string:transaction_id>", methods=["GET"])
+@token_required
+def get_transaction_detail(current_user_id, transaction_id):
+    try:
+        transaction = budget_manager.get_transaction_detail(current_user_id, transaction_id)
+        return jsonify({"success": True, "data": transaction}), 200
+    except Exception as e:
+        app.logger.error(f"Error in get_transaction_detail: {e}")
+        return jsonify({"success": False, "message": str(e)}), 404
+
+@app.route("/api/transactions/<string:transaction_id>", methods=["PUT"])
+@token_required
+def update_transaction(current_user_id, transaction_id):
+    data = request.get_json()
+    required_fields = ["date", "item", "amount", "type", "budget_category"]
+    if not data or not all(k in data for k in required_fields):
+        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+
+    try:
+        success, message = budget_manager.update_transaction(
+            current_user_id,
+            transaction_id,
+            data["date"],
+            data["item"],
+            data["amount"],
+            data["type"],
+            data["budget_category"],
+            data.get("description", ""),
+            account_id=data.get("account_id"),
+            paid_by_member_id=data.get("paid_by_member_id"),
+            merchant=data.get("merchant"),
+            original_currency=data.get("original_currency"),
+            exchange_rate=data.get("exchange_rate"),
+            timezone_name=data.get("timezone", "Asia/Taipei"),
+            split_member_ids=data.get("split_member_ids"),
+            split_allocations=data.get("split_allocations"),
+            review_status=data.get("review_status", "confirmed"),
         )
         if success:
             db_session.commit()
-        return jsonify({"success": success, "message": message}), 201
+        return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        app.logger.error(f"Error in add_transaction: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
+        db_session.rollback()
+        app.logger.error(f"Error in update_transaction: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
 
 @app.route("/api/transactions/<string:transaction_id>", methods=["DELETE"])
 @token_required
@@ -248,6 +782,7 @@ def delete_transaction(current_user_id, transaction_id):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
+        db_session.rollback()
         app.logger.error(f"Error in delete_transaction: {e}")
         return jsonify({"success": False, "message": str(e)}), 404
 
@@ -255,25 +790,7 @@ def delete_transaction(current_user_id, transaction_id):
 @token_required
 def get_monthly_summary(current_user_id, month):
     try:
-        budget_stmt = select(budget_categories_table).where(
-            budget_categories_table.c.user_id == current_user_id, 
-            budget_categories_table.c.month == month
-        )
-        budgets_result = db_session.execute(budget_stmt)
-        budgets = {row.category_name: row.amount for row in budgets_result}
-
-        expense_totals = budget_manager.calculate_monthly_expenses(current_user_id, month)
-        
-        all_categories = set(expense_totals.keys()) | set(budgets.keys())
-        response_data = [
-            {
-                "category": category,
-                "spent": expense_totals.get(category, 0),
-                "budget": budgets.get(category),
-                "remaining": (budgets.get(category) - expense_totals.get(category, 0)) if budgets.get(category) is not None else None
-            }
-            for category in all_categories
-        ]
+        response_data = budget_manager.get_budget_summary(current_user_id, month)
         return jsonify({"success": True, "data": response_data})
     except Exception as e:
         app.logger.error(f"Error in get_monthly_summary: {e}")
@@ -346,7 +863,7 @@ def delete_goal(current_user_id, goal_id):
 def get_monthly_expenses(current_user_id):
     year_month = request.args.get("month", datetime.now().strftime("%Y-%m"))
     try:
-        expense_data = budget_manager.calculate_monthly_expenses(current_user_id, year_month)
+        expense_data = budget_manager.calculate_monthly_report_expenses(current_user_id, year_month)
         chart_data = {
             "labels": list(expense_data.keys()),
             "datasets": [{
@@ -384,10 +901,19 @@ def get_asset_allocation(current_user_id):
 def get_income_expense_summary(current_user_id):
     month = request.args.get("month")
     try:
-        stmt = select(transactions_table.c.type, func.sum(transactions_table.c.amount).label("total")) \
-            .where(transactions_table.c.user_id == current_user_id)
+        parsed_user_id = UUID(str(current_user_id))
+        stmt = select(transactions_table.c.type, func.sum(transactions_table.c.converted_amount).label("total")) \
+            .outerjoin(trips_table, transactions_table.c.trip_id == trips_table.c.id) \
+            .where(
+                transactions_table.c.user_id == parsed_user_id,
+                transactions_table.c.deleted_at.is_(None),
+                (
+                    transactions_table.c.trip_id.is_(None)
+                    | trips_table.c.include_in_monthly_report.is_(True)
+                ),
+            )
         if month:
-            stmt = stmt.where(func.to_char(transactions_table.c.date, 'YYYY-MM') == month)
+            stmt = stmt.where(func.to_char(transactions_table.c.transaction_date, 'YYYY-MM') == month)
         stmt = stmt.group_by(transactions_table.c.type)
 
         income, expense = 0, 0
@@ -478,13 +1004,34 @@ def line_webhook():
 
     return 'OK'
 
+@app.route("/line-login-start", methods=["GET"])
+def line_login_start():
+    redirect_path = _safe_frontend_redirect_path(request.args.get("redirect", "/"))
+    redirect_uri = f"{VITE_BACKEND_BASE_URL}/line-login-callback"
+    state = _create_line_login_state(redirect_path)
+    query = urlencode(
+        {
+            "response_type": "code",
+            "client_id": LINE_CHANNEL_ID,
+            "redirect_uri": redirect_uri,
+            "state": state,
+            "scope": "profile openid",
+        }
+    )
+    return redirect(f"https://access.line.me/oauth2/v2.1/authorize?{query}")
+
 @app.route("/line-login-callback", methods=["GET"])
 def line_login_callback():
     code = request.args.get('code')
+    state = request.args.get("state")
     if not code:
         return jsonify({"success": False, "message": "授權碼遺失"}), 400
+    if not state:
+        return jsonify({"success": False, "message": "LINE Login state 遺失"}), 400
 
     try:
+        frontend_redirect_path = _decode_line_login_state(state)
+
         # 1. 交換 Token
         token_url = "https://api.line.me/oauth2/v2.1/token"
         redirect_uri = f"{VITE_BACKEND_BASE_URL}/line-login-callback"
@@ -502,25 +1049,35 @@ def line_login_callback():
             id_token, LINE_CHANNEL_SECRET, algorithms=['HS256'],
             audience=LINE_CHANNEL_ID, issuer='https://access.line.me'
         )
-        user_id = decoded_id_token.get('sub')
+        line_user_id = decoded_id_token.get('sub')
         display_name = decoded_id_token.get('name')
-        if not user_id:
+        provider_email = decoded_id_token.get('email')
+        avatar_url = decoded_id_token.get('picture')
+        if not line_user_id:
             raise ValueError("無法從 ID Token 獲取使用者 ID")
 
-        # 3. 獲取或創建使用者 (使用新的 DB Session 模式)
-        user = user_manager.get_or_create_user(user_id, display_name)
+        # 3. 獲取或創建內部使用者，LINE ID 會存到 user_identities
+        user = user_manager.get_or_create_user_for_identity(
+            provider="line",
+            provider_user_id=line_user_id,
+            display_name=display_name,
+            provider_email=provider_email,
+            avatar_url=avatar_url,
+        )
         db_session.commit() # Commit after user creation/retrieval
 
         # 4. 產生應用程式 JWT
         payload = {
-            'user_id': user['user_id'],
+            'user_id': str(user['id']),
+            'line_user_id': line_user_id,
             'name': user['display_name'],
             'exp': datetime.now(timezone.utc) + timedelta(days=1)
         }
         app_token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
 
         # 5. 重定向到前端
-        return redirect(f"{FRONTEND_BASE_URL}/auth-callback?token={app_token}")
+        callback_query = urlencode({"token": app_token, "redirect": frontend_redirect_path})
+        return redirect(f"{FRONTEND_BASE_URL}/auth-callback?{callback_query}")
 
     except requests.exceptions.RequestException as e:
         app.logger.error(f"Line Token Exchange Error: {e}")
@@ -528,6 +1085,9 @@ def line_login_callback():
     except jwt.PyJWTError as e:
         app.logger.error(f"ID Token Verification Error: {e}")
         return jsonify({"success": False, "message": f"ID Token 驗證失敗: {e}"}), 500
+    except ValueError as e:
+        app.logger.error(f"Line Login State Error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
         app.logger.error(f"Unhandled Line Login Callback Error: {e}")
         return jsonify({"success": False, "message": f"登入處理失敗: {e}"}), 500

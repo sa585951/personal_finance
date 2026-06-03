@@ -1,30 +1,55 @@
 <template>
-  <div class="form-container">
-    <h3>新增帳戶</h3>
+  <div class="account-form">
     <form @submit.prevent="addAccount">
-      <label for="bankName">銀行名稱:</label>
-      <input
-        type="text"
-        id="bankName"
-        v-model="newAccount.bank_name"
-        required
-      />
+      <div class="form-group">
+        <label for="bankName">帳戶名稱</label>
+        <input
+          type="text"
+          id="bankName"
+          v-model.trim="newAccount.bank_name"
+          placeholder="例如：台幣銀行、日幣現金"
+          required
+        />
+      </div>
 
-      <label for="accountType">帳戶類型:</label>
-      <input
-        type="text"
-        id="accountType"
-        v-model="newAccount.account_type"
-        required
-      />
+      <div class="form-group">
+        <label for="accountType">帳戶類型</label>
+        <select id="accountType" v-model="newAccount.account_type" required>
+          <option
+            v-for="type in accountTypes"
+            :key="type.value"
+            :value="type.value"
+          >
+            {{ type.label }}
+          </option>
+        </select>
+      </div>
 
-      <label for="balance">初始餘額:</label>
-      <input
-        type="number"
-        id="balance"
-        v-model.number="newAccount.balance"
-        required
-      />
+      <div class="form-group">
+        <label for="balance">初始餘額</label>
+        <input
+          type="number"
+          id="balance"
+          v-model.number="newAccount.balance"
+          min="0"
+          step="1"
+          placeholder="0"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="currency">幣別</label>
+        <select id="currency" v-model="newAccount.currency" required>
+          <option
+            v-for="currency in currencies"
+            :key="currency"
+            :value="currency"
+          >
+            {{ currency }}
+          </option>
+        </select>
+      </div>
 
       <button type="submit">新增</button>
     </form>
@@ -41,9 +66,20 @@ export default {
     return {
       newAccount: {
         bank_name: "",
-        account_type: "",
+        account_type: "bank",
         balance: null,
+        currency: "TWD",
       },
+      currencies: ["TWD", "JPY", "KRW", "USD", "EUR"],
+      accountTypes: [
+        { value: "bank", label: "銀行" },
+        { value: "cash", label: "現金" },
+        { value: "credit_card", label: "信用卡" },
+        { value: "e_wallet", label: "電子錢包" },
+        { value: "prepaid_card", label: "預付卡" },
+        { value: "external", label: "外部帳戶" },
+        { value: "other", label: "其他" },
+      ],
       submitMessage: "",
     };
   },
@@ -53,7 +89,8 @@ export default {
         const payload = {
           bank_name: this.newAccount.bank_name,
           account_type: this.newAccount.account_type,
-          balance: this.newAccount.balance, // 確保這裡的 key 是 balance
+          balance: this.newAccount.balance,
+          currency: this.newAccount.currency,
         };
 
         const response = await apiClient.post(`/api/assets`, payload);
@@ -62,8 +99,9 @@ export default {
         this.$emit("account-added");
 
         this.newAccount.bank_name = "";
-        this.newAccount.account_type = "";
+        this.newAccount.account_type = "bank";
         this.newAccount.balance = null;
+        this.newAccount.currency = "TWD";
       } catch (err) {
         if (err.response) {
           this.submitMessage = `新增失敗：${err.response.data.message}`;
@@ -76,49 +114,45 @@ export default {
 };
 </script>
 <style scoped>
-.form-container {
-  margin-bottom: 2rem;
-  padding: 2rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  background-color: #fafafa;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+.account-form form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.form-container h3 {
-  margin-top: 0;
-  color: var(--light-text-color);
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.form-container form {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr) auto;
-  gap: 1.5rem;
-  align-items: end;
-}
-
-.form-container label {
+.form-group label {
   font-weight: bold;
-  color: var(--light-text-color);
-  margin-bottom: 0.5rem;
+  color: #475569;
 }
 
-.form-container input {
+.form-group input,
+.form-group select {
+  min-height: 44px;
+  width: 100%;
   padding: 0.8rem 1rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
   transition: all 0.3s ease;
 }
 
-.form-container input:focus {
+.form-group input:focus,
+.form-group select:focus {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
 
-.form-container button {
-  background-color: var(--primary-color);
-  justify-self: end;
+.account-form button {
+  min-height: 46px;
+  margin-top: 4px;
+  background-color: #0f766e;
 }
 
 .message {

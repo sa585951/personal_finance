@@ -1,24 +1,38 @@
-# frontend
+# Personal Finance Companion Frontend
 
-## Project setup
-```
+Vue 3 + Vite frontend for the Personal Finance Companion web/PWA experience.
+
+## Setup
+
+```bash
 npm install
 ```
 
-### Compiles and hot-reloads for development
-```
-npm run serve
+Create a local env file from `.env.example`:
+
+```bash
+cp .env.example .env.local
 ```
 
-### Compiles and minifies for production
+Required variables:
+
+- `VITE_APP_API_URL`: Backend API base URL.
+- `VITE_LINE_LOGIN_CHANNEL_ID`: LINE Login channel ID.
+
+## Development
+
+```bash
+npm run dev
 ```
+
+## Production Build
+
+```bash
 npm run build
 ```
 
-### Lints and fixes files
-```
+## Lint
+
+```bash
 npm run lint
 ```
-
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).

@@ -1,9 +1,6 @@
 import json
 
 class GeminiParser:
-    def parse(self, message):
-        """使用 Gemini 解析自然語言"""
-
     def __init__(self, model, prompt_template, cold_start_checker=None):
         """初始化 Gemini 解析器
         
@@ -40,7 +37,7 @@ class GeminiParser:
             print(f"Gemini 解析失敗: {e}")
 
             # 冷啟動期間的特殊處理
-            if self.cold_start_checker():
+            if self.cold_start_checker and self.cold_start_checker():
                 print("冷啟動期間 Gemini 失敗， 可能是網路連線還沒穩定")
 
             return {"type": "other", "error": str(e)}

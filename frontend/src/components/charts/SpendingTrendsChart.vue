@@ -1,7 +1,7 @@
 <template>
   <div class="card">
     <div class="card-header">
-      <h3 class="card-title">收支趨勢</h3>
+      <h3 class="card-title">月報支出趨勢</h3>
       <div class="controls">
         <label for="interval">時間間隔:</label>
         <select id="interval" v-model="selectedInterval" @change="fetchChartData">
@@ -65,7 +65,7 @@ export default {
           },
           title: {
             display: false,
-            text: "收支趨勢",
+            text: "月報支出趨勢",
           },
         },
         scales: {

@@ -13,3 +13,11 @@ const app = createApp(App);
 app.config.globalProperties.$swal = Swal;
 
 app.use(router).mount("#app");
+
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch((error) => {
+      console.error("Service worker registration failed:", error);
+    });
+  });
+}

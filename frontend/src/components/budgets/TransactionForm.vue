@@ -1,61 +1,87 @@
 <template>
   <div class="form-container">
-    <h3>新增交易</h3>
+    <h3>{{ type === "income" ? "新增收入" : "新增支出" }}</h3>
     <form @submit.prevent="addTransaction">
-      <label for="transactionDate">日期:</label>
-      <input
-        type="date"
-        id="transactionDate"
-        v-model="newTransaction.date"
-        required
-      />
+      <label for="transactionDate">
+        日期
+        <input
+          type="date"
+          id="transactionDate"
+          v-model="newTransaction.date"
+          required
+        />
+      </label>
 
-      <label for="transactionType">類型:</label>
-      <select id="transactionType" v-model="newTransaction.type" required>
-        <option value="income">收入</option>
-        <option value="expense">支出</option>
-      </select>
-
-      <label for="budgetCategory">預算類別:</label>
-      <select
-        id="budgetCategory"
-        v-model="newTransaction.budget_category"
-        required
-      >
-        <option disabled value="">請選擇預算類別</option>
-        <option
-          v-for="category in budgetCategories"
-          :key="category"
-          :value="category"
+      <label for="budgetCategory">
+        {{ categoryLabel }}
+        <select
+          id="budgetCategory"
+          v-model="newTransaction.budget_category"
+          required
         >
-          {{ category }}
-        </option>
-      </select>
+          <option disabled value="">請選擇預算類別</option>
+          <option
+            v-for="category in filteredBudgetCategories"
+            :key="category.code"
+            :value="category.name"
+          >
+            {{ category.name }}
+          </option>
+        </select>
+      </label>
 
-      <label for="transactionCategory">項目:</label>
-      <input
-        type="text"
-        id="transactionCategory"
-        v-model="newTransaction.item"
-        required
-      />
+      <label for="transactionCategory">
+        項目
+        <input
+          type="text"
+          id="transactionCategory"
+          :placeholder="type === 'income' ? '薪資、報銷、利息' : '午餐、捷運、訂閱'"
+          v-model="newTransaction.item"
+          required
+        />
+      </label>
 
-      <label for="transactionAmount">金額:</label>
-      <input
-        type="number"
-        id="transactionAmount"
-        v-model.number="newTransaction.amount"
-        required
-      />
+      <label for="transactionAmount">
+        金額
+        <input
+          type="number"
+          id="transactionAmount"
+          v-model.number="newTransaction.amount"
+          required
+        />
+      </label>
 
-      <label for="transactionDescription">備註:</label>
-      <input
-        type="text"
-        id="transactionDescription"
-        v-model="newTransaction.description"
-      />
+      <label for="transactionAccount">
+        帳戶
+        <select id="transactionAccount" v-model="newTransaction.account_id">
+          <option value="">不連動帳戶</option>
+          <option
+            v-for="account in accountOptions"
+            :key="account.id"
+            :value="account.id"
+          >
+            {{ account.label }}
+          </option>
+        </select>
+      </label>
 
-      <button type="submit">新增</button>
+      <label for="transactionDescription" class="full-row">
+        備註
+        <input
+          type="text"
+          id="transactionDescription"
+          v-model="newTransaction.description"
+        />
+      </label>
+
+      <div v-if="transactionPreview" class="transaction-preview full-row">
+        <span>{{ type === "income" ? "入帳提示" : "扣款提示" }}</span>
+        <strong>{{ transactionPreview }}</strong>
+      </div>
+
+      <p v-if="submitMessage" class="form-message full-row">{{ submitMessage }}</p>
+
+      <button type="submit">{{ newTransaction.type === "income" ? "新增收入" : "新增支出" }}</button>
     </form>
   </div>
 </template>
@@ -66,53 +92,204 @@ import { format } from "date-fns";
 
 export default {
   name: "TransactionForm",
+  props: {
+    type: {
+      type: String,
+      default: "expense",
+      validator: (value) => ["expense", "income"].includes(value),
+    },
+    draft: {
+      type: Object,
+      default: null,
+    },
+  },
   data() {
     return {
       newTransaction: {
         date: format(new Date(), "yyyy-MM-dd"), // 預設為當天日期
-        type: "expense",
+        type: this.type,
         item: "", // 將 category 改為 item
         amount: null,
         budget_category: "", // 新增：預算類別
+        account_id: "",
+        parse_event_id: "",
         description: "", // 新增：備註
       },
-      // 硬編碼的預算類別，未來可從後端獲取
       budgetCategories: [],
+      assets: {},
+      submitMessage: "",
     };
   },
+  computed: {
+    categoryLabel() {
+      return this.type === "income" ? "收入類別" : "支出類別";
+    },
+    filteredBudgetCategories() {
+      return this.budgetCategories.filter(
+        (category) => category.kind === this.type || category.kind === "both"
+      );
+    },
+    accountOptions() {
+      return Object.values(this.assets || {})
+        .filter((asset) => asset.currency === "TWD")
+        .map((asset) => ({
+          id: asset.id,
+          label: `${asset.bank_name} - ${this.translateAccountType(asset.account_type)} (${asset.currency} ${Number(asset.balance || 0).toLocaleString()})`,
+        }));
+    },
+    selectedAccount() {
+      if (!this.newTransaction.account_id) return null;
+      return Object.values(this.assets || {}).find(
+        (asset) => asset.id === this.newTransaction.account_id
+      ) || null;
+    },
+    transactionPreview() {
+      const account = this.selectedAccount;
+      const amount = Number(this.newTransaction.amount || 0);
+      if (!amount) {
+        return "";
+      }
+      if (!account) {
+        return "不異動帳戶餘額";
+      }
+      const action = this.type === "income" ? "將入帳" : "將扣款";
+      return `${action}：${account.bank_name} ${this.formatMoney(amount, account.currency)}`;
+    },
+  },
+  watch: {
+    type() {
+      this.newTransaction.type = this.type;
+      this.ensureCategoryMatchesType();
+    },
+    budgetCategories() {
+      this.ensureCategoryMatchesType();
+    },
+    draft: {
+      handler(value) {
+        if (value) {
+          this.applyDraft(value);
+        }
+      },
+      deep: true,
+    },
+  },
   methods: {
+    ensureCategoryMatchesType() {
+      if (
+        this.filteredBudgetCategories.some(
+          (category) => category.name === this.newTransaction.budget_category
+        )
+      ) {
+        return;
+      }
+      this.newTransaction.budget_category = this.filteredBudgetCategories[0]?.name || "";
+    },
+    applyDraft(draft) {
+      const transactionType = ["expense", "income"].includes(draft.type)
+        ? draft.type
+        : this.type;
+      const amount = draft.amount === null || draft.amount === undefined
+        ? null
+        : Number(draft.amount);
+
+      this.newTransaction = {
+        ...this.newTransaction,
+        type: transactionType,
+        item: draft.title || this.newTransaction.item,
+        amount: Number.isFinite(amount) ? amount : this.newTransaction.amount,
+        budget_category: draft.budget_category || this.newTransaction.budget_category,
+        description: draft.description || draft.raw_text || this.newTransaction.description,
+        account_id: this.findAccountIdByHint(draft.account_hint) || this.newTransaction.account_id,
+        parse_event_id: draft.parse_event_id || "",
+      };
+      this.ensureCategoryMatchesType();
+      this.submitMessage = "已套用 AI 解析結果，送出前請再確認欄位。";
+    },
     async addTransaction() {
+      this.submitMessage = "";
       try {
         await apiClient.post(`/api/transactions`, this.newTransaction);
 
+        await this.fetchAssets();
         this.$emit("transaction-added");
         this.resetForm();
       } catch (error) {
         console.error("新增失敗:", error);
+        this.$swal.fire(
+          "新增失敗",
+          error.response?.data?.message || "交易新增失敗，請稍後再試。",
+          "error"
+        );
       }
     },
     async fetchBudgetCategories() {
       try {
-        const response = await apiClient.get(`/api/budgets/categories`);
-        this.budgetCategories = response.data.data;
+        const response = await apiClient.get(`/api/budgets/categories?include_meta=true`);
+        this.budgetCategories = response.data.data || [];
       } catch (error) {
         console.error("無法載入預算類別:", error);
       }
     },
+    async fetchAssets() {
+      try {
+        const response = await apiClient.get(`/api/assets`);
+        this.assets = response.data.data || {};
+      } catch (error) {
+        console.error("無法載入帳戶資料:", error);
+        this.assets = {};
+      }
+    },
+    translateAccountType(type) {
+      const typeMap = {
+        bank: "銀行",
+        cash: "現金",
+        credit_card: "信用卡",
+        e_wallet: "電子錢包",
+        prepaid_card: "預付卡",
+        external: "外部帳戶",
+        other: "其他",
+      };
+      return typeMap[type] || type || "其他";
+    },
+    findAccountIdByHint(accountHint) {
+      if (!accountHint) return "";
+      const normalizedHint = String(accountHint).trim().toLowerCase();
+      const matchedAccount = Object.values(this.assets || {}).find((asset) => {
+        if (asset.currency !== "TWD") return false;
+        const bankName = String(asset.bank_name || "").toLowerCase();
+        const accountType = this.translateAccountType(asset.account_type).toLowerCase();
+        return (
+          normalizedHint.includes(bankName)
+          || bankName.includes(normalizedHint)
+          || normalizedHint.includes(accountType)
+        );
+      });
+      return matchedAccount?.id || "";
+    },
+    formatMoney(amount, currency = "TWD") {
+      const minorUnit = ["TWD", "JPY", "KRW"].includes(currency) ? 0 : 2;
+      return `${currency} ${Number(amount || 0).toLocaleString("zh-TW", {
+        minimumFractionDigits: minorUnit,
+        maximumFractionDigits: minorUnit,
+      })}`;
+    },
     resetForm() {
       this.newTransaction = {
         date: format(new Date(), "yyyy-MM-dd"),
-        type: "支出",
+        type: this.type,
         item: "", // 將 category 改為 item
         amount: null,
         budget_category: "",
+        account_id: "",
+        parse_event_id: "",
         description: "",
       };
+      this.submitMessage = "";
     },
   },
   created() {
-    // 在元件創建時立即載入類別
     this.fetchBudgetCategories();
+    this.fetchAssets();
   },
 };
 </script>
@@ -120,43 +297,82 @@ export default {
 <style scoped>
 /* 表單容器樣式 - 與 AccountForm 一致 */
 .form-container {
-  margin-bottom: 2rem;
-  padding: 2rem;
-  border: 1px solid #e0e0e0;
+  margin-bottom: 1rem;
+  padding: 16px;
+  border: 1px solid #dbe4ee;
   border-radius: 10px;
-  background-color: #fafafa;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  background-color: #ffffff;
+  box-shadow: none;
 }
 
 .form-container h3 {
   margin-top: 0;
-  color: var(--light-text-color);
-  margin-bottom: 1.5rem;
+  color: #1f2933;
+  margin-bottom: 1rem;
 }
 
-/* 新的 Form Grid 佈局 */
 .form-container form {
   display: grid;
-  /* 2欄式佈局，每行一個 label-input */
-  grid-template-columns: auto 1fr;
-  gap: 1.2rem 1.5rem; /* row-gap column-gap */
-  align-items: center;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: end;
 }
 
 .form-container label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
   font-weight: bold;
-  color: var(--light-text-color);
-  text-align: right;
+  color: #475569;
+  text-align: left;
 }
 
 .form-container input,
 .form-container select {
+  min-height: 44px;
+  min-width: 0;
   padding: 0.8rem 1rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   transition: all 0.3s ease;
   width: 100%;
   background-color: #fff;
+}
+
+.full-row {
+  grid-column: 1 / -1;
+}
+
+.transaction-preview {
+  display: grid;
+  gap: 4px;
+  min-height: 60px;
+  padding: 12px;
+  color: #134e4a;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+}
+
+.transaction-preview span {
+  color: #0f766e;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.transaction-preview strong {
+  line-height: 1.35;
+}
+
+.form-message {
+  margin: 0;
+  padding: 10px 12px;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-weight: 700;
 }
 
 .form-container input:focus,
@@ -166,13 +382,12 @@ export default {
   box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
 
-/* 按鈕樣式 - 與 AccountForm 一致 */
 .form-container button {
-  background-color: var(--primary-color);
-  /* 讓按鈕橫跨所有欄位 */
+  min-height: 46px;
+  background-color: #0f766e;
   grid-column: 1 / -1;
   width: auto;
-  justify-self: end; /* 靠右對齊 */
+  justify-self: stretch;
   margin-top: 1rem;
   padding: 10px 20px;
   border: none;
@@ -189,14 +404,11 @@ export default {
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* 響應式設計 */
 @media (max-width: 768px) {
   .form-container form {
-    grid-template-columns: 1fr; /* 在小螢幕上變為單欄 */
+    grid-template-columns: 1fr;
   }
-  .form-container label {
-    text-align: left; /* 標籤左對齊 */
-  }
+
   .form-container button {
     width: 100%;
     justify-self: stretch;

@@ -1,0 +1,318 @@
+<template>
+  <section class="ai-quick-input">
+    <div class="quick-header">
+      <div>
+        <p class="eyebrow">AI Quick Entry</p>
+        <h2>一句話記帳</h2>
+      </div>
+      <span class="status-pill">先解析</span>
+    </div>
+
+    <form class="quick-form" @submit.prevent="parseInput">
+      <label for="aiQuickText">
+        快速輸入
+        <textarea
+          id="aiQuickText"
+          v-model="text"
+          rows="2"
+          placeholder="例如：早餐麥當勞 150 元，用現金"
+          :disabled="isParsing"
+        ></textarea>
+      </label>
+      <button type="submit" :disabled="isParsing || !text.trim()">
+        {{ isParsing ? "解析中" : "解析" }}
+      </button>
+    </form>
+
+    <p v-if="errorMessage" class="parse-message error">{{ errorMessage }}</p>
+
+    <div v-if="parseResult" class="parse-result">
+      <div class="result-heading">
+        <span>{{ resultTitle }}</span>
+        <small>{{ sourceLabel }}</small>
+      </div>
+
+      <div v-if="transaction" class="result-grid">
+        <div>
+          <span>類型</span>
+          <strong>{{ transaction.type === "income" ? "收入" : "支出" }}</strong>
+        </div>
+        <div>
+          <span>金額</span>
+          <strong>{{ transaction.amount || "未判斷" }}</strong>
+        </div>
+        <div>
+          <span>類別</span>
+          <strong>{{ transaction.budget_category || "未判斷" }}</strong>
+        </div>
+        <div>
+          <span>項目</span>
+          <strong>{{ transaction.title || "未判斷" }}</strong>
+        </div>
+      </div>
+
+      <p v-if="transaction?.account_hint" class="hint-line">
+        帳戶提示：{{ transaction.account_hint }}
+      </p>
+      <p v-if="missingFields.length" class="parse-message warning">
+        尚缺：{{ missingFields.join("、") }}
+      </p>
+      <p v-if="!transaction" class="parse-message warning">
+        目前這句話沒有解析成收入或支出，先不套用到表單。
+      </p>
+
+      <button
+        v-if="transaction"
+        class="apply-button"
+        type="button"
+        @click="applyResult"
+      >
+        套用到表單
+      </button>
+    </div>
+  </section>
+</template>
+
+<script>
+import apiClient from "@/api";
+
+export default {
+  name: "AIQuickInput",
+  emits: ["apply-draft", "parsed"],
+  data() {
+    return {
+      text: "",
+      isParsing: false,
+      parseResult: null,
+      parseEventId: "",
+      errorMessage: "",
+    };
+  },
+  computed: {
+    transaction() {
+      return this.parseResult?.transaction || null;
+    },
+    missingFields() {
+      return this.parseResult?.missing_fields || [];
+    },
+    resultTitle() {
+      if (this.transaction) {
+        return "解析結果";
+      }
+      return "尚未形成交易";
+    },
+    sourceLabel() {
+      const labelMap = {
+        quick: "規則解析",
+        gemini: "AI 解析",
+        local_fallback: "本地解析",
+      };
+      return labelMap[this.parseResult?.source] || "解析";
+    },
+  },
+  methods: {
+    async parseInput() {
+      this.errorMessage = "";
+      this.parseResult = null;
+      this.parseEventId = "";
+      this.isParsing = true;
+      try {
+        const response = await apiClient.post("/api/ai/parse", {
+          text: this.text.trim(),
+        });
+        const responseData = response.data.data || {};
+        this.parseResult = responseData.parse_result || null;
+        this.parseEventId = responseData.parse_event_id || "";
+        this.$emit("parsed");
+      } catch (error) {
+        console.error("AI 解析失敗", error);
+        this.errorMessage = error.response?.data?.message || "解析失敗，請稍後再試。";
+      } finally {
+        this.isParsing = false;
+      }
+    },
+    applyResult() {
+      if (!this.transaction) return;
+      this.$emit("apply-draft", {
+        ...this.transaction,
+        raw_text: this.parseResult.raw_text,
+        parse_event_id: this.parseEventId,
+      });
+    },
+  },
+};
+</script>
+
+<style scoped>
+.ai-quick-input {
+  margin: 0 0 1rem;
+  padding: 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.quick-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.quick-header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.1rem;
+}
+
+.eyebrow {
+  margin: 0 0 3px;
+  color: #2563eb;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.quick-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.quick-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-align: left;
+}
+
+.quick-form textarea {
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 12px;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  resize: vertical;
+}
+
+.quick-form button,
+.apply-button {
+  min-height: 42px;
+  padding: 0 16px;
+  color: #ffffff;
+  background: #2563eb;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: none;
+  font-weight: 800;
+}
+
+.quick-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.parse-result {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.result-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  color: #0f172a;
+  font-weight: 900;
+}
+
+.result-heading small {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.result-grid div {
+  min-width: 0;
+  padding: 10px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.result-grid span {
+  display: block;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.result-grid strong {
+  display: block;
+  margin-top: 2px;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.hint-line,
+.parse-message {
+  margin: 10px 0 0;
+  color: #475569;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.parse-message.error {
+  color: #b91c1c;
+}
+
+.parse-message.warning {
+  color: #b45309;
+}
+
+.apply-button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+@media (max-width: 520px) {
+  .quick-form {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-form button {
+    width: 100%;
+  }
+}
+</style>

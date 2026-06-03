@@ -16,21 +16,9 @@ export default {
   name: 'LoginView',
   methods: {
     lineLogin() {
-      const LINE_CHANNEL_ID = import.meta.env.VITE_LINE_LOGIN_CHANNEL_ID;
       const backendBaseUrl = import.meta.env.VITE_APP_API_URL;
-      const redirectUri = `${backendBaseUrl}/line-login-callback`;
-      const state = Math.random().toString(36).substring(2, 15);
-
-      sessionStorage.setItem('line_login_state', state);
-
-      const authUrl = `https://access.line.me/oauth2/v2.1/authorize?` +
-                      `response_type=code&` +
-                      `client_id=${LINE_CHANNEL_ID}&` +
-                      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-                      `state=${state}&` +
-                      `scope=profile%20openid`;
-      
-      window.location.href = authUrl;
+      const redirectPath = this.$route.query.redirect || '/';
+      window.location.href = `${backendBaseUrl}/line-login-start?redirect=${encodeURIComponent(redirectPath)}`;
     },
   },
 };

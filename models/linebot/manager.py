@@ -5,6 +5,7 @@ import google.generativeai as genai
 from .message_handler import MessageHandler
 from .message_parser import MessageParser
 from .user_state_manager import UserStateManager
+from ..ai_parse_event_manager import AIParseEventManager
 from ..user_manager import UserManager
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import LineBotApiError
@@ -29,6 +30,7 @@ class LineBotManager:
 
         self.user_state_manager = UserStateManager()
         self.user_manager = UserManager(self.db_session)
+        self.ai_parse_event_manager = AIParseEventManager(self.db_session)
         
         # Prompt 模板 (保持不變)
         self.prompt_template = '''
@@ -85,15 +87,16 @@ class LineBotManager:
         由 web_app 傳入 event 和 db_session。
         """
         user_message = event.message.text.strip()
-        user_id = event.source.user_id
-        print(f"Received message from user_id: {user_id}")
+        line_user_id = event.source.user_id
+        print(f"Received message from line_user_id: {line_user_id}")
 
         # 獲取使用者 Line 顯示名稱
-        profile = self.line_bot_api.get_profile(user_id)
+        profile = self.line_bot_api.get_profile(line_user_id)
         display_name = profile.display_name
 
-        # 確保使用者存在於資料庫中
-        self.user_manager.get_or_create_user(user_id, display_name)
+        # 確保使用者存在於資料庫中，後續業務邏輯使用內部 UUID
+        user = self.user_manager.get_or_create_user_for_identity("line", line_user_id, display_name)
+        internal_user_id = str(user["id"])
 
         if self.app_state and self.app_state.is_cold_start():
             print(f"冷啟動期間收到訊息: {user_message}")
@@ -101,28 +104,56 @@ class LineBotManager:
             return
 
         # 正常的訊息解析流程
-        parsed_data = self.message_parser.parse(user_message)
+        shared_parse_result = self.message_parser.parse_shared(user_message)
+        parsed_data = shared_parse_result["legacy"]
+        parse_event = self.ai_parse_event_manager.record_from_parse_result(
+            internal_user_id,
+            "line_bot",
+            shared_parse_result,
+        )
         
-        response_message = self.message_handler.handle_user_message(user_id, user_message, parsed_data)
+        response_message = self.message_handler.handle_user_message(internal_user_id, user_message, parsed_data)
+        self._confirm_parse_event_if_transaction_created(internal_user_id, parse_event, parsed_data)
 
         self.reply_message_flex(event.reply_token, response_message)
+
+    def _confirm_parse_event_if_transaction_created(self, user_id, parse_event, parsed_data):
+        """LINE 自然語言直接建立交易後，標記 parse event 已被採用。"""
+        if parsed_data.get("type") not in {"expense", "income"}:
+            return None
+
+        transaction_id = getattr(
+            self.message_handler.budget_manager,
+            "last_created_transaction_id",
+            None,
+        )
+        if not transaction_id:
+            return None
+
+        return self.ai_parse_event_manager.confirm_event(
+            user_id,
+            parse_event["id"],
+            parsed_data["type"],
+            transaction_id,
+        )
 
     def handle_postback_event(self, event):
         """
         處理 Postback 事件 (例如 DatetimePicker)
         """
-        user_id = event.source.user_id
+        line_user_id = event.source.user_id
         data = event.postback.data
         params = event.postback.params if event.postback.params else {}
         
-        print(f"Received postback from user_id: {user_id}, data: {data}, params: {params}")
+        print(f"Received postback from line_user_id: {line_user_id}, data: {data}, params: {params}")
 
         # 確保使用者存在
-        profile = self.line_bot_api.get_profile(user_id)
-        self.user_manager.get_or_create_user(user_id, profile.display_name)
+        profile = self.line_bot_api.get_profile(line_user_id)
+        user = self.user_manager.get_or_create_user_for_identity("line", line_user_id, profile.display_name)
+        internal_user_id = str(user["id"])
 
         # 交給 MessageHandler 處理
-        response_message = self.message_handler.handle_postback(user_id, data, params)
+        response_message = self.message_handler.handle_postback(internal_user_id, data, params)
         
         if response_message:
             self.reply_message_flex(event.reply_token, response_message)

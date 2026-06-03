@@ -16,6 +16,10 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    if (import.meta.env.VITE_DEV_AUTH_BYPASS === "true") {
+      config.headers['X-Dev-User'] = localStorage.getItem('devAuthUser') || 'local-dev-user';
+    }
+
     // 只在開發模式下加入繞過 ngrok 警告的標頭
     if (import.meta.env.DEV) {
       config.headers['ngrok-skip-browser-warning'] = 'true';
