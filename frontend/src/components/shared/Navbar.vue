@@ -23,8 +23,13 @@
         </label>
       </template>
       <template v-if="isLoggedIn">
-        <span>{{ userName }}</span>
-        <button class="logout-button" @click="logout">登出</button>
+        <button class="account-button" type="button" @click="showAccountMenu = !showAccountMenu">
+          {{ userName || "帳號" }}
+        </button>
+        <div v-if="showAccountMenu" class="account-menu">
+          <span>{{ userName || "已登入" }}</span>
+          <button class="logout-button" type="button" @click="logout">登出</button>
+        </div>
       </template>
     </div>
   </nav>
@@ -47,6 +52,7 @@ export default {
     return {
       isLoggedIn: false,
       userName: '',
+      showAccountMenu: false,
       devAuthBypass: import.meta.env.VITE_DEV_AUTH_BYPASS === "true",
       selectedDevUser: localStorage.getItem('devAuthUser') || 'local-dev-user',
       devUsers: [
@@ -100,6 +106,7 @@ export default {
       localStorage.removeItem('authToken');
       this.isLoggedIn = false;
       this.userName = '';
+      this.showAccountMenu = false;
       // 登出後一律導向到登入頁
       if (this.$route.path !== '/login') {
         this.$router.push('/login');
@@ -195,7 +202,7 @@ export default {
 }
 
 @media (min-width: 1px) {
-  .auth-section:has(.dev-user-switcher) {
+  .auth-section {
     display: block;
     position: fixed;
     top: 8px;
@@ -223,6 +230,51 @@ export default {
     border-radius: 6px;
     background: #ffffff;
     font-size: 0.78rem;
+  }
+
+  .account-button {
+    min-height: 34px;
+    max-width: 128px;
+    padding: 6px 10px;
+    color: #334155;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid #dbe4ee;
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+    font-size: 0.78rem;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .account-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 150px;
+    padding: 10px;
+    display: grid;
+    gap: 8px;
+    color: #334155;
+    background: #ffffff;
+    border: 1px solid #dbe4ee;
+    border-radius: 10px;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.18);
+  }
+
+  .account-menu span {
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  .logout-button {
+    min-height: 34px;
+    color: #b91c1c;
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    font-weight: 800;
   }
 }
 </style>
