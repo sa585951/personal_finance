@@ -395,7 +395,14 @@ def get_trip(current_user_id, trip_id):
 @token_required
 def get_trip_overview(current_user_id, trip_id):
     try:
+        overview_started_at = time.perf_counter()
+        segment_timings = {}
+
+        segment_started_at = time.perf_counter()
         trip = trip_manager.get_trip(current_user_id, trip_id)
+        segment_timings["get_trip_ms"] = (time.perf_counter() - segment_started_at) * 1000
+
+        segment_started_at = time.perf_counter()
         current_member = next(
             (member for member in trip["members"] if member.get("id") == trip.get("current_member_id")),
             None,
@@ -403,15 +410,46 @@ def get_trip_overview(current_user_id, trip_id):
         invite = None
         if current_member and current_member.get("role") == "owner":
             invite = trip_manager.get_active_invite(current_user_id, trip_id)
+        segment_timings["invite_ms"] = (time.perf_counter() - segment_started_at) * 1000
+
+        segment_started_at = time.perf_counter()
+        transactions = budget_manager.get_all_transactions(current_user_id, trip_id=trip_id)
+        segment_timings["transactions_ms"] = (time.perf_counter() - segment_started_at) * 1000
+
+        segment_started_at = time.perf_counter()
+        split_summary = budget_manager.get_trip_split_summary(current_user_id, trip_id)
+        segment_timings["split_summary_ms"] = (time.perf_counter() - segment_started_at) * 1000
+
+        segment_started_at = time.perf_counter()
+        settlement_suggestions = budget_manager.get_trip_settlement_suggestions(current_user_id, trip_id)
+        segment_timings["settlement_suggestions_ms"] = (time.perf_counter() - segment_started_at) * 1000
+
+        segment_started_at = time.perf_counter()
+        settlements = budget_manager.get_trip_settlements(current_user_id, trip_id)
+        segment_timings["settlements_ms"] = (time.perf_counter() - segment_started_at) * 1000
+
+        segment_timings["total_ms"] = (time.perf_counter() - overview_started_at) * 1000
+        app.logger.warning(
+            "overview_timing trip_id=%s get_trip_ms=%.1f invite_ms=%.1f transactions_ms=%.1f "
+            "split_summary_ms=%.1f settlement_suggestions_ms=%.1f settlements_ms=%.1f total_ms=%.1f",
+            trip_id,
+            segment_timings["get_trip_ms"],
+            segment_timings["invite_ms"],
+            segment_timings["transactions_ms"],
+            segment_timings["split_summary_ms"],
+            segment_timings["settlement_suggestions_ms"],
+            segment_timings["settlements_ms"],
+            segment_timings["total_ms"],
+        )
 
         return jsonify({
             "success": True,
             "data": {
                 "trip": trip,
-                "transactions": budget_manager.get_all_transactions(current_user_id, trip_id=trip_id),
-                "split_summary": budget_manager.get_trip_split_summary(current_user_id, trip_id),
-                "settlement_suggestions": budget_manager.get_trip_settlement_suggestions(current_user_id, trip_id),
-                "settlements": budget_manager.get_trip_settlements(current_user_id, trip_id),
+                "transactions": transactions,
+                "split_summary": split_summary,
+                "settlement_suggestions": settlement_suggestions,
+                "settlements": settlements,
                 "invite": invite,
             },
         }), 200
