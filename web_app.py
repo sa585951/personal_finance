@@ -2,8 +2,9 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from uuid import UUID
 from urllib.parse import urlencode
+import time
 
-from flask import Flask, jsonify, request, redirect
+from flask import Flask, jsonify, request, redirect, g
 from flask_cors import CORS
 from sqlalchemy import select, func
 from linebot.exceptions import InvalidSignatureError
@@ -29,6 +30,7 @@ VITE_BACKEND_BASE_URL = os.getenv("VITE_BACKEND_BASE_URL")
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS") == "true" and os.getenv("FLASK_ENV") != "production"
+SLOW_REQUEST_LOG_MS = float(os.getenv("SLOW_REQUEST_LOG_MS", "500"))
 DEV_AUTH_USERS = {
     "local-dev-user": {
         "display_name": "Dev User",
@@ -152,6 +154,28 @@ def _decode_line_login_state(state):
 app_state = AppStateManager()
 linebot_manager = LineBotManager(app_state, db_session)
 
+@app.before_request
+def start_request_timer():
+    g.request_started_at = time.perf_counter()
+
+
+@app.after_request
+def log_request_duration(response):
+    started_at = getattr(g, "request_started_at", None)
+    if started_at is None:
+        return response
+
+    duration_ms = (time.perf_counter() - started_at) * 1000
+    response.headers["X-Request-Duration-Ms"] = f"{duration_ms:.1f}"
+    if request.path.startswith("/api/") or request.path.startswith("/line-"):
+        log_message = "request_timing method=%s path=%s status=%s duration_ms=%.1f"
+        log_args = (request.method, request.path, response.status_code, duration_ms)
+        if duration_ms >= SLOW_REQUEST_LOG_MS:
+            app.logger.warning(log_message, *log_args)
+        else:
+            app.logger.info(log_message, *log_args)
+    return response
+
 
 @app.route("/")
 def home():
@@ -211,6 +235,25 @@ def get_assets(current_user_id):
         return jsonify({"success": True, "data": assets}), 200
     except Exception as e:
         app.logger.error(f"Error in get_assets: {e}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+@app.route("/api/dashboard/overview", methods=["GET"])
+@token_required
+def get_dashboard_overview(current_user_id):
+    try:
+        return jsonify({
+            "success": True,
+            "data": {
+                "transactions": budget_manager.get_all_transactions(current_user_id),
+                "monthly_report_transactions": budget_manager.get_all_transactions(
+                    current_user_id,
+                    monthly_report=True,
+                ),
+                "trips": trip_manager.list_trips(current_user_id),
+            },
+        }), 200
+    except Exception as e:
+        app.logger.error(f"Error in get_dashboard_overview: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
 
 @app.route("/api/assets", methods=["POST"])
@@ -346,6 +389,34 @@ def get_trip(current_user_id, trip_id):
         return jsonify({"success": True, "data": trip}), 200
     except Exception as e:
         app.logger.error(f"Error in get_trip: {e}")
+        return jsonify({"success": False, "message": str(e)}), 404
+
+@app.route("/api/trips/<string:trip_id>/overview", methods=["GET"])
+@token_required
+def get_trip_overview(current_user_id, trip_id):
+    try:
+        trip = trip_manager.get_trip(current_user_id, trip_id)
+        current_member = next(
+            (member for member in trip["members"] if member.get("id") == trip.get("current_member_id")),
+            None,
+        )
+        invite = None
+        if current_member and current_member.get("role") == "owner":
+            invite = trip_manager.get_active_invite(current_user_id, trip_id)
+
+        return jsonify({
+            "success": True,
+            "data": {
+                "trip": trip,
+                "transactions": budget_manager.get_all_transactions(current_user_id, trip_id=trip_id),
+                "split_summary": budget_manager.get_trip_split_summary(current_user_id, trip_id),
+                "settlement_suggestions": budget_manager.get_trip_settlement_suggestions(current_user_id, trip_id),
+                "settlements": budget_manager.get_trip_settlements(current_user_id, trip_id),
+                "invite": invite,
+            },
+        }), 200
+    except Exception as e:
+        app.logger.error(f"Error in get_trip_overview: {e}")
         return jsonify({"success": False, "message": str(e)}), 404
 
 @app.route("/api/trips/<string:trip_id>/members", methods=["GET"])

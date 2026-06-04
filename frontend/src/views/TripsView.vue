@@ -1144,20 +1144,29 @@ export default {
     },
     async selectTrip(tripId) {
       try {
-        const response = await apiClient.get(`/api/trips/${tripId}`);
-        this.selectedTrip = response.data.data;
-        this.selectedTransactionDetail = null;
-        this.showTripManagement = false;
-        this.normalizeActiveSection();
-        this.prepareExpenseDefaults();
-        await this.fetchTripTransactions();
-        await this.fetchSplitSummary();
-        await this.fetchSettlementSuggestions();
-        await this.fetchSettlements();
-        await this.fetchTripInvite();
-        this.memberMessage = "";
+        const response = await apiClient.get(`/api/trips/${tripId}/overview`);
+        this.applyTripOverview(response.data.data);
       } catch (error) {
         console.error("無法載入旅行明細", error);
+      }
+    },
+    applyTripOverview(overview) {
+      this.selectedTrip = overview.trip;
+      this.tripTransactions = overview.transactions || [];
+      this.splitSummary = overview.split_summary || [];
+      this.settlementSuggestions = overview.settlement_suggestions || [];
+      this.settlementRecords = overview.settlements || [];
+      this.activeInvite = overview.invite || null;
+      this.latestInviteUrl = "";
+      this.selectedTransactionDetail = null;
+      this.showTripManagement = false;
+      this.normalizeActiveSection();
+      this.prepareExpenseDefaults();
+      this.memberMessage = "";
+      if (this.activeInvite) {
+        this.inviteMessage = "安全起見，既有邀請連結只在建立當下顯示；若遺失可關閉後重建。";
+      } else {
+        this.inviteMessage = "";
       }
     },
     async switchTrip(tripId) {
@@ -1169,9 +1178,13 @@ export default {
       this.tripMessage = "";
       try {
         const response = await apiClient.post("/api/trips", this.newTrip);
+        const createdTrip = response.data.data;
         this.tripMessage = response.data.message;
-        await this.fetchTrips();
-        await this.selectTrip(response.data.data.id);
+        this.trips = [
+          createdTrip,
+          ...this.trips.filter((trip) => trip.id !== createdTrip.id),
+        ];
+        await this.selectTrip(createdTrip.id);
         this.newTrip.name = "";
         this.newTrip.destination = "";
         this.showCreateTrip = false;
@@ -1192,9 +1205,13 @@ export default {
           this.newMember
         );
         this.memberMessage = response.data.message;
+        this.selectedTrip.members = [
+          ...this.selectedTrip.members,
+          response.data.data,
+        ];
         this.newMember.display_name = "";
         this.newMember.role = "viewer";
-        await this.selectTrip(this.selectedTrip.id);
+        this.prepareExpenseDefaults();
       } catch (error) {
         this.memberMessage = error.response?.data?.message || "旅伴新增失敗";
       } finally {
@@ -1218,11 +1235,10 @@ export default {
           `/api/trips/${this.selectedTrip.id}/members/${member.id}`
         );
         this.memberMessage = response.data.message;
-        await this.selectTrip(this.selectedTrip.id);
-        await this.fetchTripTransactions();
-        await this.fetchSplitSummary();
-        await this.fetchSettlementSuggestions();
-        await this.fetchSettlements();
+        this.selectedTrip.members = this.selectedTrip.members.filter(
+          (tripMember) => tripMember.id !== member.id
+        );
+        this.prepareExpenseDefaults();
       } catch (error) {
         this.$swal.fire(
           "刪除失敗",
@@ -1239,7 +1255,10 @@ export default {
           { role }
         );
         this.memberMessage = response.data.message;
-        await this.selectTrip(this.selectedTrip.id);
+        this.selectedTrip.members = this.selectedTrip.members.map((tripMember) => (
+          tripMember.id === member.id ? response.data.data : tripMember
+        ));
+        this.normalizeActiveSection();
       } catch (error) {
         this.$swal.fire("更新失敗", error.response?.data?.message || "權限更新失敗", "error");
         await this.selectTrip(this.selectedTrip.id);
@@ -1558,11 +1577,13 @@ export default {
           : await apiClient.post("/api/transactions", payload);
         this.expenseMessage = response.data.message;
         this.resetExpenseForm();
-        await this.fetchTripTransactions();
-        await this.fetchSplitSummary();
-        await this.fetchSettlementSuggestions();
-        await this.fetchSettlements();
-        await this.fetchAssets();
+        await Promise.all([
+          this.fetchTripTransactions(),
+          this.fetchSplitSummary(),
+          this.fetchSettlementSuggestions(),
+          this.fetchSettlements(),
+          this.fetchAssets(),
+        ]);
         if (this.selectedTransactionDetail) {
           await this.loadTransactionDetail(this.selectedTransactionDetail.id, { force: true });
         }
@@ -1625,11 +1646,13 @@ export default {
 
       try {
         await apiClient.delete(`/api/transactions/${transaction.id}`);
-        await this.fetchTripTransactions();
-        await this.fetchSplitSummary();
-        await this.fetchSettlementSuggestions();
-        await this.fetchSettlements();
-        await this.fetchAssets();
+        await Promise.all([
+          this.fetchTripTransactions(),
+          this.fetchSplitSummary(),
+          this.fetchSettlementSuggestions(),
+          this.fetchSettlements(),
+          this.fetchAssets(),
+        ]);
       } catch (error) {
         this.$swal.fire("刪除失敗", error.response?.data?.message || "請稍後再試", "error");
       }
@@ -1655,9 +1678,11 @@ export default {
           to_member_id: suggestion.to_member_id,
           amount: suggestion.amount,
         });
-        await this.fetchSplitSummary();
-        await this.fetchSettlementSuggestions();
-        await this.fetchSettlements();
+        await Promise.all([
+          this.fetchSplitSummary(),
+          this.fetchSettlementSuggestions(),
+          this.fetchSettlements(),
+        ]);
       } catch (error) {
         this.$swal.fire("確認失敗", error.response?.data?.message || "請稍後再試", "error");
       }
@@ -1675,9 +1700,11 @@ export default {
 
       try {
         await apiClient.delete(`/api/trips/${this.selectedTrip.id}/settlements/${settlement.id}`);
-        await this.fetchSplitSummary();
-        await this.fetchSettlementSuggestions();
-        await this.fetchSettlements();
+        await Promise.all([
+          this.fetchSplitSummary(),
+          this.fetchSettlementSuggestions(),
+          this.fetchSettlements(),
+        ]);
       } catch (error) {
         this.$swal.fire("撤銷失敗", error.response?.data?.message || "請稍後再試", "error");
       }

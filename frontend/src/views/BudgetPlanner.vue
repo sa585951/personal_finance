@@ -168,7 +168,6 @@ export default {
   mounted() {
     this.fetchBudgetCategories();
     if (this.$refs.budgetSummaryTable) {
-      this.$refs.budgetSummaryTable.fetchAvailableMonths();
       this.$refs.budgetSummaryTable.fetchBudgetSummary();
     }
   },

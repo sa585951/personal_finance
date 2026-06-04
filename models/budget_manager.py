@@ -266,8 +266,10 @@ class BudgetManager:
             .where(transactions_table.c.deleted_at.is_(None))
             .order_by(transactions_table.c.transaction_date.desc(), transactions_table.c.created_at.desc())
         )
+        current_trip_member = None
         if parsed_trip_id:
             TripManager(self.db_session).get_trip(parsed_user_id, parsed_trip_id)
+            current_trip_member = self._get_current_trip_member(parsed_user_id, parsed_trip_id)
             stmt = stmt.where(transactions_table.c.trip_id == parsed_trip_id)
         elif monthly_report:
             member_trip_ids = self._accessible_trip_ids_for_user(parsed_user_id)
@@ -318,7 +320,19 @@ class BudgetManager:
         for row in result:
             transaction = dict(row._mapping)
             transaction["id"] = str(transaction["id"])
-            can_manage = self._can_manage_transaction(parsed_user_id, transaction)
+            if parsed_trip_id and current_trip_member:
+                can_manage = (
+                    current_trip_member["role"] == "owner"
+                    or (
+                        current_trip_member["role"] == "editor"
+                        and transaction["created_by_user_id"] == parsed_user_id
+                    )
+                )
+            else:
+                try:
+                    can_manage = self._can_manage_transaction(parsed_user_id, transaction)
+                except ValueError:
+                    can_manage = False
             transaction["user_id"] = str(transaction["user_id"])
             transaction["created_by_user_id"] = str(transaction["created_by_user_id"])
             transaction["updated_by_user_id"] = str(transaction["updated_by_user_id"]) if transaction["updated_by_user_id"] else None

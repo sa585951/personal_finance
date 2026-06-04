@@ -180,14 +180,11 @@ export default {
   methods: {
     async fetchDashboardData() {
       try {
-        const [transactionsResponse, monthlyReportResponse, tripsResponse] = await Promise.all([
-          apiClient.get("/api/transactions"),
-          apiClient.get("/api/transactions?monthly_report=true"),
-          apiClient.get("/api/trips"),
-        ]);
-        this.transactions = transactionsResponse.data.data || [];
-        this.monthlyReportTransactions = monthlyReportResponse.data.data || [];
-        this.trips = tripsResponse.data.data || [];
+        const response = await apiClient.get("/api/dashboard/overview");
+        const overview = response.data.data || {};
+        this.transactions = overview.transactions || [];
+        this.monthlyReportTransactions = overview.monthly_report_transactions || [];
+        this.trips = overview.trips || [];
       } catch (error) {
         console.error("無法載入首頁資料", error);
         this.transactions = [];
