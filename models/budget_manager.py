@@ -1018,13 +1018,13 @@ class BudgetManager:
 
         return sorted(result, key=lambda item: item["display_name"])
 
-    def get_trip_settlement_suggestions(self, user_id, trip_id):
+    def get_trip_settlement_suggestions(self, user_id, trip_id, summary=None):
         """依分帳淨額計算誰應該付誰多少，不寫入付款紀錄。"""
         parsed_user_id = self._parse_user_id(user_id)
         parsed_trip_id = self._parse_optional_uuid(trip_id, "trip_id")
         trip = TripManager(self.db_session).get_trip(parsed_user_id, parsed_trip_id)
         current_member = next((member for member in trip["members"] if member.get("user_id") == str(parsed_user_id)), None)
-        summary = self.get_trip_split_summary(user_id, trip_id)
+        summary = summary if summary is not None else self.get_trip_split_summary(user_id, trip_id)
         if not summary:
             return []
 

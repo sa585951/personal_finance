@@ -803,6 +803,8 @@ export default {
       splitSummary: [],
       settlementSuggestions: [],
       settlementRecords: [],
+      splitDetailsLoaded: false,
+      inviteStatusLoaded: false,
       activeInvite: null,
       latestInviteUrl: "",
       expenseCategories: [],
@@ -1037,6 +1039,9 @@ export default {
         this.newExpense.account_id = "";
       }
     },
+    activeSection(section) {
+      this.ensureActiveSectionData(section);
+    },
   },
   methods: {
     setSplitMode(mode) {
@@ -1146,6 +1151,7 @@ export default {
       try {
         const response = await apiClient.get(`/api/trips/${tripId}/overview`);
         this.applyTripOverview(response.data.data);
+        await this.ensureActiveSectionData(this.activeSection);
       } catch (error) {
         console.error("無法載入旅行明細", error);
       }
@@ -1156,6 +1162,8 @@ export default {
       this.splitSummary = overview.split_summary || [];
       this.settlementSuggestions = overview.settlement_suggestions || [];
       this.settlementRecords = overview.settlements || [];
+      this.splitDetailsLoaded = false;
+      this.inviteStatusLoaded = false;
       this.activeInvite = overview.invite || null;
       this.latestInviteUrl = "";
       this.selectedTransactionDetail = null;
@@ -1164,9 +1172,19 @@ export default {
       this.prepareExpenseDefaults();
       this.memberMessage = "";
       if (this.activeInvite) {
+        this.inviteStatusLoaded = true;
         this.inviteMessage = "安全起見，既有邀請連結只在建立當下顯示；若遺失可關閉後重建。";
       } else {
         this.inviteMessage = "";
+      }
+    },
+    async ensureActiveSectionData(section = this.activeSection) {
+      if (!this.selectedTrip) return;
+      if (section === "split" && !this.splitDetailsLoaded) {
+        await this.fetchSplitState();
+      }
+      if (section === "members" && !this.inviteStatusLoaded) {
+        await this.fetchTripInvite();
       }
     },
     async switchTrip(tripId) {
@@ -1289,7 +1307,10 @@ export default {
       this.activeInvite = null;
       this.latestInviteUrl = "";
       this.inviteMessage = "";
-      if (!this.selectedTrip || !this.isTripOwner) return;
+      if (!this.selectedTrip || !this.isTripOwner) {
+        this.inviteStatusLoaded = true;
+        return;
+      }
 
       try {
         const response = await apiClient.get(`/api/trips/${this.selectedTrip.id}/invite`);
@@ -1297,8 +1318,10 @@ export default {
         if (this.activeInvite) {
           this.inviteMessage = "安全起見，既有邀請連結只在建立當下顯示；若遺失可關閉後重建。";
         }
+        this.inviteStatusLoaded = true;
       } catch (error) {
         this.inviteMessage = error.response?.data?.message || "無法載入邀請狀態";
+        this.inviteStatusLoaded = false;
       }
     },
     async createInvite() {
@@ -1311,6 +1334,7 @@ export default {
         });
         this.activeInvite = response.data.data;
         this.latestInviteUrl = this.activeInvite.invite_url || "";
+        this.inviteStatusLoaded = true;
         this.inviteMessage = "邀請連結已建立，請複製後傳給旅伴。";
       } catch (error) {
         this.inviteMessage = error.response?.data?.message || "邀請連結建立失敗";
@@ -1334,6 +1358,7 @@ export default {
         await apiClient.delete(`/api/trips/${this.selectedTrip.id}/invite`);
         this.activeInvite = null;
         this.latestInviteUrl = "";
+        this.inviteStatusLoaded = true;
         this.inviteMessage = "邀請連結已關閉。";
       } catch (error) {
         this.inviteMessage = error.response?.data?.message || "邀請連結關閉失敗";
@@ -1471,6 +1496,25 @@ export default {
         this.splitSummary = [];
       }
     },
+    async fetchSplitState() {
+      if (!this.selectedTrip) return;
+      try {
+        const response = await apiClient.get(`/api/trips/${this.selectedTrip.id}/split-state`);
+        const splitState = response.data.data || {};
+        this.splitSummary = splitState.split_summary || [];
+        this.settlementSuggestions = splitState.settlement_suggestions || [];
+        this.settlementRecords = splitState.settlements || [];
+        this.splitDetailsLoaded = true;
+      } catch (error) {
+        console.error("無法載入分帳狀態", error);
+        this.splitDetailsLoaded = false;
+      }
+    },
+    invalidateSplitDetails() {
+      this.splitDetailsLoaded = false;
+      this.settlementSuggestions = [];
+      this.settlementRecords = [];
+    },
     async fetchSettlementSuggestions() {
       if (!this.selectedTrip) return;
       try {
@@ -1577,13 +1621,20 @@ export default {
           : await apiClient.post("/api/transactions", payload);
         this.expenseMessage = response.data.message;
         this.resetExpenseForm();
-        await Promise.all([
-          this.fetchTripTransactions(),
-          this.fetchSplitSummary(),
-          this.fetchSettlementSuggestions(),
-          this.fetchSettlements(),
-          this.fetchAssets(),
-        ]);
+        if (this.activeSection === "split") {
+          await Promise.all([
+            this.fetchTripTransactions(),
+            this.fetchSplitState(),
+            this.fetchAssets(),
+          ]);
+        } else {
+          await Promise.all([
+            this.fetchTripTransactions(),
+            this.fetchSplitSummary(),
+            this.fetchAssets(),
+          ]);
+          this.invalidateSplitDetails();
+        }
         if (this.selectedTransactionDetail) {
           await this.loadTransactionDetail(this.selectedTransactionDetail.id, { force: true });
         }
@@ -1646,13 +1697,20 @@ export default {
 
       try {
         await apiClient.delete(`/api/transactions/${transaction.id}`);
-        await Promise.all([
-          this.fetchTripTransactions(),
-          this.fetchSplitSummary(),
-          this.fetchSettlementSuggestions(),
-          this.fetchSettlements(),
-          this.fetchAssets(),
-        ]);
+        if (this.activeSection === "split") {
+          await Promise.all([
+            this.fetchTripTransactions(),
+            this.fetchSplitState(),
+            this.fetchAssets(),
+          ]);
+        } else {
+          await Promise.all([
+            this.fetchTripTransactions(),
+            this.fetchSplitSummary(),
+            this.fetchAssets(),
+          ]);
+          this.invalidateSplitDetails();
+        }
       } catch (error) {
         this.$swal.fire("刪除失敗", error.response?.data?.message || "請稍後再試", "error");
       }
@@ -1678,11 +1736,7 @@ export default {
           to_member_id: suggestion.to_member_id,
           amount: suggestion.amount,
         });
-        await Promise.all([
-          this.fetchSplitSummary(),
-          this.fetchSettlementSuggestions(),
-          this.fetchSettlements(),
-        ]);
+        await this.fetchSplitState();
       } catch (error) {
         this.$swal.fire("確認失敗", error.response?.data?.message || "請稍後再試", "error");
       }
@@ -1700,11 +1754,7 @@ export default {
 
       try {
         await apiClient.delete(`/api/trips/${this.selectedTrip.id}/settlements/${settlement.id}`);
-        await Promise.all([
-          this.fetchSplitSummary(),
-          this.fetchSettlementSuggestions(),
-          this.fetchSettlements(),
-        ]);
+        await this.fetchSplitState();
       } catch (error) {
         this.$swal.fire("撤銷失敗", error.response?.data?.message || "請稍後再試", "error");
       }
