@@ -1407,7 +1407,7 @@ export default {
     async fetchTripTransactions() {
       if (!this.selectedTrip) return;
       try {
-        const response = await apiClient.get(`/api/transactions?trip_id=${this.selectedTrip.id}`);
+        const response = await apiClient.get(`/api/transactions?trip_id=${this.selectedTrip.id}&limit=50`);
         this.tripTransactions = response.data.data || [];
         if (
           this.selectedTransactionDetail &&

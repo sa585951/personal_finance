@@ -167,7 +167,7 @@ class TripManager:
 
     def get_trip(self, user_id, trip_id):
         trip = self._ensure_trip_access(user_id, trip_id)
-        members = self.list_trip_members(user_id, trip_id)
+        members = self._list_trip_members_for_trip(trip["id"])
         parsed_user_id = self._parse_user_id(user_id)
         current_member = next(
             (member for member in members if member.get("user_id") == str(parsed_user_id)),
@@ -178,6 +178,17 @@ class TripManager:
             "members": members,
             "current_member_id": current_member["id"] if current_member else None,
         }
+
+    def _list_trip_members_for_trip(self, trip_id):
+        stmt = (
+            select(trip_members_table)
+            .where(
+                trip_members_table.c.trip_id == trip_id,
+                trip_members_table.c.deleted_at.is_(None),
+            )
+            .order_by(trip_members_table.c.created_at)
+        )
+        return [self._to_member_dict(row._mapping) for row in self.db_session.execute(stmt)]
 
     def create_trip(
         self,
@@ -229,15 +240,7 @@ class TripManager:
 
     def list_trip_members(self, user_id, trip_id):
         trip = self._ensure_trip_access(user_id, trip_id)
-        stmt = (
-            select(trip_members_table)
-            .where(
-                trip_members_table.c.trip_id == trip["id"],
-                trip_members_table.c.deleted_at.is_(None),
-            )
-            .order_by(trip_members_table.c.created_at)
-        )
-        return [self._to_member_dict(row._mapping) for row in self.db_session.execute(stmt)]
+        return self._list_trip_members_for_trip(trip["id"])
 
     def add_external_member(self, user_id, trip_id, display_name, role="viewer"):
         trip = self._ensure_trip_access(user_id, trip_id)

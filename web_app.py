@@ -401,15 +401,25 @@ def get_trip_overview(current_user_id, trip_id):
         segment_started_at = time.perf_counter()
         trip = trip_manager.get_trip(current_user_id, trip_id)
         segment_timings["get_trip_ms"] = (time.perf_counter() - segment_started_at) * 1000
+        current_member = next(
+            (member for member in trip["members"] if member.get("id") == trip.get("current_member_id")),
+            None,
+        )
 
         segment_timings["invite_ms"] = 0
 
         segment_started_at = time.perf_counter()
-        transactions = budget_manager.get_all_transactions(current_user_id, trip_id=trip_id)
+        transactions = budget_manager.get_all_transactions(
+            current_user_id,
+            trip_id=trip_id,
+            limit=request.args.get("limit", 50),
+            trip=trip,
+            current_trip_member=current_member,
+        )
         segment_timings["transactions_ms"] = (time.perf_counter() - segment_started_at) * 1000
 
         segment_started_at = time.perf_counter()
-        split_summary = budget_manager.get_trip_split_summary(current_user_id, trip_id)
+        split_summary = budget_manager.get_trip_split_summary(current_user_id, trip_id, trip=trip)
         segment_timings["split_summary_ms"] = (time.perf_counter() - segment_started_at) * 1000
 
         segment_timings["settlement_suggestions_ms"] = 0
@@ -794,6 +804,7 @@ def get_transactions(current_user_id):
             trip_id=request.args.get("trip_id"),
             include_trips=request.args.get("include_trips") == "true",
             monthly_report=request.args.get("monthly_report") == "true",
+            limit=request.args.get("limit"),
         )
         return jsonify({"success": True, "data": transactions_data}), 200
     except Exception as e:

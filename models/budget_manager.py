@@ -223,10 +223,25 @@ class BudgetManager:
         current_member = next((member for member in trip["members"] if member.get("user_id") == str(user_id)), None)
         return bool(current_member and current_member["role"] in {"owner", "editor"})
 
-    def get_all_transactions(self, user_id, trip_id=None, include_trips=False, monthly_report=False):
+    def get_all_transactions(
+        self,
+        user_id,
+        trip_id=None,
+        include_trips=False,
+        monthly_report=False,
+        limit=None,
+        trip=None,
+        current_trip_member=None,
+    ):
         """獲取指定使用者的所有交易紀錄。"""
         parsed_user_id = self._parse_user_id(user_id)
         parsed_trip_id = self._parse_optional_uuid(trip_id, "trip_id")
+        parsed_limit = None
+        if limit is not None:
+            try:
+                parsed_limit = max(1, min(int(limit), 200))
+            except (TypeError, ValueError):
+                parsed_limit = None
         creator_users = users_table.alias("creator_users")
         stmt = (
             select(
@@ -266,10 +281,11 @@ class BudgetManager:
             .where(transactions_table.c.deleted_at.is_(None))
             .order_by(transactions_table.c.transaction_date.desc(), transactions_table.c.created_at.desc())
         )
-        current_trip_member = None
         if parsed_trip_id:
-            TripManager(self.db_session).get_trip(parsed_user_id, parsed_trip_id)
-            current_trip_member = self._get_current_trip_member(parsed_user_id, parsed_trip_id)
+            if trip is None:
+                TripManager(self.db_session).get_trip(parsed_user_id, parsed_trip_id)
+            if current_trip_member is None:
+                current_trip_member = self._get_current_trip_member(parsed_user_id, parsed_trip_id)
             stmt = stmt.where(transactions_table.c.trip_id == parsed_trip_id)
         elif monthly_report:
             member_trip_ids = self._accessible_trip_ids_for_user(parsed_user_id)
@@ -313,6 +329,8 @@ class BudgetManager:
                 transactions_table.c.trip_id.is_(None),
                 transactions_table.c.user_id == parsed_user_id,
             )
+        if parsed_limit:
+            stmt = stmt.limit(parsed_limit)
 
         result = self.db_session.execute(stmt)
 
@@ -923,7 +941,7 @@ class BudgetManager:
             raise ValueError(f"{field_name}小數位超過幣別允許位數")
         return int(decimal_units)
 
-    def get_trip_split_summary(self, user_id, trip_id):
+    def get_trip_split_summary(self, user_id, trip_id, trip=None):
         """取得旅行分帳摘要。
 
         paid_amount 代表該成員付款總額，share_amount 代表該成員應分攤額，
@@ -931,7 +949,7 @@ class BudgetManager:
         """
         parsed_user_id = self._parse_user_id(user_id)
         parsed_trip_id = self._parse_optional_uuid(trip_id, "trip_id")
-        trip = TripManager(self.db_session).get_trip(parsed_user_id, parsed_trip_id)
+        trip = trip if trip is not None else TripManager(self.db_session).get_trip(parsed_user_id, parsed_trip_id)
 
         summary = {
             member["id"]: {
