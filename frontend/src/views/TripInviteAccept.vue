@@ -29,10 +29,16 @@ export default {
     return {
       message: "正在確認邀請連結...",
       tripId: "",
+      redirectTimer: null,
     };
   },
   async created() {
     await this.acceptInvite();
+  },
+  beforeUnmount() {
+    if (this.redirectTimer) {
+      window.clearTimeout(this.redirectTimer);
+    }
   },
   methods: {
     async acceptInvite() {
@@ -47,8 +53,13 @@ export default {
         const result = response.data.data || {};
         this.tripId = result.trip?.id || "";
         this.message = result.already_joined
-          ? "你已經在這個旅行帳本中。"
-          : "已成功加入旅行帳本。";
+          ? "你已經在這個旅行帳本中，正在前往帳本..."
+          : "已成功加入旅行帳本，正在前往帳本...";
+        if (this.tripId) {
+          this.redirectTimer = window.setTimeout(() => {
+            this.$router.replace({ name: "Trips", query: { trip_id: this.tripId } });
+          }, 1000);
+        }
       } catch (error) {
         this.message = error.response?.data?.message || "邀請連結無法使用，可能已過期或已關閉。";
       }

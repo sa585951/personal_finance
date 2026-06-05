@@ -55,6 +55,22 @@
           <strong>-{{ formatDisplayMoney(monthlyExpense) }}</strong>
         </div>
       </div>
+      <div class="income-expense-ratio" aria-label="收入支出比例">
+        <div class="ratio-labels">
+          <span>收入 {{ monthlyIncomeRatio }}%</span>
+          <span>支出 {{ monthlyExpenseRatio }}%</span>
+        </div>
+        <div class="ratio-track">
+          <div
+            class="ratio-fill income"
+            :style="{ width: `${monthlyIncomeRatio}%` }"
+          ></div>
+          <div
+            class="ratio-fill expense"
+            :style="{ width: `${monthlyExpenseRatio}%` }"
+          ></div>
+        </div>
+      </div>
       <div class="overview-bars" aria-hidden="true">
         <div
           v-for="bar in monthlyExpenseBars"
@@ -148,6 +164,17 @@ export default {
     },
     monthlyNet() {
       return this.monthlyIncome - this.monthlyExpense;
+    },
+    monthlyTotalFlow() {
+      return Math.max(this.monthlyIncome + this.monthlyExpense, 0);
+    },
+    monthlyIncomeRatio() {
+      if (this.monthlyTotalFlow <= 0) return 0;
+      return Math.round((this.monthlyIncome / this.monthlyTotalFlow) * 100);
+    },
+    monthlyExpenseRatio() {
+      if (this.monthlyTotalFlow <= 0) return 0;
+      return 100 - this.monthlyIncomeRatio;
     },
     activeTrips() {
       return this.trips.filter((trip) => trip.status === "active");
@@ -416,6 +443,43 @@ h1 {
   margin-top: 2px;
   font-size: 0.92rem;
   font-weight: 800;
+}
+
+.income-expense-ratio {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.ratio-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.ratio-track {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+
+.ratio-fill {
+  min-width: 0;
+  transition: width 0.2s ease;
+}
+
+.ratio-fill.income {
+  background: #ccfbf1;
+}
+
+.ratio-fill.expense {
+  background: #fecaca;
 }
 
 .overview-bars {
