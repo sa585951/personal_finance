@@ -2256,6 +2256,7 @@ label {
 
 input,
 select {
+  box-sizing: border-box;
   min-height: 42px;
   min-width: 0;
   max-width: 100%;
@@ -2266,6 +2267,21 @@ select {
   background: #fff;
   color: #111827;
   font-size: 1rem;
+}
+
+input[type="date"] {
+  appearance: none;
+  -webkit-appearance: none;
+  line-height: 1.2;
+}
+
+input[type="date"]::-webkit-date-and-time-value {
+  min-height: 1.2em;
+  text-align: left;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0;
 }
 
 select:disabled {

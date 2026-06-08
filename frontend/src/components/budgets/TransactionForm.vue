@@ -1,7 +1,17 @@
 <template>
   <div class="form-container">
-    <h3>{{ type === "income" ? "新增收入" : "新增支出" }}</h3>
-    <form @submit.prevent="addTransaction">
+    <div class="form-heading">
+      <h3>{{ formTitle }}</h3>
+      <button
+        v-if="isEditing"
+        class="cancel-edit-btn"
+        type="button"
+        @click="cancelEdit"
+      >
+        取消編輯
+      </button>
+    </div>
+    <form @submit.prevent="submitTransaction">
       <label for="transactionDate">
         日期
         <input
@@ -81,7 +91,7 @@
 
       <p v-if="submitMessage" class="form-message full-row">{{ submitMessage }}</p>
 
-      <button type="submit">{{ newTransaction.type === "income" ? "新增收入" : "新增支出" }}</button>
+      <button type="submit">{{ submitButtonText }}</button>
     </form>
   </div>
 </template>
@@ -102,7 +112,12 @@ export default {
       type: Object,
       default: null,
     },
+    editingTransaction: {
+      type: Object,
+      default: null,
+    },
   },
+  emits: ["transaction-added", "transaction-updated", "edit-cancelled"],
   data() {
     return {
       newTransaction: {
@@ -121,6 +136,21 @@ export default {
     };
   },
   computed: {
+    isEditing() {
+      return Boolean(this.editingTransaction?.id);
+    },
+    formTitle() {
+      if (this.isEditing) {
+        return this.type === "income" ? "編輯收入" : "編輯支出";
+      }
+      return this.type === "income" ? "新增收入" : "新增支出";
+    },
+    submitButtonText() {
+      if (this.isEditing) {
+        return this.type === "income" ? "更新收入" : "更新支出";
+      }
+      return this.type === "income" ? "新增收入" : "新增支出";
+    },
     categoryLabel() {
       return this.type === "income" ? "收入類別" : "支出類別";
     },
@@ -158,16 +188,28 @@ export default {
   },
   watch: {
     type() {
-      this.newTransaction.type = this.type;
-      this.ensureCategoryMatchesType();
+      if (!this.isEditing) {
+        this.newTransaction.type = this.type;
+        this.ensureCategoryMatchesType();
+      }
     },
     budgetCategories() {
       this.ensureCategoryMatchesType();
     },
     draft: {
       handler(value) {
-        if (value) {
+        if (value && !this.isEditing) {
           this.applyDraft(value);
+        }
+      },
+      deep: true,
+    },
+    editingTransaction: {
+      handler(value, oldValue) {
+        if (value) {
+          this.applyEditingTransaction(value);
+        } else if (oldValue) {
+          this.resetForm();
         }
       },
       deep: true,
@@ -205,19 +247,47 @@ export default {
       this.ensureCategoryMatchesType();
       this.submitMessage = "已套用 AI 解析結果，送出前請再確認欄位。";
     },
-    async addTransaction() {
+    applyEditingTransaction(transaction) {
+      this.newTransaction = {
+        date: transaction.date || format(new Date(), "yyyy-MM-dd"),
+        type: transaction.type || this.type,
+        item: transaction.category || "",
+        amount: transaction.amount === null || transaction.amount === undefined
+          ? null
+          : Number(transaction.amount),
+        budget_category: transaction.budget_category || "",
+        account_id: transaction.account_id || "",
+        parse_event_id: "",
+        description: transaction.description || "",
+      };
+      this.ensureCategoryMatchesType();
+      this.submitMessage = "正在編輯既有交易，更新後會同步重算帳戶餘額。";
+    },
+    async submitTransaction() {
       this.submitMessage = "";
       try {
+        if (this.isEditing) {
+          await apiClient.put(
+            `/api/transactions/${this.editingTransaction.id}`,
+            this.newTransaction
+          );
+          await this.fetchAssets();
+          this.$emit("transaction-updated");
+          this.resetForm();
+          this.$swal.fire("更新成功", "交易已成功更新。", "success");
+          return;
+        }
+
         await apiClient.post(`/api/transactions`, this.newTransaction);
 
         await this.fetchAssets();
         this.$emit("transaction-added");
         this.resetForm();
       } catch (error) {
-        console.error("新增失敗:", error);
+        console.error(this.isEditing ? "更新失敗:" : "新增失敗:", error);
         this.$swal.fire(
-          "新增失敗",
-          error.response?.data?.message || "交易新增失敗，請稍後再試。",
+          this.isEditing ? "更新失敗" : "新增失敗",
+          error.response?.data?.message || "交易儲存失敗，請稍後再試。",
           "error"
         );
       }
@@ -286,6 +356,10 @@ export default {
       };
       this.submitMessage = "";
     },
+    cancelEdit() {
+      this.resetForm();
+      this.$emit("edit-cancelled");
+    },
   },
   created() {
     this.fetchBudgetCategories();
@@ -330,6 +404,7 @@ export default {
 
 .form-container input,
 .form-container select {
+  box-sizing: border-box;
   min-height: 44px;
   min-width: 0;
   padding: 0.8rem 1rem;
@@ -338,6 +413,21 @@ export default {
   transition: all 0.3s ease;
   width: 100%;
   background-color: #fff;
+}
+
+.form-container input[type="date"] {
+  appearance: none;
+  -webkit-appearance: none;
+  line-height: 1.2;
+}
+
+.form-container input[type="date"]::-webkit-date-and-time-value {
+  min-height: 1.2em;
+  text-align: left;
+}
+
+.form-container input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0;
 }
 
 .full-row {
@@ -382,7 +472,7 @@ export default {
   box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
 
-.form-container button {
+.form-container form > button[type="submit"] {
   min-height: 46px;
   background-color: #0f766e;
   grid-column: 1 / -1;
@@ -399,9 +489,32 @@ export default {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.form-container button:hover {
+.form-container form > button[type="submit"]:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.form-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 1rem;
+}
+
+.form-heading h3 {
+  margin: 0;
+}
+
+.cancel-edit-btn {
+  min-height: 34px;
+  padding: 0 10px;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: none;
+  font-weight: 800;
 }
 
 @media (max-width: 768px) {
@@ -409,7 +522,7 @@ export default {
     grid-template-columns: 1fr;
   }
 
-  .form-container button {
+  .form-container form > button[type="submit"] {
     width: 100%;
     justify-self: stretch;
   }

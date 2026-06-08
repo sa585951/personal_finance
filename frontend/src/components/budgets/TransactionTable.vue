@@ -24,13 +24,24 @@
           </strong>
           <span v-if="transaction.description">{{ transaction.description }}</span>
         </div>
-        <button
-          class="delete-btn"
-          type="button"
-          @click="promptDeleteTransaction(transaction.id)"
-        >
-          刪除
-        </button>
+        <div class="transaction-actions">
+          <button
+            v-if="transaction.can_edit !== false"
+            class="edit-btn"
+            type="button"
+            @click="$emit('transaction-edit', transaction)"
+          >
+            編輯
+          </button>
+          <button
+            v-if="transaction.can_delete !== false"
+            class="delete-btn"
+            type="button"
+            @click="promptDeleteTransaction(transaction.id)"
+          >
+            刪除
+          </button>
+        </div>
       </article>
     </div>
     <div v-else class="no-data">目前沒有交易記錄</div>
@@ -48,6 +59,7 @@ export default {
       required: true,
     },
   },
+  emits: ["transaction-edit", "transaction-deleted"],
   methods: {
     formatDate(dateString) {
       if (!dateString) return "";
@@ -162,16 +174,34 @@ export default {
   font-weight: 800;
 }
 
-.delete-btn {
+.transaction-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.delete-btn,
+.edit-btn {
   min-height: 36px;
   padding: 0 10px;
-  background-color: #fee2e2;
-  color: #dc2626;
   border: none;
   border-radius: 8px;
   cursor: pointer;
   box-shadow: none;
   transition: background-color 0.3s ease;
+}
+
+.edit-btn {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+.edit-btn:hover {
+  background-color: #bfdbfe;
+}
+
+.delete-btn {
+  background-color: #fee2e2;
+  color: #dc2626;
 }
 
 .delete-btn:hover {
@@ -213,9 +243,10 @@ export default {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .delete-btn {
+  .transaction-actions {
     grid-column: 1 / -1;
     justify-self: end;
+    grid-template-columns: repeat(2, auto);
   }
 }
 </style>

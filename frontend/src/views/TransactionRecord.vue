@@ -30,7 +30,10 @@
     <TransactionForm
       :type="activeType"
       :draft="aiDraft"
+      :editing-transaction="editingTransaction"
       @transaction-added="handleTransactionAdded"
+      @transaction-updated="handleTransactionUpdated"
+      @edit-cancelled="editingTransaction = null"
     />
 
     <TransactionSummary :transactions="transactions" />
@@ -42,6 +45,7 @@
       </div>
       <TransactionTable
         :transactions="filteredTransactions"
+        @transaction-edit="startEditingTransaction"
         @transaction-deleted="fetchTransactions"
       />
     </section>
@@ -80,6 +84,7 @@ export default {
       transactions: [],
       activeType: this.initialTypeFromRoute(),
       aiDraft: null,
+      editingTransaction: null,
     };
   },
   watch: {
@@ -120,6 +125,7 @@ export default {
     },
     setActiveType(type) {
       this.activeType = type;
+      this.editingTransaction = null;
       this.$router.replace({
         path: this.$route.path,
         query: {
@@ -140,6 +146,34 @@ export default {
     async handleTransactionAdded() {
       await this.fetchTransactions();
       this.refreshAIEvents();
+    },
+    async handleTransactionUpdated() {
+      this.editingTransaction = null;
+      await this.fetchTransactions();
+    },
+    startEditingTransaction(transaction) {
+      if (!transaction?.id) return;
+      if (["expense", "income"].includes(transaction.type)) {
+        this.activeType = transaction.type;
+        this.$router.replace({
+          path: this.$route.path,
+          query: {
+            ...this.$route.query,
+            type: transaction.type,
+          },
+        });
+      }
+      this.aiDraft = null;
+      this.editingTransaction = {
+        ...transaction,
+        selectedAt: Date.now(),
+      };
+      this.$nextTick(() => {
+        document.querySelector(".form-container")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
     },
     refreshAIEvents() {
       this.$refs.aiParseEventsPanel?.fetchEvents();
