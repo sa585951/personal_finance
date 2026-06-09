@@ -464,10 +464,27 @@
               匯出 CSV
             </button>
           </div>
+          <div
+            v-if="tripDateFilters.length > 1"
+            class="transaction-date-tabs"
+            aria-label="旅行交易日期篩選"
+          >
+            <button
+              v-for="filter in tripDateFilters"
+              :key="filter.key"
+              type="button"
+              :class="{ active: selectedTransactionDate === filter.key }"
+              @click="selectedTransactionDate = filter.key"
+            >
+              <span>{{ filter.label }}</span>
+              <small>{{ filter.count }} 筆</small>
+            </button>
+          </div>
           <div v-if="tripTransactions.length === 0" class="empty-state">尚未新增旅行支出</div>
+          <div v-else-if="filteredTripTransactions.length === 0" class="empty-state">這一天尚無旅行支出</div>
           <div v-else class="transaction-list">
             <div
-              v-for="transaction in tripTransactions"
+              v-for="transaction in filteredTripTransactions"
               :key="transaction.id"
               class="transaction-row"
               :class="{ selected: selectedTransactionDetail && selectedTransactionDetail.id === transaction.id }"
@@ -809,6 +826,7 @@ export default {
       latestInviteUrl: "",
       expenseCategories: [],
       editingTransactionId: null,
+      selectedTransactionDate: "all",
       showExpenseAdvanced: false,
       showSplitDetails: false,
       showTripSummary: false,
@@ -875,6 +893,39 @@ export default {
       return this.tripTransactions
         .filter((transaction) => transaction.type === "expense")
         .reduce((sum, transaction) => sum + Number(transaction.converted_amount || 0), 0);
+    },
+    tripDateFilters() {
+      const dateMap = new Map();
+      this.tripTransactions.forEach((transaction) => {
+        if (!transaction.date) return;
+        const current = dateMap.get(transaction.date) || {
+          key: transaction.date,
+          label: this.formatDateChip(transaction.date),
+          count: 0,
+        };
+        current.count += 1;
+        dateMap.set(transaction.date, current);
+      });
+
+      const dates = Array.from(dateMap.values())
+        .sort((left, right) => left.key.localeCompare(right.key));
+
+      return [
+        {
+          key: "all",
+          label: "全部",
+          count: this.tripTransactions.length,
+        },
+        ...dates,
+      ];
+    },
+    filteredTripTransactions() {
+      if (this.selectedTransactionDate === "all") {
+        return this.tripTransactions;
+      }
+      return this.tripTransactions.filter(
+        (transaction) => transaction.date === this.selectedTransactionDate
+      );
     },
     tripCloseoutStatus() {
       if (this.tripTransactions.length === 0) {
@@ -1167,6 +1218,7 @@ export default {
       this.activeInvite = overview.invite || null;
       this.latestInviteUrl = "";
       this.selectedTransactionDetail = null;
+      this.selectedTransactionDate = "all";
       this.showTripManagement = false;
       this.normalizeActiveSection();
       this.prepareExpenseDefaults();
@@ -1409,6 +1461,7 @@ export default {
       try {
         const response = await apiClient.get(`/api/transactions?trip_id=${this.selectedTrip.id}&limit=50`);
         this.tripTransactions = response.data.data || [];
+        this.syncSelectedTransactionDate();
         if (
           this.selectedTransactionDetail &&
           !this.tripTransactions.some((transaction) => transaction.id === this.selectedTransactionDetail.id)
@@ -1418,6 +1471,16 @@ export default {
       } catch (error) {
         console.error("無法載入旅行交易", error);
         this.tripTransactions = [];
+        this.selectedTransactionDate = "all";
+      }
+    },
+    syncSelectedTransactionDate() {
+      if (this.selectedTransactionDate === "all") return;
+      const hasSelectedDate = this.tripTransactions.some(
+        (transaction) => transaction.date === this.selectedTransactionDate
+      );
+      if (!hasSelectedDate) {
+        this.selectedTransactionDate = "all";
       }
     },
     async loadTransactionDetail(transactionId, options = {}) {
@@ -1923,6 +1986,15 @@ export default {
     formatRange(trip) {
       return `${trip.start_date} - ${trip.end_date}`;
     },
+    formatDateChip(dateString) {
+      if (!dateString) return "";
+      const parts = String(dateString).split("-");
+      if (parts.length !== 3) return dateString;
+      const month = Number(parts[1]);
+      const day = Number(parts[2]);
+      if (!Number.isFinite(month) || !Number.isFinite(day)) return dateString;
+      return `${month}/${day}`;
+    },
     formatDateTime(value) {
       if (!value) return "";
       return new Date(value).toLocaleDateString("zh-TW", {
@@ -2188,6 +2260,7 @@ h1 {
 }
 
 .split-title-row {
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
 }
@@ -3026,6 +3099,54 @@ select:disabled {
 .transaction-list {
   display: grid;
   gap: 8px;
+}
+
+.transaction-date-tabs {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  clear: both;
+  margin: 4px 0 14px;
+  padding: 2px 0 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.transaction-date-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.transaction-date-tabs button {
+  display: grid;
+  gap: 2px;
+  flex: 0 0 auto;
+  min-width: 68px;
+  min-height: 48px;
+  padding: 6px 10px;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.transaction-date-tabs button.active {
+  color: #ffffff;
+  background: #0f766e;
+  border-color: #0f766e;
+}
+
+.transaction-date-tabs span {
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.transaction-date-tabs small {
+  font-size: 0.72rem;
+  font-weight: 800;
+  opacity: 0.82;
 }
 
 .transaction-row,
