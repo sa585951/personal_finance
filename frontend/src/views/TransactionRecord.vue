@@ -43,8 +43,24 @@
         <h2>{{ tableTitle }}</h2>
         <span>近期紀錄</span>
       </div>
+      <div
+        v-if="recordDateFilters.length > 1"
+        class="record-date-tabs"
+        aria-label="收支紀錄日期篩選"
+      >
+        <button
+          v-for="filter in recordDateFilters"
+          :key="filter.key"
+          type="button"
+          :class="{ active: selectedRecordDate === filter.key }"
+          @click="selectedRecordDate = filter.key"
+        >
+          <span>{{ filter.label }}</span>
+          <small>{{ filter.count }} 筆</small>
+        </button>
+      </div>
       <TransactionTable
-        :transactions="filteredTransactions"
+        :transactions="displayedTransactions"
         @transaction-edit="startEditingTransaction"
         @transaction-deleted="fetchTransactions"
       />
@@ -85,16 +101,51 @@ export default {
       activeType: this.initialTypeFromRoute(),
       aiDraft: null,
       editingTransaction: null,
+      selectedRecordDate: "all",
     };
   },
   watch: {
     "$route.query.type"() {
       this.activeType = this.initialTypeFromRoute();
+      this.selectedRecordDate = "all";
     },
   },
   computed: {
     filteredTransactions() {
       return this.transactions.filter((transaction) => transaction.type === this.activeType);
+    },
+    recordDateFilters() {
+      const dateMap = new Map();
+      this.filteredTransactions.forEach((transaction) => {
+        if (!transaction.date) return;
+        const current = dateMap.get(transaction.date) || {
+          key: transaction.date,
+          label: this.formatDateChip(transaction.date),
+          count: 0,
+        };
+        current.count += 1;
+        dateMap.set(transaction.date, current);
+      });
+
+      const dates = Array.from(dateMap.values())
+        .sort((left, right) => left.key.localeCompare(right.key));
+
+      return [
+        {
+          key: "all",
+          label: "全部",
+          count: this.filteredTransactions.length,
+        },
+        ...dates,
+      ];
+    },
+    displayedTransactions() {
+      if (this.selectedRecordDate === "all") {
+        return this.filteredTransactions;
+      }
+      return this.filteredTransactions.filter(
+        (transaction) => transaction.date === this.selectedRecordDate
+      );
     },
     transactionTabs() {
       return [
@@ -126,6 +177,7 @@ export default {
     setActiveType(type) {
       this.activeType = type;
       this.editingTransaction = null;
+      this.selectedRecordDate = "all";
       this.$router.replace({
         path: this.$route.path,
         query: {
@@ -178,13 +230,33 @@ export default {
     refreshAIEvents() {
       this.$refs.aiParseEventsPanel?.fetchEvents();
     },
+    syncSelectedRecordDate() {
+      if (this.selectedRecordDate === "all") return;
+      const hasSelectedDate = this.filteredTransactions.some(
+        (transaction) => transaction.date === this.selectedRecordDate
+      );
+      if (!hasSelectedDate) {
+        this.selectedRecordDate = "all";
+      }
+    },
+    formatDateChip(dateString) {
+      if (!dateString) return "";
+      const parts = String(dateString).split("-");
+      if (parts.length !== 3) return dateString;
+      const month = Number(parts[1]);
+      const day = Number(parts[2]);
+      if (!Number.isFinite(month) || !Number.isFinite(day)) return dateString;
+      return `${month}/${day}`;
+    },
     async fetchTransactions() {
       try {
         const response = await apiClient.get(`/api/transactions`);
         this.transactions = response.data.data || [];
+        this.syncSelectedRecordDate();
       } catch (error) {
         console.error("無法載入交易資料", error);
         this.transactions = [];
+        this.selectedRecordDate = "all";
       }
     },
   },
@@ -279,6 +351,51 @@ h1 {
 .records-section,
 .analysis-section {
   margin-top: 1rem;
+}
+
+.record-date-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 2px 0 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.record-date-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.record-date-tabs button {
+  display: grid;
+  gap: 2px;
+  flex: 0 0 auto;
+  min-width: 68px;
+  min-height: 48px;
+  padding: 6px 10px;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.record-date-tabs button.active {
+  color: #ffffff;
+  background: #334155;
+  border-color: #334155;
+}
+
+.record-date-tabs span {
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.record-date-tabs small {
+  font-size: 0.72rem;
+  font-weight: 800;
+  opacity: 0.82;
 }
 
 .section-heading {
