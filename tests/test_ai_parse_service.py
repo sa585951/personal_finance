@@ -73,6 +73,44 @@ def test_gemini_transaction_result_is_normalized_for_shared_clients():
     assert "午餐吃麥當勞 150 元，用現金" in fake_model.last_prompt
 
 
+def test_expense_keyword_with_amount_uses_gemini_instead_of_query_shortcut():
+    fake_model = FakeGeminiModel(
+        """
+        {
+          "type": "expense",
+          "budget_category": "其他",
+          "category": "記帳",
+          "description": "支出",
+          "amount": 100,
+          "target_asset": null
+        }
+        """
+    )
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("支出 100")
+
+    assert result["intent"] == "create_transaction"
+    assert result["source"] == "gemini"
+    assert result["transaction"]["amount"] == "100"
+    assert "支出 100" in fake_model.last_prompt
+
+
+def test_expense_query_without_amount_still_uses_query_shortcut():
+    service = AIParseService(
+        gemini_model=FakeGeminiModel("{}"),
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("查詢本月支出")
+
+    assert result["intent"] == "query_transactions"
+    assert result["source"] == "quick"
+
+
 def test_local_fallback_parses_basic_expense_when_gemini_fails():
     fake_model = FakeGeminiModel('{"type":"other","error":"API key not valid"}')
     service = AIParseService(

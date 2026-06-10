@@ -70,6 +70,7 @@ LINE_MSG_CHANNEL_ACCESS_TOKEN=你的 LINE Messaging API Channel Access Token
 LINE_MSG_CHANNEL_SECRET=你的 LINE Messaging API Channel Secret
 
 GEMINI_API_KEY=你的 Gemini API Key
+GEMINI_MODEL=gemini-3.1-flash-lite
 ```
 
 本地多人 dev 測試時：
@@ -168,6 +169,7 @@ LINE_MSG_CHANNEL_ACCESS_TOKEN=你的 LINE Messaging API Channel Access Token
 LINE_MSG_CHANNEL_SECRET=你的 LINE Messaging API Channel Secret
 
 GEMINI_API_KEY=你的 Gemini API Key
+GEMINI_MODEL=gemini-3.1-flash-lite
 ```
 
 重要：

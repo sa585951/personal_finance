@@ -112,6 +112,7 @@ class QuickParser:
                 pass  # 格式不符，讓後續規則處理
 
         message_lower = message.lower()
+        has_amount_hint = any(char.isdigit() for char in message)
 
         # 刪除相關 - 最具體的先匹配
         if any(word in message_lower for word in ['刪除帳戶', '刪除資產', '移除帳戶']):
@@ -139,7 +140,9 @@ class QuickParser:
             return {"type": "start_transfer"}
         
         # 查詢相關 - 放在後面，避免被 "餘額" 等關鍵字誤觸
-        if any(word in message_lower for word in ['查詢', '統計', '支出', '本月']):
+        if any(word in message_lower for word in ['查詢', '統計', '本月']) or (
+            '支出' in message_lower and not has_amount_hint
+        ):
             return {"type": "query"}
         
         if any(word in message_lower for word in ['資產', '總資產']):
@@ -166,7 +169,7 @@ class QuickParser:
             return {"type": "other"}
         
         # 記帳類交給 Gemini
-        if any(char.isdigit() for char in message):
+        if has_amount_hint:
             return None
         
         return {"type": "other"}

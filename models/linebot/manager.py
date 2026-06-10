@@ -1,7 +1,7 @@
 # models/linebot/manager.py
 
 import os
-import google.generativeai as genai
+from google import genai
 from .message_handler import MessageHandler
 from .message_parser import MessageParser
 from .user_state_manager import UserStateManager
@@ -10,6 +10,28 @@ from ..user_manager import UserManager
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import LineBotApiError
 from linebot.models import TextSendMessage
+
+
+class GeminiModelAdapter:
+    """讓新版 Google GenAI SDK 維持既有 GeminiParser 需要的介面。"""
+
+    def __init__(self, client, model_name):
+        self.client = client
+        self.model_name = model_name
+
+    def generate_content(self, prompt):
+        return self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+        )
+
+
+class MissingGeminiModel:
+    """Gemini API key 未設定時，讓本地 fallback 有機會處理基本輸入。"""
+
+    def generate_content(self, prompt):
+        raise RuntimeError("GEMINI_API_KEY is not configured")
+
 
 class LineBotManager:
     """
@@ -24,9 +46,14 @@ class LineBotManager:
         self.handler = WebhookHandler(os.getenv("LINE_MSG_CHANNEL_SECRET"))
         
         # Gemini 設定
-        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-        # 建議使用較新的模型以獲得更好的解析效果
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.gemini_model_name = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        self.gemini_client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
+        self.model = (
+            GeminiModelAdapter(self.gemini_client, self.gemini_model_name)
+            if self.gemini_client
+            else MissingGeminiModel()
+        )
 
         self.user_state_manager = UserStateManager()
         self.user_manager = UserManager(self.db_session)

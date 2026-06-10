@@ -9,8 +9,15 @@ class AccountingTheme(BaseTheme):
         category = data.get("category", "其他")
         amount = data.get("amount", 0)
         description = data.get("description", "記帳")
+        account_message = data.get("account_message")
         
         category_color = self.CATEGORY_COLORS.get(category, self.COLORS['text_muted'])
+        detail_rows = [
+            self._create_info_row("備註", description),
+            self._create_info_row("時間", "剛剛"),
+        ]
+        if account_message:
+            detail_rows.append(self._create_info_row("帳戶", account_message))
         
         flex_content = {
             "type": "bubble",
@@ -60,10 +67,7 @@ class AccountingTheme(BaseTheme):
                         "layout": "vertical",
                         "margin": self.SPACING['lg'],
                         "spacing": self.SPACING['sm'],
-                        "contents": [
-                            self._create_info_row("備註", description),
-                            self._create_info_row("時間", "剛剛")
-                        ]
+                        "contents": detail_rows
                     }
                 ]
             },
@@ -116,6 +120,13 @@ class AccountingTheme(BaseTheme):
         """建立收入成功訊息"""
         amount = data.get("amount", 0)
         description = data.get("description", "收入")
+        account_message = data.get("account_message")
+        detail_rows = [
+            self._create_info_row("備註", description),
+            self._create_info_row("時間", "剛剛"),
+        ]
+        if account_message:
+            detail_rows.append(self._create_info_row("帳戶", account_message))
         
         flex_content = {
             "type": "bubble",
@@ -165,10 +176,7 @@ class AccountingTheme(BaseTheme):
                         "layout": "vertical",
                         "margin": self.SPACING['lg'],
                         "spacing": self.SPACING['sm'],
-                        "contents": [
-                            self._create_info_row("備註", description),
-                            self._create_info_row("時間", "剛剛")
-                        ]
+                        "contents": detail_rows
                     }
                 ]
             },

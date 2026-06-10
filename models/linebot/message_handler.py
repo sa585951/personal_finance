@@ -131,19 +131,24 @@ class MessageHandler:
             )
 
             # 2. 處理資產餘額更新
-            asset_update_msg = ""
+            asset_update_msg = None
             target_asset_name = parsed_data.get("target_asset")
             if target_asset_name:
                 asset = self.asset_manager.find_asset_by_name(user_id, target_asset_name)
                 if asset:
                     amount_change = -float(parsed_data["amount"])
                     self.asset_manager.adjust_asset_balance(user_id, asset['account_key'], amount_change)
-                    asset_update_msg = f"\n已從 {asset['bank_name']} 扣款。"
+                    asset_update_msg = f"已從 {asset['bank_name']} 扣款"
                 else:
-                    asset_update_msg = f"\n⚠️ 但找不到名為 {target_asset_name} 的資產。"
+                    asset_update_msg = f"找不到名為 {target_asset_name} 的資產"
             
-            original_text = f"✅ 支出 {parsed_data['amount']}元 紀錄成功！"
-            return original_text + asset_update_msg
+            response_data = {
+                "category": parsed_data["category"],
+                "amount": parsed_data["amount"],
+                "description": parsed_data.get("description") or parsed_data["category"],
+                "account_message": asset_update_msg,
+            }
+            return self.response_builder.create_expense_success(response_data)
         except Exception as e:
             return self.response_builder.create_error_message(f"紀錄失敗: {e}")
 
@@ -158,19 +163,23 @@ class MessageHandler:
             )
 
             # 2. 處理資產餘額更新
-            asset_update_msg = ""
+            asset_update_msg = None
             target_asset_name = parsed_data.get("target_asset")
             if target_asset_name:
                 asset = self.asset_manager.find_asset_by_name(user_id, target_asset_name)
                 if asset:
                     amount_change = float(parsed_data["amount"])
                     self.asset_manager.adjust_asset_balance(user_id, asset['account_key'], amount_change)
-                    asset_update_msg = f"\n已存入 {asset['bank_name']}。"
+                    asset_update_msg = f"已存入 {asset['bank_name']}"
                 else:
-                    asset_update_msg = f"\n⚠️ 但找不到名為 {target_asset_name} 的資產。"
+                    asset_update_msg = f"找不到名為 {target_asset_name} 的資產"
 
-            original_text = f"✅ 收入 {parsed_data['amount']}元 紀錄成功！"
-            return original_text + asset_update_msg
+            response_data = {
+                "amount": parsed_data["amount"],
+                "description": parsed_data.get("description") or parsed_data["category"],
+                "account_message": asset_update_msg,
+            }
+            return self.response_builder.create_income_success(response_data)
         except Exception as e:
             return self.response_builder.create_error_message(f"紀錄失敗: {e}")
     
