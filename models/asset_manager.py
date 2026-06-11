@@ -106,13 +106,15 @@ class AssetManager:
             assets[asset["account_key"]] = asset
         return assets
 
-    def find_asset_by_name(self, user_id, name):
+    def find_asset_by_name(self, user_id, name, currency=None):
         """根據自然語言名稱尋找指定使用者的帳戶。"""
         stmt = select(accounts_table).where(
             accounts_table.c.user_id == self._parse_user_id(user_id),
             accounts_table.c.deleted_at.is_(None),
             accounts_table.c.name.ilike(name),
         )
+        if currency:
+            stmt = stmt.where(accounts_table.c.currency == self._normalize_currency(currency))
         row = self.db_session.execute(stmt).first()
         return self._to_legacy_asset(dict(row._mapping)) if row else None
 

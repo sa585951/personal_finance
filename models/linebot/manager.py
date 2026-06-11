@@ -69,6 +69,7 @@ class LineBotManager:
         - `category`: 交易項目名稱，優先填入具體品牌、店家、品項或收入來源，例如「麥當勞」、「可口可樂」、「計程車」、「薪資」。
         - `description`: 使用者明確提供的補充備註，例如「跟朋友聚餐」、「公司報銷」。如果沒有明確備註，請回傳空字串 "" 或 null，不要把原始訊息整段放入。
         - `amount`: 金額 (數字)。
+        - `currency`: 訊息中的幣別代碼，例如 TWD、JPY、USD、EUR、KRW。若未提到幣別，此欄位為 null。
         - `target_asset`: 支付的資產/帳戶，例如「現金」、「信用卡」、「銀行轉帳」。如果訊息中沒有提到，此欄位為 null。
 
         **規則：**
@@ -80,6 +81,7 @@ class LineBotManager:
            - `budget_category`: 將消費目的歸類到「類別限制」中的一個。
            - `category`: 從訊息中提取最適合作為列表顯示的項目名稱；若有品牌、店家或品項，優先放在此欄。
            - `description`: 只放額外補充備註。若沒有明確備註，留空，不要填入 category，也不要填入原始訊息。
+           - `currency`: 若訊息提到「日幣、日圓、JPY」回傳 JPY；「台幣、TWD、NTD」回傳 TWD；「美金、美元、USD」回傳 USD；未提到則回傳 null。
            - `target_asset`: 從訊息中提取支付方式，如「用現金」、「刷卡」、「從郵局轉帳」。
         4. **其他請求**: 根據訊息類型回傳對應的 JSON 結構。
 
@@ -88,7 +90,9 @@ class LineBotManager:
 
         **精選範例:**
         - 訊息: "午餐吃麥當勞 150元 用國泰信用卡"
-          應解析為: {{ "type": "expense", "budget_category": "伙食", "category": "麥當勞", "description": "", "amount": 150, "target_asset": "國泰信用卡" }}
+          應解析為: {{ "type": "expense", "budget_category": "伙食", "category": "麥當勞", "description": "", "amount": 150, "currency": "TWD", "target_asset": "國泰信用卡" }}
+        - 訊息: "永豐日幣活存扣拉麵 1200 日圓"
+          應解析為: {{ "type": "expense", "budget_category": "伙食", "category": "拉麵", "description": "", "amount": 1200, "currency": "JPY", "target_asset": "永豐活存" }}
         - 訊息: "在7-11買了可口可樂，付了現金30元"
           應解析為: {{ "type": "expense", "budget_category": "伙食", "category": "可口可樂", "description": "", "amount": 30, "target_asset": "現金" }}
         - 訊息: "搭計程車回家花了 250"

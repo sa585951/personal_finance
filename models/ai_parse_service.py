@@ -81,6 +81,7 @@ class AIParseService:
             "category": local_title,
             "description": "",
             "amount": amount,
+            "currency": self._detect_currency(message),
             "target_asset": self._detect_account_hint(message),
             "fallback_reason": "gemini_error",
         }
@@ -137,6 +138,20 @@ class AIParseService:
         for keyword in account_keywords:
             if keyword.lower() in message.lower():
                 return "信用卡" if keyword == "刷卡" else keyword
+        return None
+
+    def _detect_currency(self, message):
+        currency_keywords = [
+            ("JPY", ["jpy", "日幣", "日圓", "日元", "円"]),
+            ("TWD", ["twd", "ntd", "台幣", "新台幣", "臺幣", "元"]),
+            ("USD", ["usd", "美金", "美元"]),
+            ("EUR", ["eur", "歐元"]),
+            ("KRW", ["krw", "韓元", "韓幣"]),
+        ]
+        lowered_message = message.lower()
+        for currency, keywords in currency_keywords:
+            if any(keyword in lowered_message for keyword in keywords):
+                return currency
         return None
 
     def _clean_local_description(self, message):

@@ -143,6 +143,7 @@ export default {
         amount: null,
         budget_category: "", // 新增：預算類別
         account_id: "",
+        original_currency: "TWD",
         parse_event_id: "",
         description: "", // 新增：備註
       },
@@ -236,6 +237,12 @@ export default {
     budgetCategories() {
       this.ensureCategoryMatchesType();
     },
+    "newTransaction.account_id"(accountId) {
+      const account = Object.values(this.assets || {}).find((asset) => asset.id === accountId);
+      if (account?.currency) {
+        this.newTransaction.original_currency = account.currency;
+      }
+    },
     draft: {
       handler(value) {
         if (value && !this.isEditing) {
@@ -302,7 +309,8 @@ export default {
         amount: Number.isFinite(amount) ? amount : this.newTransaction.amount,
         budget_category: draft.budget_category || this.newTransaction.budget_category,
         description: draft.description || "",
-        account_id: this.findAccountIdByHint(draft.account_hint) || this.newTransaction.account_id,
+        original_currency: draft.currency || this.newTransaction.original_currency,
+        account_id: this.findAccountIdByHint(draft.account_hint, draft.currency) || this.newTransaction.account_id,
         parse_event_id: draft.parse_event_id || "",
       };
       this.ensureCategoryMatchesType();
@@ -318,6 +326,7 @@ export default {
           : Number(transaction.amount),
         budget_category: transaction.budget_category || "",
         account_id: transaction.account_id || "",
+        original_currency: transaction.currency || "TWD",
         parse_event_id: "",
         description: transaction.description || "",
       };
@@ -330,7 +339,7 @@ export default {
         if (this.isEditing) {
           await apiClient.put(
             `/api/transactions/${this.editingTransaction.id}`,
-            this.newTransaction
+            this.transactionPayload()
           );
           await this.fetchAssets();
           this.$emit("transaction-updated");
@@ -339,7 +348,7 @@ export default {
           return;
         }
 
-        await apiClient.post(`/api/transactions`, this.newTransaction);
+        await apiClient.post(`/api/transactions`, this.transactionPayload());
 
         await this.fetchAssets();
         this.$emit("transaction-added");
@@ -383,11 +392,18 @@ export default {
       };
       return typeMap[type] || type || "其他";
     },
-    findAccountIdByHint(accountHint) {
+    transactionPayload() {
+      const accountCurrency = this.selectedAccount?.currency;
+      return {
+        ...this.newTransaction,
+        original_currency: accountCurrency || this.newTransaction.original_currency || "TWD",
+      };
+    },
+    findAccountIdByHint(accountHint, currencyHint = null) {
       if (!accountHint) return "";
       const normalizedHint = String(accountHint).trim().toLowerCase();
-      const matchedAccount = Object.values(this.assets || {}).find((asset) => {
-        if (asset.currency !== "TWD") return false;
+      const normalizedCurrency = currencyHint ? String(currencyHint).trim().toUpperCase() : "";
+      const candidates = Object.values(this.assets || {}).filter((asset) => {
         const bankName = String(asset.bank_name || "").toLowerCase();
         const accountType = this.translateAccountType(asset.account_type).toLowerCase();
         return (
@@ -396,6 +412,7 @@ export default {
           || normalizedHint.includes(accountType)
         );
       });
+      const matchedAccount = candidates.find((asset) => asset.currency === normalizedCurrency) || candidates[0];
       return matchedAccount?.id || "";
     },
     formatMoney(amount, currency = "TWD") {
@@ -413,6 +430,7 @@ export default {
         amount: null,
         budget_category: "",
         account_id: "",
+        original_currency: "TWD",
         parse_event_id: "",
         description: "",
       };

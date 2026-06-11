@@ -122,14 +122,19 @@ class MessageHandler:
             self.budget_manager.add_transaction(
                 user_id, datetime.now().strftime("%Y-%m-%d"),
                 parsed_data['category'], parsed_data['amount'], 'expense',
-                parsed_data['budget_category'], parsed_data.get('description', '')
+                parsed_data['budget_category'], parsed_data.get('description', ''),
+                original_currency=parsed_data.get("currency"),
             )
 
             # 2. 處理資產餘額更新
             asset_update_msg = None
             target_asset_name = parsed_data.get("target_asset")
             if target_asset_name:
-                asset = self.asset_manager.find_asset_by_name(user_id, target_asset_name)
+                asset = self.asset_manager.find_asset_by_name(
+                    user_id,
+                    target_asset_name,
+                    currency=parsed_data.get("currency"),
+                )
                 if asset:
                     amount_change = -float(parsed_data["amount"])
                     self.asset_manager.adjust_asset_balance(user_id, asset['account_key'], amount_change)
@@ -154,14 +159,19 @@ class MessageHandler:
             self.budget_manager.add_transaction(
                 user_id, datetime.now().strftime("%Y-%m-%d"),
                 parsed_data['category'], parsed_data['amount'], 'income',
-                parsed_data['budget_category'], parsed_data.get('description', '')
+                parsed_data['budget_category'], parsed_data.get('description', ''),
+                original_currency=parsed_data.get("currency"),
             )
 
             # 2. 處理資產餘額更新
             asset_update_msg = None
             target_asset_name = parsed_data.get("target_asset")
             if target_asset_name:
-                asset = self.asset_manager.find_asset_by_name(user_id, target_asset_name)
+                asset = self.asset_manager.find_asset_by_name(
+                    user_id,
+                    target_asset_name,
+                    currency=parsed_data.get("currency"),
+                )
                 if asset:
                     amount_change = float(parsed_data["amount"])
                     self.asset_manager.adjust_asset_balance(user_id, asset['account_key'], amount_change)

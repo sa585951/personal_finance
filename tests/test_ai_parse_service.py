@@ -219,10 +219,23 @@ def test_local_fallback_parses_basic_expense_when_gemini_fails():
         "amount": "150",
         "description": "",
         "account_hint": "現金",
-        "currency": None,
+        "currency": "TWD",
         "date": None,
         "merchant": None,
     }
+
+
+def test_local_fallback_extracts_currency_hint():
+    fake_model = FakeGeminiModel('{"type":"other","error":"API key not valid"}')
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("永豐日幣活存扣拉麵 1200 日圓")
+
+    assert result["transaction"]["amount"] == "1200"
+    assert result["transaction"]["currency"] == "JPY"
 
 
 def test_message_parser_keeps_existing_line_parse_contract():
