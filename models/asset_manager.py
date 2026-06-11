@@ -21,6 +21,10 @@ ACCOUNT_TYPE_ALIASES = {
     "電子錢包": "e_wallet",
     "prepaid_card": "prepaid_card",
     "external": "external",
+    "investment": "investment",
+    "投資": "investment",
+    "券商": "investment",
+    "定期定額": "investment",
     "other": "other",
     "其他": "other",
 }

@@ -78,6 +78,7 @@ export default {
         { value: "e_wallet", label: "電子錢包" },
         { value: "prepaid_card", label: "預付卡" },
         { value: "external", label: "外部帳戶" },
+        { value: "investment", label: "投資" },
         { value: "other", label: "其他" },
       ],
       submitMessage: "",

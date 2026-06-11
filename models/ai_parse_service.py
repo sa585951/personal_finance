@@ -6,6 +6,14 @@ from .linebot.parsers import GeminiParser, QuickParser
 
 
 TRANSACTION_TYPES = {"expense", "income"}
+DISABLED_GOAL_TYPES = {
+    "goal_query",
+    "manage_goal",
+    "goal_progress",
+    "start_add_goal",
+    "start_edit_goal",
+    "start_delete_goal",
+}
 
 
 class AIParseService:
@@ -65,12 +73,13 @@ class AIParseService:
 
         transaction_type = self._detect_transaction_type(message)
         budget_category, category = self._detect_category(message, transaction_type)
+        local_title = self._detect_local_title(message, category)
 
         return {
             "type": transaction_type,
             "budget_category": budget_category,
-            "category": category,
-            "description": self._clean_local_description(message),
+            "category": local_title,
+            "description": "",
             "amount": amount,
             "target_asset": self._detect_account_hint(message),
             "fallback_reason": "gemini_error",
@@ -134,7 +143,13 @@ class AIParseService:
         description = re.sub(r"\d+(?:\.\d+)?\s*(?:元|塊|圓|twd|ntd)?", "", message, flags=re.IGNORECASE)
         description = re.sub(r"(用|使用|付|付款|刷卡|現金|信用卡|銀行|郵局|LINE Pay|街口|悠遊卡)", "", description)
         description = re.sub(r"[，,。．\s]+", " ", description).strip()
-        return description or message[:20]
+        return description
+
+    def _detect_local_title(self, message, fallback_category):
+        title = self._clean_local_description(message)
+        if title:
+            return title
+        return fallback_category
 
     def _detect_intent(self, legacy_result):
         result_type = legacy_result.get("type")
@@ -144,10 +159,10 @@ class AIParseService:
             return "query_transactions"
         if result_type == "asset_query":
             return "query_assets"
+        if result_type in DISABLED_GOAL_TYPES:
+            return "other"
         if result_type and result_type.startswith("start_"):
             return "start_flow"
-        if result_type in {"goal_query", "manage_goal", "goal_progress"}:
-            return "goal_action"
         return "other"
 
     def _normalize_transaction(self, legacy_result, raw_text):
@@ -163,9 +178,9 @@ class AIParseService:
         if not budget_category:
             budget_category = "收入" if transaction_type == "income" else "其他"
 
-        description = legacy_result.get("description")
-        if description is None:
-            description = raw_text[:20]
+        description = self._normalize_description(
+            legacy_result.get("description"), raw_text, title
+        )
 
         return {
             "type": transaction_type,
@@ -179,8 +194,29 @@ class AIParseService:
             "merchant": legacy_result.get("merchant"),
         }
 
+    def _normalize_description(self, description, raw_text, title=None):
+        if description is None:
+            return ""
+
+        normalized = str(description).strip()
+        if not normalized:
+            return ""
+
+        if normalized in {"支出", "收入", "記帳"}:
+            return ""
+
+        if normalized == str(raw_text).strip():
+            return ""
+
+        if title is not None and normalized == str(title).strip():
+            return ""
+
+        return normalized
+
     def _normalize_flow(self, legacy_result):
         result_type = legacy_result.get("type")
+        if result_type in DISABLED_GOAL_TYPES:
+            return None
         if not result_type or not result_type.startswith("start_"):
             return None
 

@@ -40,8 +40,8 @@ def test_gemini_transaction_result_is_normalized_for_shared_clients():
         {
           "type": "expense",
           "budget_category": "伙食",
-          "category": "午餐",
-          "description": "麥當勞",
+          "category": "麥當勞",
+          "description": "",
           "amount": 150,
           "target_asset": "現金"
         }
@@ -60,10 +60,10 @@ def test_gemini_transaction_result_is_normalized_for_shared_clients():
     assert result["legacy"]["type"] == "expense"
     assert result["transaction"] == {
         "type": "expense",
-        "title": "午餐",
+        "title": "麥當勞",
         "budget_category": "伙食",
         "amount": "150",
-        "description": "麥當勞",
+        "description": "",
         "account_hint": "現金",
         "currency": None,
         "date": None,
@@ -96,7 +96,55 @@ def test_expense_keyword_with_amount_uses_gemini_instead_of_query_shortcut():
     assert result["intent"] == "create_transaction"
     assert result["source"] == "gemini"
     assert result["transaction"]["amount"] == "100"
+    assert result["transaction"]["description"] == ""
     assert "支出 100" in fake_model.last_prompt
+
+
+def test_gemini_missing_description_does_not_fall_back_to_raw_text():
+    fake_model = FakeGeminiModel(
+        """
+        {
+          "type": "expense",
+          "budget_category": "交通",
+          "category": "計程車",
+          "amount": 250,
+          "target_asset": null
+        }
+        """
+    )
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("搭計程車回家花了 250")
+
+    assert result["intent"] == "create_transaction"
+    assert result["transaction"]["title"] == "計程車"
+    assert result["transaction"]["description"] == ""
+
+
+def test_gemini_raw_text_description_is_treated_as_empty_note():
+    fake_model = FakeGeminiModel(
+        """
+        {
+          "type": "expense",
+          "budget_category": "伙食",
+          "category": "早餐",
+          "description": "早餐 100",
+          "amount": 100,
+          "target_asset": null
+        }
+        """
+    )
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("早餐 100")
+
+    assert result["transaction"]["description"] == ""
 
 
 def test_expense_query_without_amount_still_uses_query_shortcut():
@@ -109,6 +157,47 @@ def test_expense_query_without_amount_still_uses_query_shortcut():
 
     assert result["intent"] == "query_transactions"
     assert result["source"] == "quick"
+
+
+def test_goal_keywords_are_temporarily_disabled_in_quick_parser():
+    service = AIParseService(
+        gemini_model=FakeGeminiModel("{}"),
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("我的財務目標")
+
+    assert result["intent"] == "other"
+    assert result["source"] == "quick"
+    assert result["legacy"] == {"type": "other"}
+
+
+def test_legacy_goal_button_payloads_are_temporarily_disabled():
+    service = AIParseService(
+        gemini_model=FakeGeminiModel("{}"),
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("編輯目標:abc123")
+
+    assert result["intent"] == "other"
+    assert result["source"] == "quick"
+    assert result["legacy"] == {"type": "other"}
+    assert result["flow"] is None
+
+
+def test_gemini_goal_start_result_is_not_normalized_as_active_flow():
+    service = AIParseService(
+        gemini_model=FakeGeminiModel('{"type":"start_add_goal"}'),
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("存 1000")
+
+    assert result["intent"] == "other"
+    assert result["source"] == "gemini"
+    assert result["legacy"] == {"type": "start_add_goal"}
+    assert result["flow"] is None
 
 
 def test_local_fallback_parses_basic_expense_when_gemini_fails():
@@ -125,10 +214,10 @@ def test_local_fallback_parses_basic_expense_when_gemini_fails():
     assert result["legacy"]["fallback_reason"] == "gemini_error"
     assert result["transaction"] == {
         "type": "expense",
-        "title": "早餐",
+        "title": "早餐麥當勞",
         "budget_category": "伙食",
         "amount": "150",
-        "description": "早餐麥當勞",
+        "description": "",
         "account_hint": "現金",
         "currency": None,
         "date": None,

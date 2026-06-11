@@ -24,16 +24,9 @@ class OperationTheme(BaseTheme):
             "margin": self.SPACING['md']
         }
     """操作主題 - 步驟化、引導式風格"""
-    
-    def create_text_message(self, text, quick_reply=None):
-        """建立純文字訊息 (可選 QuickReply)"""
-        from linebot.models import TextSendMessage
-        return TextSendMessage(text=text, quick_reply=quick_reply)
 
     def create_month_selection_message(self, title="請選擇月份"):
         """建立月份選擇 Flex Message (使用 DatetimePicker)"""
-        from linebot.models import DatetimePickerAction
-        
         flex_content = {
             "type": "bubble",
             "body": {
@@ -77,6 +70,138 @@ class OperationTheme(BaseTheme):
             }
         }
         return FlexSendMessage(alt_text="請選擇月份", contents=flex_content)
+
+    def create_budget_category_selection(self, month, categories, error_message=None):
+        """建立預算類別選擇 Flex Message。"""
+        contents = [
+            {
+                "type": "text",
+                "text": "設定預算",
+                "weight": "bold",
+                "size": "lg",
+                "color": "#333333",
+            },
+            {
+                "type": "text",
+                "text": f"{month} 要設定哪個類別？",
+                "size": "sm",
+                "color": "#666666",
+                "wrap": True,
+                "margin": "sm",
+            },
+        ]
+        if error_message:
+            contents.append(self._create_error_box(error_message))
+
+        rows = []
+        for index in range(0, len(categories), 2):
+            row_buttons = []
+            for category in categories[index:index + 2]:
+                row_buttons.append({
+                    "type": "button",
+                    "style": "link",
+                    "height": "sm",
+                    "action": {
+                        "type": "message",
+                        "label": category,
+                        "text": category,
+                    },
+                    "flex": 1,
+                })
+            if len(row_buttons) == 1:
+                row_buttons.append({
+                    "type": "box",
+                    "layout": "vertical",
+                    "contents": [],
+                    "flex": 1,
+                })
+            rows.append({
+                "type": "box",
+                "layout": "horizontal",
+                "spacing": "sm",
+                "contents": row_buttons,
+                "margin": "sm",
+            })
+
+        contents.extend(rows)
+        contents.append({
+            "type": "button",
+            "style": "link",
+            "height": "sm",
+            "margin": "md",
+            "action": {
+                "type": "message",
+                "label": "取消",
+                "text": "取消操作",
+            },
+        })
+
+        return FlexSendMessage(
+            alt_text="請選擇預算類別",
+            contents={
+                "type": "bubble",
+                "body": {
+                    "type": "box",
+                    "layout": "vertical",
+                    "contents": contents,
+                    "paddingAll": "20px",
+                },
+            },
+        )
+
+    def create_budget_amount_input(self, month, category, error_message=None):
+        """建立預算金額輸入 Flex Message。"""
+        contents = [
+            {
+                "type": "text",
+                "text": "設定預算金額",
+                "weight": "bold",
+                "size": "lg",
+                "color": "#333333",
+            },
+            {
+                "type": "text",
+                "text": f"{month} - {category}",
+                "size": "sm",
+                "color": "#666666",
+                "wrap": True,
+                "margin": "sm",
+            },
+            {
+                "type": "text",
+                "text": "請直接輸入預算金額",
+                "size": "sm",
+                "color": "#333333",
+                "wrap": True,
+                "margin": "md",
+            },
+        ]
+        if error_message:
+            contents.append(self._create_error_box(error_message))
+        contents.append({
+            "type": "button",
+            "style": "link",
+            "height": "sm",
+            "margin": "md",
+            "action": {
+                "type": "message",
+                "label": "取消",
+                "text": "取消操作",
+            },
+        })
+
+        return FlexSendMessage(
+            alt_text="請輸入預算金額",
+            contents={
+                "type": "bubble",
+                "body": {
+                    "type": "box",
+                    "layout": "vertical",
+                    "contents": contents,
+                    "paddingAll": "20px",
+                },
+            },
+        )
 
     # ====== Add Account ======
     def create_add_account_confirmation(self, data, balance):

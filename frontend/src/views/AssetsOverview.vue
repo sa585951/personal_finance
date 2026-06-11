@@ -135,13 +135,14 @@ export default {
               現金: 0,
               信用卡: 0,
               電子錢包: 0,
+              投資: 0,
               其他: 0,
             },
           };
         }
 
         totalsByCurrency[currency].total += balance;
-        const typeKey = ["銀行", "現金", "信用卡", "電子錢包"].includes(type) ? type : "其他";
+        const typeKey = ["銀行", "現金", "信用卡", "電子錢包", "投資"].includes(type) ? type : "其他";
         totalsByCurrency[currency].byType[typeKey] += balance;
       }
 
@@ -153,6 +154,7 @@ export default {
         cash: "現金",
         credit_card: "信用卡",
         e_wallet: "電子錢包",
+        investment: "投資",
       };
       return typeMap[type] || "其他";
     },

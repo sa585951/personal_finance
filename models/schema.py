@@ -93,7 +93,7 @@ accounts_table = Table(
     Column("deleted_at", DateTime(timezone=True)),
     Column("purge_after", DateTime(timezone=True)),
     CheckConstraint(
-        "type in ('cash', 'bank', 'credit_card', 'e_wallet', 'prepaid_card', 'external', 'other')",
+        "type in ('cash', 'bank', 'credit_card', 'e_wallet', 'prepaid_card', 'external', 'investment', 'other')",
         name="ck_accounts_type",
     ),
 )

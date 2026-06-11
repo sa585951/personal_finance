@@ -8,14 +8,15 @@ class AccountingTheme(BaseTheme):
         """建立支出成功訊息 - 模仿小旺來的氣泡風格"""
         category = data.get("category", "其他")
         amount = data.get("amount", 0)
-        description = data.get("description", "記帳")
+        description = data.get("description") or ""
         account_message = data.get("account_message")
         
         category_color = self.CATEGORY_COLORS.get(category, self.COLORS['text_muted'])
         detail_rows = [
-            self._create_info_row("備註", description),
             self._create_info_row("時間", "剛剛"),
         ]
+        if description:
+            detail_rows.insert(0, self._create_info_row("備註", description))
         if account_message:
             detail_rows.append(self._create_info_row("帳戶", account_message))
         
@@ -119,12 +120,13 @@ class AccountingTheme(BaseTheme):
     def create_income_success(self, data):
         """建立收入成功訊息"""
         amount = data.get("amount", 0)
-        description = data.get("description", "收入")
+        description = data.get("description") or ""
         account_message = data.get("account_message")
         detail_rows = [
-            self._create_info_row("備註", description),
             self._create_info_row("時間", "剛剛"),
         ]
+        if description:
+            detail_rows.insert(0, self._create_info_row("備註", description))
         if account_message:
             detail_rows.append(self._create_info_row("帳戶", account_message))
         

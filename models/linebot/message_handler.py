@@ -7,7 +7,6 @@ from datetime import datetime
 # 導入我們需要的 Manager 類別
 from ..budget_manager import BudgetManager
 from ..asset_manager import AssetManager
-from ..goal_manager import GoalManager
 
 # 導入 Flow Handlers
 from .flow_handlers.transfer_flow_handler import TransferFlowHandler
@@ -15,11 +14,8 @@ from .flow_handlers.add_account_flow_handler import AddAccountFlowHandler
 from .flow_handlers.update_balance_flow_handler import UpdateBalanceFlowHandler
 from .flow_handlers.delete_asset_flow_handler import DeleteAssetFlowHandler
 from .flow_handlers.delete_transaction_flow_handler import DeleteTransactionFlowHandler
-from .flow_handlers.add_goal_flow_handler import AddGoalFlowHandler
 from .flow_handlers.add_expense_flow_handler import AddExpenseFlowHandler
 from .flow_handlers.add_income_flow_handler import AddIncomeFlowHandler
-from .flow_handlers.edit_goal_flow_handler import EditGoalFlowHandler
-from .flow_handlers.delete_goal_flow_handler import DeleteGoalFlowHandler
 from .flow_handlers.set_budget_flow_handler import SetBudgetFlowHandler
 from .response_builder import ResponseBuilder
 
@@ -34,7 +30,6 @@ class MessageHandler:
         # 初始化資料管理器
         self.budget_manager = BudgetManager(db_session)
         self.asset_manager = AssetManager(db_session)
-        self.goal_manager = GoalManager(db_session)
 
         # 初始化流程處理器，並傳入 manager
         self.flow_handlers = {
@@ -43,11 +38,8 @@ class MessageHandler:
             "update_balance_flow": UpdateBalanceFlowHandler(self.user_state_manager, operation_theme, self.asset_manager),
             "delete_asset_flow": DeleteAssetFlowHandler(self.user_state_manager, operation_theme, self.asset_manager),
             "delete_transaction_flow": DeleteTransactionFlowHandler(self.user_state_manager, operation_theme, self.budget_manager),
-            "add_goal_flow": AddGoalFlowHandler(self.user_state_manager, operation_theme, self.goal_manager),
             "add_expense_flow": AddExpenseFlowHandler(self.user_state_manager, operation_theme, self.budget_manager, self.asset_manager),
             "add_income_flow": AddIncomeFlowHandler(self.user_state_manager, operation_theme, self.budget_manager, self.asset_manager),
-            "edit_goal_flow": EditGoalFlowHandler(self.user_state_manager, operation_theme, self.goal_manager),
-            "delete_goal_flow": DeleteGoalFlowHandler(self.user_state_manager, operation_theme, self.goal_manager),
             "set_budget_flow": SetBudgetFlowHandler(self.user_state_manager, operation_theme, self.budget_manager),
         }
 
@@ -105,12 +97,15 @@ class MessageHandler:
             return self._handle_query(user_id)
         elif message_type == "asset_query":
             return self._handle_asset_query(user_id)
-        elif message_type == "goal_query":
-            return self._handle_goal_query(user_id)
-        elif message_type == "manage_goal":
-            return self._handle_manage_goal(user_id)
-        elif message_type == "goal_progress":
-            return self._handle_goal_progress(user_id)
+        elif message_type in {
+            "goal_query",
+            "manage_goal",
+            "goal_progress",
+            "start_add_goal",
+            "start_edit_goal",
+            "start_delete_goal",
+        }:
+            return self._handle_goal_unavailable()
         
         elif message_type.startswith("start_"):
             flow_type = message_type.replace("start_", "") + "_flow"
@@ -145,7 +140,7 @@ class MessageHandler:
             response_data = {
                 "category": parsed_data["category"],
                 "amount": parsed_data["amount"],
-                "description": parsed_data.get("description") or parsed_data["category"],
+                "description": parsed_data.get("description") or "",
                 "account_message": asset_update_msg,
             }
             return self.response_builder.create_expense_success(response_data)
@@ -176,7 +171,7 @@ class MessageHandler:
 
             response_data = {
                 "amount": parsed_data["amount"],
-                "description": parsed_data.get("description") or parsed_data["category"],
+                "description": parsed_data.get("description") or "",
                 "account_message": asset_update_msg,
             }
             return self.response_builder.create_income_success(response_data)
@@ -215,30 +210,9 @@ class MessageHandler:
         except Exception as e:
             return self.response_builder.create_error_message(f"查詢資產失敗: {e}")
     
-    def _handle_goal_query(self, user_id):
-        """處理目標查詢"""
-        try:
-            goals = self.goal_manager.get_all_goals(user_id)
-            summary = self.goal_manager.calculate_goal_summary(user_id)
-            return self.response_builder.create_goal_overview(goals, summary)
-        except Exception as e:
-            return self.response_builder.create_error_message(f"查詢目標失敗: {e}")
-        
-    def _handle_manage_goal(self, user_id):
-        """處理管理目標"""
-        try:
-            goals = self.goal_manager.get_all_goals(user_id)
-            return self.response_builder.create_goal_management(goals)
-        except Exception as e:
-            return self.response_builder.create_error_message(f"查詢目標失敗: {e}")
-
-    def _handle_goal_progress(self, user_id):
-        """處理目標進度查詢"""
-        try:
-            goals = self.goal_manager.get_all_goals(user_id)
-            return self.response_builder.create_goal_progress(goals)
-        except Exception as e:
-            return self.response_builder.create_error_message(f"查詢目標進度失敗: {e}")
+    def _handle_goal_unavailable(self):
+        """財務目標目前已從 MVP LINE 流程暫停。"""
+        return self.response_builder.create_goal_unavailable()
     
     def _get_help_message(self):
         """取得幫助訊息"""

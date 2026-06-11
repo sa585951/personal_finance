@@ -1,5 +1,6 @@
 from datetime import datetime
-from linebot.models import QuickReply, QuickReplyButton, MessageAction
+
+
 class SetBudgetFlowHandler:
     """
     設定預算流程處理器
@@ -13,6 +14,7 @@ class SetBudgetFlowHandler:
         self.user_state_manager = user_state_manager
         self.operation_theme = operation_theme
         self.budget_manager = budget_manager
+        self.categories = ["伙食", "交通", "購物", "娛樂", "醫療", "投資", "生活", "其他"]
 
     def start_flow(self, user_id):
         """啟動流程"""
@@ -57,28 +59,30 @@ class SetBudgetFlowHandler:
         data['month'] = month_str
         self.user_state_manager.update_user_state(user_id, step=2, data=data)
         
-        # 取得預算類別建議
-        categories = ["伙食", "交通", "購物", "娛樂", "醫療", "投資", "生活", "其他"]
-        quick_reply_buttons = [
-            QuickReplyButton(action=MessageAction(label=cat, text=cat)) for cat in categories
-        ]
-        
-        return self.operation_theme.create_text_message(
-            f"設定 {data['month']} 的預算。\n請問是哪個類別？",
-            quick_reply=QuickReply(items=quick_reply_buttons)
-        )
+        return self.operation_theme.create_budget_category_selection(data['month'], self.categories)
 
     def _handle_step_2_category(self, user_id, message, data):
+        if message not in self.categories:
+            return self.operation_theme.create_budget_category_selection(
+                data['month'],
+                self.categories,
+                "請選擇有效的預算類別",
+            )
+
         data['category'] = message
         self.user_state_manager.update_user_state(user_id, step=3, data=data)
-        
-        return f"設定 {data['month']} - {data['category']} 的預算。\n請輸入預算金額："
+
+        return self.operation_theme.create_budget_amount_input(data['month'], data['category'])
 
     def _handle_step_3_amount(self, user_id, message, data):
         try:
             amount = float(message)
             if amount < 0:
-                return "金額不能為負數，請重新輸入。"
+                return self.operation_theme.create_budget_amount_input(
+                    data['month'],
+                    data['category'],
+                    "金額不能為負數，請重新輸入。",
+                )
             
             # 儲存預算
             success, result_msg = self.budget_manager.set_budget(
@@ -93,4 +97,8 @@ class SetBudgetFlowHandler:
                 return f"❌ 設定失敗: {result_msg}"
                 
         except ValueError:
-            return "請輸入有效的數字金額。"
+            return self.operation_theme.create_budget_amount_input(
+                data['month'],
+                data['category'],
+                "請輸入有效的數字金額。",
+            )

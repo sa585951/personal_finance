@@ -2135,6 +2135,7 @@ export default {
         e_wallet: "電子錢包",
         prepaid_card: "預付卡",
         external: "外部帳戶",
+        investment: "投資",
         other: "其他",
       };
       return typeMap[type] || type || "其他";

@@ -65,8 +65,9 @@ class GeminiParser:
 
             if "category" not in result:
                 result["category"] = "其他"
-            if "description" not in result:
-                result["description"] = original_message[:20]
+            result["description"] = self._normalize_description(
+                result.get("description"), original_message, result.get("category")
+            )
             if "target_asset" not in result:
                 result["target_asset"] = None
 
@@ -74,12 +75,32 @@ class GeminiParser:
             if "amount" not in result or not isinstance(result["amount"], (int, float)):
                 result["type"] = "other"
                 result["error"] = "無法識別收入金額"
-            if "description" not in result:
-                result["description"] = original_message[:20]
+            result["description"] = self._normalize_description(
+                result.get("description"), original_message, result.get("category")
+            )
             if "target_asset" not in result:
                 result["target_asset"] = None
 
         return result
+
+    def _normalize_description(self, description, original_message, category=None):
+        if description is None:
+            return ""
+
+        normalized = str(description).strip()
+        if not normalized:
+            return ""
+
+        if normalized in {"支出", "收入", "記帳"}:
+            return ""
+
+        if normalized == str(original_message).strip():
+            return ""
+
+        if category is not None and normalized == str(category).strip():
+            return ""
+
+        return normalized
 
 class QuickParser:
     """快速解析器 - 使用規則匹配來快速識別常見的訊息類型"""
@@ -94,22 +115,9 @@ class QuickParser:
         Returns:
             dict or None: 解析結果，如果返回 None 表示需要 Gemini 處理
         """
-        # 處理帶有 ID 的目標操作
-        if message.startswith("編輯目標:"):
-            try:
-                goal_id = message.split(":")[1]
-                if goal_id:
-                    return {"type": "start_edit_goal", "goal_id": goal_id}
-            except IndexError:
-                pass  # 格式不符，讓後續規則處理
-        
-        if message.startswith("刪除目標:"):
-            try:
-                goal_id = message.split(":")[1]
-                if goal_id:
-                    return {"type": "start_delete_goal", "goal_id": goal_id}
-            except IndexError:
-                pass  # 格式不符，讓後續規則處理
+        # 財務目標功能目前暫停，舊版目標按鈕 payload 不再進入流程。
+        if message.startswith(("編輯目標:", "刪除目標:")):
+            return {"type": "other"}
 
         message_lower = message.lower()
         has_amount_hint = any(char.isdigit() for char in message)
@@ -152,18 +160,12 @@ class QuickParser:
         if any(word in message_lower for word in ['設定預算', '新增預算', '調整預算']):
             return {"type": "start_set_budget"}
 
-        # 目標相關
-        if any(word in message_lower for word in ['財務目標', '我的目標', '目標查詢']):
-            return {"type": "goal_query"}
-
-        if any(word in message_lower for word in ['新增目標', '設定目標']):
-            return {"type": "start_add_goal"}
-        
-        if any(word in message_lower for word in ['管理目標', '編輯目標']):
-            return {"type": "manage_goal"}
-
-        if any(word in message_lower for word in ['目標進度', '進度查詢']):
-            return {"type": "goal_progress"}
+        # 財務目標功能目前暫停，不主動進入舊版 LINE 目標流程。
+        if any(word in message_lower for word in [
+            '財務目標', '我的目標', '目標查詢', '新增目標', '設定目標',
+            '管理目標', '編輯目標', '目標進度', '進度查詢'
+        ]):
+            return {"type": "other"}
 
         if any(word in message_lower for word in ['幫助', '說明', '功能', '測試']):
             return {"type": "other"}

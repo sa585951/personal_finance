@@ -9,7 +9,6 @@ from ..ai_parse_event_manager import AIParseEventManager
 from ..user_manager import UserManager
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import LineBotApiError
-from linebot.models import TextSendMessage
 
 
 class GeminiModelAdapter:
@@ -67,8 +66,8 @@ class LineBotManager:
 
         **輸出欄位定義:**
         - `budget_category`: 最高層級的分類，必須是「類別限制」中的一個。
-        - `category`: 次級消費類型，例如「午餐」、「晚餐」、「飲料」、「零食」、「計程車」。
-        - `description`: 訊息中提到的具體「品牌」、「店家」或「品項」，例如「麥當勞」、「可口可樂」。如果沒有，此欄位為 null。
+        - `category`: 交易項目名稱，優先填入具體品牌、店家、品項或收入來源，例如「麥當勞」、「可口可樂」、「計程車」、「薪資」。
+        - `description`: 使用者明確提供的補充備註，例如「跟朋友聚餐」、「公司報銷」。如果沒有明確備註，請回傳空字串 "" 或 null，不要把原始訊息整段放入。
         - `amount`: 金額 (數字)。
         - `target_asset`: 支付的資產/帳戶，例如「現金」、「信用卡」、「銀行轉帳」。如果訊息中沒有提到，此欄位為 null。
 
@@ -76,11 +75,11 @@ class LineBotManager:
         1. **支出記錄**: 必須包含 `type`, `budget_category`, `category`, `amount`。
            - JSON: {{ "type": "expense", "budget_category": "...", "category": "...", "description": "...", "amount": ..., "target_asset": "..." }}
         2. **收入記錄**: 
-           - JSON: {{ "type": "income", "budget_category": "收入", "category": "收入來源", "description": "備註", "amount": ..., "target_asset": "..." }}
+           - JSON: {{ "type": "income", "budget_category": "收入", "category": "收入來源", "description": "可選備註", "amount": ..., "target_asset": "..." }}
         3. **欄位提取邏輯**: 
            - `budget_category`: 將消費目的歸類到「類別限制」中的一個。
-           - `category`: 從訊息中提取次級消費類型。
-           - `description`: 從訊息中提取最詳細的品項或地點。若 `category` 和 `description` 相似，優先將具體名詞填入 `description`。
+           - `category`: 從訊息中提取最適合作為列表顯示的項目名稱；若有品牌、店家或品項，優先放在此欄。
+           - `description`: 只放額外補充備註。若沒有明確備註，留空，不要填入 category，也不要填入原始訊息。
            - `target_asset`: 從訊息中提取支付方式，如「用現金」、「刷卡」、「從郵局轉帳」。
         4. **其他請求**: 根據訊息類型回傳對應的 JSON 結構。
 
@@ -89,13 +88,13 @@ class LineBotManager:
 
         **精選範例:**
         - 訊息: "午餐吃麥當勞 150元 用國泰信用卡"
-          應解析為: {{ "type": "expense", "budget_category": "伙食", "category": "午餐", "description": "麥當勞", "amount": 150, "target_asset": "國泰信用卡" }}
+          應解析為: {{ "type": "expense", "budget_category": "伙食", "category": "麥當勞", "description": "", "amount": 150, "target_asset": "國泰信用卡" }}
         - 訊息: "在7-11買了可口可樂，付了現金30元"
-          應解析為: {{ "type": "expense", "budget_category": "伙食", "category": "飲料", "description": "可口可樂", "amount": 30, "target_asset": "現金" }}
+          應解析為: {{ "type": "expense", "budget_category": "伙食", "category": "可口可樂", "description": "", "amount": 30, "target_asset": "現金" }}
         - 訊息: "搭計程車回家花了 250"
-          應解析為: {{ "type": "expense", "budget_category": "交通", "category": "計程車", "description": null, "amount": 250, "target_asset": null }}
+          應解析為: {{ "type": "expense", "budget_category": "交通", "category": "計程車", "description": "", "amount": 250, "target_asset": null }}
         - 訊息: "治裝費 3000"
-          應解析為: {{ "type": "expense", "budget_category": "購物", "category": "衣服", "description": null, "amount": 3000, "target_asset": null }}
+          應解析為: {{ "type": "expense", "budget_category": "購物", "category": "治裝費", "description": "", "amount": 3000, "target_asset": null }}
 
 
         注意：只回傳純 JSON，不要 markdown 標記。
@@ -189,10 +188,7 @@ class LineBotManager:
         支援 Flex Message 的回覆方法
         """
         try:
-            if isinstance(message, str):
-                self.line_bot_api.reply_message(reply_token, TextSendMessage(text=message))
-            else:
-                self.line_bot_api.reply_message(reply_token, message)
+            self.line_bot_api.reply_message(reply_token, self._to_line_message(message))
         except LineBotApiError as e:
             print(f"Line API Error: {e}")
 
@@ -201,9 +197,12 @@ class LineBotManager:
         支援 Flex Message 的推送方法
         """
         try:
-            if isinstance(message, str):
-                self.line_bot_api.push_message(user_id, TextSendMessage(text=message))
-            else:
-                self.line_bot_api.push_message(user_id, message)
+            self.line_bot_api.push_message(user_id, self._to_line_message(message))
         except LineBotApiError as e:
             print(f"Line Push Error: {e}")
+
+    def _to_line_message(self, message):
+        """把舊流程的純文字輸出統一轉成 Flex 卡片。"""
+        if isinstance(message, str):
+            return self.message_handler.response_builder.create_notice_message("通知", message)
+        return message
