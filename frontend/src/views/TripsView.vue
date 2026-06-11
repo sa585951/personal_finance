@@ -186,6 +186,13 @@
           </div>
         </div>
 
+        <div class="trip-category-panel" :class="{ expanded: showTripSummary }">
+          <TripCategoryChart
+            :transactions="tripTransactions"
+            :currency="selectedTrip.base_currency"
+          />
+        </div>
+
         <div class="members-section app-panel" :class="{ active: activeSection === 'members' }">
           <div class="section-title">
             <User />
@@ -798,6 +805,7 @@
 <script>
 import { Calendar, Delete, Document, Edit, List, Location, Money, Plus, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
 import apiClient from "@/api";
+import TripCategoryChart from "@/components/charts/TripCategoryChart.vue";
 
 export default {
   name: "TripsView",
@@ -812,6 +820,7 @@ export default {
     Plus,
     Refresh,
     TrendCharts,
+    TripCategoryChart,
     User,
   },
   data() {
@@ -2974,6 +2983,10 @@ select:disabled {
   gap: 10px;
 }
 
+.trip-category-panel {
+  display: block;
+}
+
 .trip-summary-compact {
   display: none;
 }
@@ -3734,6 +3747,14 @@ select:disabled {
 
   .trip-summary-grid.expanded {
     display: grid;
+  }
+
+  .trip-category-panel {
+    display: none;
+  }
+
+  .trip-category-panel.expanded {
+    display: block;
   }
 
   .trip-hero {

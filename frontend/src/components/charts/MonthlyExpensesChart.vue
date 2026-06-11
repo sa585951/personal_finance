@@ -1,7 +1,10 @@
 <template>
-  <div class="card">
+  <div class="chart-panel">
     <div class="card-header">
-      <h3 class="card-title">{{ currentMonth }} 支出類別分佈</h3>
+      <div>
+        <h3 class="card-title">分類比例</h3>
+        <p>{{ currentMonth }} 支出類別分布</p>
+      </div>
     </div>
     <div class="card-body">
       <div v-if="hasData">
@@ -43,9 +46,20 @@ export default {
       chartOptions: {
         responsive: true,
         maintainAspectRatio: false,
+        cutout: "62%",
         plugins: {
           legend: {
-            position: 'top',
+            position: 'bottom',
+            labels: {
+              boxWidth: 10,
+              boxHeight: 10,
+              color: "#475569",
+              padding: 12,
+              font: {
+                size: 12,
+                weight: "700",
+              },
+            },
           },
           title: {
             display: false,
@@ -76,34 +90,39 @@ export default {
 </script>
 
 <style scoped>
-.card {
-  background-color: var(--secondary-color);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  padding: 20px;
-  margin-bottom: 20px;
+.chart-panel {
+  min-width: 0;
 }
 
 .card-header {
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 15px;
-  margin-bottom: 15px;
+  margin-bottom: 12px;
 }
 
 .card-title {
-  font-size: 1.5rem;
-  color: var(--light-text-color);
   margin: 0;
+  color: #1f2933;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.card-header p {
+  margin: 2px 0 0;
+  color: #64748b;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.card-body {
+  min-height: 280px;
 }
 
 .chart-instance {
-  max-height: 300px; /* Adjust as needed */
+  height: 280px;
 }
 
 .no-data-message {
   text-align: center;
-  color: #888;
-  font-style: italic;
+  color: #64748b;
   padding: 2rem;
 }
 </style>

@@ -54,8 +54,8 @@
                   class="legend-swatch"
                   :style="{ backgroundColor: typeColor(item.type) }"
                 ></span>
-                <span class="legend-name">{{ item.type }}</span>
-                <strong>{{ percentage(item.amount, currencyTotal.allocationTotal) }}%</strong>
+                <strong class="legend-name">{{ item.type }}</strong>
+                <span class="legend-percent">{{ percentage(item.amount, currencyTotal.allocationTotal) }}%</span>
                 <small>{{ formatMoney(item.amount, currencyTotal.currency) }}</small>
               </div>
             </div>
@@ -223,19 +223,19 @@ export default {
 
 .allocation-card {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   padding: 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #dbe4ee;
   border-radius: 8px;
-  background: #f8fafc;
+  background: #ffffff;
 }
 
 .stacked-bar {
   display: flex;
   width: 100%;
-  height: 26px;
+  height: 12px;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 999px;
   background: #e2e8f0;
 }
 
@@ -246,20 +246,16 @@ export default {
 
 .allocation-legend {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .legend-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px 8px;
+  gap: 4px 8px;
   min-width: 0;
-  padding: 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #ffffff;
+  padding: 4px 0;
 }
 
 .legend-swatch {
@@ -271,21 +267,22 @@ export default {
 .legend-name {
   overflow: hidden;
   color: #1f2933;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.legend-item strong {
+.legend-percent {
   color: #1f2933;
-  font-size: 0.9rem;
+  font-size: 0.86rem;
+  font-weight: 900;
 }
 
 .legend-item small {
   grid-column: 2 / -1;
   color: #64748b;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   text-align: right;
   word-break: break-word;
 }
@@ -307,10 +304,6 @@ export default {
 @media (max-width: 420px) {
   .allocation-card {
     padding: 12px;
-  }
-
-  .allocation-legend {
-    grid-template-columns: 1fr;
   }
 }
 </style>

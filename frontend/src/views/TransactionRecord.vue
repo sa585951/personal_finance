@@ -68,10 +68,24 @@
 
     <section v-if="activeType !== 'income'" class="analysis-section">
       <div class="section-heading">
-        <h2>月報支出趨勢</h2>
+        <h2>支出分析</h2>
         <span>分析</span>
       </div>
-      <SpendingTrendsChart />
+      <div class="analysis-panel">
+        <div class="analysis-tabs" aria-label="支出分析切換">
+          <button
+            v-for="tab in analysisTabs"
+            :key="tab.key"
+            type="button"
+            :class="{ active: activeAnalysisTab === tab.key }"
+            @click="activeAnalysisTab = tab.key"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+        <MonthlyExpensesChart v-if="activeAnalysisTab === 'category'" />
+        <SpendingTrendsChart v-else />
+      </div>
     </section>
   </div>
 </template>
@@ -83,6 +97,7 @@ import AIQuickInput from "../components/budgets/AIQuickInput.vue";
 import TransactionForm from "../components/budgets/TransactionForm.vue";
 import TransactionTable from "../components/budgets/TransactionTable.vue";
 import TransactionSummary from "../components/budgets/TransactionSummary.vue";
+import MonthlyExpensesChart from "../components/charts/MonthlyExpensesChart.vue";
 import SpendingTrendsChart from "../components/charts/SpendingTrendsChart.vue";
 
 export default {
@@ -93,6 +108,7 @@ export default {
     TransactionForm,
     TransactionTable,
     TransactionSummary,
+    MonthlyExpensesChart,
     SpendingTrendsChart,
   },
   data() {
@@ -102,6 +118,7 @@ export default {
       aiDraft: null,
       editingTransaction: null,
       selectedRecordDate: "all",
+      activeAnalysisTab: "category",
     };
   },
   watch: {
@@ -156,6 +173,18 @@ export default {
         {
           key: "income",
           label: "收入",
+        },
+      ];
+    },
+    analysisTabs() {
+      return [
+        {
+          key: "category",
+          label: "分類比例",
+        },
+        {
+          key: "trend",
+          label: "月年趨勢",
         },
       ];
     },
@@ -351,6 +380,46 @@ h1 {
 .records-section,
 .analysis-section {
   margin-top: 1rem;
+}
+
+.analysis-panel {
+  padding: 14px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.analysis-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px;
+  margin-bottom: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #e2e8f0;
+}
+
+.analysis-tabs button {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  box-shadow: none;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.analysis-tabs button.active {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.analysis-tabs button:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .record-date-tabs {

@@ -14,6 +14,21 @@
     </div>
 
     <div v-if="budgetSummary.length > 0" class="budget-list">
+      <section class="overspend-alert" :class="{ clear: overspentItems.length === 0 }">
+        <div>
+          <span>{{ overspentItems.length > 0 ? "超支提醒" : "目前無超支" }}</span>
+          <strong>
+            {{ overspentItems.length > 0 ? formatMoney(totalOverspent) : "控制良好" }}
+          </strong>
+        </div>
+        <p v-if="overspentItems.length > 0">
+          {{ overspentItems.map((item) => item.category).join("、") }} 已超出預算，建議優先檢查近期支出。
+        </p>
+        <p v-else>
+          {{ selectedMonth }} 的預算目前都在範圍內。
+        </p>
+      </section>
+
       <article v-for="item in budgetSummary" :key="item.category" class="budget-card">
         <div class="card-top">
           <div>
@@ -77,6 +92,17 @@ export default {
       availableMonths: [],
       budgetSummary: [],
     };
+  },
+  computed: {
+    overspentItems() {
+      return this.budgetSummary.filter((item) => Number(item.remaining || 0) < 0);
+    },
+    totalOverspent() {
+      return this.overspentItems.reduce(
+        (sum, item) => sum + Math.abs(Number(item.remaining || 0)),
+        0
+      );
+    },
   },
   methods: {
     handleMonthChange(event) {
@@ -234,6 +260,43 @@ select {
 .budget-list {
   display: grid;
   gap: 10px;
+}
+
+.overspend-alert {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.overspend-alert.clear {
+  border-color: #bbf7d0;
+  border-left-color: #16a34a;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.overspend-alert div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.overspend-alert span,
+.overspend-alert strong {
+  font-weight: 900;
+}
+
+.overspend-alert p {
+  margin: 0;
+  color: inherit;
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
 
 .budget-card {

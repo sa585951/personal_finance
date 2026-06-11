@@ -1,14 +1,16 @@
 <template>
-  <div class="card">
+  <div class="chart-panel">
     <div class="card-header">
-      <h3 class="card-title">月報支出趨勢</h3>
+      <div>
+        <h3 class="card-title">月年趨勢</h3>
+        <p>依分類查看支出變化</p>
+      </div>
       <div class="controls">
-        <label for="interval">時間間隔:</label>
+        <label for="interval">間隔</label>
         <select id="interval" v-model="selectedInterval" @change="fetchChartData">
           <option value="month">月</option>
           <option value="year">年</option>
         </select>
-        <!-- 可以添加日期選擇器 -->
       </div>
     </div>
     <div class="card-body">
@@ -61,7 +63,17 @@ export default {
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            position: "top",
+            position: "bottom",
+            labels: {
+              boxWidth: 10,
+              boxHeight: 10,
+              color: "#475569",
+              padding: 12,
+              font: {
+                size: 12,
+                weight: "700",
+              },
+            },
           },
           title: {
             display: false,
@@ -71,10 +83,30 @@ export default {
         scales: {
           x: {
             stacked: false, // 可以改為 true 顯示堆疊長條圖
+            grid: {
+              display: false,
+            },
+            ticks: {
+              color: "#64748b",
+              font: {
+                size: 11,
+                weight: "700",
+              },
+            },
           },
           y: {
             stacked: false,
             beginAtZero: true,
+            grid: {
+              color: "#e2e8f0",
+            },
+            ticks: {
+              color: "#64748b",
+              font: {
+                size: 11,
+                weight: "700",
+              },
+            },
           },
         },
       },
@@ -100,48 +132,82 @@ export default {
 </script>
 
 <style scoped>
-.card {
-  background-color: var(--secondary-color);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  padding: 20px;
-  margin-bottom: 20px;
+.chart-panel {
+  min-width: 0;
 }
 
 .card-header {
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 15px;
-  margin-bottom: 15px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .card-title {
-  font-size: 1.5rem;
-  color: var(--light-text-color);
   margin: 0;
+  color: #1f2933;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.card-header p {
+  margin: 2px 0 0;
+  color: #64748b;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .controls label {
-  margin-right: 10px;
-  color: var(--text-color);
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .controls select {
-  padding: 5px 10px;
-  border-radius: 5px;
-  border: 1px solid #ccc;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2933;
+  font-weight: 800;
+}
+
+.card-body {
+  min-height: 300px;
 }
 
 .chart-instance {
-  max-height: 300px; /* Adjust as needed */
+  height: 300px;
 }
 
 .no-data-message {
   text-align: center;
-  color: #888;
-  font-style: italic;
+  color: #64748b;
   padding: 2rem;
+}
+
+@media (max-width: 420px) {
+  .card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .controls select {
+    min-width: 96px;
+  }
 }
 </style>
