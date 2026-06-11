@@ -25,12 +25,41 @@
           @click="toggleGroup(group.type)"
         >
           <span>{{ collapsedGroups[group.type] ? ">" : "v" }}</span>
-          <strong>{{ group.label }}</strong>
-          <small>{{ group.accounts.length }} 個</small>
-          <small>{{ formatGroupTotal(group) }}</small>
+          <span class="group-title">
+            <strong>{{ group.label }}</strong>
+            <small>{{ group.accounts.length }} 個帳戶</small>
+          </span>
+          <span class="group-totals">
+            <small
+              v-for="item in group.currencyTotals"
+              :key="`${group.type}-${item.currency}`"
+            >
+              {{ item.currency }} {{ percentage(item.amount, currencyAllocationTotals[item.currency]) }}%
+            </small>
+          </span>
         </button>
 
         <div v-if="!collapsedGroups[group.type]" class="account-cards">
+          <div class="group-allocation">
+            <div
+              v-for="item in group.currencyTotals"
+              :key="`${group.type}-${item.currency}-summary`"
+              class="group-allocation-row"
+            >
+              <div>
+                <strong>{{ item.currency }}</strong>
+                <span>{{ formatMoney(item.amount, item.currency) }}</span>
+              </div>
+              <small>{{ percentage(item.amount, currencyAllocationTotals[item.currency]) }}%</small>
+              <div class="allocation-track">
+                <div
+                  class="allocation-fill"
+                  :style="{ width: percentage(item.amount, currencyAllocationTotals[item.currency]) + '%' }"
+                ></div>
+              </div>
+            </div>
+          </div>
+
           <article
             v-for="account in group.accounts"
             :key="account.key"
@@ -46,6 +75,21 @@
             <div class="account-meta">
               <span>{{ account.asset.currency || "TWD" }}</span>
               <span>{{ account.asset.track_balance ? "追蹤餘額" : "不追蹤餘額" }}</span>
+              <span>
+                佔 {{ account.asset.currency || "TWD" }}
+                {{ percentage(positiveBalance(account.asset), currencyAllocationTotals[account.asset.currency || "TWD"]) }}%
+              </span>
+            </div>
+            <div class="account-ratio">
+              <div
+                class="account-ratio-fill"
+                :style="{
+                  width: percentage(
+                    positiveBalance(account.asset),
+                    currencyAllocationTotals[account.asset.currency || 'TWD']
+                  ) + '%'
+                }"
+              ></div>
             </div>
             <div class="account-actions">
               <button class="edit-btn" @click="startEdit(account)">
@@ -196,15 +240,33 @@ export default {
             currency: account.asset.currency || "TWD",
             currencySet: new Set(),
             total: 0,
+            totalsByCurrency: {},
             accounts: [],
           };
           groups.push(group);
         }
+        const currency = account.asset.currency || "TWD";
+        const positiveBalance = this.positiveBalance(account.asset);
         group.accounts.push(account);
-        group.currencySet.add(account.asset.currency || "TWD");
+        group.currencySet.add(currency);
         group.total += Number(account.asset.balance || 0);
+        group.totalsByCurrency[currency] = (group.totalsByCurrency[currency] || 0) + positiveBalance;
       }
-      return groups;
+      return groups.map((group) => ({
+        ...group,
+        currencyTotals: Object.entries(group.totalsByCurrency)
+          .map(([currency, amount]) => ({ currency, amount }))
+          .filter((item) => item.amount > 0)
+          .sort((a, b) => a.currency.localeCompare(b.currency)),
+      }));
+    },
+    currencyAllocationTotals() {
+      const totals = {};
+      for (const account of this.accountList) {
+        const currency = account.asset.currency || "TWD";
+        totals[currency] = (totals[currency] || 0) + this.positiveBalance(account.asset);
+      }
+      return totals;
     },
   },
   methods: {
@@ -218,12 +280,6 @@ export default {
       const order = ["bank", "cash", "credit_card", "e_wallet", "prepaid_card", "investment", "external", "other"];
       const index = order.indexOf(type);
       return index === -1 ? order.length : index;
-    },
-    formatGroupTotal(group) {
-      if (group.currencySet.size > 1) {
-        return "多幣別";
-      }
-      return this.formatMoney(group.total, group.currency);
     },
     startEdit(account) {
       this.editingAccountId = account.key;
@@ -298,6 +354,16 @@ export default {
         maximumFractionDigits: minorUnit,
       })}`;
     },
+    positiveBalance(asset) {
+      return Math.max(0, Number(asset?.balance || 0));
+    },
+    percentage(amount, totalAmount) {
+      const total = Number(totalAmount || 0);
+      if (total <= 0) {
+        return 0;
+      }
+      return Math.min(100, (Number(amount || 0) / total) * 100).toFixed(1);
+    },
     translateAccountType(type) {
       const typeMap = {
         bank: "銀行",
@@ -369,7 +435,7 @@ export default {
 
 .group-header {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   min-height: 42px;
@@ -393,16 +459,88 @@ export default {
   white-space: nowrap;
 }
 
-.group-header small {
+.group-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.group-totals {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.group-header small,
+.group-totals small {
   color: #64748b;
   font-size: 0.82rem;
   white-space: nowrap;
+}
+
+.group-totals small {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  font-weight: 800;
 }
 
 .account-cards {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.group-allocation {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.group-allocation-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.group-allocation-row div:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.group-allocation-row strong {
+  color: #1f2933;
+  font-size: 0.9rem;
+}
+
+.group-allocation-row span,
+.group-allocation-row small {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.allocation-track {
+  grid-column: 1 / -1;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.allocation-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #14b8a6;
+  transition: width 0.25s ease;
 }
 
 .account-card {
@@ -451,6 +589,21 @@ export default {
   color: #075985;
   font-size: 0.78rem;
   font-weight: 700;
+}
+
+.account-ratio {
+  height: 6px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.account-ratio-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #0f766e;
+  transition: width 0.25s ease;
 }
 
 .account-actions {
@@ -536,10 +689,10 @@ export default {
   }
 
   .group-header {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .group-header small:last-child {
+  .group-totals {
     grid-column: 2 / -1;
     justify-self: end;
   }

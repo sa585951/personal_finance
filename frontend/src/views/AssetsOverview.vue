@@ -147,6 +147,8 @@ export default {
           totalsByCurrency[currency] = {
             currency,
             total: 0,
+            allocationTotal: 0,
+            accountCount: 0,
             byType: {
               銀行: 0,
               現金: 0,
@@ -159,8 +161,12 @@ export default {
         }
 
         totalsByCurrency[currency].total += balance;
+        totalsByCurrency[currency].accountCount += 1;
         const typeKey = ["銀行", "現金", "信用卡", "電子錢包", "投資"].includes(type) ? type : "其他";
-        totalsByCurrency[currency].byType[typeKey] += balance;
+        if (balance > 0) {
+          totalsByCurrency[currency].allocationTotal += balance;
+          totalsByCurrency[currency].byType[typeKey] += balance;
+        }
       }
 
       return Object.values(totalsByCurrency).sort((a, b) => a.currency.localeCompare(b.currency));
