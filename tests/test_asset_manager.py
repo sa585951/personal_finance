@@ -18,3 +18,12 @@ def test_transfer_note_and_limit_are_normalized():
     assert manager._normalize_limit("8") == 8
     assert manager._normalize_limit("invalid") == 10
     assert manager._normalize_limit("999") == 50
+
+
+def test_only_credit_card_accounts_allow_negative_balance():
+    manager = AssetManager(db_session=None)
+
+    assert manager._allows_negative_balance("credit_card") is True
+    assert manager._allows_negative_balance({"type": "credit_card"}) is True
+    assert manager._allows_negative_balance("bank") is False
+    assert manager._allows_negative_balance({"type": "investment"}) is False

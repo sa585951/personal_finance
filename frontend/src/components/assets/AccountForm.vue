@@ -31,7 +31,7 @@
           type="number"
           id="balance"
           v-model.number="newAccount.balance"
-          min="0"
+          :min="newAccount.account_type === 'credit_card' ? null : 0"
           step="1"
           placeholder="0"
           required

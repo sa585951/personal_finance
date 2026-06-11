@@ -162,7 +162,7 @@ class BudgetManager:
             return
 
         new_balance = Decimal(str(account["balance"] or 0)) + Decimal(str(delta))
-        if new_balance < 0:
+        if new_balance < 0 and not self._account_allows_negative_balance(account):
             raise ValueError("帳戶餘額不足")
 
         self.db_session.execute(
@@ -170,6 +170,9 @@ class BudgetManager:
             .where(accounts_table.c.id == account["id"])
             .values(balance=new_balance, updated_at=datetime.now(timezone.utc))
         )
+
+    def _account_allows_negative_balance(self, account):
+        return account.get("type") == "credit_card"
 
     def _balance_delta_for_transaction(self, transaction_type, amount):
         if transaction_type == "expense":

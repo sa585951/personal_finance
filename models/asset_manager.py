@@ -50,6 +50,10 @@ class AssetManager:
             raise ValueError("不支援的帳戶幣別")
         return normalized_currency
 
+    def _allows_negative_balance(self, account_or_type):
+        account_type = account_or_type.get("type") if isinstance(account_or_type, dict) else account_or_type
+        return account_type == "credit_card"
+
     def _parse_uuid(self, value, field_name="account_id"):
         try:
             return UUID(str(value))
@@ -114,14 +118,15 @@ class AssetManager:
 
     def add_account(self, user_id, bank_name, account_type, balance, currency=None):
         """新增帳戶。"""
+        normalized_type = self._normalize_account_type(account_type)
         account_balance = Decimal(str(balance))
-        if account_balance < 0:
+        if account_balance < 0 and not self._allows_negative_balance(normalized_type):
             return False, "餘額不能為負數"
 
         stmt = insert(accounts_table).values(
             user_id=self._parse_user_id(user_id),
             name=bank_name,
-            type=self._normalize_account_type(account_type),
+            type=normalized_type,
             currency=self._normalize_currency(currency),
             track_balance=True,
             balance=account_balance,
@@ -138,7 +143,7 @@ class AssetManager:
             raise ValueError("此帳戶未啟用餘額追蹤")
 
         new_balance = Decimal(str(account["balance"])) + Decimal(str(amount_change))
-        if new_balance < 0:
+        if new_balance < 0 and not self._allows_negative_balance(account):
             raise ValueError("餘額不能為負數")
 
         self.db_session.execute(
@@ -157,7 +162,7 @@ class AssetManager:
             raise ValueError("此帳戶未啟用餘額追蹤")
 
         parsed_balance = Decimal(str(new_balance))
-        if parsed_balance < 0:
+        if parsed_balance < 0 and not self._allows_negative_balance(account):
             return False, "餘額不能為負數"
 
         self.db_session.execute(
@@ -193,7 +198,8 @@ class AssetManager:
             if not account["track_balance"]:
                 raise ValueError("此帳戶未啟用餘額追蹤")
             parsed_balance = Decimal(str(balance_value))
-            if parsed_balance < 0:
+            effective_type = values.get("type", account["type"])
+            if parsed_balance < 0 and not self._allows_negative_balance(effective_type):
                 return False, "餘額不能為負數"
             values["balance"] = parsed_balance
 
@@ -246,7 +252,7 @@ class AssetManager:
 
         source_balance = Decimal(str(source_account["balance"]))
         target_balance = Decimal(str(target_account["balance"]))
-        if source_balance < transfer_amount:
+        if source_balance < transfer_amount and not self._allows_negative_balance(source_account):
             raise ValueError("來源帳戶餘額不足")
 
         now = datetime.now(timezone.utc)

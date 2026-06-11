@@ -51,7 +51,7 @@
               <button class="edit-btn" @click="startEdit(account)">
                 編輯帳戶
               </button>
-              <button class="update-btn" @click="promptUpdate(account.key)">
+              <button class="update-btn" @click="promptUpdate(account)">
                 更新餘額
               </button>
               <button class="delete-btn" @click="promptDelete(account.key)">
@@ -101,7 +101,7 @@
                   :id="`account-balance-${account.key}`"
                   v-model.number="editDraft.balance"
                   type="number"
-                  min="0"
+                  :min="editDraft.account_type === 'credit_card' ? null : 0"
                   step="1"
                   required
                 />
@@ -242,30 +242,37 @@ export default {
         this.$swal.fire("欄位未完整", "請輸入帳戶名稱。", "warning");
         return;
       }
-      if (this.editDraft.balance === null || this.editDraft.balance < 0) {
-        this.$swal.fire("金額錯誤", "餘額必須為非負數。", "warning");
+      if (
+        this.editDraft.balance === null
+        || (this.editDraft.balance < 0 && this.editDraft.account_type !== "credit_card")
+      ) {
+        this.$swal.fire("金額錯誤", "只有信用卡餘額可為負數。", "warning");
         return;
       }
       this.$emit("update-account", accountId, { ...this.editDraft });
       this.editingAccountId = "";
     },
-    async promptUpdate(accountId) {
+    async promptUpdate(account) {
       const { value: newBalance } = await this.$swal.fire({
         title: "更新餘額",
         input: "number",
         inputLabel: "請輸入新的餘額：",
+        inputValue: account.asset.balance,
         showCancelButton: true,
         confirmButtonText: "確定",
         cancelButtonText: "取消",
         inputValidator: (value) => {
-          if (!value || isNaN(value) || parseFloat(value) < 0) {
-            return "輸入無效，餘額必須為非負數！";
+          if (value === "" || isNaN(value)) {
+            return "請輸入有效的數字金額。";
+          }
+          if (parseFloat(value) < 0 && account.asset.account_type !== "credit_card") {
+            return "只有信用卡餘額可為負數。";
           }
         },
       });
 
-      if (newBalance) {
-        this.$emit("update-balance", accountId, parseFloat(newBalance));
+      if (newBalance !== undefined) {
+        this.$emit("update-balance", account.key, parseFloat(newBalance));
       }
     },
     async promptDelete(accountId) {
