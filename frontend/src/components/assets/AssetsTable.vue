@@ -24,7 +24,7 @@
           class="group-header"
           @click="toggleGroup(group.type)"
         >
-          <span>{{ collapsedGroups[group.type] ? ">" : "v" }}</span>
+          <span>{{ isGroupCollapsed(group.type) ? ">" : "v" }}</span>
           <span class="group-title">
             <strong>{{ group.label }}</strong>
             <small>{{ group.accounts.length }} 個帳戶</small>
@@ -39,7 +39,7 @@
           </span>
         </button>
 
-        <div v-if="!collapsedGroups[group.type]" class="account-cards">
+        <div v-if="!isGroupCollapsed(group.type)" class="account-cards">
           <div class="group-allocation">
             <div
               v-for="item in group.currencyTotals"
@@ -273,8 +273,11 @@ export default {
     toggleGroup(type) {
       this.collapsedGroups = {
         ...this.collapsedGroups,
-        [type]: !this.collapsedGroups[type],
+        [type]: !this.isGroupCollapsed(type),
       };
+    },
+    isGroupCollapsed(type) {
+      return this.collapsedGroups[type] !== false;
     },
     accountTypeOrder(type) {
       const order = ["bank", "cash", "credit_card", "e_wallet", "prepaid_card", "investment", "external", "other"];
