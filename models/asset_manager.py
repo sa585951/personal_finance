@@ -167,6 +167,47 @@ class AssetManager:
         )
         return True, "餘額更新成功"
 
+    def update_account(self, user_id, account_key, **changes):
+        """更新帳戶基本資料。"""
+        account = self._get_account(user_id, account_key)
+        if not account:
+            raise ValueError("找不到此帳戶或權限不足")
+
+        values = {}
+        if "bank_name" in changes:
+            bank_name = str(changes.get("bank_name") or "").strip()
+            if not bank_name:
+                return False, "帳戶名稱不能為空"
+            if len(bank_name) > 100:
+                return False, "帳戶名稱不能超過100字"
+            values["name"] = bank_name
+
+        if "account_type" in changes:
+            values["type"] = self._normalize_account_type(changes.get("account_type"))
+
+        if "currency" in changes:
+            values["currency"] = self._normalize_currency(changes.get("currency"))
+
+        balance_value = changes.get("balance", changes.get("new_balance"))
+        if "balance" in changes or "new_balance" in changes:
+            if not account["track_balance"]:
+                raise ValueError("此帳戶未啟用餘額追蹤")
+            parsed_balance = Decimal(str(balance_value))
+            if parsed_balance < 0:
+                return False, "餘額不能為負數"
+            values["balance"] = parsed_balance
+
+        if not values:
+            return False, "沒有可更新的欄位"
+
+        values["updated_at"] = datetime.now(timezone.utc)
+        self.db_session.execute(
+            update(accounts_table)
+            .where(accounts_table.c.id == account["id"])
+            .values(**values)
+        )
+        return True, "帳戶更新成功"
+
     def delete_account(self, user_id, account_key):
         """兩段式刪除帳戶。"""
         account = self._get_account(user_id, account_key)

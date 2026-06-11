@@ -51,6 +51,7 @@
       <AssetsTable
         :assets="assets"
         @delete-account="deleteAccount"
+        @update-account="updateAccount"
         @update-balance="updateBalance"
       />
 
@@ -194,6 +195,19 @@ export default {
         await this.fetchAssets();
       } catch (err) {
         console.error("更新失敗", err);
+      }
+    },
+    async updateAccount(accountId, payload) {
+      try {
+        await apiClient.put(`/api/assets/${accountId}`, {
+          bank_name: payload.bank_name,
+          account_type: payload.account_type,
+          currency: payload.currency,
+          balance: payload.balance,
+        });
+        await this.fetchAssets();
+      } catch (err) {
+        console.error("更新帳戶失敗", err);
       }
     },
   },

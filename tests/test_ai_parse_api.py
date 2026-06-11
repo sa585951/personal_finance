@@ -125,6 +125,15 @@ class FakeAssetManager:
     def __init__(self):
         self.transfer_payload = None
         self.recent_request = None
+        self.update_payload = None
+
+    def update_account(self, user_id, account_key, **changes):
+        self.update_payload = {
+            "user_id": user_id,
+            "account_key": account_key,
+            **changes,
+        }
+        return True, "帳戶更新成功"
 
     def transfer(self, user_id, source_id, dest_id, amount, note=None):
         self.transfer_payload = {
@@ -267,6 +276,37 @@ def test_ai_parse_events_api_returns_recent_events(monkeypatch):
         "user_id": "22222222-2222-2222-2222-222222222222",
         "limit": "5",
     }
+
+
+def test_update_asset_api_accepts_account_profile_changes(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_asset_manager = FakeAssetManager()
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "asset_manager", fake_asset_manager)
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().put(
+        "/api/assets/account-1",
+        json={
+            "bank_name": "台新定存",
+            "account_type": "bank",
+            "currency": "TWD",
+            "balance": 30000,
+        },
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["message"] == "帳戶更新成功"
+    assert fake_asset_manager.update_payload == {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "account_key": "account-1",
+        "bank_name": "台新定存",
+        "account_type": "bank",
+        "currency": "TWD",
+        "balance": 30000,
+    }
+    assert fake_db_session.commits == 1
 
 
 def test_transfer_api_passes_allocation_note(monkeypatch):

@@ -5,32 +5,118 @@
       <span>{{ accountList.length }} 個帳戶</span>
     </div>
 
-    <div v-if="accountList.length > 0" class="account-cards">
-      <article
-        v-for="account in accountList"
-        :key="account.key"
-        class="account-card"
+    <div v-if="accountList.length > 0" class="account-search">
+      <input
+        v-model.trim="searchText"
+        type="search"
+        placeholder="搜尋帳戶名稱、類型或幣別"
+      />
+    </div>
+
+    <div v-if="filteredAccountList.length > 0" class="account-groups">
+      <section
+        v-for="group in groupedAccounts"
+        :key="group.type"
+        class="account-group"
       >
-        <div class="account-main">
-          <div>
-            <h3>{{ account.asset.bank_name }}</h3>
-            <p>{{ translateAccountType(account.asset.account_type) }}</p>
-          </div>
-          <strong>{{ formatMoney(account.asset.balance, account.asset.currency) }}</strong>
+        <button
+          type="button"
+          class="group-header"
+          @click="toggleGroup(group.type)"
+        >
+          <span>{{ collapsedGroups[group.type] ? ">" : "v" }}</span>
+          <strong>{{ group.label }}</strong>
+          <small>{{ group.accounts.length }} 個</small>
+          <small>{{ formatGroupTotal(group) }}</small>
+        </button>
+
+        <div v-if="!collapsedGroups[group.type]" class="account-cards">
+          <article
+            v-for="account in group.accounts"
+            :key="account.key"
+            class="account-card"
+          >
+            <div class="account-main">
+              <div>
+                <h3>{{ account.asset.bank_name }}</h3>
+                <p>{{ translateAccountType(account.asset.account_type) }}</p>
+              </div>
+              <strong>{{ formatMoney(account.asset.balance, account.asset.currency) }}</strong>
+            </div>
+            <div class="account-meta">
+              <span>{{ account.asset.currency || "TWD" }}</span>
+              <span>{{ account.asset.track_balance ? "追蹤餘額" : "不追蹤餘額" }}</span>
+            </div>
+            <div class="account-actions">
+              <button class="edit-btn" @click="startEdit(account)">
+                編輯帳戶
+              </button>
+              <button class="update-btn" @click="promptUpdate(account.key)">
+                更新餘額
+              </button>
+              <button class="delete-btn" @click="promptDelete(account.key)">
+                刪除
+              </button>
+            </div>
+
+            <form
+              v-if="editingAccountId === account.key"
+              class="edit-form"
+              @submit.prevent="submitEdit(account.key)"
+            >
+              <div class="field">
+                <label :for="`account-name-${account.key}`">帳戶名稱</label>
+                <input
+                  :id="`account-name-${account.key}`"
+                  v-model.trim="editDraft.bank_name"
+                  maxlength="100"
+                  required
+                />
+              </div>
+              <div class="field-grid">
+                <div class="field">
+                  <label :for="`account-type-${account.key}`">帳戶類型</label>
+                  <select :id="`account-type-${account.key}`" v-model="editDraft.account_type">
+                    <option
+                      v-for="type in accountTypes"
+                      :key="type.value"
+                      :value="type.value"
+                    >
+                      {{ type.label }}
+                    </option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label :for="`account-currency-${account.key}`">幣別</label>
+                  <select :id="`account-currency-${account.key}`" v-model="editDraft.currency">
+                    <option v-for="currency in currencies" :key="currency" :value="currency">
+                      {{ currency }}
+                    </option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label :for="`account-balance-${account.key}`">目前餘額</label>
+                <input
+                  :id="`account-balance-${account.key}`"
+                  v-model.number="editDraft.balance"
+                  type="number"
+                  min="0"
+                  step="1"
+                  required
+                />
+              </div>
+              <div class="edit-actions">
+                <button class="update-btn" type="submit">儲存</button>
+                <button class="cancel-btn" type="button" @click="cancelEdit">取消</button>
+              </div>
+            </form>
+          </article>
         </div>
-        <div class="account-meta">
-          <span>{{ account.asset.currency || "TWD" }}</span>
-          <span>{{ account.asset.track_balance ? "追蹤餘額" : "不追蹤餘額" }}</span>
-        </div>
-        <div class="account-actions">
-          <button class="update-btn" @click="promptUpdate(account.key)">
-            更新餘額
-          </button>
-          <button class="delete-btn" @click="promptDelete(account.key)">
-            刪除
-          </button>
-        </div>
-      </article>
+      </section>
+    </div>
+    <div v-else-if="accountList.length > 0" class="no-data">
+      找不到符合搜尋條件的帳戶。
     </div>
     <div v-else class="no-data">
       目前沒有帳戶，先新增一個常用帳戶即可開始記錄。
@@ -48,15 +134,121 @@ export default {
       default: () => ({}),
     },
   },
+  emits: ["delete-account", "update-balance", "update-account"],
+  data() {
+    return {
+      searchText: "",
+      collapsedGroups: {},
+      editingAccountId: "",
+      editDraft: {
+        bank_name: "",
+        account_type: "bank",
+        currency: "TWD",
+        balance: 0,
+      },
+      currencies: ["TWD", "JPY", "KRW", "USD", "EUR"],
+      accountTypes: [
+        { value: "bank", label: "銀行" },
+        { value: "cash", label: "現金" },
+        { value: "credit_card", label: "信用卡" },
+        { value: "e_wallet", label: "電子錢包" },
+        { value: "prepaid_card", label: "預付卡" },
+        { value: "external", label: "外部帳戶" },
+        { value: "investment", label: "投資" },
+        { value: "other", label: "其他" },
+      ],
+    };
+  },
   computed: {
     accountList() {
       return Object.entries(this.assets || {}).map(([key, asset]) => ({
         key,
         asset,
-      }));
+      })).sort((a, b) => {
+        const typeOrder = this.accountTypeOrder(a.asset.account_type) - this.accountTypeOrder(b.asset.account_type);
+        if (typeOrder !== 0) return typeOrder;
+        return String(a.asset.bank_name || "").localeCompare(String(b.asset.bank_name || ""), "zh-TW");
+      });
+    },
+    filteredAccountList() {
+      const keyword = this.searchText.toLowerCase();
+      if (!keyword) return this.accountList;
+      return this.accountList.filter((account) => {
+        const asset = account.asset;
+        const searchableText = [
+          asset.bank_name,
+          asset.account_type,
+          this.translateAccountType(asset.account_type),
+          asset.currency,
+        ].join(" ").toLowerCase();
+        return searchableText.includes(keyword);
+      });
+    },
+    groupedAccounts() {
+      const groups = [];
+      for (const account of this.filteredAccountList) {
+        const type = account.asset.account_type || "other";
+        let group = groups.find((item) => item.type === type);
+        if (!group) {
+          group = {
+            type,
+            label: this.translateAccountType(type),
+            currency: account.asset.currency || "TWD",
+            currencySet: new Set(),
+            total: 0,
+            accounts: [],
+          };
+          groups.push(group);
+        }
+        group.accounts.push(account);
+        group.currencySet.add(account.asset.currency || "TWD");
+        group.total += Number(account.asset.balance || 0);
+      }
+      return groups;
     },
   },
   methods: {
+    toggleGroup(type) {
+      this.collapsedGroups = {
+        ...this.collapsedGroups,
+        [type]: !this.collapsedGroups[type],
+      };
+    },
+    accountTypeOrder(type) {
+      const order = ["bank", "cash", "credit_card", "e_wallet", "prepaid_card", "investment", "external", "other"];
+      const index = order.indexOf(type);
+      return index === -1 ? order.length : index;
+    },
+    formatGroupTotal(group) {
+      if (group.currencySet.size > 1) {
+        return "多幣別";
+      }
+      return this.formatMoney(group.total, group.currency);
+    },
+    startEdit(account) {
+      this.editingAccountId = account.key;
+      this.editDraft = {
+        bank_name: account.asset.bank_name || "",
+        account_type: account.asset.account_type || "bank",
+        currency: account.asset.currency || "TWD",
+        balance: Number(account.asset.balance || 0),
+      };
+    },
+    cancelEdit() {
+      this.editingAccountId = "";
+    },
+    submitEdit(accountId) {
+      if (!this.editDraft.bank_name) {
+        this.$swal.fire("欄位未完整", "請輸入帳戶名稱。", "warning");
+        return;
+      }
+      if (this.editDraft.balance === null || this.editDraft.balance < 0) {
+        this.$swal.fire("金額錯誤", "餘額必須為非負數。", "warning");
+        return;
+      }
+      this.$emit("update-account", accountId, { ...this.editDraft });
+      this.editingAccountId = "";
+    },
     async promptUpdate(accountId) {
       const { value: newBalance } = await this.$swal.fire({
         title: "更新餘額",
@@ -143,6 +335,63 @@ export default {
   font-size: 0.9rem;
 }
 
+.account-search {
+  margin-bottom: 12px;
+}
+
+.account-search input {
+  min-height: 42px;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.account-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.account-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid #dbe4ee;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #1f2933;
+  box-shadow: none;
+}
+
+.group-header:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.group-header strong {
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-header small {
+  color: #64748b;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 .account-cards {
   display: flex;
   flex-direction: column;
@@ -199,7 +448,7 @@ export default {
 
 .account-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 12px;
 }
@@ -216,11 +465,76 @@ export default {
   box-shadow: none;
 }
 
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.field,
+.field-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.field-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field label {
+  color: #475569;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.field input,
+.field select {
+  min-height: 42px;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.edit-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.edit-btn {
+  background-color: #0f766e;
+}
+
+.cancel-btn {
+  background-color: #64748b;
+}
+
 .no-data {
   padding: 18px;
   border: 1px dashed #cbd5e1;
   border-radius: 10px;
   color: #64748b;
   text-align: center;
+}
+
+@media (max-width: 420px) {
+  .account-actions,
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .group-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .group-header small:last-child {
+    grid-column: 2 / -1;
+    justify-self: end;
+  }
 }
 </style>

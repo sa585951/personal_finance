@@ -297,11 +297,12 @@ def add_asset(current_user_id):
 @token_required
 def update_asset_balance(current_user_id, account_key):
     data = request.get_json()
-    if not data or 'new_balance' not in data:
-        return jsonify({"success": False, "message": "缺少 'new_balance' 欄位"}), 400
+    allowed_fields = {"bank_name", "account_type", "currency", "balance", "new_balance"}
+    if not data or not any(field in data for field in allowed_fields):
+        return jsonify({"success": False, "message": "缺少可更新欄位"}), 400
 
     try:
-        success, message = asset_manager.update_balance(current_user_id, account_key, data['new_balance'])
+        success, message = asset_manager.update_account(current_user_id, account_key, **data)
         if success:
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200

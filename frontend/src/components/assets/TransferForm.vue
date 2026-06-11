@@ -6,16 +6,32 @@
     <form @submit.prevent="handleTransfer">
       <div class="transfer-fields">
         <div class="field">
+          <label for="transferAccountSearch">搜尋帳戶</label>
+          <input
+            id="transferAccountSearch"
+            v-model.trim="accountSearchText"
+            type="search"
+            placeholder="輸入銀行、投資、幣別或帳戶名稱"
+          />
+        </div>
+
+        <div class="field">
           <label for="sourceAccount">轉出帳戶</label>
           <select id="sourceAccount" v-model="transferData.source_id" required>
             <option value="" disabled>請選擇帳戶</option>
-            <option
-              v-for="account in accountOptions"
-              :key="account.key"
-              :value="account.key"
+            <optgroup
+              v-for="group in groupedAccountOptions"
+              :key="`source-${group.type}`"
+              :label="group.label"
             >
-              {{ account.label }}
-            </option>
+              <option
+                v-for="account in group.accounts"
+                :key="account.key"
+                :value="account.key"
+              >
+                {{ account.label }}
+              </option>
+            </optgroup>
           </select>
         </div>
 
@@ -23,13 +39,19 @@
           <label for="destAccount">轉入帳戶</label>
           <select id="destAccount" v-model="transferData.dest_id" required>
             <option value="" disabled>請選擇帳戶</option>
-            <option
-              v-for="account in accountOptions"
-              :key="account.key"
-              :value="account.key"
+            <optgroup
+              v-for="group in groupedAccountOptions"
+              :key="`dest-${group.type}`"
+              :label="group.label"
             >
-              {{ account.label }}
-            </option>
+              <option
+                v-for="account in group.accounts"
+                :key="account.key"
+                :value="account.key"
+              >
+                {{ account.label }}
+              </option>
+            </optgroup>
           </select>
         </div>
 
@@ -99,6 +121,7 @@ export default {
         amount: null,
         note: "",
       },
+      accountSearchText: "",
       notePresets: ["旅費儲蓄", "定期定額", "緊急預備金"],
     };
   },
@@ -106,11 +129,52 @@ export default {
     accountOptions() {
       return Object.entries(this.assets || {}).map(([key, asset]) => ({
         key,
-        label: `${asset.bank_name} - ${this.translateAccountType(asset.account_type)} ($${Number(asset.balance || 0).toLocaleString()})`,
-      }));
+        type: asset.account_type || "other",
+        currency: asset.currency || "TWD",
+        bankName: asset.bank_name || "",
+        label: `${asset.bank_name} - ${this.translateAccountType(asset.account_type)} (${asset.currency || "TWD"} ${Number(asset.balance || 0).toLocaleString()})`,
+      })).sort((a, b) => {
+        const typeOrder = this.accountTypeOrder(a.type) - this.accountTypeOrder(b.type);
+        if (typeOrder !== 0) return typeOrder;
+        return a.bankName.localeCompare(b.bankName, "zh-TW");
+      });
+    },
+    filteredAccountOptions() {
+      const keyword = this.accountSearchText.toLowerCase();
+      if (!keyword) return this.accountOptions;
+      return this.accountOptions.filter((account) => {
+        const searchableText = [
+          account.bankName,
+          account.type,
+          this.translateAccountType(account.type),
+          account.currency,
+        ].join(" ").toLowerCase();
+        return searchableText.includes(keyword);
+      });
+    },
+    groupedAccountOptions() {
+      const groups = [];
+      for (const account of this.filteredAccountOptions) {
+        let group = groups.find((item) => item.type === account.type);
+        if (!group) {
+          group = {
+            type: account.type,
+            label: this.translateAccountType(account.type),
+            accounts: [],
+          };
+          groups.push(group);
+        }
+        group.accounts.push(account);
+      }
+      return groups;
     },
   },
   methods: {
+    accountTypeOrder(type) {
+      const order = ["bank", "cash", "credit_card", "e_wallet", "prepaid_card", "investment", "external", "other"];
+      const index = order.indexOf(type);
+      return index === -1 ? order.length : index;
+    },
     async handleTransfer() {
       if (this.transferData.source_id === this.transferData.dest_id) {
         this.$swal.fire("無法轉帳", "轉出和轉入帳戶不能是同一個。", "warning");
