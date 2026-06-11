@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 from linebot.models import FlexSendMessage
@@ -115,3 +116,27 @@ def test_budget_category_selection_is_flex_card():
     assert isinstance(message, FlexSendMessage)
     assert message.alt_text == "請選擇預算類別"
     assert message.contents.body.contents[0].text == "設定預算"
+
+
+def test_help_message_lists_line_command_examples():
+    message = ResponseBuilder().create_help_message()
+    message_payload = json.loads(message.as_json_string())
+    text_values = []
+
+    def collect_text_values(value):
+        if isinstance(value, dict):
+            if "text" in value:
+                text_values.append(value["text"])
+            for nested_value in value.values():
+                collect_text_values(nested_value)
+        elif isinstance(value, list):
+            for nested_value in value:
+                collect_text_values(nested_value)
+
+    collect_text_values(message_payload)
+
+    assert isinstance(message, FlexSendMessage)
+    assert message.alt_text == "LINE 可用功能"
+    assert "- 午餐麥當勞 150 用現金" in text_values
+    assert "我的資產" in text_values
+    assert "我要轉帳" in text_values

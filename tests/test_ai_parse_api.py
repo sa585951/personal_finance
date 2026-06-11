@@ -121,6 +121,38 @@ class FakeBudgetManager:
         return True, "交易新增成功"
 
 
+class FakeAssetManager:
+    def __init__(self):
+        self.transfer_payload = None
+        self.recent_request = None
+
+    def transfer(self, user_id, source_id, dest_id, amount, note=None):
+        self.transfer_payload = {
+            "user_id": user_id,
+            "source_id": source_id,
+            "dest_id": dest_id,
+            "amount": amount,
+            "note": note,
+        }
+        return True, "轉帳成功"
+
+    def get_recent_transfers(self, user_id, limit=10):
+        self.recent_request = {"user_id": user_id, "limit": limit}
+        return [
+            {
+                "id": "transfer-1",
+                "source_name": "薪資帳戶",
+                "source_type": "bank",
+                "target_name": "投資帳戶",
+                "target_type": "investment",
+                "target_amount": 5000,
+                "target_currency": "TWD",
+                "transfer_date": "2026-06-11",
+                "note": "定期定額",
+            }
+        ]
+
+
 def _load_web_app(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://personal_finance:personal_finance@localhost:5433/personal_finance")
     monkeypatch.setenv("LINE_LOGIN_CHANNEL_ID", "line-login-channel")
@@ -234,6 +266,55 @@ def test_ai_parse_events_api_returns_recent_events(monkeypatch):
     assert fake_linebot_manager.ai_parse_event_manager.list_request == {
         "user_id": "22222222-2222-2222-2222-222222222222",
         "limit": "5",
+    }
+
+
+def test_transfer_api_passes_allocation_note(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_asset_manager = FakeAssetManager()
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "asset_manager", fake_asset_manager)
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().post(
+        "/api/transfer",
+        json={
+            "source_id": "salary",
+            "dest_id": "investment",
+            "amount": 5000,
+            "note": "定期定額",
+        },
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["message"] == "轉帳成功"
+    assert fake_asset_manager.transfer_payload == {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "source_id": "salary",
+        "dest_id": "investment",
+        "amount": 5000,
+        "note": "定期定額",
+    }
+    assert fake_db_session.commits == 1
+
+
+def test_recent_transfers_api_returns_allocation_history(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_asset_manager = FakeAssetManager()
+    monkeypatch.setattr(web_app, "asset_manager", fake_asset_manager)
+
+    response = web_app.app.test_client().get(
+        "/api/transfers/recent?limit=8",
+        headers=_auth_headers(),
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["data"][0]["note"] == "定期定額"
+    assert fake_asset_manager.recent_request == {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "limit": "8",
     }
 
 

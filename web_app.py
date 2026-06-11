@@ -329,13 +329,32 @@ def transfer_funds(current_user_id):
         return jsonify({"success": False, "message": "缺少必要欄位"}), 400
 
     try:
-        success, message = asset_manager.transfer(current_user_id, data["source_id"], data["dest_id"], data["amount"])
+        success, message = asset_manager.transfer(
+            current_user_id,
+            data["source_id"],
+            data["dest_id"],
+            data["amount"],
+            note=data.get("note"),
+        )
         if success:
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
         app.logger.error(f"Error in transfer_funds: {e}")
         return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/transfers/recent", methods=["GET"])
+@token_required
+def get_recent_transfers(current_user_id):
+    try:
+        transfers = asset_manager.get_recent_transfers(
+            current_user_id,
+            limit=request.args.get("limit", 10),
+        )
+        return jsonify({"success": True, "data": transfers}), 200
+    except Exception as e:
+        app.logger.error(f"Error in get_recent_transfers: {e}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
 
 # --- API - 旅行帳本 ---
 

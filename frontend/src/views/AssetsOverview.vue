@@ -53,6 +53,8 @@
         @delete-account="deleteAccount"
         @update-balance="updateBalance"
       />
+
+      <TransferHistory :transfers="recentTransfers" />
     </div>
   </div>
 </template>
@@ -63,6 +65,7 @@ import AccountForm from "../components/assets/AccountForm.vue";
 import AssetsTable from "../components/assets/AssetsTable.vue";
 import TotalCards from "../components/assets/TotalCards.vue";
 import TransferForm from "../components/assets/TransferForm.vue";
+import TransferHistory from "../components/assets/TransferHistory.vue";
 
 export default {
   name: "AssetsOverview",
@@ -71,6 +74,7 @@ export default {
     AssetsTable,
     TotalCards,
     TransferForm,
+    TransferHistory,
   },
   data() {
     return {
@@ -78,6 +82,7 @@ export default {
       error: null,
       assets: {},
       totals: null,
+      recentTransfers: [],
       activeAction: null,
     };
   },
@@ -88,6 +93,7 @@ export default {
   },
   created() {
     this.fetchAssets();
+    this.fetchRecentTransfers();
   },
   methods: {
     toggleAction(action) {
@@ -99,6 +105,7 @@ export default {
     },
     async handleTransferSuccess() {
       await this.fetchAssets();
+      await this.fetchRecentTransfers();
       this.activeAction = null;
     },
     async fetchAssets() {
@@ -111,6 +118,15 @@ export default {
         this.error = "無法載入資產資料，請檢查後端伺服器或查看主控台錯誤。";
       } finally {
         this.loading = false;
+      }
+    },
+    async fetchRecentTransfers() {
+      try {
+        const response = await apiClient.get(`/api/transfers/recent?limit=8`);
+        this.recentTransfers = response.data.data || [];
+      } catch (err) {
+        console.error("無法載入轉帳紀錄:", err);
+        this.recentTransfers = [];
       }
     },
     calculateTotals(assets) {

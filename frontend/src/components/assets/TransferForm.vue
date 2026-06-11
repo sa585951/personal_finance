@@ -45,6 +45,28 @@
             required
           />
         </div>
+
+        <div class="field">
+          <label for="transferNote">分配用途</label>
+          <input
+            type="text"
+            id="transferNote"
+            v-model.trim="transferData.note"
+            maxlength="100"
+            placeholder="例如：旅費儲蓄、定期定額、生活預備金"
+          />
+          <div class="note-presets" aria-label="常用分配用途">
+            <button
+              v-for="preset in notePresets"
+              :key="preset"
+              type="button"
+              class="preset-chip"
+              @click="transferData.note = preset"
+            >
+              {{ preset }}
+            </button>
+          </div>
+        </div>
       </div>
       <button
         type="submit"
@@ -75,7 +97,9 @@ export default {
         source_id: "",
         dest_id: "",
         amount: null,
+        note: "",
       },
+      notePresets: ["旅費儲蓄", "定期定額", "緊急預備金"],
     };
   },
   computed: {
@@ -102,6 +126,7 @@ export default {
           source_id: this.transferData.source_id,
           dest_id: this.transferData.dest_id,
           amount: this.transferData.amount,
+          note: this.transferData.note,
         });
 
         this.$swal.fire("完成", response.data.message, "success");
@@ -134,6 +159,7 @@ export default {
         source_id: "",
         dest_id: "",
         amount: null,
+        note: "",
       };
     },
   },
@@ -167,6 +193,22 @@ export default {
   border-radius: 8px;
   background: #ffffff;
   transition: all 0.3s ease;
+}
+
+.note-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preset-chip {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.88rem;
 }
 
 .field select:focus,

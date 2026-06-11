@@ -240,7 +240,7 @@ export default {
         item: draft.title || this.newTransaction.item,
         amount: Number.isFinite(amount) ? amount : this.newTransaction.amount,
         budget_category: draft.budget_category || this.newTransaction.budget_category,
-        description: draft.description || draft.raw_text || this.newTransaction.description,
+        description: draft.description || "",
         account_id: this.findAccountIdByHint(draft.account_hint) || this.newTransaction.account_id,
         parse_event_id: draft.parse_event_id || "",
       };

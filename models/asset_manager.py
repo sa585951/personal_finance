@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import desc, insert, select, update
 
 from config import DEFAULT_CURRENCY
 from .schema import accounts_table, transfers_table
@@ -186,7 +186,7 @@ class AssetManager:
         )
         return True, "成功刪除帳戶"
 
-    def transfer(self, user_id, source_key, dest_key, amount):
+    def transfer(self, user_id, source_key, dest_key, amount, note=None):
         """處理同幣別帳戶間轉帳。"""
         transfer_amount = Decimal(str(amount))
         if transfer_amount <= 0:
@@ -230,9 +230,62 @@ class AssetManager:
                 target_currency=target_account["currency"],
                 target_per_source_rate=Decimal("1"),
                 transfer_date=now.date(),
+                note=self._normalize_transfer_note(note),
             )
         )
         return True, "轉帳成功"
+
+    def get_recent_transfers(self, user_id, limit=10):
+        """取得最近帳戶轉帳紀錄，供資金分配列表顯示。"""
+        parsed_limit = self._normalize_limit(limit)
+        source_accounts = accounts_table.alias("source_accounts")
+        target_accounts = accounts_table.alias("target_accounts")
+        stmt = (
+            select(
+                transfers_table.c.id,
+                transfers_table.c.source_amount,
+                transfers_table.c.source_currency,
+                transfers_table.c.target_amount,
+                transfers_table.c.target_currency,
+                transfers_table.c.transfer_date,
+                transfers_table.c.note,
+                source_accounts.c.name.label("source_name"),
+                source_accounts.c.type.label("source_type"),
+                target_accounts.c.name.label("target_name"),
+                target_accounts.c.type.label("target_type"),
+            )
+            .join(source_accounts, transfers_table.c.source_account_id == source_accounts.c.id)
+            .join(target_accounts, transfers_table.c.target_account_id == target_accounts.c.id)
+            .where(
+                transfers_table.c.user_id == self._parse_user_id(user_id),
+                transfers_table.c.deleted_at.is_(None),
+            )
+            .order_by(desc(transfers_table.c.transfer_date), desc(transfers_table.c.created_at))
+            .limit(parsed_limit)
+        )
+
+        transfers = []
+        for row in self.db_session.execute(stmt):
+            transfer = dict(row._mapping)
+            transfer["id"] = str(transfer["id"])
+            transfer["source_amount"] = float(transfer["source_amount"])
+            transfer["target_amount"] = float(transfer["target_amount"])
+            transfer["transfer_date"] = transfer["transfer_date"].isoformat()
+            transfers.append(transfer)
+        return transfers
+
+    def _normalize_transfer_note(self, note):
+        normalized = str(note or "").strip()
+        if len(normalized) > 100:
+            normalized = normalized[:100]
+        return normalized or None
+
+    def _normalize_limit(self, limit):
+        try:
+            parsed_limit = int(limit)
+        except (TypeError, ValueError):
+            parsed_limit = 10
+        return min(max(parsed_limit, 1), 50)
 
     def calculate_totals(self, user_id):
         """依幣別計算帳戶總額，不直接混加不同幣別。"""

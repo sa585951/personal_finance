@@ -291,7 +291,60 @@ class ResponseBuilder:
         return FlexSendMessage(alt_text=title, contents=flex_content)
     
     def create_help_message(self, is_cold_start=False):
-        """建立幫助訊息 - 使用 Flex Message 按鈕"""
+        """建立幫助訊息 - 顯示目前 LINE 端可用操作與輸入範例。"""
+        command_sections = [
+            {
+                "title": "快速記帳",
+                "examples": [
+                    "午餐麥當勞 150 用現金",
+                    "薪資 50000 存入銀行",
+                    "定期定額 5000 用薪資帳戶",
+                ],
+            },
+            {
+                "title": "查詢",
+                "examples": [
+                    "查詢本月支出",
+                    "我的資產",
+                    "資產狀況",
+                ],
+            },
+            {
+                "title": "帳戶與分配",
+                "examples": [
+                    "新增銀行帳戶",
+                    "我要轉帳",
+                    "設定預算",
+                ],
+            },
+        ]
+
+        def create_example_section(section):
+            return {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "xs",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": section["title"],
+                        "weight": "bold",
+                        "size": "sm",
+                        "color": "#1F2937",
+                    },
+                    *[
+                        {
+                            "type": "text",
+                            "text": f"- {example}",
+                            "size": "xs",
+                            "color": "#475569",
+                            "wrap": True,
+                        }
+                        for example in section["examples"]
+                    ],
+                ],
+            }
+
         flex_content = {
             "type": "bubble",
             "header": {
@@ -300,17 +353,18 @@ class ResponseBuilder:
                 "contents": [
                     {
                         "type": "text",
-                        "text": "個人財務助手",
+                        "text": "LINE 可用功能",
                         "weight": "bold",
                         "size": "xl",
                         "color": "#4CAF50"
                     },
                     {
                         "type": "text",
-                        "text": "選擇您要使用的功能",
-                        "size": "md",
+                        "text": "可點選功能，也可以直接輸入例句",
+                        "size": "sm",
                         "color": "#666666",
-                        "margin": "sm"
+                        "margin": "sm",
+                        "wrap": True,
                     }
                 ],
                 "backgroundColor": "#F8F9FA",
@@ -321,18 +375,27 @@ class ResponseBuilder:
                 "layout": "vertical",
                 "spacing": "md",
                 "contents": [
-                    # 記帳區塊
                     {
                         "type": "box",
                         "layout": "vertical",
+                        "spacing": "sm",
+                        "contents": [create_example_section(section) for section in command_sections],
+                    },
+                    {
+                        "type": "separator",
+                        "margin": "sm",
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "spacing": "sm",
                         "contents": [
                             {
                                 "type": "text",
-                                "text": "💰 記帳功能",
+                                "text": "常用入口",
                                 "weight": "bold",
-                                "size": "md",
-                                "color": "#333333",
-                                "margin": "sm"
+                                "size": "sm",
+                                "color": "#1F2937",
                             },
                             {
                                 "type": "box",
@@ -363,22 +426,6 @@ class ResponseBuilder:
                                         "flex": 1
                                     }
                                 ]
-                            }
-                        ]
-                    },
-                    
-                    # 查詢區塊
-                    {
-                        "type": "box",
-                        "layout": "vertical",
-                        "contents": [
-                            {
-                                "type": "text",
-                                "text": "📊 查詢統計",
-                                "weight": "bold",
-                                "size": "md",
-                                "color": "#333333",
-                                "margin": "sm"
                             },
                             {
                                 "type": "box",
@@ -408,22 +455,6 @@ class ResponseBuilder:
                                         "flex": 1
                                     }
                                 ]
-                            }
-                        ]
-                    },
-                    
-                    # 管理區塊
-                    {
-                        "type": "box",
-                        "layout": "vertical",
-                        "contents": [
-                            {
-                                "type": "text",
-                                "text": "🏦 帳戶管理",
-                                "weight": "bold",
-                                "size": "md",
-                                "color": "#333333",
-                                "margin": "sm"
                             },
                             {
                                 "type": "box",
@@ -492,7 +523,7 @@ class ResponseBuilder:
                 "contents": [
                     {
                         "type": "text",
-                        "text": "💡 提示：系統剛啟動，如無回應請重新發送",
+                        "text": "提示：系統剛啟動，如無回應請重新發送",
                         "size": "xs",
                         "color": "#FF9800",
                         "wrap": True,
@@ -502,6 +533,6 @@ class ResponseBuilder:
             }
         
         return FlexSendMessage(
-            alt_text="歡迎使用個人財務助手",
+            alt_text="LINE 可用功能",
             contents=flex_content
         )
