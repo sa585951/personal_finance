@@ -61,17 +61,33 @@
         />
       </label>
 
+      <label for="transactionAccountSearch">
+        搜尋帳戶
+        <input
+          type="search"
+          id="transactionAccountSearch"
+          v-model.trim="accountSearchText"
+          placeholder="輸入銀行、信用卡、現金或帳戶名稱"
+        />
+      </label>
+
       <label for="transactionAccount">
         帳戶
         <select id="transactionAccount" v-model="newTransaction.account_id">
           <option value="">不連動帳戶</option>
-          <option
-            v-for="account in accountOptions"
-            :key="account.id"
-            :value="account.id"
+          <optgroup
+            v-for="group in groupedAccountOptions"
+            :key="group.type"
+            :label="group.label"
           >
-            {{ account.label }}
-          </option>
+            <option
+              v-for="account in group.accounts"
+              :key="account.id"
+              :value="account.id"
+            >
+              {{ account.label }}
+            </option>
+          </optgroup>
         </select>
       </label>
 
@@ -133,6 +149,7 @@ export default {
       budgetCategories: [],
       assets: {},
       submitMessage: "",
+      accountSearchText: "",
     };
   },
   computed: {
@@ -161,11 +178,34 @@ export default {
     },
     accountOptions() {
       return Object.values(this.assets || {})
-        .filter((asset) => asset.currency === "TWD")
         .map((asset) => ({
           id: asset.id,
+          type: asset.account_type || "other",
+          bankName: asset.bank_name || "",
+          currency: asset.currency || "TWD",
           label: `${asset.bank_name} - ${this.translateAccountType(asset.account_type)} (${asset.currency} ${Number(asset.balance || 0).toLocaleString()})`,
-        }));
+        }))
+        .sort((a, b) => {
+          const typeOrder = this.accountTypeOrder(a.type) - this.accountTypeOrder(b.type);
+          if (typeOrder !== 0) return typeOrder;
+          return a.bankName.localeCompare(b.bankName, "zh-TW");
+        });
+    },
+    filteredAccountOptions() {
+      const keyword = this.accountSearchText.toLowerCase();
+      if (!keyword) return this.accountOptions;
+      return this.accountOptions.filter((account) => {
+        const searchableText = [
+          account.bankName,
+          account.type,
+          this.translateAccountType(account.type),
+          account.currency,
+        ].join(" ").toLowerCase();
+        return searchableText.includes(keyword);
+      });
+    },
+    groupedAccountOptions() {
+      return this.groupAccountsByType(this.filteredAccountOptions);
     },
     selectedAccount() {
       if (!this.newTransaction.account_id) return null;
@@ -216,6 +256,27 @@ export default {
     },
   },
   methods: {
+    accountTypeOrder(type) {
+      const order = ["bank", "cash", "credit_card", "e_wallet", "prepaid_card", "investment", "external", "other"];
+      const index = order.indexOf(type);
+      return index === -1 ? order.length : index;
+    },
+    groupAccountsByType(accounts) {
+      const groups = [];
+      for (const account of accounts) {
+        let group = groups.find((item) => item.type === account.type);
+        if (!group) {
+          group = {
+            type: account.type,
+            label: this.translateAccountType(account.type),
+            accounts: [],
+          };
+          groups.push(group);
+        }
+        group.accounts.push(account);
+      }
+      return groups;
+    },
     ensureCategoryMatchesType() {
       if (
         this.filteredBudgetCategories.some(

@@ -320,16 +320,31 @@
               </select>
             </label>
             <label class="full-row">
+              搜尋付款帳戶
+              <input
+                v-model.trim="tripAccountSearchText"
+                type="search"
+                placeholder="輸入銀行、信用卡、現金或帳戶名稱"
+                :disabled="!isCurrentUserPayer"
+              />
+            </label>
+            <label class="full-row">
               付款帳戶
               <select v-model="newExpense.account_id" :disabled="!isCurrentUserPayer">
                 <option value="">不連動帳戶</option>
-                <option
-                  v-for="account in compatibleTripAccounts"
-                  :key="account.id"
-                  :value="account.id"
+                <optgroup
+                  v-for="group in groupedTripAccounts"
+                  :key="group.type"
+                  :label="group.label"
                 >
-                  {{ account.label }}
-                </option>
+                  <option
+                    v-for="account in group.accounts"
+                    :key="account.id"
+                    :value="account.id"
+                  >
+                    {{ account.label }}
+                  </option>
+                </optgroup>
               </select>
             </label>
             <p v-if="!isCurrentUserPayer" class="account-link-hint full-row">
@@ -865,6 +880,7 @@ export default {
       memberMessage: "",
       expenseMessage: "",
       inviteMessage: "",
+      tripAccountSearchText: "",
     };
   },
   computed: {
@@ -1002,8 +1018,32 @@ export default {
         .filter((asset) => compatibleCurrencies.has(asset.currency))
         .map((asset) => ({
           id: asset.id,
+          type: asset.account_type || "other",
+          bankName: asset.bank_name || "",
+          currency: asset.currency || "TWD",
           label: `${asset.bank_name} - ${this.translateAccountType(asset.account_type)} (${asset.currency} ${Number(asset.balance || 0).toLocaleString()})`,
-        }));
+        }))
+        .sort((a, b) => {
+          const typeOrder = this.accountTypeOrder(a.type) - this.accountTypeOrder(b.type);
+          if (typeOrder !== 0) return typeOrder;
+          return a.bankName.localeCompare(b.bankName, "zh-TW");
+        });
+    },
+    filteredTripAccounts() {
+      const keyword = this.tripAccountSearchText.toLowerCase();
+      if (!keyword) return this.compatibleTripAccounts;
+      return this.compatibleTripAccounts.filter((account) => {
+        const searchableText = [
+          account.bankName,
+          account.type,
+          this.translateAccountType(account.type),
+          account.currency,
+        ].join(" ").toLowerCase();
+        return searchableText.includes(keyword);
+      });
+    },
+    groupedTripAccounts() {
+      return this.groupAccountsByType(this.filteredTripAccounts);
     },
     archivedManagedTrips() {
       return this.managedTrips.filter((trip) => !trip.deleted_at && trip.status === "archived");
@@ -1095,6 +1135,27 @@ export default {
     },
   },
   methods: {
+    accountTypeOrder(type) {
+      const order = ["bank", "cash", "credit_card", "e_wallet", "prepaid_card", "investment", "external", "other"];
+      const index = order.indexOf(type);
+      return index === -1 ? order.length : index;
+    },
+    groupAccountsByType(accounts) {
+      const groups = [];
+      for (const account of accounts) {
+        let group = groups.find((item) => item.type === account.type);
+        if (!group) {
+          group = {
+            type: account.type,
+            label: this.translateAccountType(account.type),
+            accounts: [],
+          };
+          groups.push(group);
+        }
+        group.accounts.push(account);
+      }
+      return groups;
+    },
     setSplitMode(mode) {
       this.newExpense.split_mode = mode;
       if (mode === "custom") {
