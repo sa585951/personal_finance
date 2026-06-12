@@ -3,6 +3,7 @@ import axios from 'axios';
 // 建立一個 Axios 實例
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_APP_API_URL, // 從環境變數讀取 API 的基礎 URL
+  withCredentials: true,
 });
 
 // 新增一個請求攔截器 (Request Interceptor)

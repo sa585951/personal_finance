@@ -1,6 +1,7 @@
 import importlib
 import sys
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import jwt
 
@@ -179,8 +180,125 @@ def _load_web_app(monkeypatch):
 
 
 def _auth_headers():
-    token = jwt.encode({"user_id": "22222222-2222-2222-2222-222222222222"}, "test-secret", algorithm="HS256")
+    token = _auth_token()
     return {"Authorization": f"Bearer {token}"}
+
+
+def _auth_token(**overrides):
+    payload = {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "name": "Test User",
+        "exp": datetime.now(timezone.utc) + timedelta(days=1),
+    }
+    payload.update(overrides)
+    return jwt.encode(payload, "test-secret", algorithm="HS256")
+
+
+def test_auth_me_accepts_bearer_token(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+
+    response = web_app.app.test_client().get("/api/auth/me", headers=_auth_headers())
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload == {
+        "success": True,
+        "data": {
+            "user_id": "22222222-2222-2222-2222-222222222222",
+            "name": "Test User",
+        },
+    }
+
+
+def test_auth_me_accepts_cookie_token(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    client = web_app.app.test_client()
+    client.set_cookie(web_app.APP_AUTH_COOKIE_NAME, _auth_token())
+
+    response = client.get("/api/auth/me")
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["success"] is True
+    assert payload["data"]["user_id"] == "22222222-2222-2222-2222-222222222222"
+
+
+def test_auth_me_rejects_missing_token(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+
+    response = web_app.app.test_client().get("/api/auth/me")
+
+    assert response.status_code == 401
+    assert response.get_json() == {"message": "Token is missing!"}
+
+
+def test_auth_me_rejects_expired_cookie_token(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    client = web_app.app.test_client()
+    client.set_cookie(
+        web_app.APP_AUTH_COOKIE_NAME,
+        _auth_token(exp=datetime.now(timezone.utc) - timedelta(minutes=1)),
+    )
+
+    response = client.get("/api/auth/me")
+
+    assert response.status_code == 401
+    assert response.get_json() == {"message": "Token has expired!"}
+
+
+def test_cookie_auth_rejects_unsafe_request_without_allowed_origin(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    client = web_app.app.test_client()
+    client.set_cookie(web_app.APP_AUTH_COOKIE_NAME, _auth_token())
+
+    response = client.post("/api/ai/parse", json={"text": "早餐 100"})
+
+    assert response.status_code == 403
+    assert response.get_json() == {"message": "Cookie auth origin is not allowed!"}
+
+
+def test_cookie_auth_allows_unsafe_request_from_allowed_origin(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    client = web_app.app.test_client()
+    client.set_cookie(web_app.APP_AUTH_COOKIE_NAME, _auth_token())
+
+    response = client.post(
+        "/api/ai/parse",
+        json={"text": "   "},
+        headers={"Origin": "http://127.0.0.1:5174"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"success": False, "message": "缺少 text 欄位"}
+
+
+def test_logout_clears_auth_cookie(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+
+    response = web_app.app.test_client().post("/api/auth/logout")
+    set_cookie_headers = response.headers.getlist("Set-Cookie")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"success": True}
+    assert any(
+        header.startswith(f"{web_app.APP_AUTH_COOKIE_NAME}=;")
+        and "HttpOnly" in header
+        and "Secure" in header
+        and "SameSite=None" in header
+        for header in set_cookie_headers
+    )
+
+
+def test_production_auth_cookie_options_are_http_only_secure(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+
+    options = web_app._auth_cookie_options()
+
+    assert options["httponly"] is True
+    assert options["secure"] is True
+    assert options["samesite"] == "None"
+    assert options["path"] == "/"
+    assert options["max_age"] == 30 * 24 * 60 * 60
 
 
 def test_ai_parse_api_rejects_empty_text(monkeypatch):

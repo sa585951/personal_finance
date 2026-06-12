@@ -36,6 +36,7 @@
 </template>
 
 <script>
+import apiClient from "@/api";
 import { jwtDecode } from 'jwt-decode';
 import { HomeFilled, Money, PieChart, Suitcase, Wallet } from '@element-plus/icons-vue';
 
@@ -74,7 +75,7 @@ export default {
     this.checkLoginStatus();
   },
   methods: {
-    checkLoginStatus() {
+    async checkLoginStatus() {
       if (this.devAuthBypass) {
         this.isLoggedIn = false;
         this.userName = "Dev";
@@ -89,20 +90,37 @@ export default {
           if (decoded.exp * 1000 > Date.now()) {
             this.isLoggedIn = true;
             this.userName = decoded.name; // 從 JWT payload 中讀取 name
+            return;
           } else {
-            // Token 過期，執行登出
-            this.logout();
+            localStorage.removeItem('authToken');
           }
         } catch (error) {
           console.error("JWT 解碼失敗:", error);
-          this.logout();
+          localStorage.removeItem('authToken');
         }
-      } else {
+      }
+
+      try {
+        const response = await apiClient.get('/api/auth/me');
+        if (response.data?.success) {
+          this.isLoggedIn = true;
+          this.userName = response.data.data?.name || "帳號";
+          return;
+        }
+      } catch (error) {
         this.isLoggedIn = false;
         this.userName = '';
       }
+
+      this.isLoggedIn = false;
+      this.userName = '';
     },
-    logout() {
+    async logout() {
+      try {
+        await apiClient.post('/api/auth/logout');
+      } catch (error) {
+        console.warn("後端登出失敗，仍會清除本機登入狀態。", error);
+      }
       localStorage.removeItem('authToken');
       this.isLoggedIn = false;
       this.userName = '';

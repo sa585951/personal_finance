@@ -50,24 +50,27 @@ DEV_AUTH_USERS = {
     },
 }
 LINE_LOGIN_STATE_TTL_MINUTES = 10
+APP_AUTH_COOKIE_NAME = "nomica_auth_token"
+APP_AUTH_TOKEN_DAYS = 30
 
 if not all([LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, JWT_SECRET_KEY, VITE_BACKEND_BASE_URL]):
     raise EnvironmentError("缺少必要的環境變數，請檢查 .env 檔案。 সন")
 
 # 實例化 Flask 應用程式
 app = Flask(__name__)
+ALLOWED_BROWSER_ORIGINS = {
+    "https://personal-finance-gilt.vercel.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:5175",
+    FRONTEND_BASE_URL,
+}
 CORS(
     app,
-    origins=[
-        "https://personal-finance-gilt.vercel.app",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
-        FRONTEND_BASE_URL,
-    ],
+    origins=list(ALLOWED_BROWSER_ORIGINS),
     supports_credentials=True
 )
 
@@ -89,6 +92,67 @@ def shutdown_session(exception=None):
     finally:
         db_session.remove()
 
+def _is_cookie_secure():
+    return os.getenv("FLASK_ENV") == "production"
+
+def _auth_cookie_options():
+    if _is_cookie_secure():
+        return {
+            "httponly": True,
+            "secure": True,
+            "samesite": "None",
+            "path": "/",
+            "max_age": APP_AUTH_TOKEN_DAYS * 24 * 60 * 60,
+        }
+    return {
+        "httponly": True,
+        "secure": False,
+        "samesite": "Lax",
+        "path": "/",
+        "max_age": APP_AUTH_TOKEN_DAYS * 24 * 60 * 60,
+    }
+
+def _clear_auth_cookie(response):
+    response.delete_cookie(
+        APP_AUTH_COOKIE_NAME,
+        path="/",
+        secure=_is_cookie_secure(),
+        httponly=True,
+        samesite="None" if _is_cookie_secure() else "Lax",
+    )
+
+def _extract_auth_token():
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header.split(" ", 1)[1].strip(), "bearer"
+    cookie_token = request.cookies.get(APP_AUTH_COOKIE_NAME)
+    if cookie_token:
+        return cookie_token, "cookie"
+    return None, None
+
+def _is_allowed_cookie_request():
+    if request.method in {"GET", "HEAD", "OPTIONS"}:
+        return True
+    origin = request.headers.get("Origin")
+    return origin in ALLOWED_BROWSER_ORIGINS
+
+def _decode_auth_payload():
+    token, token_source = _extract_auth_token()
+    if not token:
+        return None, jsonify({'message': 'Token is missing!'}), 401
+    if token_source == "cookie" and not _is_allowed_cookie_request():
+        return None, jsonify({'message': 'Cookie auth origin is not allowed!'}), 403
+
+    try:
+        data = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
+        if not data.get("user_id"):
+            return None, jsonify({'message': 'Token is invalid!'}), 401
+        return data, None, None
+    except jwt.ExpiredSignatureError:
+        return None, jsonify({'message': 'Token has expired!'}), 401
+    except jwt.InvalidTokenError:
+        return None, jsonify({'message': 'Token is invalid!'}), 401
+
 def token_required(f):
     """Token 驗證裝飾器"""
     @wraps(f)
@@ -105,22 +169,11 @@ def token_required(f):
             db_session.commit()
             return f(str(user["id"]), *args, **kwargs)
 
-        token = None
-        if 'Authorization' in request.headers:
-            token = request.headers['Authorization'].split(' ')[1]
-        
-        if not token:
-            return jsonify({'message': 'Token is missing!'}), 401
+        data, error_response, status_code = _decode_auth_payload()
+        if error_response is not None:
+            return error_response, status_code
 
-        try:
-            data = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
-            current_user_id = data['user_id']
-        except jwt.ExpiredSignatureError:
-            return jsonify({'message': 'Token has expired!'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'message': 'Token is invalid!'}), 401
-
-        return f(current_user_id, *args, **kwargs)
+        return f(data["user_id"], *args, **kwargs)
     return decorated
 
 def _safe_frontend_redirect_path(value):
@@ -181,6 +234,42 @@ def log_request_duration(response):
 def home():
     """根路由，回傳歡迎訊息"""
     return "歡迎來到個人財務管理系統的後端 API！"
+
+# --- API - Auth ---
+
+@app.route("/api/auth/me", methods=["GET"])
+def get_current_auth_user():
+    if DEV_AUTH_BYPASS:
+        provider_user_id = request.headers.get("X-Dev-User", "local-dev-user")
+        dev_user = DEV_AUTH_USERS.get(provider_user_id, DEV_AUTH_USERS["local-dev-user"])
+        return jsonify(
+            {
+                "success": True,
+                "data": {
+                    "user_id": provider_user_id,
+                    "name": dev_user["display_name"],
+                },
+            }
+        )
+
+    data, error_response, status_code = _decode_auth_payload()
+    if error_response is not None:
+        return error_response, status_code
+    return jsonify(
+        {
+            "success": True,
+            "data": {
+                "user_id": data["user_id"],
+                "name": data.get("name") or "",
+            },
+        }
+    )
+
+@app.route("/api/auth/logout", methods=["POST"])
+def logout():
+    response = jsonify({"success": True})
+    _clear_auth_cookie(response)
+    return response
 
 # --- API - AI 快速輸入 ---
 
@@ -1222,13 +1311,15 @@ def line_login_callback():
             'user_id': str(user['id']),
             'line_user_id': line_user_id,
             'name': user['display_name'],
-            'exp': datetime.now(timezone.utc) + timedelta(days=1)
+            'exp': datetime.now(timezone.utc) + timedelta(days=APP_AUTH_TOKEN_DAYS)
         }
         app_token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
 
         # 5. 重定向到前端
         callback_query = urlencode({"token": app_token, "redirect": frontend_redirect_path})
-        return redirect(f"{FRONTEND_BASE_URL}/auth-callback?{callback_query}")
+        response = redirect(f"{FRONTEND_BASE_URL}/auth-callback?{callback_query}")
+        response.set_cookie(APP_AUTH_COOKIE_NAME, app_token, **_auth_cookie_options())
+        return response
 
     except requests.exceptions.RequestException as e:
         app.logger.error(f"Line Token Exchange Error: {e}")
