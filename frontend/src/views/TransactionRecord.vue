@@ -131,6 +131,9 @@ export default {
     filteredTransactions() {
       return this.transactions.filter((transaction) => transaction.type === this.activeType);
     },
+    sortedFilteredTransactions() {
+      return [...this.filteredTransactions].sort(this.sortTransactionsNewestFirst);
+    },
     recordDateFilters() {
       const dateMap = new Map();
       this.filteredTransactions.forEach((transaction) => {
@@ -145,7 +148,7 @@ export default {
       });
 
       const dates = Array.from(dateMap.values())
-        .sort((left, right) => left.key.localeCompare(right.key));
+        .sort((left, right) => right.key.localeCompare(left.key));
 
       return [
         {
@@ -158,9 +161,9 @@ export default {
     },
     displayedTransactions() {
       if (this.selectedRecordDate === "all") {
-        return this.filteredTransactions;
+        return this.sortedFilteredTransactions;
       }
-      return this.filteredTransactions.filter(
+      return this.sortedFilteredTransactions.filter(
         (transaction) => transaction.date === this.selectedRecordDate
       );
     },
@@ -276,6 +279,13 @@ export default {
       const day = Number(parts[2]);
       if (!Number.isFinite(month) || !Number.isFinite(day)) return dateString;
       return `${month}/${day}`;
+    },
+    sortTransactionsNewestFirst(left, right) {
+      const leftDate = left.date || "";
+      const rightDate = right.date || "";
+      const dateComparison = rightDate.localeCompare(leftDate);
+      if (dateComparison !== 0) return dateComparison;
+      return Number(right.id || 0) - Number(left.id || 0);
     },
     async fetchTransactions() {
       try {
