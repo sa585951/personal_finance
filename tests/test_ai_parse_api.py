@@ -489,24 +489,9 @@ def test_line_login_start_creates_signed_state_with_safe_redirect(monkeypatch):
     from urllib.parse import parse_qs, urlparse
 
     query = parse_qs(urlparse(location).query)
-    login_state = web_app._decode_line_login_state(query["state"][0])
-    assert login_state["redirect"] == "/trips/invite/test-token"
-    assert login_state["pwa_nonce"] is None
+    redirect_path = web_app._decode_line_login_state(query["state"][0])
+    assert redirect_path == "/trips/invite/test-token"
     assert query["bot_prompt"] == ["aggressive"]
-
-
-def test_line_login_start_preserves_safe_pwa_nonce(monkeypatch):
-    web_app = _load_web_app(monkeypatch)
-    nonce = "a" * 64
-
-    response = web_app.app.test_client().get(f"/line-login-start?redirect=/&pwa_nonce={nonce}")
-
-    from urllib.parse import parse_qs, urlparse
-
-    query = parse_qs(urlparse(response.headers["Location"]).query)
-    login_state = web_app._decode_line_login_state(query["state"][0])
-    assert login_state["redirect"] == "/"
-    assert login_state["pwa_nonce"] == nonce
 
 
 def test_line_login_state_rejects_external_redirect(monkeypatch):
@@ -516,25 +501,5 @@ def test_line_login_state_rejects_external_redirect(monkeypatch):
     from urllib.parse import parse_qs, urlparse
 
     query = parse_qs(urlparse(response.headers["Location"]).query)
-    login_state = web_app._decode_line_login_state(query["state"][0])
-    assert login_state["redirect"] == "/"
-
-
-def test_pwa_login_token_can_be_consumed_once(monkeypatch):
-    web_app = _load_web_app(monkeypatch)
-    nonce = "b" * 64
-    token = _auth_token()
-    web_app._store_pwa_login_token(nonce, token, "Test User")
-
-    client = web_app.app.test_client()
-    response = client.get(f"/api/auth/pwa-login-tokens/{nonce}")
-    second_response = client.get(f"/api/auth/pwa-login-tokens/{nonce}")
-
-    assert response.status_code == 200
-    assert response.get_json()["data"]["token"] == token
-    assert any(
-        header.startswith(f"{web_app.APP_AUTH_COOKIE_NAME}=")
-        and "HttpOnly" in header
-        for header in response.headers.getlist("Set-Cookie")
-    )
-    assert second_response.status_code == 404
+    redirect_path = web_app._decode_line_login_state(query["state"][0])
+    assert redirect_path == "/"

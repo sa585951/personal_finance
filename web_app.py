@@ -52,8 +52,6 @@ DEV_AUTH_USERS = {
 LINE_LOGIN_STATE_TTL_MINUTES = 10
 APP_AUTH_COOKIE_NAME = "nomica_auth_token"
 APP_AUTH_TOKEN_DAYS = 30
-PWA_LOGIN_NONCE_TTL_MINUTES = 5
-PWA_LOGIN_TOKENS = {}
 
 if not all([LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, JWT_SECRET_KEY, VITE_BACKEND_BASE_URL]):
     raise EnvironmentError("缺少必要的環境變數，請檢查 .env 檔案。 সন")
@@ -189,45 +187,12 @@ def _safe_frontend_redirect_path(value):
         return "/"
     return text
 
-def _safe_pwa_login_nonce(value):
-    if not value:
-        return None
-    text = str(value)
-    if len(text) < 32 or len(text) > 128:
-        return None
-    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
-    if any(char not in allowed for char in text):
-        return None
-    return text
-
-def _cleanup_expired_pwa_login_tokens():
-    now = datetime.now(timezone.utc)
-    expired_keys = [
-        nonce for nonce, payload in PWA_LOGIN_TOKENS.items()
-        if payload["expires_at"] <= now
-    ]
-    for nonce in expired_keys:
-        PWA_LOGIN_TOKENS.pop(nonce, None)
-
-def _store_pwa_login_token(nonce, token, user_name):
-    if not nonce:
-        return
-    _cleanup_expired_pwa_login_tokens()
-    PWA_LOGIN_TOKENS[nonce] = {
-        "token": token,
-        "name": user_name or "",
-        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=PWA_LOGIN_NONCE_TTL_MINUTES),
-    }
-
 def _create_line_login_state(redirect_path):
-    pwa_nonce = _safe_pwa_login_nonce(request.args.get("pwa_nonce"))
     payload = {
         "type": "line_login_state",
         "redirect": _safe_frontend_redirect_path(redirect_path),
         "exp": datetime.now(timezone.utc) + timedelta(minutes=LINE_LOGIN_STATE_TTL_MINUTES),
     }
-    if pwa_nonce:
-        payload["pwa_nonce"] = pwa_nonce
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
 
 def _decode_line_login_state(state):
@@ -237,10 +202,7 @@ def _decode_line_login_state(state):
         raise ValueError("LINE Login state 驗證失敗") from exc
     if payload.get("type") != "line_login_state":
         raise ValueError("LINE Login state 類型不正確")
-    return {
-        "redirect": _safe_frontend_redirect_path(payload.get("redirect")),
-        "pwa_nonce": _safe_pwa_login_nonce(payload.get("pwa_nonce")),
-    }
+    return _safe_frontend_redirect_path(payload.get("redirect"))
 
 app_state = AppStateManager()
 linebot_manager = LineBotManager(app_state, db_session)
@@ -307,29 +269,6 @@ def get_current_auth_user():
 def logout():
     response = jsonify({"success": True})
     _clear_auth_cookie(response)
-    return response
-
-@app.route("/api/auth/pwa-login-tokens/<string:nonce>", methods=["GET"])
-def consume_pwa_login_token(nonce):
-    safe_nonce = _safe_pwa_login_nonce(nonce)
-    if not safe_nonce:
-        return jsonify({"success": False, "message": "登入狀態無效"}), 400
-
-    _cleanup_expired_pwa_login_tokens()
-    payload = PWA_LOGIN_TOKENS.pop(safe_nonce, None)
-    if not payload:
-        return jsonify({"success": False, "message": "尚未完成登入或登入已逾時"}), 404
-
-    response = jsonify(
-        {
-            "success": True,
-            "data": {
-                "token": payload["token"],
-                "name": payload["name"],
-            },
-        }
-    )
-    response.set_cookie(APP_AUTH_COOKIE_NAME, payload["token"], **_auth_cookie_options())
     return response
 
 # --- API - AI 快速輸入 ---
@@ -1331,9 +1270,7 @@ def line_login_callback():
         return jsonify({"success": False, "message": "LINE Login state 遺失"}), 400
 
     try:
-        login_state = _decode_line_login_state(state)
-        frontend_redirect_path = login_state["redirect"]
-        pwa_nonce = login_state.get("pwa_nonce")
+        frontend_redirect_path = _decode_line_login_state(state)
 
         # 1. 交換 Token
         token_url = "https://api.line.me/oauth2/v2.1/token"
@@ -1379,11 +1316,7 @@ def line_login_callback():
         app_token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
 
         # 5. 重定向到前端
-        if pwa_nonce:
-            _store_pwa_login_token(pwa_nonce, app_token, user["display_name"])
-            callback_query = urlencode({"pwa_login": "complete", "redirect": frontend_redirect_path})
-        else:
-            callback_query = urlencode({"token": app_token, "redirect": frontend_redirect_path})
+        callback_query = urlencode({"token": app_token, "redirect": frontend_redirect_path})
         response = redirect(f"{FRONTEND_BASE_URL}/auth-callback?{callback_query}")
         response.set_cookie(APP_AUTH_COOKIE_NAME, app_token, **_auth_cookie_options())
         return response
