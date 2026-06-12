@@ -1,18 +1,24 @@
 {
-  "name": "Money Journey",
-  "short_name": "Money",
-  "description": "手機優先的日常記帳、旅行帳本與輕量分帳工具",
+  "name": "Nomica",
+  "short_name": "Nomica",
+  "description": "Nomica 是手機優先的日常記帳、旅行帳本與輕量分帳工具",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
-  "theme_color": "#0f766e",
+  "theme_color": "#0f2742",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/app-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ],

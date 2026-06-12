@@ -1,5 +1,5 @@
-const CACHE_NAME = "money-journey-shell-v1";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/app-icon.svg"];
+const CACHE_NAME = "nomica-shell-v1";
+const APP_SHELL = ["/", "/manifest.webmanifest", "/app-icon-192.png", "/app-icon-512.png", "/apple-touch-icon.png", "/favicon.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

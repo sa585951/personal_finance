@@ -1,7 +1,7 @@
 <template>
   <div class="home-screen">
     <header class="home-header">
-      <p class="eyebrow">Ledger</p>
+      <p class="eyebrow">Nomica</p>
       <h1>今天要記什麼？</h1>
     </header>
 

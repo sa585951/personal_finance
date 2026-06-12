@@ -1,7 +1,7 @@
 <template>
   <nav class="navbar" aria-label="主要導覽">
     <div class="logo">
-      <router-link to="/">Ledger</router-link>
+      <router-link to="/">Nomica</router-link>
     </div>
     <ul class="nav-links">
       <li v-for="item in navItems" :key="item.to">

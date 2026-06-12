@@ -1,7 +1,7 @@
 <template>
   <div class="transactions-screen">
     <header class="page-header">
-      <p class="eyebrow">Personal Ledger</p>
+      <p class="eyebrow">Nomica Ledger</p>
       <h1>個人收支</h1>
     </header>
 

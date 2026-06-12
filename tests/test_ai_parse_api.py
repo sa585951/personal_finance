@@ -373,6 +373,7 @@ def test_line_login_start_creates_signed_state_with_safe_redirect(monkeypatch):
     query = parse_qs(urlparse(location).query)
     redirect_path = web_app._decode_line_login_state(query["state"][0])
     assert redirect_path == "/trips/invite/test-token"
+    assert query["bot_prompt"] == ["aggressive"]
 
 
 def test_line_login_state_rejects_external_redirect(monkeypatch):

@@ -1166,6 +1166,7 @@ def line_login_start():
             "redirect_uri": redirect_uri,
             "state": state,
             "scope": "profile openid",
+            "bot_prompt": "aggressive",
         }
     )
     return redirect(f"https://access.line.me/oauth2/v2.1/authorize?{query}")
