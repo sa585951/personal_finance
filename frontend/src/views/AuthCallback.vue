@@ -1,15 +1,16 @@
 <template>
-  <div>正在登入，請稍候...</div>
+  <div>{{ message }}</div>
 </template>
 
 <script>
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
 export default {
   name: 'AuthCallback',
   setup() {
     const route = useRoute();
+    const message = ref('正在登入，請稍候...');
 
     onMounted(() => {
       const token = route.query.token;
@@ -24,13 +25,15 @@ export default {
           : '/assets';
         // 強制刷新頁面並跳轉到登入前目標頁面
         window.location.href = redirectPath;
+      } else if (route.query.pwa_login === 'complete') {
+        message.value = '登入已完成，請回到主畫面的 Nomica。';
       } else {
         // 如果沒有 token，跳回首頁
         window.location.href = '/';
       }
     });
 
-    return {};
+    return { message };
   },
 };
 </script>
