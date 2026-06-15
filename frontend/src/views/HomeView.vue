@@ -60,6 +60,9 @@
           <span>收入 {{ monthlyIncomeRatio }}%</span>
           <span>支出 {{ monthlyExpenseRatio }}%</span>
         </div>
+        <p class="ratio-helper">
+          本月現金流比例，收入與支出合計為 100%
+        </p>
         <div class="ratio-track">
           <div
             class="ratio-fill income"
@@ -70,15 +73,6 @@
             :style="{ width: `${monthlyExpenseRatio}%` }"
           ></div>
         </div>
-      </div>
-      <div class="overview-bars" aria-hidden="true">
-        <div
-          v-for="bar in monthlyExpenseBars"
-          :key="bar.key"
-          class="overview-bar"
-          :class="{ active: bar.active }"
-          :style="{ height: `${bar.height}%` }"
-        ></div>
       </div>
     </section>
 
@@ -181,27 +175,6 @@ export default {
     },
     recentTransactions() {
       return this.dashboardTransactions.slice(0, 5);
-    },
-    monthlyExpenseBars() {
-      const buckets = Array.from({ length: 7 }, (_, index) => ({
-        key: index,
-        amount: 0,
-      }));
-
-      this.monthTransactions
-        .filter((transaction) => transaction.type === "expense")
-        .forEach((transaction) => {
-          const day = new Date(transaction.date).getDate();
-          const bucketIndex = Math.min(6, Math.floor((day - 1) / 5));
-          buckets[bucketIndex].amount += this.monthlyReportAmount(transaction);
-        });
-
-      const maxAmount = Math.max(...buckets.map((bucket) => bucket.amount), 0);
-      return buckets.map((bucket) => ({
-        key: bucket.key,
-        active: maxAmount > 0 && bucket.amount === maxAmount,
-        height: maxAmount > 0 ? Math.max(22, Math.round((bucket.amount / maxAmount) * 100)) : 28,
-      }));
     },
   },
   methods: {
@@ -460,6 +433,13 @@ h1 {
   font-weight: 900;
 }
 
+.ratio-helper {
+  margin: -2px 0 0;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
 .ratio-track {
   display: flex;
   width: 100%;
@@ -480,25 +460,6 @@ h1 {
 
 .ratio-fill.expense {
   background: #fecaca;
-}
-
-.overview-bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  height: 56px;
-  margin-top: 20px;
-}
-
-.overview-bar {
-  width: 100%;
-  min-height: 12px;
-  background: rgba(255, 255, 255, 0.28);
-  border-radius: 3px;
-}
-
-.overview-bar.active {
-  background: #ccfbf1;
 }
 
 .section-heading {
