@@ -50,7 +50,12 @@
 
       <AssetsTable
         :assets="assets"
+        :account-activities="accountActivities"
+        :account-activity-loading="accountActivityLoading"
+        :account-activity-errors="accountActivityErrors"
+        :account-activity-pagination="accountActivityPagination"
         @delete-account="deleteAccount"
+        @request-account-activity="fetchAccountActivity"
         @update-account="updateAccount"
         @update-balance="updateBalance"
       />
@@ -85,6 +90,10 @@ export default {
       totals: null,
       recentTransfers: [],
       activeAction: null,
+      accountActivities: {},
+      accountActivityLoading: {},
+      accountActivityErrors: {},
+      accountActivityPagination: {},
     };
   },
   computed: {
@@ -114,6 +123,10 @@ export default {
         const response = await apiClient.get(`/api/assets`);
         this.assets = response.data.data;
         this.totals = this.calculateTotals(this.assets);
+        this.accountActivities = {};
+        this.accountActivityLoading = {};
+        this.accountActivityErrors = {};
+        this.accountActivityPagination = {};
       } catch (err) {
         console.error("無法載入資產資料:", err);
         this.error = "無法載入資產資料，請檢查後端伺服器或查看主控台錯誤。";
@@ -128,6 +141,49 @@ export default {
       } catch (err) {
         console.error("無法載入轉帳紀錄:", err);
         this.recentTransfers = [];
+      }
+    },
+    async fetchAccountActivity(accountId, page = 1) {
+      if (!accountId || this.accountActivityLoading[accountId]) {
+        return;
+      }
+
+      this.accountActivityLoading = {
+        ...this.accountActivityLoading,
+        [accountId]: true,
+      };
+      this.accountActivityErrors = {
+        ...this.accountActivityErrors,
+        [accountId]: "",
+      };
+
+      try {
+        const response = await apiClient.get(`/api/assets/${accountId}/activity?limit=10&page=${page}`);
+        const activityPage = response.data.data || {};
+        this.accountActivities = {
+          ...this.accountActivities,
+          [accountId]: activityPage.items || [],
+        };
+        this.accountActivityPagination = {
+          ...this.accountActivityPagination,
+          [accountId]: activityPage.pagination || {
+            page,
+            limit: 10,
+            has_next: false,
+            has_prev: page > 1,
+          },
+        };
+      } catch (err) {
+        console.error("無法載入帳戶近期活動:", err);
+        this.accountActivityErrors = {
+          ...this.accountActivityErrors,
+          [accountId]: "無法載入此帳戶近期活動。",
+        };
+      } finally {
+        this.accountActivityLoading = {
+          ...this.accountActivityLoading,
+          [accountId]: false,
+        };
       }
     },
     calculateTotals(assets) {

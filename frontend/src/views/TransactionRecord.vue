@@ -64,6 +64,25 @@
         @transaction-edit="startEditingTransaction"
         @transaction-deleted="fetchTransactions"
       />
+      <div
+        v-if="hiddenRecordCount > 0 || canCollapseRecords"
+        class="record-list-actions"
+      >
+        <button
+          v-if="hiddenRecordCount > 0"
+          type="button"
+          @click="showAllRecords = true"
+        >
+          顯示更多（尚有 {{ hiddenRecordCount }} 筆）
+        </button>
+        <button
+          v-else
+          type="button"
+          @click="showAllRecords = false"
+        >
+          收合為最新 {{ recordPreviewLimit }} 筆
+        </button>
+      </div>
     </section>
 
     <section v-if="activeType !== 'income'" class="analysis-section">
@@ -119,12 +138,18 @@ export default {
       editingTransaction: null,
       selectedRecordDate: "all",
       activeAnalysisTab: "category",
+      showAllRecords: false,
+      recordPreviewLimit: 10,
     };
   },
   watch: {
     "$route.query.type"() {
       this.activeType = this.initialTypeFromRoute();
       this.selectedRecordDate = "all";
+      this.showAllRecords = false;
+    },
+    selectedRecordDate() {
+      this.showAllRecords = false;
     },
   },
   computed: {
@@ -159,12 +184,29 @@ export default {
         ...dates,
       ];
     },
-    displayedTransactions() {
+    recordListTransactions() {
       if (this.selectedRecordDate === "all") {
         return this.sortedFilteredTransactions;
       }
       return this.sortedFilteredTransactions.filter(
         (transaction) => transaction.date === this.selectedRecordDate
+      );
+    },
+    displayedTransactions() {
+      if (this.selectedRecordDate !== "all" || this.showAllRecords) {
+        return this.recordListTransactions;
+      }
+      return this.recordListTransactions.slice(0, this.recordPreviewLimit);
+    },
+    hiddenRecordCount() {
+      if (this.selectedRecordDate !== "all" || this.showAllRecords) return 0;
+      return Math.max(this.recordListTransactions.length - this.recordPreviewLimit, 0);
+    },
+    canCollapseRecords() {
+      return (
+        this.selectedRecordDate === "all" &&
+        this.showAllRecords &&
+        this.recordListTransactions.length > this.recordPreviewLimit
       );
     },
     transactionTabs() {
@@ -210,6 +252,7 @@ export default {
       this.activeType = type;
       this.editingTransaction = null;
       this.selectedRecordDate = "all";
+      this.showAllRecords = false;
       this.$router.replace({
         path: this.$route.path,
         query: {
@@ -475,6 +518,30 @@ h1 {
   font-size: 0.72rem;
   font-weight: 800;
   opacity: 0.82;
+}
+
+.record-list-actions {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0 0;
+}
+
+.record-list-actions button {
+  min-height: 42px;
+  padding: 0 18px;
+  color: #334155;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.record-list-actions button:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: #94a3b8;
 }
 
 .section-heading {

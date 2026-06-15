@@ -1106,10 +1106,21 @@ export default {
     splitMemberSummary() {
       const selectedCount = this.newExpense.split_member_ids.length;
       const totalCount = this.selectedTrip?.members.length || 0;
-      if (selectedCount === totalCount) {
-        return `均分 ${selectedCount} 人`;
+      if (selectedCount === 0) {
+        return "尚未選擇分帳成員";
       }
-      return `均分 ${selectedCount}/${totalCount} 人`;
+      if (selectedCount === 1) {
+        const selectedMemberId = this.newExpense.split_member_ids[0];
+        const selectedMember = this.selectedTrip?.members.find((member) => member.id === selectedMemberId);
+        if (selectedMemberId === this.selectedTrip?.current_member_id) {
+          return "僅自己負擔";
+        }
+        return selectedMember ? `僅 ${selectedMember.display_name} 負擔` : "僅 1 人負擔";
+      }
+      if (selectedCount === totalCount) {
+        return `全員均分 ${selectedCount} 人`;
+      }
+      return `選擇 ${selectedCount}/${totalCount} 人均分`;
     },
     currentTripMember() {
       if (!this.selectedTrip?.current_member_id) return null;
@@ -1177,20 +1188,31 @@ export default {
       const amount = Number(this.newExpense.amount || 0);
       const members = this.selectedTrip.members;
       const allocations = {};
+      const splitMemberIds = this.newExpense.split_member_ids.length > 0
+        ? this.newExpense.split_member_ids
+        : this.getDefaultSplitMemberIds();
 
-      if (amount > 0 && members.length > 0) {
-        const baseShare = Math.floor(amount / members.length);
-        const remainder = amount % members.length;
-        members.forEach((member, index) => {
-          allocations[member.id] = baseShare + (index === 0 ? remainder : 0);
-        });
-      } else {
-        members.forEach((member) => {
-          allocations[member.id] = 0;
+      members.forEach((member) => {
+        allocations[member.id] = 0;
+      });
+
+      if (amount > 0 && splitMemberIds.length > 0) {
+        const baseShare = Math.floor(amount / splitMemberIds.length);
+        const remainder = amount % splitMemberIds.length;
+        splitMemberIds.forEach((memberId, index) => {
+          allocations[memberId] = baseShare + (index === 0 ? remainder : 0);
         });
       }
 
       this.newExpense.split_allocations = allocations;
+    },
+    getDefaultSplitMemberIds() {
+      if (!this.selectedTrip) return [];
+      const defaultMemberId = this.selectedTrip.current_member_id ||
+        this.newExpense.paid_by_member_id ||
+        this.selectedTrip.members[0]?.id ||
+        "";
+      return defaultMemberId ? [defaultMemberId] : [];
     },
     getDefaultExchangeRate(originalCurrency, baseCurrency) {
       if (!originalCurrency || !baseCurrency || originalCurrency === baseCurrency) {
@@ -1683,7 +1705,7 @@ export default {
       ) {
         this.newExpense.account_id = "";
       }
-      this.newExpense.split_member_ids = this.selectedTrip.members.map((member) => member.id);
+      this.newExpense.split_member_ids = this.getDefaultSplitMemberIds();
       this.initializeCustomSplitAllocations();
     },
     buildExpensePayload() {

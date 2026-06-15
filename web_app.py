@@ -399,6 +399,23 @@ def update_asset_balance(current_user_id, account_key):
         app.logger.error(f"Error in update_asset_balance: {e}")
         return jsonify({"success": False, "message": str(e)}), 404
 
+@app.route("/api/assets/<string:account_key>/activity", methods=["GET"])
+@token_required
+def get_asset_activity(current_user_id, account_key):
+    try:
+        activity_page = asset_manager.get_account_activity(
+            current_user_id,
+            account_key,
+            limit=request.args.get("limit", 10),
+            page=request.args.get("page", 1),
+        )
+        return jsonify({"success": True, "data": activity_page}), 200
+    except ValueError as e:
+        return jsonify({"success": False, "message": str(e)}), 404
+    except Exception as e:
+        app.logger.error(f"Error in get_asset_activity: {e}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
 @app.route("/api/assets/<string:account_key>", methods=["DELETE"])
 @token_required
 def delete_asset(current_user_id, account_key):

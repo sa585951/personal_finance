@@ -2,10 +2,10 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import desc, insert, select, update
+from sqlalchemy import desc, insert, or_, select, update
 
 from config import DEFAULT_CURRENCY
-from .schema import accounts_table, transfers_table
+from .schema import accounts_table, categories_table, transactions_table, transfers_table
 
 
 ACCOUNT_TYPE_ALIASES = {
@@ -292,6 +292,8 @@ class AssetManager:
         stmt = (
             select(
                 transfers_table.c.id,
+                transfers_table.c.source_account_id,
+                transfers_table.c.target_account_id,
                 transfers_table.c.source_amount,
                 transfers_table.c.source_currency,
                 transfers_table.c.target_amount,
@@ -317,11 +319,138 @@ class AssetManager:
         for row in self.db_session.execute(stmt):
             transfer = dict(row._mapping)
             transfer["id"] = str(transfer["id"])
+            transfer["source_account_id"] = str(transfer["source_account_id"])
+            transfer["target_account_id"] = str(transfer["target_account_id"])
             transfer["source_amount"] = float(transfer["source_amount"])
             transfer["target_amount"] = float(transfer["target_amount"])
             transfer["transfer_date"] = transfer["transfer_date"].isoformat()
             transfers.append(transfer)
         return transfers
+
+    def get_account_activity(self, user_id, account_key, limit=10, page=1):
+        """取得單一帳戶近期收支與轉帳活動。"""
+        account = self._get_account(user_id, account_key)
+        if not account:
+            raise ValueError("找不到此帳戶或權限不足")
+
+        parsed_user_id = self._parse_user_id(user_id)
+        parsed_limit = self._normalize_limit(limit)
+        parsed_page = self._normalize_page(page)
+        fetch_limit = parsed_limit * (parsed_page + 1)
+        page_start = (parsed_page - 1) * parsed_limit
+        page_end = page_start + parsed_limit
+        account_id = account["id"]
+
+        transaction_stmt = (
+            select(
+                transactions_table.c.id,
+                transactions_table.c.transaction_date.label("activity_date"),
+                transactions_table.c.created_at,
+                transactions_table.c.type.label("transaction_type"),
+                transactions_table.c.title,
+                transactions_table.c.merchant,
+                transactions_table.c.description,
+                transactions_table.c.original_amount.label("amount"),
+                transactions_table.c.original_currency.label("currency"),
+                transactions_table.c.trip_id,
+                categories_table.c.name.label("budget_category"),
+            )
+            .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
+            .where(
+                transactions_table.c.user_id == parsed_user_id,
+                transactions_table.c.account_id == account_id,
+                transactions_table.c.deleted_at.is_(None),
+            )
+            .order_by(desc(transactions_table.c.transaction_date), desc(transactions_table.c.created_at))
+            .limit(fetch_limit)
+        )
+
+        source_accounts = accounts_table.alias("source_accounts")
+        target_accounts = accounts_table.alias("target_accounts")
+        transfer_stmt = (
+            select(
+                transfers_table.c.id,
+                transfers_table.c.source_account_id,
+                transfers_table.c.target_account_id,
+                transfers_table.c.source_amount,
+                transfers_table.c.source_currency,
+                transfers_table.c.target_amount,
+                transfers_table.c.target_currency,
+                transfers_table.c.transfer_date.label("activity_date"),
+                transfers_table.c.created_at,
+                transfers_table.c.note,
+                source_accounts.c.name.label("source_name"),
+                target_accounts.c.name.label("target_name"),
+            )
+            .join(source_accounts, transfers_table.c.source_account_id == source_accounts.c.id)
+            .join(target_accounts, transfers_table.c.target_account_id == target_accounts.c.id)
+            .where(
+                transfers_table.c.user_id == parsed_user_id,
+                transfers_table.c.deleted_at.is_(None),
+                or_(
+                    transfers_table.c.source_account_id == account_id,
+                    transfers_table.c.target_account_id == account_id,
+                ),
+            )
+            .order_by(desc(transfers_table.c.transfer_date), desc(transfers_table.c.created_at))
+            .limit(fetch_limit)
+        )
+
+        activities = []
+        for row in self.db_session.execute(transaction_stmt):
+            transaction = dict(row._mapping)
+            activities.append({
+                "id": str(transaction["id"]),
+                "type": "transaction",
+                "transaction_type": transaction["transaction_type"],
+                "title": transaction["title"],
+                "merchant": transaction["merchant"],
+                "description": transaction["description"],
+                "amount": float(transaction["amount"]),
+                "currency": transaction["currency"],
+                "date": transaction["activity_date"].isoformat(),
+                "created_at": transaction["created_at"].isoformat() if transaction["created_at"] else None,
+                "budget_category": transaction["budget_category"],
+                "trip_id": str(transaction["trip_id"]) if transaction["trip_id"] else None,
+            })
+
+        for row in self.db_session.execute(transfer_stmt):
+            transfer = dict(row._mapping)
+            direction = "out" if transfer["source_account_id"] == account_id else "in"
+            amount = transfer["source_amount"] if direction == "out" else transfer["target_amount"]
+            currency = transfer["source_currency"] if direction == "out" else transfer["target_currency"]
+            activities.append({
+                "id": str(transfer["id"]),
+                "type": "transfer",
+                "direction": direction,
+                "source_account_id": str(transfer["source_account_id"]),
+                "target_account_id": str(transfer["target_account_id"]),
+                "source_name": transfer["source_name"],
+                "target_name": transfer["target_name"],
+                "amount": float(amount),
+                "currency": currency,
+                "date": transfer["activity_date"].isoformat(),
+                "created_at": transfer["created_at"].isoformat() if transfer["created_at"] else None,
+                "note": transfer["note"],
+            })
+
+        sorted_activities = sorted(
+            activities,
+            key=lambda activity: (activity["date"], activity.get("created_at") or ""),
+            reverse=True,
+        )
+        page_items = sorted_activities[page_start:page_end]
+        has_next = len(sorted_activities) > page_end
+
+        return {
+            "items": page_items,
+            "pagination": {
+                "page": parsed_page,
+                "limit": parsed_limit,
+                "has_next": has_next,
+                "has_prev": parsed_page > 1,
+            },
+        }
 
     def _normalize_transfer_note(self, note):
         normalized = str(note or "").strip()
@@ -335,6 +464,13 @@ class AssetManager:
         except (TypeError, ValueError):
             parsed_limit = 10
         return min(max(parsed_limit, 1), 50)
+
+    def _normalize_page(self, page):
+        try:
+            parsed_page = int(page)
+        except (TypeError, ValueError):
+            parsed_page = 1
+        return max(parsed_page, 1)
 
     def calculate_totals(self, user_id):
         """依幣別計算帳戶總額，不直接混加不同幣別。"""
