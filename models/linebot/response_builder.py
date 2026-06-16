@@ -260,6 +260,50 @@ class ResponseBuilder:
         """建立錯誤訊息卡片"""
         return self.create_notice_message("發生問題", message, color="#D64545")
 
+    def create_unrecognized_input_message(self):
+        """建立不可解析輸入提示。"""
+        flex_content = {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "目前看不出這是一筆記錄",
+                        "weight": "bold",
+                        "size": "md",
+                        "color": "#D97706",
+                        "wrap": True,
+                    },
+                    {
+                        "type": "text",
+                        "text": "請試試：午餐麥當勞 150",
+                        "size": "sm",
+                        "color": "#475569",
+                        "wrap": True,
+                    },
+                    {
+                        "type": "text",
+                        "text": "也可以輸入「幫助」查看可用功能。",
+                        "size": "xs",
+                        "color": "#64748B",
+                        "wrap": True,
+                    },
+                ],
+                "paddingAll": "20px",
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    self._create_message_button("查看幫助", "幫助", style="primary", color="#4CAF50")
+                ],
+            },
+        }
+        return FlexSendMessage(alt_text="無法解析輸入", contents=flex_content)
+
     def create_notice_message(self, title, message, color="#4CAF50"):
         """建立通用通知卡片，供舊流程的純文字提示統一轉為 Flex。"""
         flex_content = {

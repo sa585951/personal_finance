@@ -168,10 +168,10 @@ class QuickParser:
             return {"type": "other"}
 
         if any(word in message_lower for word in ['幫助', '說明', '功能', '測試']):
-            return {"type": "other"}
+            return {"type": "help"}
         
         # 記帳類交給 Gemini
         if has_amount_hint:
             return None
         
-        return {"type": "other"}
+        return {"type": "other", "error": "unrecognized_input"}

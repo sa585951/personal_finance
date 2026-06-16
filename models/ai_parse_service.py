@@ -297,6 +297,8 @@ class AIParseService:
             return "query_transactions"
         if result_type == "asset_query":
             return "query_assets"
+        if result_type == "help":
+            return "help"
         if result_type in DISABLED_GOAL_TYPES:
             return "other"
         if result_type and result_type.startswith("start_"):
@@ -384,6 +386,8 @@ class AIParseService:
         error = legacy_result.get("error")
         if not error:
             return []
+        if error == "unrecognized_input":
+            return ["目前看不出這是一筆收入、支出或可執行操作，請試試：午餐麥當勞 150"]
         return [str(error)]
 
     def _normalize_amount(self, value):

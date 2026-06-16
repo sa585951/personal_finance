@@ -305,6 +305,37 @@ def test_goal_keywords_are_temporarily_disabled_in_quick_parser():
     assert result["legacy"] == {"type": "other"}
 
 
+def test_help_keyword_is_normalized_as_help_intent():
+    service = AIParseService(
+        gemini_model=FakeGeminiModel("{}"),
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("幫助")
+
+    assert result["intent"] == "help"
+    assert result["source"] == "quick"
+    assert result["legacy"] == {"type": "help"}
+    assert result["errors"] == []
+
+
+def test_unrecognized_input_returns_friendly_error_without_transaction():
+    service = AIParseService(
+        gemini_model=FakeGeminiModel("{}"),
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("今天天氣很好")
+
+    assert result["intent"] == "other"
+    assert result["source"] == "quick"
+    assert result["legacy"] == {"type": "other", "error": "unrecognized_input"}
+    assert result["transaction"] is None
+    assert result["errors"] == [
+        "目前看不出這是一筆收入、支出或可執行操作，請試試：午餐麥當勞 150"
+    ]
+
+
 def test_legacy_goal_button_payloads_are_temporarily_disabled():
     service = AIParseService(
         gemini_model=FakeGeminiModel("{}"),
@@ -390,10 +421,10 @@ def test_other_result_is_normalized_without_errors():
         prompt_template="訊息：{message}",
     )
 
-    result = service.parse("幫助")
+    result = service.parse("未知指令")
 
     assert result["intent"] == "other"
     assert result["source"] == "quick"
-    assert result["legacy"] == {"type": "other"}
+    assert result["legacy"] == {"type": "other", "error": "unrecognized_input"}
     assert result["missing_fields"] == []
-    assert result["errors"] == []
+    assert result["errors"]

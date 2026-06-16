@@ -97,6 +97,10 @@ class MessageHandler:
             return self._handle_query(user_id)
         elif message_type == "asset_query":
             return self._handle_asset_query(user_id)
+        elif message_type == "help":
+            return self._get_help_message()
+        elif message_type == "other" and parsed_data.get("error") == "unrecognized_input":
+            return self.response_builder.create_unrecognized_input_message()
         elif message_type in {
             "goal_query",
             "manage_goal",

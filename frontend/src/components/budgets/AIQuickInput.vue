@@ -70,7 +70,7 @@
         尚缺：{{ missingFields.join("、") }}
       </p>
       <p v-if="!transaction" class="parse-message warning">
-        目前這句話沒有解析成收入或支出，先不套用到表單。
+        {{ resultMessage }}
       </p>
 
       <button
@@ -119,6 +119,12 @@ export default {
       }
       return "尚未形成交易";
     },
+    resultMessage() {
+      if (this.parseResult?.errors?.length) {
+        return this.parseResult.errors[0];
+      }
+      return "目前這句話沒有解析成收入或支出，先不套用到表單。";
+    },
     sourceLabel() {
       const labelMap = {
         quick: "規則解析",
@@ -148,6 +154,9 @@ export default {
         const responseData = response.data.data || {};
         this.parseResult = responseData.parse_result || null;
         this.parseEventId = responseData.parse_event_id || "";
+        if (this.transaction) {
+          this.text = "";
+        }
         this.$emit("parsed");
       } catch (error) {
         console.error("AI 解析失敗", error);

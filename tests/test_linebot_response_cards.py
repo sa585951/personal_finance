@@ -137,6 +137,20 @@ def test_help_message_lists_line_command_examples():
 
     assert isinstance(message, FlexSendMessage)
     assert message.alt_text == "LINE 可用功能"
-    assert "- 午餐麥當勞 150 用現金" in text_values
+    assert "- 午餐麥當勞 150" in text_values
+    assert "- 晚餐 680 用國泰信用卡" in text_values
+    assert "- 薪資 50000 存入銀行" in text_values
     assert "我的資產" in text_values
     assert "我要轉帳" in text_values
+
+
+def test_unrecognized_input_message_guides_user_to_examples():
+    message = ResponseBuilder().create_unrecognized_input_message()
+    message_payload = json.loads(message.as_json_string())
+    payload_text = json.dumps(message_payload, ensure_ascii=False)
+
+    assert isinstance(message, FlexSendMessage)
+    assert message.alt_text == "無法解析輸入"
+    assert "目前看不出這是一筆記錄" in payload_text
+    assert "午餐麥當勞 150" in payload_text
+    assert "查看幫助" in payload_text
