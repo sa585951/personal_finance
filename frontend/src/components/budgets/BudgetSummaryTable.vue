@@ -22,11 +22,21 @@
           </strong>
         </div>
         <p v-if="overspentItems.length > 0">
-          {{ overspentItems.map((item) => item.category).join("、") }} 已超出預算，建議優先檢查近期支出。
+          {{ overspentItems.length }} 個分類已超出預算，最高超支是 {{ topOverspentItem.category }}。
         </p>
         <p v-else>
           {{ selectedMonth }} 的預算目前都在範圍內。
         </p>
+        <div v-if="overspentItems.length > 0" class="overspend-list">
+          <article
+            v-for="item in topOverspentItems"
+            :key="`overspend-${item.category}`"
+            class="overspend-item"
+          >
+            <span>{{ item.category }}</span>
+            <strong>超支 {{ formatMoney(Math.abs(item.remaining)) }}</strong>
+          </article>
+        </div>
       </section>
 
       <article v-for="item in budgetSummary" :key="item.category" class="budget-card">
@@ -102,6 +112,17 @@ export default {
         (sum, item) => sum + Math.abs(Number(item.remaining || 0)),
         0
       );
+    },
+    sortedOverspentItems() {
+      return [...this.overspentItems].sort(
+        (a, b) => Math.abs(Number(b.remaining || 0)) - Math.abs(Number(a.remaining || 0))
+      );
+    },
+    topOverspentItems() {
+      return this.sortedOverspentItems.slice(0, 3);
+    },
+    topOverspentItem() {
+      return this.topOverspentItems[0] || { category: "" };
     },
   },
   methods: {
@@ -297,6 +318,40 @@ select {
   color: inherit;
   font-size: 0.86rem;
   line-height: 1.45;
+}
+
+.overspend-list {
+  display: grid;
+  gap: 6px;
+}
+
+.overspend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  color: #991b1b;
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+}
+
+.overspend-item span,
+.overspend-item strong {
+  min-width: 0;
+  font-size: 0.84rem;
+}
+
+.overspend-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overspend-item strong {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .budget-card {

@@ -57,6 +57,15 @@
           {{ latestTransaction.type === "income" ? "+" : "-" }}{{ formatMoney(monthlyReportAmount(latestTransaction), latestTransaction.base_currency || "TWD") }}
         </p>
       </div>
+      <router-link
+        v-if="overspendingWarnings.length"
+        class="budget-warning-summary"
+        to="/budgets"
+      >
+        <span>預算提醒</span>
+        <strong>{{ overspendingWarnings.length }} 個分類超支</strong>
+        <p>本月已超出 {{ formatDisplayMoney(totalOverspending) }}，優先檢查 {{ overspendingCategoryText }}。</p>
+      </router-link>
     </section>
 
     <section class="monthly-overview-card" aria-label="本月月報">
@@ -168,6 +177,7 @@ export default {
       transactions: [],
       monthlyReportTransactions: [],
       trips: [],
+      overspendingWarnings: [],
       includeTripsInHome: true,
     };
   },
@@ -241,6 +251,18 @@ export default {
         return bCreated.localeCompare(aCreated);
       })[0] || null;
     },
+    totalOverspending() {
+      return this.overspendingWarnings.reduce(
+        (sum, warning) => sum + Number(warning.overspend || 0),
+        0
+      );
+    },
+    overspendingCategoryText() {
+      return this.overspendingWarnings
+        .slice(0, 2)
+        .map((warning) => warning.category)
+        .join("、");
+    },
   },
   methods: {
     async fetchDashboardData() {
@@ -255,6 +277,15 @@ export default {
         this.transactions = [];
         this.monthlyReportTransactions = [];
         this.trips = [];
+      }
+    },
+    async fetchOverspendingWarnings() {
+      try {
+        const response = await apiClient.get(`/api/reports/overspending_warnings?month=${this.currentMonth}`);
+        this.overspendingWarnings = response.data.data || [];
+      } catch (error) {
+        console.error("無法載入首頁超支提醒", error);
+        this.overspendingWarnings = [];
       }
     },
     formatMoney(amount, currency = "TWD") {
@@ -309,6 +340,7 @@ export default {
   },
   created() {
     this.fetchDashboardData();
+    this.fetchOverspendingWarnings();
   },
 };
 </script>
@@ -458,6 +490,7 @@ h1 {
 }
 
 .latest-summary,
+.budget-warning-summary,
 .summary-empty-action {
   display: grid;
   gap: 5px;
@@ -475,6 +508,31 @@ h1 {
   min-width: 0;
   color: #1f2933;
   font-size: 0.98rem;
+}
+
+.budget-warning-summary {
+  color: #991b1b;
+  background: #fef2f2;
+  border-color: #fecaca;
+  text-decoration: none;
+}
+
+.budget-warning-summary span {
+  color: #b91c1c;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.budget-warning-summary strong {
+  color: #991b1b;
+  font-size: 0.98rem;
+}
+
+.budget-warning-summary p {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .latest-summary small {
