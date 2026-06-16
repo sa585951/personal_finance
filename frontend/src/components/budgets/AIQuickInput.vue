@@ -15,7 +15,7 @@
           id="aiQuickText"
           v-model="text"
           rows="2"
-          placeholder="例如：早餐麥當勞 150 元，用現金"
+          placeholder="例如：晚餐 680 用國泰信用卡"
           :disabled="isParsing"
         ></textarea>
       </label>
@@ -23,6 +23,18 @@
         {{ isParsing ? "解析中" : "解析" }}
       </button>
     </form>
+
+    <div class="example-chips" aria-label="快速輸入範例">
+      <button
+        v-for="example in examples"
+        :key="example"
+        type="button"
+        :disabled="isParsing"
+        @click="useExample(example)"
+      >
+        {{ example }}
+      </button>
+    </div>
 
     <p v-if="errorMessage" class="parse-message error">{{ errorMessage }}</p>
 
@@ -86,6 +98,12 @@ export default {
       parseResult: null,
       parseEventId: "",
       errorMessage: "",
+      examples: [
+        "午餐麥當勞 150",
+        "晚餐 680 用國泰信用卡",
+        "薪資 50000 存入銀行",
+        "拉麵 1200 日幣 用日幣現金",
+      ],
     };
   },
   computed: {
@@ -111,6 +129,13 @@ export default {
     },
   },
   methods: {
+    useExample(example) {
+      if (this.isParsing) return;
+      this.text = example;
+      this.errorMessage = "";
+      this.parseResult = null;
+      this.parseEventId = "";
+    },
     async parseInput() {
       this.errorMessage = "";
       this.parseResult = null;
@@ -231,6 +256,29 @@ export default {
 }
 
 .quick-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.example-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.example-chips button {
+  min-height: 32px;
+  padding: 0 10px;
+  color: #1e3a8a;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.example-chips button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
