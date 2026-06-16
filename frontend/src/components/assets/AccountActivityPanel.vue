@@ -2,7 +2,19 @@
   <section class="account-activity">
     <div class="activity-heading">
       <strong>近期活動</strong>
-      <small>收支與帳戶互轉</small>
+      <small>核對支出、收入與帳戶互轉</small>
+    </div>
+    <div class="activity-filters" aria-label="帳戶活動篩選">
+      <button
+        v-for="filter in activityFilters"
+        :key="filter.value"
+        type="button"
+        :class="{ active: activeFilter === filter.value }"
+        :disabled="loading"
+        @click="changeFilter(filter.value)"
+      >
+        {{ filter.label }}
+      </button>
     </div>
     <p v-if="loading" class="activity-state">
       載入中...
@@ -11,7 +23,7 @@
       {{ error }}
     </p>
     <p v-else-if="!activities.length" class="activity-state">
-      這個帳戶目前沒有近期活動。
+      {{ emptyMessage }}
     </p>
     <div v-else class="activity-list">
       <article
@@ -76,6 +88,10 @@ export default {
       type: Boolean,
       default: false,
     },
+    activeFilter: {
+      type: String,
+      default: "all",
+    },
     pagination: {
       type: Object,
       default: () => ({
@@ -86,8 +102,28 @@ export default {
       }),
     },
   },
-  emits: ["page-change"],
+  emits: ["filter-change", "page-change"],
+  computed: {
+    activityFilters() {
+      return [
+        { value: "all", label: "全部" },
+        { value: "expense", label: "支出" },
+        { value: "transfer", label: "轉帳" },
+      ];
+    },
+    emptyMessage() {
+      const messageMap = {
+        expense: "這個帳戶目前沒有支出紀錄，可用來核對信用卡或付款帳戶。",
+        transfer: "這個帳戶目前沒有轉帳紀錄，可用來核對儲蓄、投資或帳戶間資金流向。",
+      };
+      return messageMap[this.activeFilter] || "這個帳戶目前沒有近期活動。";
+    },
+  },
   methods: {
+    changeFilter(filter) {
+      if (filter === this.activeFilter || this.loading) return;
+      this.$emit("filter-change", filter);
+    },
     requestPage(page) {
       if (page < 1) return;
       this.$emit("page-change", page);
@@ -153,6 +189,42 @@ export default {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.activity-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  background: #f1f5f9;
+  border-radius: 8px;
+}
+
+.activity-filters button {
+  min-height: 34px;
+  padding: 0 8px;
+  color: #475569;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.activity-filters button.active {
+  color: #0f766e;
+  background: #ffffff;
+}
+
+.activity-filters button:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.activity-filters button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .activity-heading strong {

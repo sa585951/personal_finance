@@ -327,8 +327,12 @@ class AssetManager:
             transfers.append(transfer)
         return transfers
 
-    def get_account_activity(self, user_id, account_key, limit=10, page=1):
+    def get_account_activity(self, user_id, account_key, limit=10, page=1, activity_filter="all"):
         """取得單一帳戶近期收支與轉帳活動。"""
+        normalized_filter = (activity_filter or "all").strip().lower()
+        if normalized_filter not in {"all", "expense", "transfer"}:
+            raise ValueError("無效的活動篩選條件")
+
         account = self._get_account(user_id, account_key)
         if not account:
             raise ValueError("找不到此帳戶或權限不足")
@@ -340,6 +344,14 @@ class AssetManager:
         page_start = (parsed_page - 1) * parsed_limit
         page_end = page_start + parsed_limit
         account_id = account["id"]
+
+        transaction_filters = [
+            transactions_table.c.user_id == parsed_user_id,
+            transactions_table.c.account_id == account_id,
+            transactions_table.c.deleted_at.is_(None),
+        ]
+        if normalized_filter == "expense":
+            transaction_filters.append(transactions_table.c.type == "expense")
 
         transaction_stmt = (
             select(
@@ -356,11 +368,7 @@ class AssetManager:
                 categories_table.c.name.label("budget_category"),
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
-            .where(
-                transactions_table.c.user_id == parsed_user_id,
-                transactions_table.c.account_id == account_id,
-                transactions_table.c.deleted_at.is_(None),
-            )
+            .where(*transaction_filters)
             .order_by(desc(transactions_table.c.transaction_date), desc(transactions_table.c.created_at))
             .limit(fetch_limit)
         )
@@ -397,42 +405,44 @@ class AssetManager:
         )
 
         activities = []
-        for row in self.db_session.execute(transaction_stmt):
-            transaction = dict(row._mapping)
-            activities.append({
-                "id": str(transaction["id"]),
-                "type": "transaction",
-                "transaction_type": transaction["transaction_type"],
-                "title": transaction["title"],
-                "merchant": transaction["merchant"],
-                "description": transaction["description"],
-                "amount": float(transaction["amount"]),
-                "currency": transaction["currency"],
-                "date": transaction["activity_date"].isoformat(),
-                "created_at": transaction["created_at"].isoformat() if transaction["created_at"] else None,
-                "budget_category": transaction["budget_category"],
-                "trip_id": str(transaction["trip_id"]) if transaction["trip_id"] else None,
-            })
+        if normalized_filter != "transfer":
+            for row in self.db_session.execute(transaction_stmt):
+                transaction = dict(row._mapping)
+                activities.append({
+                    "id": str(transaction["id"]),
+                    "type": "transaction",
+                    "transaction_type": transaction["transaction_type"],
+                    "title": transaction["title"],
+                    "merchant": transaction["merchant"],
+                    "description": transaction["description"],
+                    "amount": float(transaction["amount"]),
+                    "currency": transaction["currency"],
+                    "date": transaction["activity_date"].isoformat(),
+                    "created_at": transaction["created_at"].isoformat() if transaction["created_at"] else None,
+                    "budget_category": transaction["budget_category"],
+                    "trip_id": str(transaction["trip_id"]) if transaction["trip_id"] else None,
+                })
 
-        for row in self.db_session.execute(transfer_stmt):
-            transfer = dict(row._mapping)
-            direction = "out" if transfer["source_account_id"] == account_id else "in"
-            amount = transfer["source_amount"] if direction == "out" else transfer["target_amount"]
-            currency = transfer["source_currency"] if direction == "out" else transfer["target_currency"]
-            activities.append({
-                "id": str(transfer["id"]),
-                "type": "transfer",
-                "direction": direction,
-                "source_account_id": str(transfer["source_account_id"]),
-                "target_account_id": str(transfer["target_account_id"]),
-                "source_name": transfer["source_name"],
-                "target_name": transfer["target_name"],
-                "amount": float(amount),
-                "currency": currency,
-                "date": transfer["activity_date"].isoformat(),
-                "created_at": transfer["created_at"].isoformat() if transfer["created_at"] else None,
-                "note": transfer["note"],
-            })
+        if normalized_filter != "expense":
+            for row in self.db_session.execute(transfer_stmt):
+                transfer = dict(row._mapping)
+                direction = "out" if transfer["source_account_id"] == account_id else "in"
+                amount = transfer["source_amount"] if direction == "out" else transfer["target_amount"]
+                currency = transfer["source_currency"] if direction == "out" else transfer["target_currency"]
+                activities.append({
+                    "id": str(transfer["id"]),
+                    "type": "transfer",
+                    "direction": direction,
+                    "source_account_id": str(transfer["source_account_id"]),
+                    "target_account_id": str(transfer["target_account_id"]),
+                    "source_name": transfer["source_name"],
+                    "target_name": transfer["target_name"],
+                    "amount": float(amount),
+                    "currency": currency,
+                    "date": transfer["activity_date"].isoformat(),
+                    "created_at": transfer["created_at"].isoformat() if transfer["created_at"] else None,
+                    "note": transfer["note"],
+                })
 
         sorted_activities = sorted(
             activities,
@@ -449,6 +459,7 @@ class AssetManager:
                 "limit": parsed_limit,
                 "has_next": has_next,
                 "has_prev": parsed_page > 1,
+                "filter": normalized_filter,
             },
         }
 

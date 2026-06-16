@@ -169,9 +169,11 @@
             <AccountActivityPanel
               v-if="expandedAccountId === account.key"
               :activities="accountActivityList(account.key)"
+              :active-filter="accountActivityFilter(account.key)"
               :error="accountActivityErrors[account.key] || ''"
               :loading="Boolean(accountActivityLoading[account.key])"
               :pagination="accountActivityPage(account.key)"
+              @filter-change="changeActivityFilter(account.key, $event)"
               @page-change="requestActivityPage(account.key, $event)"
             />
           </article>
@@ -225,6 +227,7 @@ export default {
       collapsedGroups: {},
       expandedAccountId: "",
       editingAccountId: "",
+      accountActivityFilters: {},
       editDraft: {
         bank_name: "",
         account_type: "bank",
@@ -325,10 +328,20 @@ export default {
     },
     requestActivityPage(accountId, page) {
       if (page < 1) return;
-      this.$emit("request-account-activity", accountId, page);
+      this.$emit("request-account-activity", accountId, page, this.accountActivityFilter(accountId));
+    },
+    changeActivityFilter(accountId, filter) {
+      this.accountActivityFilters = {
+        ...this.accountActivityFilters,
+        [accountId]: filter,
+      };
+      this.$emit("request-account-activity", accountId, 1, filter);
     },
     accountActivityList(accountId) {
       return this.accountActivities[accountId] || [];
+    },
+    accountActivityFilter(accountId) {
+      return this.accountActivityFilters[accountId] || "all";
     },
     accountActivityPage(accountId) {
       return this.accountActivityPagination[accountId] || {

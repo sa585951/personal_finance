@@ -408,10 +408,12 @@ def get_asset_activity(current_user_id, account_key):
             account_key,
             limit=request.args.get("limit", 10),
             page=request.args.get("page", 1),
+            activity_filter=request.args.get("filter", "all"),
         )
         return jsonify({"success": True, "data": activity_page}), 200
     except ValueError as e:
-        return jsonify({"success": False, "message": str(e)}), 404
+        status_code = 400 if "篩選" in str(e) else 404
+        return jsonify({"success": False, "message": str(e)}), status_code
     except Exception as e:
         app.logger.error(f"Error in get_asset_activity: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500

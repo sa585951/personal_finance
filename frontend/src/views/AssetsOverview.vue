@@ -143,7 +143,7 @@ export default {
         this.recentTransfers = [];
       }
     },
-    async fetchAccountActivity(accountId, page = 1) {
+    async fetchAccountActivity(accountId, page = 1, activityFilter = "all") {
       if (!accountId || this.accountActivityLoading[accountId]) {
         return;
       }
@@ -158,7 +158,9 @@ export default {
       };
 
       try {
-        const response = await apiClient.get(`/api/assets/${accountId}/activity?limit=10&page=${page}`);
+        const response = await apiClient.get(
+          `/api/assets/${accountId}/activity?limit=10&page=${page}&filter=${activityFilter}`
+        );
         const activityPage = response.data.data || {};
         this.accountActivities = {
           ...this.accountActivities,
