@@ -66,8 +66,8 @@ class LineBotManager:
 
         **輸出欄位定義:**
         - `budget_category`: 最高層級的分類，必須是「類別限制」中的一個。
-        - `category`: 交易項目名稱，優先填入具體品牌、店家、品項或收入來源，例如「麥當勞」、「可口可樂」、「計程車」、「薪資」。
-        - `description`: 使用者明確提供的補充備註，例如「跟朋友聚餐」、「公司報銷」。如果沒有明確備註，請回傳空字串 "" 或 null，不要把原始訊息整段放入。
+        - `category`: 交易項目名稱，優先填入使用者要查找或分類的項目，例如「午餐」、「晚餐」、「拉麵」、「計程車」、「薪資」。
+        - `description`: 店家、品牌或使用者明確提供的補充備註，例如「麥當勞」、「跟朋友聚餐」、「公司報銷」。如果沒有店家或明確備註，請回傳空字串 "" 或 null，不要把原始訊息整段放入。
         - `amount`: 金額 (數字)。
         - `currency`: 訊息中的幣別代碼，例如 TWD、JPY、USD、EUR、KRW。若未提到幣別，此欄位為 null。
         - `target_asset`: 支付的資產/帳戶，例如「現金」、「信用卡」、「銀行轉帳」。如果訊息中沒有提到，此欄位為 null。
@@ -79,8 +79,8 @@ class LineBotManager:
            - JSON: {{ "type": "income", "budget_category": "收入", "category": "收入來源", "description": "可選備註", "amount": ..., "target_asset": "..." }}
         3. **欄位提取邏輯**: 
            - `budget_category`: 將消費目的歸類到「類別限制」中的一個。
-           - `category`: 從訊息中提取最適合作為列表顯示的項目名稱；若有品牌、店家或品項，優先放在此欄。
-           - `description`: 只放額外補充備註。若沒有明確備註，留空，不要填入 category，也不要填入原始訊息。
+           - `category`: 從訊息中提取最適合作為列表顯示與使用者回查的項目名稱；例如「午餐麥當勞 150」的 category 是「午餐」。
+           - `description`: 放店家、品牌或額外補充備註；例如「午餐麥當勞 150」的 description 是「麥當勞」。若沒有店家或明確備註，留空，不要填入 category，也不要填入原始訊息。
            - `currency`: 若訊息提到「日幣、日圓、JPY」回傳 JPY；「台幣、TWD、NTD」回傳 TWD；「美金、美元、USD」回傳 USD；未提到則回傳 null。
            - `target_asset`: 從訊息中提取支付方式，如「用現金」、「刷卡」、「從郵局轉帳」。
         4. **其他請求**: 根據訊息類型回傳對應的 JSON 結構。
@@ -90,7 +90,7 @@ class LineBotManager:
 
         **精選範例:**
         - 訊息: "午餐吃麥當勞 150元 用國泰信用卡"
-          應解析為: {{ "type": "expense", "budget_category": "伙食", "category": "麥當勞", "description": "", "amount": 150, "currency": "TWD", "target_asset": "國泰信用卡" }}
+          應解析為: {{ "type": "expense", "budget_category": "伙食", "category": "午餐", "description": "麥當勞", "amount": 150, "currency": "TWD", "target_asset": "國泰信用卡" }}
         - 訊息: "永豐日幣活存扣拉麵 1200 日圓"
           應解析為: {{ "type": "expense", "budget_category": "伙食", "category": "拉麵", "description": "", "amount": 1200, "currency": "JPY", "target_asset": "永豐活存" }}
         - 訊息: "在7-11買了可口可樂，付了現金30元"

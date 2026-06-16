@@ -34,6 +34,7 @@ class AIParseService:
         """解析使用者輸入，回傳跨平台可共用的 normalized result。"""
         raw_text = (message or "").strip()
         legacy_result, parser_source = self._parse_legacy(raw_text)
+        legacy_result = self._apply_standard_field_split(legacy_result, raw_text)
 
         return {
             "intent": self._detect_intent(legacy_result),
@@ -73,18 +74,46 @@ class AIParseService:
 
         transaction_type = self._detect_transaction_type(message)
         budget_category, category = self._detect_category(message, transaction_type)
-        local_title = self._detect_local_title(message, category)
+        standard_fields = self._extract_standard_transaction_fields(message, transaction_type)
+        if standard_fields:
+            budget_category = standard_fields["budget_category"]
+            category = standard_fields["title"]
+            description = standard_fields["description"]
+        else:
+            category = self._detect_local_title(message, category)
+            description = ""
 
         return {
             "type": transaction_type,
             "budget_category": budget_category,
-            "category": local_title,
-            "description": "",
+            "category": category,
+            "description": description,
             "amount": amount,
             "currency": self._detect_currency(message),
             "target_asset": self._detect_account_hint(message),
             "fallback_reason": "gemini_error",
         }
+
+    def _apply_standard_field_split(self, legacy_result, raw_text):
+        """用本地規則修正標準句型的 title/description 拆分。"""
+        transaction_type = legacy_result.get("type")
+        if transaction_type not in TRANSACTION_TYPES:
+            return legacy_result
+
+        if self._extract_amount(raw_text) is None:
+            return legacy_result
+
+        standard_fields = self._extract_standard_transaction_fields(raw_text, transaction_type)
+        if not standard_fields:
+            return legacy_result
+
+        refined = deepcopy(legacy_result)
+        refined["budget_category"] = standard_fields["budget_category"]
+        refined["category"] = standard_fields["title"]
+        refined["description"] = standard_fields["description"]
+        refined["currency"] = refined.get("currency") or self._detect_currency(raw_text)
+        refined["target_asset"] = refined.get("target_asset") or self._detect_account_hint(raw_text)
+        return refined
 
     def _extract_amount(self, message):
         match = re.search(r"(\d+(?:\.\d+)?)\s*(?:元|塊|圓|twd|ntd)?", message, re.IGNORECASE)
@@ -134,10 +163,25 @@ class AIParseService:
         return "其他", "記帳"
 
     def _detect_account_hint(self, message):
+        explicit_hint = self._extract_explicit_account_hint(message)
+        if explicit_hint:
+            return explicit_hint
+
         account_keywords = ["現金", "信用卡", "刷卡", "銀行", "郵局", "LINE Pay", "街口", "悠遊卡"]
         for keyword in account_keywords:
             if keyword.lower() in message.lower():
                 return "信用卡" if keyword == "刷卡" else keyword
+        return None
+
+    def _extract_explicit_account_hint(self, message):
+        account_pattern = re.compile(
+            r"(?:用|使用|以|刷|存入|匯入|轉入)\s*"
+            r"([^,，。；;\s\d]*(?:信用卡|現金|銀行|帳戶|活存|錢包|Pay|pay|卡|郵局))",
+            re.IGNORECASE,
+        )
+        match = account_pattern.search(message)
+        if match:
+            return match.group(1).strip()
         return None
 
     def _detect_currency(self, message):
@@ -156,6 +200,8 @@ class AIParseService:
 
     def _clean_local_description(self, message):
         description = re.sub(r"\d+(?:\.\d+)?\s*(?:元|塊|圓|twd|ntd)?", "", message, flags=re.IGNORECASE)
+        description = self._remove_account_phrase(description)
+        description = self._remove_currency_words(description)
         description = re.sub(r"(用|使用|付|付款|刷卡|現金|信用卡|銀行|郵局|LINE Pay|街口|悠遊卡)", "", description)
         description = re.sub(r"[，,。．\s]+", " ", description).strip()
         return description
@@ -165,6 +211,83 @@ class AIParseService:
         if title:
             return title
         return fallback_category
+
+    def _extract_standard_transaction_fields(self, message, transaction_type):
+        content = self._clean_local_description(message)
+        if not content:
+            return None
+
+        if transaction_type == "income":
+            return self._extract_income_fields(content)
+        return self._extract_expense_fields(content)
+
+    def _extract_income_fields(self, content):
+        income_keywords = [
+            ("收入", "薪資", ["薪資", "薪水", "發薪"]),
+            ("收入", "獎金", ["獎金"]),
+            ("收入", "利息", ["利息"]),
+            ("收入", "報銷/補貼", ["報銷", "補貼"]),
+            ("收入", "禮金/贈與", ["禮金", "贈與", "紅包"]),
+        ]
+        return self._split_by_leading_keyword(content, income_keywords)
+
+    def _extract_expense_fields(self, content):
+        expense_keywords = [
+            ("伙食", "早餐", ["早午餐", "早餐"]),
+            ("伙食", "午餐", ["午餐"]),
+            ("伙食", "晚餐", ["晚餐"]),
+            ("伙食", "宵夜", ["宵夜"]),
+            ("伙食", "咖啡", ["咖啡"]),
+            ("伙食", "飲料", ["手搖", "飲料", "可樂"]),
+            ("伙食", "拉麵", ["拉麵"]),
+            ("交通", "捷運", ["捷運"]),
+            ("交通", "公車", ["公車"]),
+            ("交通", "計程車", ["計程車", "小黃"]),
+            ("交通", "交通", ["高鐵", "台鐵", "停車", "加油"]),
+            ("購物", "購物", ["購物", "網購"]),
+            ("購物", "治裝費", ["治裝費"]),
+            ("娛樂", "娛樂", ["電影", "遊戲", "唱歌", "娛樂"]),
+            ("醫療", "醫療", ["醫院", "診所", "看醫生", "藥"]),
+            ("生活", "生活", ["生活用品", "日用品"]),
+            ("投資", "投資", ["投資", "定期定額"]),
+        ]
+        return self._split_by_leading_keyword(content, expense_keywords)
+
+    def _split_by_leading_keyword(self, content, keyword_groups):
+        for budget_category, title, keywords in keyword_groups:
+            for keyword in sorted(keywords, key=len, reverse=True):
+                if content.startswith(keyword):
+                    detail = content[len(keyword):].strip()
+                    detail = self._clean_standard_detail(detail)
+                    return {
+                        "budget_category": budget_category,
+                        "title": title,
+                        "description": detail,
+                    }
+
+        return None
+
+    def _clean_standard_detail(self, detail):
+        detail = re.sub(r"^(吃|買了|買|喝|搭|坐|去|在|扣|花了|花)\s*", "", detail)
+        detail = re.sub(r"[，,。．\s]+", " ", detail).strip()
+        return detail
+
+    def _remove_account_phrase(self, message):
+        return re.sub(
+            r"(?:用|使用|以|刷|存入|匯入|轉入)\s*"
+            r"[^,，。；;\s\d]*(?:信用卡|現金|銀行|帳戶|活存|錢包|Pay|pay|卡|郵局)",
+            "",
+            message,
+            flags=re.IGNORECASE,
+        )
+
+    def _remove_currency_words(self, message):
+        return re.sub(
+            r"(?:JPY|TWD|NTD|USD|EUR|KRW|日幣|日圓|日元|円|台幣|新台幣|臺幣|美金|美元|歐元|韓元|韓幣)",
+            "",
+            message,
+            flags=re.IGNORECASE,
+        )
 
     def _detect_intent(self, legacy_result):
         result_type = legacy_result.get("type")

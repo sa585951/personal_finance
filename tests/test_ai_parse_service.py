@@ -60,12 +60,12 @@ def test_gemini_transaction_result_is_normalized_for_shared_clients():
     assert result["legacy"]["type"] == "expense"
     assert result["transaction"] == {
         "type": "expense",
-        "title": "麥當勞",
+        "title": "午餐",
         "budget_category": "伙食",
         "amount": "150",
-        "description": "",
+        "description": "麥當勞",
         "account_hint": "現金",
-        "currency": None,
+        "currency": "TWD",
         "date": None,
         "merchant": None,
     }
@@ -147,6 +147,139 @@ def test_gemini_raw_text_description_is_treated_as_empty_note():
     assert result["transaction"]["description"] == ""
 
 
+def test_standard_expense_sentence_splits_item_and_note():
+    fake_model = FakeGeminiModel(
+        """
+        {
+          "type": "expense",
+          "budget_category": "伙食",
+          "category": "麥當勞",
+          "description": "",
+          "amount": 150,
+          "target_asset": null
+        }
+        """
+    )
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("午餐麥當勞 150")
+
+    assert result["transaction"]["type"] == "expense"
+    assert result["transaction"]["title"] == "午餐"
+    assert result["transaction"]["budget_category"] == "伙食"
+    assert result["transaction"]["amount"] == "150"
+    assert result["transaction"]["description"] == "麥當勞"
+
+
+def test_loose_expense_sentence_keeps_leading_item_when_words_are_reordered():
+    fake_model = FakeGeminiModel(
+        """
+        {
+          "type": "expense",
+          "budget_category": "伙食",
+          "category": "麥當勞",
+          "description": "",
+          "amount": 120,
+          "target_asset": "現金"
+        }
+        """
+    )
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("午餐 120 麥當勞 現金")
+
+    assert result["transaction"]["title"] == "午餐"
+    assert result["transaction"]["amount"] == "120"
+    assert result["transaction"]["description"] == "麥當勞"
+    assert result["transaction"]["account_hint"] == "現金"
+
+
+def test_standard_account_expense_keeps_account_hint_and_empty_note():
+    fake_model = FakeGeminiModel(
+        """
+        {
+          "type": "expense",
+          "budget_category": "伙食",
+          "category": "晚餐",
+          "description": "",
+          "amount": 680,
+          "target_asset": null
+        }
+        """
+    )
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("晚餐 680 用國泰信用卡")
+
+    assert result["transaction"]["title"] == "晚餐"
+    assert result["transaction"]["description"] == ""
+    assert result["transaction"]["account_hint"] == "國泰信用卡"
+
+
+def test_standard_income_sentence_keeps_income_item_and_account_hint():
+    fake_model = FakeGeminiModel(
+        """
+        {
+          "type": "income",
+          "budget_category": "收入",
+          "category": "收入",
+          "description": "薪資 50000 存入銀行",
+          "amount": 50000,
+          "target_asset": null
+        }
+        """
+    )
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("薪資 50000 存入銀行")
+
+    assert result["transaction"]["type"] == "income"
+    assert result["transaction"]["title"] == "薪資"
+    assert result["transaction"]["budget_category"] == "收入"
+    assert result["transaction"]["amount"] == "50000"
+    assert result["transaction"]["description"] == ""
+    assert result["transaction"]["account_hint"] == "銀行"
+
+
+def test_standard_foreign_currency_expense_keeps_currency_and_account_hint():
+    fake_model = FakeGeminiModel(
+        """
+        {
+          "type": "expense",
+          "budget_category": "伙食",
+          "category": "拉麵",
+          "description": "",
+          "amount": 1200,
+          "target_asset": null
+        }
+        """
+    )
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("拉麵 1200 日幣 用日幣現金")
+
+    assert result["transaction"]["title"] == "拉麵"
+    assert result["transaction"]["description"] == ""
+    assert result["transaction"]["amount"] == "1200"
+    assert result["transaction"]["currency"] == "JPY"
+    assert result["transaction"]["account_hint"] == "日幣現金"
+
+
 def test_expense_query_without_amount_still_uses_query_shortcut():
     service = AIParseService(
         gemini_model=FakeGeminiModel("{}"),
@@ -214,10 +347,10 @@ def test_local_fallback_parses_basic_expense_when_gemini_fails():
     assert result["legacy"]["fallback_reason"] == "gemini_error"
     assert result["transaction"] == {
         "type": "expense",
-        "title": "早餐麥當勞",
+        "title": "早餐",
         "budget_category": "伙食",
         "amount": "150",
-        "description": "",
+        "description": "麥當勞",
         "account_hint": "現金",
         "currency": "TWD",
         "date": None,
