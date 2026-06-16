@@ -107,12 +107,14 @@ export default {
     activityFilters() {
       return [
         { value: "all", label: "全部" },
+        { value: "income", label: "收入" },
         { value: "expense", label: "支出" },
         { value: "transfer", label: "轉帳" },
       ];
     },
     emptyMessage() {
       const messageMap = {
+        income: "這個帳戶目前沒有收入紀錄，可用來核對薪資、退款或入帳。",
         expense: "這個帳戶目前沒有支出紀錄，可用來核對信用卡或付款帳戶。",
         transfer: "這個帳戶目前沒有轉帳紀錄，可用來核對儲蓄、投資或帳戶間資金流向。",
       };
@@ -193,7 +195,7 @@ export default {
 
 .activity-filters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
   background: #f1f5f9;

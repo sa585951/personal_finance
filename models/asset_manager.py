@@ -330,7 +330,7 @@ class AssetManager:
     def get_account_activity(self, user_id, account_key, limit=10, page=1, activity_filter="all"):
         """取得單一帳戶近期收支與轉帳活動。"""
         normalized_filter = (activity_filter or "all").strip().lower()
-        if normalized_filter not in {"all", "expense", "transfer"}:
+        if normalized_filter not in {"all", "income", "expense", "transfer"}:
             raise ValueError("無效的活動篩選條件")
 
         account = self._get_account(user_id, account_key)
@@ -350,8 +350,8 @@ class AssetManager:
             transactions_table.c.account_id == account_id,
             transactions_table.c.deleted_at.is_(None),
         ]
-        if normalized_filter == "expense":
-            transaction_filters.append(transactions_table.c.type == "expense")
+        if normalized_filter in {"income", "expense"}:
+            transaction_filters.append(transactions_table.c.type == normalized_filter)
 
         transaction_stmt = (
             select(
@@ -423,7 +423,7 @@ class AssetManager:
                     "trip_id": str(transaction["trip_id"]) if transaction["trip_id"] else None,
                 })
 
-        if normalized_filter != "expense":
+        if normalized_filter not in {"income", "expense"}:
             for row in self.db_session.execute(transfer_stmt):
                 transfer = dict(row._mapping)
                 direction = "out" if transfer["source_account_id"] == account_id else "in"
