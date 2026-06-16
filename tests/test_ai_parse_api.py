@@ -127,6 +127,8 @@ class FakeAssetManager:
         self.transfer_payload = None
         self.recent_request = None
         self.update_payload = None
+        self.update_transfer_payload = None
+        self.deleted_transfer = None
 
     def update_account(self, user_id, account_key, **changes):
         self.update_payload = {
@@ -145,6 +147,24 @@ class FakeAssetManager:
             "note": note,
         }
         return True, "轉帳成功"
+
+    def update_transfer(self, user_id, transfer_id, source_id, dest_id, amount, note=None):
+        self.update_transfer_payload = {
+            "user_id": user_id,
+            "transfer_id": transfer_id,
+            "source_id": source_id,
+            "dest_id": dest_id,
+            "amount": amount,
+            "note": note,
+        }
+        return True, "轉帳已更新"
+
+    def delete_transfer(self, user_id, transfer_id):
+        self.deleted_transfer = {
+            "user_id": user_id,
+            "transfer_id": transfer_id,
+        }
+        return True, "轉帳已刪除"
 
     def get_recent_transfers(self, user_id, limit=10):
         self.recent_request = {"user_id": user_id, "limit": limit}
@@ -474,6 +494,58 @@ def test_recent_transfers_api_returns_allocation_history(monkeypatch):
         "user_id": "22222222-2222-2222-2222-222222222222",
         "limit": "8",
     }
+
+
+def test_update_transfer_api_passes_payload_and_commits(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_asset_manager = FakeAssetManager()
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "asset_manager", fake_asset_manager)
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().put(
+        "/api/transfers/transfer-1",
+        json={
+            "source_id": "salary",
+            "dest_id": "travel",
+            "amount": 3000,
+            "note": "旅費儲蓄",
+        },
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["message"] == "轉帳已更新"
+    assert fake_asset_manager.update_transfer_payload == {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "transfer_id": "transfer-1",
+        "source_id": "salary",
+        "dest_id": "travel",
+        "amount": 3000,
+        "note": "旅費儲蓄",
+    }
+    assert fake_db_session.commits == 1
+
+
+def test_delete_transfer_api_soft_deletes_and_commits(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_asset_manager = FakeAssetManager()
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "asset_manager", fake_asset_manager)
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().delete(
+        "/api/transfers/transfer-1",
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["message"] == "轉帳已刪除"
+    assert fake_asset_manager.deleted_transfer == {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "transfer_id": "transfer-1",
+    }
+    assert fake_db_session.commits == 1
 
 
 def test_line_login_start_creates_signed_state_with_safe_redirect(monkeypatch):

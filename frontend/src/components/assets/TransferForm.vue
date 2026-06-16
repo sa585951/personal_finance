@@ -60,11 +60,11 @@
           <input
             type="number"
             id="amount"
-            v-model.number="transferData.amount"
-            min="1"
-            step="1"
-            placeholder="請輸入金額"
-            required
+          v-model.number="transferData.amount"
+          min="1"
+          step="0.01"
+          placeholder="請輸入金額"
+          required
           />
         </div>
 
@@ -95,7 +95,15 @@
         class="confirm-btn"
         :disabled="accountOptions.length < 2"
       >
-        確認轉帳
+        {{ isEditing ? "更新轉帳" : "確認轉帳" }}
+      </button>
+      <button
+        v-if="isEditing"
+        type="button"
+        class="cancel-btn"
+        @click="cancelEditing"
+      >
+        取消編輯
       </button>
     </form>
   </div>
@@ -111,8 +119,12 @@ export default {
       type: Object,
       required: true,
     },
+    editingTransfer: {
+      type: Object,
+      default: null,
+    },
   },
-  emits: ["transfer-success"],
+  emits: ["transfer-success", "cancel-edit"],
   data() {
     return {
       transferData: {
@@ -126,6 +138,9 @@ export default {
     };
   },
   computed: {
+    isEditing() {
+      return Boolean(this.editingTransfer?.id);
+    },
     accountOptions() {
       return Object.entries(this.assets || {}).map(([key, asset]) => ({
         key,
@@ -169,6 +184,20 @@ export default {
       return groups;
     },
   },
+  watch: {
+    editingTransfer: {
+      immediate: true,
+      handler(transfer) {
+        if (!transfer) return;
+        this.transferData = {
+          source_id: transfer.source_account_id || "",
+          dest_id: transfer.target_account_id || "",
+          amount: transfer.source_amount ?? transfer.target_amount ?? null,
+          note: transfer.note || "",
+        };
+      },
+    },
+  },
   methods: {
     accountTypeOrder(type) {
       const order = ["bank", "cash", "credit_card", "e_wallet", "prepaid_card", "investment", "external", "other"];
@@ -186,19 +215,22 @@ export default {
       }
 
       try {
-        const response = await apiClient.post(`/api/transfer`, {
+        const payload = {
           source_id: this.transferData.source_id,
           dest_id: this.transferData.dest_id,
           amount: this.transferData.amount,
           note: this.transferData.note,
-        });
+        };
+        const response = this.isEditing
+          ? await apiClient.put(`/api/transfers/${this.editingTransfer.id}`, payload)
+          : await apiClient.post(`/api/transfer`, payload);
 
         this.$swal.fire("完成", response.data.message, "success");
         this.$emit("transfer-success");
         this.resetTransferForm();
       } catch (error) {
         this.$swal.fire(
-          "轉帳失敗",
+          this.isEditing ? "更新失敗" : "轉帳失敗",
           error.response?.data?.message || "請稍後再試。",
           "error"
         );
@@ -225,6 +257,10 @@ export default {
         amount: null,
         note: "",
       };
+    },
+    cancelEditing() {
+      this.resetTransferForm();
+      this.$emit("cancel-edit");
     },
   },
 };
@@ -292,6 +328,16 @@ export default {
 .confirm-btn:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.cancel-btn {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 8px;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
 }
 
 .empty-hint {

@@ -27,6 +27,10 @@
           <span>{{ translateAccountType(transfer.target_type) }}</span>
           <span v-if="transfer.note">{{ transfer.note }}</span>
         </div>
+        <div class="transfer-actions">
+          <button type="button" @click="$emit('edit-transfer', transfer)">編輯</button>
+          <button type="button" class="danger" @click="$emit('delete-transfer', transfer)">刪除</button>
+        </div>
       </article>
     </div>
   </section>
@@ -35,6 +39,7 @@
 <script>
 export default {
   name: "TransferHistory",
+  emits: ["edit-transfer", "delete-transfer"],
   props: {
     transfers: {
       type: Array,
@@ -128,5 +133,29 @@ export default {
   justify-content: flex-start;
   flex-wrap: wrap;
   margin-top: 8px;
+}
+
+.transfer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.transfer-actions button {
+  min-height: 34px;
+  padding: 0 12px;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 0.88rem;
+}
+
+.transfer-actions .danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
 }
 </style>

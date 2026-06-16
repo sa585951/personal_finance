@@ -43,7 +43,9 @@
           <TransferForm
             v-else
             :assets="assets"
+            :editing-transfer="editingTransfer"
             @transfer-success="handleTransferSuccess"
+            @cancel-edit="cancelTransferEdit"
           />
         </div>
       </section>
@@ -60,7 +62,11 @@
         @update-balance="updateBalance"
       />
 
-      <TransferHistory :transfers="recentTransfers" />
+      <TransferHistory
+        :transfers="recentTransfers"
+        @edit-transfer="startTransferEdit"
+        @delete-transfer="deleteTransfer"
+      />
     </div>
   </div>
 </template>
@@ -90,6 +96,7 @@ export default {
       totals: null,
       recentTransfers: [],
       activeAction: null,
+      editingTransfer: null,
       accountActivities: {},
       accountActivityLoading: {},
       accountActivityErrors: {},
@@ -108,6 +115,9 @@ export default {
   methods: {
     toggleAction(action) {
       this.activeAction = this.activeAction === action ? null : action;
+      if (this.activeAction !== "transfer") {
+        this.editingTransfer = null;
+      }
     },
     async handleAccountAdded() {
       await this.fetchAssets();
@@ -117,6 +127,7 @@ export default {
       await this.fetchAssets();
       await this.fetchRecentTransfers();
       this.activeAction = null;
+      this.editingTransfer = null;
     },
     async fetchAssets() {
       try {
@@ -272,6 +283,44 @@ export default {
         await this.fetchAssets();
       } catch (err) {
         console.error("更新帳戶失敗", err);
+      }
+    },
+    startTransferEdit(transfer) {
+      this.editingTransfer = transfer;
+      this.activeAction = "transfer";
+      this.$nextTick(() => {
+        document.querySelector(".inline-action")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    },
+    cancelTransferEdit() {
+      this.editingTransfer = null;
+    },
+    async deleteTransfer(transfer) {
+      const result = await this.$swal.fire({
+        title: "刪除轉帳紀錄？",
+        text: `這會回復「${transfer.source_name} → ${transfer.target_name}」造成的帳戶餘額變動。`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "刪除",
+        cancelButtonText: "取消",
+      });
+      if (!result.isConfirmed) return;
+
+      try {
+        await apiClient.delete(`/api/transfers/${transfer.id}`);
+        await this.fetchAssets();
+        await this.fetchRecentTransfers();
+        this.editingTransfer = null;
+        this.$swal.fire("已刪除", "轉帳紀錄已刪除並回復餘額。", "success");
+      } catch (err) {
+        this.$swal.fire(
+          "刪除失敗",
+          err.response?.data?.message || "請稍後再試。",
+          "error"
+        );
       }
     },
   },

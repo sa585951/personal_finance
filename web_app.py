@@ -465,6 +465,41 @@ def get_recent_transfers(current_user_id):
         app.logger.error(f"Error in get_recent_transfers: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
 
+@app.route("/api/transfers/<string:transfer_id>", methods=["PUT"])
+@token_required
+def update_transfer(current_user_id, transfer_id):
+    data = request.get_json()
+    if not data or not all(k in data for k in ["source_id", "dest_id", "amount"]):
+        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+
+    try:
+        success, message = asset_manager.update_transfer(
+            current_user_id,
+            transfer_id,
+            data["source_id"],
+            data["dest_id"],
+            data["amount"],
+            note=data.get("note"),
+        )
+        if success:
+            db_session.commit()
+        return jsonify({"success": success, "message": message}), 200
+    except Exception as e:
+        app.logger.error(f"Error in update_transfer: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/transfers/<string:transfer_id>", methods=["DELETE"])
+@token_required
+def delete_transfer(current_user_id, transfer_id):
+    try:
+        success, message = asset_manager.delete_transfer(current_user_id, transfer_id)
+        if success:
+            db_session.commit()
+        return jsonify({"success": success, "message": message}), 200
+    except Exception as e:
+        app.logger.error(f"Error in delete_transfer: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
 # --- API - 旅行帳本 ---
 
 @app.route("/api/trips", methods=["GET"])

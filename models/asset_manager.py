@@ -284,6 +284,123 @@ class AssetManager:
         )
         return True, "轉帳成功"
 
+    def update_transfer(self, user_id, transfer_id, source_key, dest_key, amount, note=None):
+        """編輯既有同幣別轉帳，會同步回復舊餘額並套用新餘額。"""
+        transfer = self._get_transfer(user_id, transfer_id)
+        if not transfer:
+            raise ValueError("找不到此轉帳紀錄或權限不足")
+
+        transfer_amount = Decimal(str(amount))
+        if transfer_amount <= 0:
+            return False, "轉帳金額必須大於0"
+
+        source_account = self._get_account(user_id, source_key)
+        target_account = self._get_account(user_id, dest_key)
+        if not source_account:
+            raise ValueError("來源帳戶不存在或權限不足")
+        if not target_account:
+            raise ValueError("目標帳戶不存在或權限不足")
+        if source_account["id"] == target_account["id"]:
+            return False, "轉出和轉入帳戶不能是同一個"
+        if not source_account["track_balance"] or not target_account["track_balance"]:
+            raise ValueError("轉帳帳戶必須啟用餘額追蹤")
+        if source_account["currency"] != target_account["currency"]:
+            raise ValueError("目前前端轉帳只支援同幣別帳戶")
+
+        now = datetime.now(timezone.utc)
+        self._reverse_transfer_effect(user_id, transfer, now)
+
+        refreshed_source = self._get_account(user_id, source_key)
+        refreshed_target = self._get_account(user_id, dest_key)
+        self._apply_transfer_effect(refreshed_source, refreshed_target, transfer_amount, now)
+
+        self.db_session.execute(
+            update(transfers_table)
+            .where(transfers_table.c.id == transfer["id"])
+            .values(
+                source_account_id=refreshed_source["id"],
+                target_account_id=refreshed_target["id"],
+                source_amount=transfer_amount,
+                source_currency=refreshed_source["currency"],
+                target_amount=transfer_amount,
+                target_currency=refreshed_target["currency"],
+                target_per_source_rate=Decimal("1"),
+                note=self._normalize_transfer_note(note),
+                updated_at=now,
+            )
+        )
+        return True, "轉帳已更新"
+
+    def delete_transfer(self, user_id, transfer_id):
+        """軟刪除轉帳並回復該筆轉帳造成的餘額變動。"""
+        transfer = self._get_transfer(user_id, transfer_id)
+        if not transfer:
+            raise ValueError("找不到此轉帳紀錄或權限不足")
+
+        now = datetime.now(timezone.utc)
+        self._reverse_transfer_effect(user_id, transfer, now)
+        self.db_session.execute(
+            update(transfers_table)
+            .where(transfers_table.c.id == transfer["id"])
+            .values(
+                deleted_at=now,
+                purge_after=now + timedelta(days=30),
+                updated_at=now,
+            )
+        )
+        return True, "轉帳已刪除"
+
+    def _get_transfer(self, user_id, transfer_id):
+        stmt = select(transfers_table).where(
+            transfers_table.c.user_id == self._parse_user_id(user_id),
+            transfers_table.c.id == self._parse_uuid(transfer_id, "transfer_id"),
+            transfers_table.c.deleted_at.is_(None),
+        )
+        row = self.db_session.execute(stmt).first()
+        return dict(row._mapping) if row else None
+
+    def _reverse_transfer_effect(self, user_id, transfer, now):
+        source_account = self._get_account(user_id, transfer["source_account_id"])
+        target_account = self._get_account(user_id, transfer["target_account_id"])
+        if not source_account or not target_account:
+            raise ValueError("轉帳帳戶不存在或已刪除，無法編輯此轉帳")
+
+        source_balance = Decimal(str(source_account["balance"]))
+        target_balance = Decimal(str(target_account["balance"]))
+        old_source_amount = Decimal(str(transfer["source_amount"]))
+        old_target_amount = Decimal(str(transfer["target_amount"]))
+        restored_target_balance = target_balance - old_target_amount
+        if restored_target_balance < 0 and not self._allows_negative_balance(target_account):
+            raise ValueError("轉入帳戶餘額不足，無法回復此轉帳")
+
+        self.db_session.execute(
+            update(accounts_table)
+            .where(accounts_table.c.id == source_account["id"])
+            .values(balance=source_balance + old_source_amount, updated_at=now)
+        )
+        self.db_session.execute(
+            update(accounts_table)
+            .where(accounts_table.c.id == target_account["id"])
+            .values(balance=restored_target_balance, updated_at=now)
+        )
+
+    def _apply_transfer_effect(self, source_account, target_account, transfer_amount, now):
+        source_balance = Decimal(str(source_account["balance"]))
+        target_balance = Decimal(str(target_account["balance"]))
+        if source_balance < transfer_amount and not self._allows_negative_balance(source_account):
+            raise ValueError("來源帳戶餘額不足")
+
+        self.db_session.execute(
+            update(accounts_table)
+            .where(accounts_table.c.id == source_account["id"])
+            .values(balance=source_balance - transfer_amount, updated_at=now)
+        )
+        self.db_session.execute(
+            update(accounts_table)
+            .where(accounts_table.c.id == target_account["id"])
+            .values(balance=target_balance + transfer_amount, updated_at=now)
+        )
+
     def get_recent_transfers(self, user_id, limit=10):
         """取得最近帳戶轉帳紀錄，供資金分配列表顯示。"""
         parsed_limit = self._normalize_limit(limit)
