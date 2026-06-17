@@ -140,6 +140,7 @@ def test_help_message_lists_line_command_examples():
     assert "- 午餐麥當勞 150" in text_values
     assert "- 晚餐 680 用國泰信用卡" in text_values
     assert "- 薪資 50000 存入銀行" in text_values
+    assert "帳戶連動提示" in text_values
     assert "我的資產" in text_values
     assert "我要轉帳" in text_values
 

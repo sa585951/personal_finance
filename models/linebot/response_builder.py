@@ -419,6 +419,30 @@ class ResponseBuilder:
                         "contents": [create_example_section(section) for section in command_sections],
                     },
                     {
+                        "type": "box",
+                        "layout": "vertical",
+                        "spacing": "xs",
+                        "backgroundColor": "#F8FAFC",
+                        "cornerRadius": "8px",
+                        "paddingAll": "10px",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "帳戶連動提示",
+                                "weight": "bold",
+                                "size": "xs",
+                                "color": "#1F2937",
+                            },
+                            {
+                                "type": "text",
+                                "text": "若希望 LINE 自動扣款或入帳，請先新增現金、銀行或信用卡帳戶，再輸入「用國泰信用卡」「存入銀行」等帳戶名稱。",
+                                "size": "xs",
+                                "color": "#475569",
+                                "wrap": True,
+                            },
+                        ],
+                    },
+                    {
                         "type": "separator",
                         "margin": "sm",
                     },

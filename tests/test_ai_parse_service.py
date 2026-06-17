@@ -126,6 +126,32 @@ def test_gemini_missing_description_does_not_fall_back_to_raw_text():
     assert result["transaction"]["description"] == ""
 
 
+def test_transport_ticket_route_is_split_into_category_item_and_note():
+    fake_model = FakeGeminiModel(
+        """
+        {
+          "type": "expense",
+          "budget_category": "其他",
+          "category": "火車票",
+          "description": "火車票 A到B 460$",
+          "amount": 460,
+          "target_asset": null
+        }
+        """
+    )
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("火車票 A到B 460$")
+
+    assert result["transaction"]["budget_category"] == "交通"
+    assert result["transaction"]["title"] == "火車"
+    assert result["transaction"]["amount"] == "460"
+    assert result["transaction"]["description"] == "A到B"
+
+
 def test_gemini_raw_text_description_is_treated_as_empty_note():
     fake_model = FakeGeminiModel(
         """
