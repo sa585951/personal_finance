@@ -61,11 +61,20 @@
           <span>項目</span>
           <strong>{{ transaction.title || "未判斷" }}</strong>
         </div>
+        <div>
+          <span>備註</span>
+          <strong>{{ transaction.description || "無" }}</strong>
+        </div>
+        <div>
+          <span>幣別</span>
+          <strong>{{ transaction.currency || "預設" }}</strong>
+        </div>
+        <div>
+          <span>帳戶提示</span>
+          <strong>{{ transaction.account_hint || "無" }}</strong>
+        </div>
       </div>
 
-      <p v-if="transaction?.account_hint" class="hint-line">
-        帳戶提示：{{ transaction.account_hint }}
-      </p>
       <p v-if="missingFields.length" class="parse-message warning">
         尚缺：{{ missingFields.join("、") }}
       </p>
@@ -79,7 +88,7 @@
         type="button"
         @click="applyResult"
       >
-        套用到表單
+        {{ hasAppliedResult ? "已套用，可再套用一次" : "套用到表單" }}
       </button>
     </div>
   </section>
@@ -98,6 +107,7 @@ export default {
       parseResult: null,
       parseEventId: "",
       errorMessage: "",
+      hasAppliedResult: false,
       examples: [
         "午餐麥當勞 150",
         "晚餐 680 用國泰信用卡",
@@ -141,11 +151,13 @@ export default {
       this.errorMessage = "";
       this.parseResult = null;
       this.parseEventId = "";
+      this.hasAppliedResult = false;
     },
     async parseInput() {
       this.errorMessage = "";
       this.parseResult = null;
       this.parseEventId = "";
+      this.hasAppliedResult = false;
       this.isParsing = true;
       try {
         const response = await apiClient.post("/api/ai/parse", {
@@ -167,6 +179,7 @@ export default {
     },
     applyResult() {
       if (!this.transaction) return;
+      this.hasAppliedResult = true;
       this.$emit("apply-draft", {
         ...this.transaction,
         raw_text: this.parseResult.raw_text,

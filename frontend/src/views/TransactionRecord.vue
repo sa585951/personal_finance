@@ -262,13 +262,22 @@ export default {
       });
     },
     applyAIDraft(draft) {
+      const switchedType = ["expense", "income"].includes(draft.type) && draft.type !== this.activeType;
       if (["expense", "income"].includes(draft.type) && draft.type !== this.activeType) {
         this.setActiveType(draft.type);
       }
+      this.editingTransaction = null;
       this.aiDraft = {
         ...draft,
+        switchedType,
         appliedAt: Date.now(),
       };
+      this.$nextTick(() => {
+        document.querySelector(".form-container")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
     },
     async handleTransactionAdded() {
       await this.fetchTransactions();

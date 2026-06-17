@@ -105,6 +105,28 @@
         <strong>{{ transactionPreview }}</strong>
       </div>
 
+      <div v-if="aiReview" class="ai-review full-row">
+        <div class="ai-review-heading">
+          <strong>AI 已套用，送出前請確認</strong>
+          <span>{{ aiReview.type === "income" ? "收入" : "支出" }}</span>
+        </div>
+        <div class="ai-review-grid">
+          <span>項目：{{ aiReview.title || "未判斷" }}</span>
+          <span>金額：{{ aiReview.amount || "未判斷" }}</span>
+          <span>備註：{{ aiReview.description || "無" }}</span>
+          <span>幣別：{{ aiReview.currency || "預設" }}</span>
+        </div>
+        <p v-if="aiReview.accountHint && aiReview.accountMatched" class="ai-review-note">
+          已依「{{ aiReview.accountHint }}」帶入帳戶。
+        </p>
+        <p v-else-if="aiReview.accountHint" class="ai-review-note warning">
+          找不到「{{ aiReview.accountHint }}」對應帳戶，請手動選擇帳戶。
+        </p>
+        <p v-if="aiReview.switchedType" class="ai-review-note warning">
+          已依解析結果切換為{{ aiReview.type === "income" ? "收入" : "支出" }}表單。
+        </p>
+      </div>
+
       <p v-if="submitMessage" class="form-message full-row">{{ submitMessage }}</p>
 
       <button type="submit">{{ submitButtonText }}</button>
@@ -151,6 +173,7 @@ export default {
       assets: {},
       submitMessage: "",
       accountSearchText: "",
+      aiReview: null,
     };
   },
   computed: {
@@ -301,6 +324,7 @@ export default {
       const amount = draft.amount === null || draft.amount === undefined
         ? null
         : Number(draft.amount);
+      const matchedAccountId = this.findAccountIdByHint(draft.account_hint, draft.currency);
 
       this.newTransaction = {
         ...this.newTransaction,
@@ -310,11 +334,23 @@ export default {
         budget_category: draft.budget_category || this.newTransaction.budget_category,
         description: draft.description || "",
         original_currency: draft.currency || this.newTransaction.original_currency,
-        account_id: this.findAccountIdByHint(draft.account_hint, draft.currency) || this.newTransaction.account_id,
+        account_id: matchedAccountId || this.newTransaction.account_id,
         parse_event_id: draft.parse_event_id || "",
       };
+      this.aiReview = {
+        type: transactionType,
+        title: draft.title || "",
+        amount: Number.isFinite(amount) ? this.formatMoney(amount, draft.currency || this.newTransaction.original_currency) : "",
+        description: draft.description || "",
+        currency: draft.currency || "",
+        accountHint: draft.account_hint || "",
+        accountMatched: Boolean(draft.account_hint && matchedAccountId),
+        switchedType: Boolean(draft.switchedType),
+      };
       this.ensureCategoryMatchesType();
-      this.submitMessage = "已套用 AI 解析結果，送出前請再確認欄位。";
+      this.submitMessage = draft.account_hint && !matchedAccountId
+        ? "已套用 AI 解析結果，但帳戶需要手動確認。"
+        : "已套用 AI 解析結果，送出前請再確認欄位。";
     },
     applyEditingTransaction(transaction) {
       this.newTransaction = {
@@ -332,6 +368,7 @@ export default {
       };
       this.ensureCategoryMatchesType();
       this.submitMessage = "正在編輯既有交易，更新後會同步重算帳戶餘額。";
+      this.aiReview = null;
     },
     async submitTransaction() {
       this.submitMessage = "";
@@ -435,6 +472,7 @@ export default {
         description: "",
       };
       this.submitMessage = "";
+      this.aiReview = null;
     },
     cancelEdit() {
       this.resetForm();
@@ -535,6 +573,56 @@ export default {
   line-height: 1.35;
 }
 
+.ai-review {
+  padding: 12px;
+  color: #1e3a8a;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+}
+
+.ai-review-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ai-review-heading span {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #dbeafe;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.ai-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  margin-top: 8px;
+  color: #334155;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.ai-review-grid span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ai-review-note {
+  margin: 8px 0 0;
+  color: #1d4ed8;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.ai-review-note.warning {
+  color: #b45309;
+}
+
 .form-message {
   margin: 0;
   padding: 10px 12px;
@@ -605,6 +693,10 @@ export default {
   .form-container form > button[type="submit"] {
     width: 100%;
     justify-self: stretch;
+  }
+
+  .ai-review-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
