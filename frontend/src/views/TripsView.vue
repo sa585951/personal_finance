@@ -68,8 +68,11 @@
         </label>
         <label class="toggle-row">
           <input v-model="newTrip.include_in_monthly_report" type="checkbox" />
-          併入月報
+          計入日常統計
         </label>
+        <p class="field-hint">
+          開啟後，此旅行支出會一起出現在首頁與收支統計；關閉則只保留在旅行帳本內。
+        </p>
         <button class="primary-action" type="submit" :disabled="submittingTrip">
           <Plus />
           建立
@@ -125,7 +128,7 @@
         <div class="current-trip-card">
           <div>
             <span class="trip-state-badge" :class="{ included: selectedTrip.include_in_monthly_report }">
-              {{ selectedTrip.include_in_monthly_report ? "併入月報" : "旅行獨立" }}
+              {{ tripReportLabel(selectedTrip) }}
             </span>
             <strong>{{ selectedTrip.name }}</strong>
             <span>{{ selectedTrip.destination || "未設定地點" }} · {{ formatRange(selectedTrip) }}</span>
@@ -135,9 +138,20 @@
               <span>{{ selectedTrip.default_currency }} / {{ selectedTrip.base_currency }}</span>
             </div>
           </div>
-          <button class="secondary-action" type="button" @click="showTripSwitcher = true">
-            切換旅行
-          </button>
+          <div class="current-trip-actions">
+            <button
+              v-if="canManageSelectedTrip"
+              class="quiet-action"
+              type="button"
+              :disabled="updatingTripSettings"
+              @click="toggleSelectedTripReportScope"
+            >
+              {{ selectedTrip.include_in_monthly_report ? "改為獨立統計" : "計入日常統計" }}
+            </button>
+            <button class="secondary-action" type="button" @click="showTripSwitcher = true">
+              切換旅行
+            </button>
+          </div>
         </div>
 
         <nav class="trip-tabs" aria-label="旅行操作">
@@ -790,7 +804,7 @@
           >
             <div>
               <span class="trip-state-badge" :class="{ included: trip.include_in_monthly_report }">
-                {{ trip.include_in_monthly_report ? "併入月報" : "旅行獨立" }}
+                {{ tripReportLabel(trip) }}
               </span>
               <strong>{{ trip.name }}</strong>
               <span>{{ trip.destination || "未設定地點" }} · {{ formatRange(trip) }}</span>
@@ -831,6 +845,7 @@ export default {
       submittingMember: false,
       submittingExpense: false,
       submittingInvite: false,
+      updatingTripSettings: false,
       showCreateTrip: false,
       showTripSwitcher: false,
       showTripManagement: false,
@@ -985,6 +1000,13 @@ export default {
       return this.splitSummary.find(
         (member) => member.member_id === this.selectedTrip.current_member_id
       ) || null;
+    },
+    canManageSelectedTrip() {
+      if (!this.selectedTrip || !this.selectedTrip.current_member_id) return false;
+      const currentMember = this.selectedTrip.members.find(
+        (member) => member.id === this.selectedTrip.current_member_id
+      );
+      return currentMember?.role === "owner";
     },
     myTripShareAmount() {
       return Number(this.currentMemberSummary?.share_amount || 0);
@@ -1355,6 +1377,46 @@ export default {
         this.tripMessage = error.response?.data?.message || "旅行建立失敗";
       } finally {
         this.submittingTrip = false;
+      }
+    },
+    async toggleSelectedTripReportScope() {
+      if (!this.selectedTrip || this.updatingTripSettings) return;
+
+      const nextValue = !this.selectedTrip.include_in_monthly_report;
+      const result = await this.$swal.fire({
+        title: nextValue ? "計入日常統計？" : "改為旅行獨立統計？",
+        text: nextValue
+          ? "此旅行支出會一起出現在首頁與收支統計中。"
+          : "此旅行支出將只保留在旅行帳本內，不併入日常統計。",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: nextValue ? "計入日常統計" : "改為獨立統計",
+        cancelButtonText: "取消",
+      });
+      if (!result.isConfirmed) return;
+
+      this.updatingTripSettings = true;
+      try {
+        const response = await apiClient.patch(`/api/trips/${this.selectedTrip.id}`, {
+          include_in_monthly_report: nextValue,
+        });
+        const updatedTrip = response.data.data;
+        this.selectedTrip = {
+          ...this.selectedTrip,
+          ...updatedTrip,
+        };
+        this.trips = this.trips.map((trip) => (
+          trip.id === updatedTrip.id ? { ...trip, ...updatedTrip } : trip
+        ));
+        this.$swal.fire("已更新", response.data.message || "旅行設定已更新。", "success");
+      } catch (error) {
+        this.$swal.fire(
+          "更新失敗",
+          error.response?.data?.message || "請稍後再試。",
+          "error"
+        );
+      } finally {
+        this.updatingTripSettings = false;
       }
     },
     async addMember() {
@@ -2078,6 +2140,9 @@ export default {
     formatRange(trip) {
       return `${trip.start_date} - ${trip.end_date}`;
     },
+    tripReportLabel(trip) {
+      return trip?.include_in_monthly_report ? "計入日常統計" : "旅行獨立統計";
+    },
     formatDateChip(dateString) {
       if (!dateString) return "";
       const parts = String(dateString).split("-");
@@ -2467,6 +2532,13 @@ select:disabled {
   min-height: 18px;
 }
 
+.field-hint {
+  margin: -4px 0 0;
+  color: #64748b;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 .primary-action {
   align-self: end;
   background: #0f766e;
@@ -2520,6 +2592,13 @@ select:disabled {
   display: grid;
   gap: 3px;
   min-width: 0;
+}
+
+.current-trip-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .current-trip-card strong,
@@ -3807,6 +3886,8 @@ select:disabled {
     min-height: auto;
   }
 
+  .current-trip-actions,
+  .current-trip-card .quiet-action,
   .current-trip-card .secondary-action {
     width: 100%;
   }

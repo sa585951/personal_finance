@@ -184,6 +184,13 @@ def test_mvp_schema_can_create_core_records():
         assert listed_trips[0]["id"] == trip["id"]
         assert loaded_trip["members"][0]["role"] == "owner"
 
+        updated_trip = trip_manager.update_trip(
+            user_id=user_id,
+            trip_id=trip["id"],
+            include_in_monthly_report=True,
+        )
+        assert updated_trip["include_in_monthly_report"] is True
+
         managed_trip = trip_manager.create_trip(
             user_id=user_id,
             name="管理測試",

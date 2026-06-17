@@ -554,6 +554,26 @@ def get_trip(current_user_id, trip_id):
         app.logger.error(f"Error in get_trip: {e}")
         return jsonify({"success": False, "message": str(e)}), 404
 
+@app.route("/api/trips/<string:trip_id>", methods=["PATCH"])
+@token_required
+def update_trip(current_user_id, trip_id):
+    data = request.get_json()
+    if not data or "include_in_monthly_report" not in data:
+        return jsonify({"success": False, "message": "缺少可更新欄位"}), 400
+
+    try:
+        trip = trip_manager.update_trip(
+            current_user_id,
+            trip_id,
+            include_in_monthly_report=data.get("include_in_monthly_report"),
+        )
+        db_session.commit()
+        return jsonify({"success": True, "message": "旅行設定已更新", "data": trip}), 200
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in update_trip: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
 @app.route("/api/trips/<string:trip_id>/overview", methods=["GET"])
 @token_required
 def get_trip_overview(current_user_id, trip_id):

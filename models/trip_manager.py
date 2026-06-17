@@ -238,6 +238,23 @@ class TripManager:
         )
         return self.get_trip(parsed_user_id, trip["id"])
 
+    def update_trip(self, user_id, trip_id, include_in_monthly_report=None):
+        trip = self._ensure_owner(user_id, trip_id)
+        values = {}
+        if include_in_monthly_report is not None:
+            values["include_in_monthly_report"] = bool(include_in_monthly_report)
+
+        if not values:
+            raise ValueError("缺少可更新欄位")
+
+        values["updated_at"] = datetime.now(timezone.utc)
+        self.db_session.execute(
+            update(trips_table)
+            .where(trips_table.c.id == trip["id"])
+            .values(**values)
+        )
+        return self.get_trip(user_id, trip["id"])
+
     def list_trip_members(self, user_id, trip_id):
         trip = self._ensure_trip_access(user_id, trip_id)
         return self._list_trip_members_for_trip(trip["id"])
