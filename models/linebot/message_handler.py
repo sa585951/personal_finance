@@ -125,26 +125,28 @@ class MessageHandler:
     def _handle_expense(self, parsed_data, user_id):
         """處理支出記錄並更新資產餘額"""
         try:
-            # 1. 新增交易紀錄
-            self.budget_manager.add_transaction(
-                user_id, self._transaction_date(parsed_data),
-                parsed_data['category'], parsed_data['amount'], 'expense',
-                parsed_data['budget_category'], parsed_data.get('description', ''),
-                original_currency=parsed_data.get("currency"),
-            )
-
-            # 2. 處理資產餘額更新
-            asset_update_msg = None
             target_asset_name = parsed_data.get("target_asset")
+            asset = None
             if target_asset_name:
                 asset = self.asset_manager.find_asset_by_name(
                     user_id,
                     target_asset_name,
                     currency=parsed_data.get("currency"),
                 )
+
+            # 1. 新增交易紀錄
+            self.budget_manager.add_transaction(
+                user_id, self._transaction_date(parsed_data),
+                parsed_data['category'], parsed_data['amount'], 'expense',
+                parsed_data['budget_category'], parsed_data.get('description', ''),
+                account_id=asset["account_key"] if asset else None,
+                original_currency=parsed_data.get("currency") or (asset["currency"] if asset else None),
+            )
+
+            # 2. 帳戶餘額已由 BudgetManager 依 account_id 同步更新，避免交易與餘額狀態分離。
+            asset_update_msg = None
+            if target_asset_name:
                 if asset:
-                    amount_change = -float(parsed_data["amount"])
-                    self.asset_manager.adjust_asset_balance(user_id, asset['account_key'], amount_change)
                     asset_update_msg = f"已從 {asset['bank_name']} 扣款"
                 else:
                     asset_update_msg = f"找不到名為 {target_asset_name} 的資產"
@@ -163,26 +165,28 @@ class MessageHandler:
     def _handle_income(self, parsed_data, user_id):
         """處理收入記錄並更新資產餘額"""
         try:
-            # 1. 新增交易紀錄
-            self.budget_manager.add_transaction(
-                user_id, self._transaction_date(parsed_data),
-                parsed_data['category'], parsed_data['amount'], 'income',
-                parsed_data['budget_category'], parsed_data.get('description', ''),
-                original_currency=parsed_data.get("currency"),
-            )
-
-            # 2. 處理資產餘額更新
-            asset_update_msg = None
             target_asset_name = parsed_data.get("target_asset")
+            asset = None
             if target_asset_name:
                 asset = self.asset_manager.find_asset_by_name(
                     user_id,
                     target_asset_name,
                     currency=parsed_data.get("currency"),
                 )
+
+            # 1. 新增交易紀錄
+            self.budget_manager.add_transaction(
+                user_id, self._transaction_date(parsed_data),
+                parsed_data['category'], parsed_data['amount'], 'income',
+                parsed_data['budget_category'], parsed_data.get('description', ''),
+                account_id=asset["account_key"] if asset else None,
+                original_currency=parsed_data.get("currency") or (asset["currency"] if asset else None),
+            )
+
+            # 2. 帳戶餘額已由 BudgetManager 依 account_id 同步更新，避免交易與餘額狀態分離。
+            asset_update_msg = None
+            if target_asset_name:
                 if asset:
-                    amount_change = float(parsed_data["amount"])
-                    self.asset_manager.adjust_asset_balance(user_id, asset['account_key'], amount_change)
                     asset_update_msg = f"已存入 {asset['bank_name']}"
                 else:
                     asset_update_msg = f"找不到名為 {target_asset_name} 的資產"
