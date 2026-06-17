@@ -137,10 +137,12 @@ def test_help_message_lists_line_command_examples():
 
     assert isinstance(message, FlexSendMessage)
     assert message.alt_text == "LINE 可用功能"
-    assert "- 午餐麥當勞 150" in text_values
+    assert "- 午餐麥當勞 150 用現金" in text_values
     assert "- 晚餐 680 用國泰信用卡" in text_values
     assert "- 薪資 50000 存入銀行" in text_values
+    assert "- 咖啡 5 美元 用美金現金" in text_values
     assert "帳戶連動提示" in text_values
+    assert "旅行帳本請開啟 Web 使用；LINE 目前用於快速記帳與查詢。" in text_values
     assert "我的資產" in text_values
     assert "我要轉帳" in text_values
 
