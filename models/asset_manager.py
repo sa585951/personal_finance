@@ -482,6 +482,8 @@ class AssetManager:
                 transactions_table.c.original_amount.label("amount"),
                 transactions_table.c.original_currency.label("currency"),
                 transactions_table.c.trip_id,
+                transactions_table.c.user_id,
+                transactions_table.c.created_by_user_id,
                 categories_table.c.name.label("budget_category"),
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
@@ -525,6 +527,9 @@ class AssetManager:
         if normalized_filter != "transfer":
             for row in self.db_session.execute(transaction_stmt):
                 transaction = dict(row._mapping)
+                can_manage = False
+                if not transaction["trip_id"]:
+                    can_manage = transaction["user_id"] == parsed_user_id
                 activities.append({
                     "id": str(transaction["id"]),
                     "type": "transaction",
@@ -538,6 +543,8 @@ class AssetManager:
                     "created_at": transaction["created_at"].isoformat() if transaction["created_at"] else None,
                     "budget_category": transaction["budget_category"],
                     "trip_id": str(transaction["trip_id"]) if transaction["trip_id"] else None,
+                    "can_edit": can_manage,
+                    "can_delete": can_manage,
                 })
 
         if normalized_filter not in {"income", "expense"}:

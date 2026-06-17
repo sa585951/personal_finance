@@ -62,6 +62,9 @@
         @update-balance="updateBalance"
         @edit-transfer="startTransferEdit"
         @delete-transfer="deleteTransfer"
+        @edit-transaction="openTransactionEdit"
+        @delete-transaction="deleteTransaction"
+        @open-trip="openTripLedger"
       />
 
       <TransferHistory
@@ -337,6 +340,49 @@ export default {
         await this.refreshLoadedAccountActivities();
         this.editingTransfer = null;
         this.$swal.fire("已刪除", "轉帳紀錄已刪除並回復餘額。", "success");
+      } catch (err) {
+        this.$swal.fire(
+          "刪除失敗",
+          err.response?.data?.message || "請稍後再試。",
+          "error"
+        );
+      }
+    },
+    openTransactionEdit(transaction) {
+      if (!transaction?.id || transaction.trip_id) return;
+      this.$router.push({
+        path: "/transactions",
+        query: {
+          type: transaction.transaction_type === "income" ? "income" : "expense",
+          edit: transaction.id,
+        },
+      });
+    },
+    openTripLedger(transaction) {
+      this.$router.push({
+        path: "/trips",
+        query: transaction?.trip_id ? { trip_id: transaction.trip_id } : {},
+      });
+    },
+    async deleteTransaction(transaction) {
+      if (!transaction?.id || transaction.trip_id || transaction.can_delete === false) return;
+
+      const result = await this.$swal.fire({
+        title: "刪除收支紀錄？",
+        text: "這會同步回復該筆交易造成的帳戶餘額變動。",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "刪除",
+        cancelButtonText: "取消",
+      });
+      if (!result.isConfirmed) return;
+
+      try {
+        await apiClient.delete(`/api/transactions/${transaction.id}`);
+        await this.fetchAssets();
+        await this.fetchRecentTransfers();
+        await this.refreshLoadedAccountActivities();
+        this.$swal.fire("已刪除", "收支紀錄已刪除並回復餘額。", "success");
       } catch (err) {
         this.$swal.fire(
           "刪除失敗",

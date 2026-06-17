@@ -46,18 +46,17 @@
           <span v-if="activity.trip_id">旅行</span>
         </div>
         <div
-          v-if="activity.type === 'transfer'"
+          v-if="activityActions(activity).length"
           class="activity-actions"
         >
-          <button type="button" @click="$emit('edit-transfer', activity)">
-            編輯
-          </button>
           <button
+            v-for="action in activityActions(activity)"
+            :key="action.event"
             type="button"
-            class="danger"
-            @click="$emit('delete-transfer', activity)"
+            :class="{ danger: action.danger }"
+            @click="$emit(action.event, activity)"
           >
-            刪除
+            {{ action.label }}
           </button>
         </div>
       </article>
@@ -117,7 +116,15 @@ export default {
       }),
     },
   },
-  emits: ["filter-change", "page-change", "edit-transfer", "delete-transfer"],
+  emits: [
+    "filter-change",
+    "page-change",
+    "edit-transfer",
+    "delete-transfer",
+    "edit-transaction",
+    "delete-transaction",
+    "open-trip",
+  ],
   computed: {
     activityFilters() {
       return [
@@ -144,6 +151,29 @@ export default {
     requestPage(page) {
       if (page < 1) return;
       this.$emit("page-change", page);
+    },
+    activityActions(activity) {
+      if (activity.type === "transfer") {
+        return [
+          { event: "edit-transfer", label: "編輯" },
+          { event: "delete-transfer", label: "刪除", danger: true },
+        ];
+      }
+      if (activity.type !== "transaction") {
+        return [];
+      }
+      if (activity.trip_id) {
+        return [{ event: "open-trip", label: "前往旅行帳本" }];
+      }
+
+      const actions = [];
+      if (activity.can_edit !== false) {
+        actions.push({ event: "edit-transaction", label: "前往編輯" });
+      }
+      if (activity.can_delete !== false) {
+        actions.push({ event: "delete-transaction", label: "刪除", danger: true });
+      }
+      return actions;
     },
     activityTitle(activity) {
       if (activity.type === "transfer") {

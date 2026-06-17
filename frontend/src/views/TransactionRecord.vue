@@ -33,7 +33,7 @@
       :editing-transaction="editingTransaction"
       @transaction-added="handleTransactionAdded"
       @transaction-updated="handleTransactionUpdated"
-      @edit-cancelled="editingTransaction = null"
+      @edit-cancelled="cancelEditingTransaction"
     />
 
     <TransactionSummary :transactions="transactions" />
@@ -147,6 +147,14 @@ export default {
       this.activeType = this.initialTypeFromRoute();
       this.selectedRecordDate = "all";
       this.showAllRecords = false;
+    },
+    "$route.query.edit": {
+      immediate: true,
+      handler(transactionId) {
+        if (transactionId) {
+          this.loadTransactionForEdit(transactionId);
+        }
+      },
     },
     selectedRecordDate() {
       this.showAllRecords = false;
@@ -286,6 +294,11 @@ export default {
     async handleTransactionUpdated() {
       this.editingTransaction = null;
       await this.fetchTransactions();
+      this.clearEditQuery();
+    },
+    cancelEditingTransaction() {
+      this.editingTransaction = null;
+      this.clearEditQuery();
     },
     startEditingTransaction(transaction) {
       if (!transaction?.id) return;
@@ -309,6 +322,36 @@ export default {
           behavior: "smooth",
           block: "start",
         });
+      });
+    },
+    async loadTransactionForEdit(transactionId) {
+      try {
+        const response = await apiClient.get(`/api/transactions/${transactionId}`);
+        const transaction = response.data.data;
+        if (transaction.trip_id) {
+          this.$router.replace({
+            path: "/trips",
+            query: { trip_id: transaction.trip_id },
+          });
+          return;
+        }
+        this.startEditingTransaction(transaction);
+      } catch (error) {
+        console.error("無法載入交易明細", error);
+        this.$swal.fire(
+          "無法開啟編輯",
+          error.response?.data?.message || "請稍後再試。",
+          "error"
+        );
+        this.clearEditQuery();
+      }
+    },
+    clearEditQuery() {
+      if (!this.$route.query.edit) return;
+      const { edit, ...query } = this.$route.query;
+      this.$router.replace({
+        path: this.$route.path,
+        query,
       });
     },
     refreshAIEvents() {

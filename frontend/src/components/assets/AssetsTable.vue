@@ -177,6 +177,9 @@
               @page-change="requestActivityPage(account.key, $event)"
               @edit-transfer="$emit('edit-transfer', $event)"
               @delete-transfer="$emit('delete-transfer', $event)"
+              @edit-transaction="$emit('edit-transaction', $event)"
+              @delete-transaction="$emit('delete-transaction', $event)"
+              @open-trip="$emit('open-trip', $event)"
             />
           </article>
         </div>
@@ -229,6 +232,9 @@ export default {
     "update-account",
     "edit-transfer",
     "delete-transfer",
+    "edit-transaction",
+    "delete-transaction",
+    "open-trip",
   ],
   data() {
     return {
