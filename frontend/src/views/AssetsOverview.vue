@@ -60,6 +60,8 @@
         @request-account-activity="fetchAccountActivity"
         @update-account="updateAccount"
         @update-balance="updateBalance"
+        @edit-transfer="startTransferEdit"
+        @delete-transfer="deleteTransfer"
       />
 
       <TransferHistory
@@ -101,6 +103,7 @@ export default {
       accountActivityLoading: {},
       accountActivityErrors: {},
       accountActivityPagination: {},
+      accountActivityRequests: {},
     };
   },
   computed: {
@@ -126,6 +129,7 @@ export default {
     async handleTransferSuccess() {
       await this.fetchAssets();
       await this.fetchRecentTransfers();
+      await this.refreshLoadedAccountActivities();
       this.activeAction = null;
       this.editingTransfer = null;
     },
@@ -167,6 +171,13 @@ export default {
         ...this.accountActivityErrors,
         [accountId]: "",
       };
+      this.accountActivityRequests = {
+        ...this.accountActivityRequests,
+        [accountId]: {
+          page,
+          filter: activityFilter,
+        },
+      };
 
       try {
         const response = await apiClient.get(
@@ -198,6 +209,16 @@ export default {
           [accountId]: false,
         };
       }
+    },
+    async refreshLoadedAccountActivities() {
+      const requests = Object.entries(this.accountActivityRequests);
+      if (!requests.length) return;
+
+      await Promise.all(
+        requests.map(([accountId, request]) => (
+          this.fetchAccountActivity(accountId, request.page || 1, request.filter || "all")
+        ))
+      );
     },
     calculateTotals(assets) {
       const totalsByCurrency = {};
@@ -313,6 +334,7 @@ export default {
         await apiClient.delete(`/api/transfers/${transfer.id}`);
         await this.fetchAssets();
         await this.fetchRecentTransfers();
+        await this.refreshLoadedAccountActivities();
         this.editingTransfer = null;
         this.$swal.fire("已刪除", "轉帳紀錄已刪除並回復餘額。", "success");
       } catch (err) {

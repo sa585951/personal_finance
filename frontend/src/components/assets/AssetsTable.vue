@@ -175,6 +175,8 @@
               :pagination="accountActivityPage(account.key)"
               @filter-change="changeActivityFilter(account.key, $event)"
               @page-change="requestActivityPage(account.key, $event)"
+              @edit-transfer="$emit('edit-transfer', $event)"
+              @delete-transfer="$emit('delete-transfer', $event)"
             />
           </article>
         </div>
@@ -220,7 +222,14 @@ export default {
       default: () => ({}),
     },
   },
-  emits: ["delete-account", "request-account-activity", "update-balance", "update-account"],
+  emits: [
+    "delete-account",
+    "request-account-activity",
+    "update-balance",
+    "update-account",
+    "edit-transfer",
+    "delete-transfer",
+  ],
   data() {
     return {
       searchText: "",

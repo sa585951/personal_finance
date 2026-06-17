@@ -45,6 +45,21 @@
           <span>{{ activityBadge(activity) }}</span>
           <span v-if="activity.trip_id">旅行</span>
         </div>
+        <div
+          v-if="activity.type === 'transfer'"
+          class="activity-actions"
+        >
+          <button type="button" @click="$emit('edit-transfer', activity)">
+            編輯
+          </button>
+          <button
+            type="button"
+            class="danger"
+            @click="$emit('delete-transfer', activity)"
+          >
+            刪除
+          </button>
+        </div>
       </article>
     </div>
     <div
@@ -102,7 +117,7 @@ export default {
       }),
     },
   },
-  emits: ["filter-change", "page-change"],
+  emits: ["filter-change", "page-change", "edit-transfer", "delete-transfer"],
   computed: {
     activityFilters() {
       return [
@@ -295,6 +310,31 @@ export default {
   color: #475569;
   font-size: 0.76rem;
   font-weight: 800;
+}
+
+.activity-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.activity-actions button {
+  min-height: 32px;
+  padding: 0 10px;
+  color: #334155;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.activity-actions .danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
 }
 
 .activity-pagination {
