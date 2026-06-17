@@ -641,7 +641,7 @@ class OperationTheme(BaseTheme):
                         "layout": "baseline",
                         "contents": [
                             {"type": "text", "text": "時間", "size": "sm", "color": "#666666", "flex": 1},
-                            {"type": "text", "text": datetime.now().strftime("%Y/%m/%d %H:%M"), "size": "sm", "color": "#333333", "flex": 3}
+                            {"type": "text", "text": self._format_display_time(), "size": "sm", "color": "#333333", "flex": 3}
                         ],
                         "margin": "md"
                     }
@@ -872,7 +872,7 @@ class OperationTheme(BaseTheme):
                         "layout": "baseline",
                         "contents": [
                             {"type": "text", "text": "時間", "size": "sm", "color": "#666666", "flex": 1},
-                            {"type": "text", "text": datetime.now().strftime("%Y/%m/%d %H:%M"), "size": "sm", "color": "#333333", "flex": 3}
+                            {"type": "text", "text": self._format_display_time(), "size": "sm", "color": "#333333", "flex": 3}
                         ],
                         "margin": "md"
                     }
@@ -1359,7 +1359,7 @@ class OperationTheme(BaseTheme):
                         "layout": "baseline",
                         "contents": [
                             {"type": "text", "text": "時間", "size": "sm", "color": "#666666", "flex": 1},
-                            {"type": "text", "text": datetime.now().strftime("%Y/%m/%d %H:%M"), "size": "sm", "color": "#333333", "flex": 3}
+                            {"type": "text", "text": self._format_display_time(), "size": "sm", "color": "#333333", "flex": 3}
                         ],
                         "margin": "md"
                     }
@@ -1632,7 +1632,7 @@ class OperationTheme(BaseTheme):
                         "contents": [
                             self._create_info_row("銀行", asset['bank_name']),
                             self._create_info_row("類型", asset['account_type']),
-                            self._create_info_row("時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                            self._create_info_row("時間", self._format_display_time())
                         ],
                         "backgroundColor": self.COLORS['bg_success'],
                         "paddingAll": self.SPACING['md'],
@@ -1962,7 +1962,7 @@ class OperationTheme(BaseTheme):
                             self._create_info_row("日期", str(date)),
                             self._create_info_row("分類", category),
                             self._create_info_row("金額", amount_text, type_color),
-                            self._create_info_row("刪除時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                            self._create_info_row("刪除時間", self._format_display_time())
                         ],
                         "backgroundColor": self.COLORS['bg_success'],
                         "paddingAll": self.SPACING['md'],
@@ -2213,7 +2213,7 @@ class OperationTheme(BaseTheme):
                 "contents": [
                     self._create_info_row("分類", data['category']),
                     self._create_info_row("備註", data.get('description') or "無"),
-                    self._create_info_row("時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                    self._create_info_row("時間", self._format_display_time())
                 ]
             }
         }
@@ -2695,7 +2695,7 @@ class OperationTheme(BaseTheme):
                     self._create_info_row("目標類型", data['type']),
                     self._create_info_row("目標金額", f"${data['target_amount']:,}"),
                     self._create_info_row("目標日期", data['target_date']),
-                    self._create_info_row("新增時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                    self._create_info_row("新增時間", self._format_display_time())
                 ]
             },
             "footer": {
@@ -3132,7 +3132,7 @@ class OperationTheme(BaseTheme):
                         "contents": [
                             self._create_info_row("目標名稱", goal['title']),
                             self._create_info_row("目標類型", goal['type']),
-                            self._create_info_row("刪除時間", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                            self._create_info_row("刪除時間", self._format_display_time())
                         ],
                         "backgroundColor": self.COLORS['bg_success'],
                         "paddingAll": self.SPACING['md'],

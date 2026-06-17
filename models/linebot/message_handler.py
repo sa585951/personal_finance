@@ -1,6 +1,7 @@
 # models/linebot/message_handler.py
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 # 移除簡單的 Handler 導入，因為我們會將其邏輯直接整合進來
 # from .handlers import ExpenseHandler, IncomeHandler, QueryHandler, AssetHandler, GoalHandler
 
@@ -20,6 +21,8 @@ from .flow_handlers.set_budget_flow_handler import SetBudgetFlowHandler
 from .response_builder import ResponseBuilder
 
 class MessageHandler:
+    DEFAULT_TRANSACTION_TIMEZONE = "Asia/Taipei"
+
     """訊息處理器 - 負責訊息路由和處理邏輯"""
     def __init__(self, user_state_manager, db_session):
         self.user_state_manager = user_state_manager
@@ -124,7 +127,7 @@ class MessageHandler:
         try:
             # 1. 新增交易紀錄
             self.budget_manager.add_transaction(
-                user_id, datetime.now().strftime("%Y-%m-%d"),
+                user_id, self._transaction_date(parsed_data),
                 parsed_data['category'], parsed_data['amount'], 'expense',
                 parsed_data['budget_category'], parsed_data.get('description', ''),
                 original_currency=parsed_data.get("currency"),
@@ -150,6 +153,7 @@ class MessageHandler:
                 "category": parsed_data["category"],
                 "amount": parsed_data["amount"],
                 "description": parsed_data.get("description") or "",
+                "date": self._transaction_date(parsed_data),
                 "account_message": asset_update_msg,
             }
             return self.response_builder.create_expense_success(response_data)
@@ -161,7 +165,7 @@ class MessageHandler:
         try:
             # 1. 新增交易紀錄
             self.budget_manager.add_transaction(
-                user_id, datetime.now().strftime("%Y-%m-%d"),
+                user_id, self._transaction_date(parsed_data),
                 parsed_data['category'], parsed_data['amount'], 'income',
                 parsed_data['budget_category'], parsed_data.get('description', ''),
                 original_currency=parsed_data.get("currency"),
@@ -186,11 +190,18 @@ class MessageHandler:
             response_data = {
                 "amount": parsed_data["amount"],
                 "description": parsed_data.get("description") or "",
+                "date": self._transaction_date(parsed_data),
                 "account_message": asset_update_msg,
             }
             return self.response_builder.create_income_success(response_data)
         except Exception as e:
             return self.response_builder.create_error_message(f"紀錄失敗: {e}")
+
+    def _transaction_date(self, parsed_data):
+        parsed_date = parsed_data.get("date")
+        if parsed_date:
+            return parsed_date
+        return datetime.now(ZoneInfo(self.DEFAULT_TRANSACTION_TIMEZONE)).strftime("%Y-%m-%d")
     
     def _handle_query(self, user_id):
         """處理查詢請求"""

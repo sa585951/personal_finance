@@ -9,12 +9,15 @@ class AccountingTheme(BaseTheme):
         category = data.get("category", "其他")
         amount = data.get("amount", 0)
         description = data.get("description") or ""
+        transaction_date = data.get("date")
         account_message = data.get("account_message")
         
         category_color = self.CATEGORY_COLORS.get(category, self.COLORS['text_muted'])
         detail_rows = [
             self._create_info_row("時間", "剛剛"),
         ]
+        if transaction_date:
+            detail_rows.insert(0, self._create_info_row("日期", transaction_date))
         if description:
             detail_rows.insert(0, self._create_info_row("備註", description))
         if account_message:
@@ -121,10 +124,13 @@ class AccountingTheme(BaseTheme):
         """建立收入成功訊息"""
         amount = data.get("amount", 0)
         description = data.get("description") or ""
+        transaction_date = data.get("date")
         account_message = data.get("account_message")
         detail_rows = [
             self._create_info_row("時間", "剛剛"),
         ]
+        if transaction_date:
+            detail_rows.insert(0, self._create_info_row("日期", transaction_date))
         if description:
             detail_rows.insert(0, self._create_info_row("備註", description))
         if account_message:

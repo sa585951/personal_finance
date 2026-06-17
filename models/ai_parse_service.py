@@ -1,11 +1,14 @@
 import re
 from copy import deepcopy
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from zoneinfo import ZoneInfo
 
 from .linebot.parsers import GeminiParser, QuickParser
 
 
 TRANSACTION_TYPES = {"expense", "income"}
+DEFAULT_TRANSACTION_TIMEZONE = "Asia/Taipei"
 DISABLED_GOAL_TYPES = {
     "goal_query",
     "manage_goal",
@@ -35,6 +38,7 @@ class AIParseService:
         raw_text = (message or "").strip()
         legacy_result, parser_source = self._parse_legacy(raw_text)
         legacy_result = self._apply_standard_field_split(legacy_result, raw_text)
+        legacy_result = self._apply_transaction_date(legacy_result, raw_text)
 
         return {
             "intent": self._detect_intent(legacy_result),
@@ -91,6 +95,7 @@ class AIParseService:
             "amount": amount,
             "currency": self._detect_currency(message),
             "target_asset": self._detect_account_hint(message),
+            "date": self._extract_transaction_date(message),
             "fallback_reason": "gemini_error",
         }
 
@@ -113,6 +118,20 @@ class AIParseService:
         refined["description"] = standard_fields["description"]
         refined["currency"] = refined.get("currency") or self._detect_currency(raw_text)
         refined["target_asset"] = refined.get("target_asset") or self._detect_account_hint(raw_text)
+        return refined
+
+    def _apply_transaction_date(self, legacy_result, raw_text):
+        if legacy_result.get("type") not in TRANSACTION_TYPES:
+            return legacy_result
+        if legacy_result.get("date"):
+            return legacy_result
+
+        parsed_date = self._extract_transaction_date(raw_text)
+        if not parsed_date:
+            return legacy_result
+
+        refined = deepcopy(legacy_result)
+        refined["date"] = parsed_date
         return refined
 
     def _extract_amount(self, message):
@@ -200,6 +219,7 @@ class AIParseService:
 
     def _clean_local_description(self, message):
         description = re.sub(r"\d+(?:\.\d+)?\s*(?:元|塊|圓|twd|ntd)?", "", message, flags=re.IGNORECASE)
+        description = self._remove_date_phrase(description)
         description = self._remove_account_phrase(description)
         description = self._remove_currency_words(description)
         description = re.sub(r"(用|使用|付|付款|刷卡|現金|信用卡|銀行|郵局|LINE Pay|街口|悠遊卡)", "", description)
@@ -288,6 +308,54 @@ class AIParseService:
             message,
             flags=re.IGNORECASE,
         )
+
+    def _extract_transaction_date(self, message):
+        today = self._today()
+        if re.search(r"前天", message):
+            return (today - timedelta(days=2)).isoformat()
+        if re.search(r"昨天|昨晚|昨日", message):
+            return (today - timedelta(days=1)).isoformat()
+        if re.search(r"今天|今日|剛剛", message):
+            return today.isoformat()
+
+        full_date_match = re.search(
+            r"(?<!\d)(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})(?:日|號)?",
+            message,
+        )
+        if full_date_match:
+            return self._safe_iso_date(
+                int(full_date_match.group(1)),
+                int(full_date_match.group(2)),
+                int(full_date_match.group(3)),
+            )
+
+        month_day_match = re.search(
+            r"(?<!\d)(\d{1,2})\s*(?:/|-|月)\s*(\d{1,2})(?:日|號)?",
+            message,
+        )
+        if month_day_match:
+            return self._safe_iso_date(
+                today.year,
+                int(month_day_match.group(1)),
+                int(month_day_match.group(2)),
+            )
+
+        return None
+
+    def _remove_date_phrase(self, message):
+        cleaned = re.sub(r"(前天|昨天|昨晚|昨日|今天|今日|剛剛)(早上|上午|中午|下午|晚上|夜間|凌晨)?", "", message)
+        cleaned = re.sub(r"20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}(?:日|號)?", "", cleaned)
+        cleaned = re.sub(r"(?<!\d)\d{1,2}\s*(?:/|-|月)\s*\d{1,2}(?:日|號)?", "", cleaned)
+        return cleaned
+
+    def _safe_iso_date(self, year, month, day):
+        try:
+            return date(year, month, day).isoformat()
+        except ValueError:
+            return None
+
+    def _today(self):
+        return datetime.now(ZoneInfo(DEFAULT_TRANSACTION_TIMEZONE)).date()
 
     def _detect_intent(self, legacy_result):
         result_type = legacy_result.get("type")

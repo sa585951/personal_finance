@@ -1,3 +1,5 @@
+from datetime import date
+
 from models.ai_parse_service import AIParseService
 from models.linebot.message_parser import MessageParser
 
@@ -223,6 +225,58 @@ def test_standard_account_expense_keeps_account_hint_and_empty_note():
     assert result["transaction"]["title"] == "晚餐"
     assert result["transaction"]["description"] == ""
     assert result["transaction"]["account_hint"] == "國泰信用卡"
+
+
+def test_relative_date_phrase_is_parsed_and_removed_from_note():
+    fake_model = FakeGeminiModel(
+        """
+        {
+          "type": "expense",
+          "budget_category": "伙食",
+          "category": "晚餐",
+          "description": "昨天晚上晚餐麥當勞",
+          "amount": 150,
+          "target_asset": null
+        }
+        """
+    )
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+    service._today = lambda: date(2026, 6, 17)
+
+    result = service.parse("昨天晚上晚餐麥當勞 150")
+
+    assert result["legacy"]["date"] == "2026-06-16"
+    assert result["transaction"]["date"] == "2026-06-16"
+    assert result["transaction"]["title"] == "晚餐"
+    assert result["transaction"]["description"] == "麥當勞"
+
+
+def test_month_day_date_phrase_uses_current_year():
+    fake_model = FakeGeminiModel(
+        """
+        {
+          "type": "expense",
+          "budget_category": "伙食",
+          "category": "午餐",
+          "description": "",
+          "amount": 120,
+          "target_asset": null
+        }
+        """
+    )
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+    service._today = lambda: date(2026, 6, 17)
+
+    result = service.parse("6/13 午餐 120")
+
+    assert result["transaction"]["date"] == "2026-06-13"
+    assert result["transaction"]["title"] == "午餐"
 
 
 def test_standard_income_sentence_keeps_income_item_and_account_hint():

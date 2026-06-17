@@ -225,7 +225,7 @@ class StatisticsTheme(BaseTheme):
                     },
                     {
                         "type": "text",
-                        "text": f"更新時間: {datetime.now().strftime('%Y/%m/%d %H:%M')}",
+                        "text": f"更新時間: {self._format_display_time()}",
                         "size": "xs",
                         "color": "#999999",
                         "margin": "sm"
@@ -838,7 +838,7 @@ class StatisticsTheme(BaseTheme):
                     },
                     {
                         "type": "text",
-                        "text": f"更新時間: {datetime.now().strftime('%Y/%m/%d %H:%M')}",
+                        "text": f"更新時間: {self._format_display_time()}",
                         "size": "xs",
                         "color": "#999999",
                         "margin": "sm"

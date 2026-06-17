@@ -1,5 +1,11 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+
 class BaseTheme:
     """基礎設計規範 - 參考記帳小旺來風格"""
+
+    DEFAULT_DISPLAY_TIMEZONE = "Asia/Taipei"
     
     # 主色系 (模仿小旺來的溫暖綠色調)
     COLORS = {
@@ -67,3 +73,12 @@ class BaseTheme:
         "生活": "#8D6E63",     # 咖啡色
         "其他": "#BDBDBD"      # 灰色
     }
+
+    def _format_display_time(self, timezone_name=None):
+        """LINE 顯示用時間，避免 Render 等 UTC 環境讓使用者看到錯誤時區。"""
+        display_timezone = timezone_name or self.DEFAULT_DISPLAY_TIMEZONE
+        try:
+            tzinfo = ZoneInfo(display_timezone)
+        except ZoneInfoNotFoundError:
+            tzinfo = ZoneInfo(self.DEFAULT_DISPLAY_TIMEZONE)
+        return datetime.now(tzinfo).strftime("%Y/%m/%d %H:%M")
