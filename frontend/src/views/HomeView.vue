@@ -2,71 +2,8 @@
   <div class="home-screen">
     <header class="home-header">
       <p class="eyebrow">Nomica</p>
-      <h1>今天要記什麼？</h1>
+      <h1>今天的財務狀態</h1>
     </header>
-
-    <section class="quick-actions" aria-label="快速入口">
-      <router-link class="action-card expense" to="/transactions?type=expense">
-        <span>記一筆支出</span>
-        <strong>日常消費</strong>
-      </router-link>
-      <router-link class="action-card trip" to="/trips">
-        <span>旅行帳本</span>
-        <strong>記旅行 / 分帳</strong>
-      </router-link>
-    </section>
-
-    <section class="secondary-actions" aria-label="常用入口">
-      <router-link to="/budgets">看預算</router-link>
-      <router-link to="/assets">看帳戶</router-link>
-    </section>
-
-    <section class="daily-summary-panel" aria-label="今日與本週摘要">
-      <div class="section-heading">
-        <h2>今日 / 本週摘要</h2>
-        <span>{{ includeTripsInHome ? "含旅行" : "日常" }}</span>
-      </div>
-      <div class="daily-summary-grid">
-        <div class="summary-card today">
-          <span>今日支出</span>
-          <strong>{{ formatDisplayMoney(todayExpense) }}</strong>
-          <p>{{ todayExpense > 0 ? "今天已記錄的支出" : "今天還沒有支出紀錄" }}</p>
-        </div>
-        <div class="summary-card week">
-          <span>本週支出</span>
-          <strong>{{ formatDisplayMoney(weekExpense) }}</strong>
-          <p>{{ weekExpense > 0 ? "本週累計支出" : "本週還沒有支出紀錄" }}</p>
-        </div>
-      </div>
-      <router-link
-        v-if="!latestTransaction"
-        class="summary-empty-action"
-        to="/transactions?type=expense"
-      >
-        今天還沒有紀錄，先記一筆支出
-      </router-link>
-      <div v-else class="latest-summary">
-        <span>最近一筆</span>
-        <strong>
-          {{ latestTransaction.category || latestTransaction.budget_category || "未命名紀錄" }}
-          <small v-if="latestTransaction.trip_id">旅行</small>
-        </strong>
-        <p>
-          {{ formatShortDate(latestTransaction.date) }} ·
-          {{ latestTransaction.type === "income" ? "收入" : "支出" }}
-          {{ latestTransaction.type === "income" ? "+" : "-" }}{{ formatMoney(monthlyReportAmount(latestTransaction), latestTransaction.base_currency || "TWD") }}
-        </p>
-      </div>
-      <router-link
-        v-if="overspendingWarnings.length"
-        class="budget-warning-summary"
-        to="/budgets"
-      >
-        <span>預算提醒</span>
-        <strong>{{ overspendingWarnings.length }} 個分類超支</strong>
-        <p>本月已超出 {{ formatDisplayMoney(totalOverspending) }}，優先檢查 {{ overspendingCategoryText }}。</p>
-      </router-link>
-    </section>
 
     <section class="monthly-overview-card" aria-label="本月月報">
       <div class="overview-card-header">
@@ -120,6 +57,80 @@
             :style="{ width: `${monthlyExpenseRatio}%` }"
           ></div>
         </div>
+      </div>
+      <div class="overview-expense-source">
+        <span>主要支出來源</span>
+        <strong>{{ expenseSourceTitle }}</strong>
+        <p>{{ expenseSourceDescription }}</p>
+      </div>
+    </section>
+
+    <section class="insights-panel" aria-label="Nomica Insights">
+      <div class="section-heading">
+        <h2>Nomica Insights</h2>
+        <span>現在需要注意什麼</span>
+      </div>
+
+      <div v-if="insightItems.length === 0" class="insight-empty">
+        <span>狀態良好</span>
+        <strong>目前沒有需要處理的提醒</strong>
+        <p>預算、旅行與帳戶狀態暫時沒有明顯警示。</p>
+      </div>
+
+      <div v-else class="insight-list">
+        <router-link
+          v-for="insight in insightItems"
+          :key="insight.key"
+          class="insight-card"
+          :class="insight.level"
+          :to="insight.to"
+        >
+          <div class="insight-marker" aria-hidden="true"></div>
+          <div class="insight-content">
+            <span>{{ insight.group }}</span>
+            <strong>{{ insight.title }}</strong>
+            <p>{{ insight.description }}</p>
+          </div>
+          <span class="insight-action">{{ insight.action }}</span>
+        </router-link>
+      </div>
+    </section>
+
+    <section class="daily-summary-panel" aria-label="今日與本週摘要">
+      <div class="section-heading">
+        <h2>今日 / 本週摘要</h2>
+        <span>{{ includeTripsInHome ? "含旅行" : "日常" }}</span>
+      </div>
+      <div class="daily-summary-grid">
+        <div class="summary-card today">
+          <span>今日支出</span>
+          <strong>{{ formatDisplayMoney(todayExpense) }}</strong>
+          <p>{{ todayExpense > 0 ? "今天已記錄的支出" : "今天還沒有支出紀錄" }}</p>
+        </div>
+        <div class="summary-card week">
+          <span>本週支出</span>
+          <strong>{{ formatDisplayMoney(weekExpense) }}</strong>
+          <p>{{ weekExpense > 0 ? "本週累計支出" : "本週還沒有支出紀錄" }}</p>
+        </div>
+      </div>
+      <router-link
+        v-if="!latestTransaction"
+        class="summary-empty-action"
+        to="/transactions?type=expense"
+      >
+        今天還沒有紀錄，先記一筆支出
+      </router-link>
+      <div v-else class="latest-summary">
+        <span>最近一筆</span>
+        <strong>
+          {{ latestTransaction.category || latestTransaction.budget_category || "未命名紀錄" }}
+          <small v-if="latestTransaction.trip_id">旅行</small>
+        </strong>
+        <p>
+          {{ formatShortDate(latestTransaction.date) }} ·
+          {{ latestTransaction.type === "income" ? "收入" : "支出" }}
+          {{ latestTransaction.type === "income" ? "+" : "-" }}{{ formatMoney(monthlyReportAmount(latestTransaction), latestTransaction.base_currency || "TWD") }}
+        </p>
       </div>
     </section>
 
@@ -178,6 +189,8 @@ export default {
       monthlyReportTransactions: [],
       trips: [],
       overspendingWarnings: [],
+      assets: {},
+      budgetSummary: [],
       includeTripsInHome: true,
     };
   },
@@ -217,6 +230,45 @@ export default {
     monthlyExpenseRatio() {
       if (this.monthlyTotalFlow <= 0) return 0;
       return 100 - this.monthlyIncomeRatio;
+    },
+    monthlyDailyExpense() {
+      return this.monthTransactions
+        .filter((transaction) => transaction.type === "expense" && !transaction.trip_id)
+        .reduce((sum, transaction) => sum + this.monthlyReportAmount(transaction), 0);
+    },
+    monthlyTravelExpense() {
+      if (!this.includeTripsInHome) return 0;
+      return this.monthTransactions
+        .filter((transaction) => transaction.type === "expense" && transaction.trip_id)
+        .reduce((sum, transaction) => sum + this.monthlyReportAmount(transaction), 0);
+    },
+    primaryExpenseSource() {
+      const sources = [
+        { label: "日常生活", amount: this.monthlyDailyExpense },
+      ];
+
+      if (this.includeTripsInHome) {
+        sources.push({ label: "旅行", amount: this.monthlyTravelExpense });
+      }
+
+      return sources.sort((a, b) => b.amount - a.amount)[0] || { label: "尚無支出", amount: 0 };
+    },
+    expenseSourceTitle() {
+      if (this.monthlyExpense <= 0) return "尚無本月支出";
+      const percent = Math.round((this.primaryExpenseSource.amount / this.monthlyExpense) * 100);
+      return `${this.primaryExpenseSource.label} ${percent}%`;
+    },
+    expenseSourceDescription() {
+      if (this.monthlyExpense <= 0) {
+        return "記錄支出後，這裡會顯示本月主要支出來自日常或旅行。";
+      }
+
+      const daily = this.formatDisplayMoney(this.monthlyDailyExpense);
+      if (!this.includeTripsInHome) {
+        return `日常支出 ${daily}。`;
+      }
+
+      return `日常 ${daily} · 旅行 ${this.formatDisplayMoney(this.monthlyTravelExpense)}。`;
     },
     activeTrips() {
       return this.trips.filter((trip) => trip.status === "active");
@@ -263,6 +315,101 @@ export default {
         .map((warning) => warning.category)
         .join("、");
     },
+    creditCardAccountsToCheck() {
+      return Object.values(this.assets || {})
+        .filter((asset) => (
+          asset.account_type === "credit_card" && Number(asset.balance || 0) < 0
+        ))
+        .sort((a, b) => Math.abs(Number(b.balance || 0)) - Math.abs(Number(a.balance || 0)));
+    },
+    nearlyUsedBudgets() {
+      return this.budgetSummary
+        .filter((item) => {
+          const budget = Number(item.budget || 0);
+          const spent = Number(item.spent || 0);
+          const remaining = Number(item.remaining || 0);
+          return budget > 0 && remaining >= 0 && spent / budget >= 0.9;
+        })
+        .sort((a, b) => {
+          const aRatio = Number(a.spent || 0) / Number(a.budget || 1);
+          const bRatio = Number(b.spent || 0) / Number(b.budget || 1);
+          return bRatio - aRatio;
+        });
+    },
+    largestMonthlyExpense() {
+      return this.monthTransactions
+        .filter((transaction) => transaction.type === "expense")
+        .sort((a, b) => this.monthlyReportAmount(b) - this.monthlyReportAmount(a))[0] || null;
+    },
+    insightItems() {
+      const items = [];
+
+      this.creditCardAccountsToCheck.slice(0, 1).forEach((asset) => {
+        items.push({
+          key: `credit-card-${asset.account_key || asset.id}`,
+          level: "needs-action",
+          group: "需要處理",
+          title: `${asset.bank_name || "信用卡"}待核對`,
+          description: `目前餘額為 ${this.formatMoney(asset.balance, asset.currency || "TWD")}，請到帳戶頁確認刷卡或還款紀錄。`,
+          action: "看帳戶",
+          to: "/assets",
+        });
+      });
+
+      if (this.overspendingWarnings.length > 0) {
+        items.push({
+          key: "budget-overspending",
+          level: "needs-action",
+          group: "需要處理",
+          title: `${this.overspendingWarnings.length} 個分類預算超支`,
+          description: `本月已超出 ${this.formatDisplayMoney(this.totalOverspending)}，優先檢查 ${this.overspendingCategoryText}。`,
+          action: "看預算",
+          to: "/budgets",
+        });
+      }
+
+      this.nearlyUsedBudgets.slice(0, 1).forEach((item) => {
+        const ratio = Math.round((Number(item.spent || 0) / Number(item.budget || 1)) * 100);
+        items.push({
+          key: `budget-near-limit-${item.category}`,
+          level: "attention",
+          group: "值得注意",
+          title: `${item.category} 預算快用完`,
+          description: `已使用 ${ratio}%，剩餘 ${this.formatDisplayMoney(item.remaining)}。`,
+          action: "看預算",
+          to: "/budgets",
+        });
+      });
+
+      if (this.activeTrips.length > 0) {
+        items.push({
+          key: "active-trips",
+          level: "attention",
+          group: "值得注意",
+          title: `${this.activeTrips.length} 個旅行帳本可核對`,
+          description: "旅行分帳與結算狀態請到旅行頁確認，首頁 V1 不推測待結算金額。",
+          action: "看旅行",
+          to: "/trips",
+        });
+      }
+
+      if (this.largestMonthlyExpense) {
+        items.push({
+          key: `largest-expense-${this.largestMonthlyExpense.id}`,
+          level: "attention",
+          group: "值得注意",
+          title: "本月最大支出",
+          description: `${this.largestMonthlyExpense.category || "未分類"} ${this.formatMoney(
+            this.monthlyReportAmount(this.largestMonthlyExpense),
+            this.largestMonthlyExpense.base_currency || "TWD"
+          )}`,
+          action: "看收支",
+          to: "/transactions?type=expense",
+        });
+      }
+
+      return items.slice(0, 4);
+    },
   },
   methods: {
     async fetchDashboardData() {
@@ -286,6 +433,24 @@ export default {
       } catch (error) {
         console.error("無法載入首頁超支提醒", error);
         this.overspendingWarnings = [];
+      }
+    },
+    async fetchAssets() {
+      try {
+        const response = await apiClient.get("/api/assets");
+        this.assets = response.data.data || {};
+      } catch (error) {
+        console.error("無法載入首頁帳戶提醒", error);
+        this.assets = {};
+      }
+    },
+    async fetchBudgetSummary() {
+      try {
+        const response = await apiClient.get(`/api/budgets/summary/${this.currentMonth}`);
+        this.budgetSummary = response.data.data || [];
+      } catch (error) {
+        console.error("無法載入首頁預算摘要", error);
+        this.budgetSummary = [];
       }
     },
     formatMoney(amount, currency = "TWD") {
@@ -341,6 +506,8 @@ export default {
   created() {
     this.fetchDashboardData();
     this.fetchOverspendingWarnings();
+    this.fetchAssets();
+    this.fetchBudgetSummary();
   },
 };
 </script>
@@ -377,66 +544,8 @@ h1 {
   font-size: 1.85rem;
 }
 
-.quick-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.action-card {
-  display: grid;
-  align-content: space-between;
-  gap: 8px;
-  aspect-ratio: 1 / 1;
-  min-height: 132px;
-  padding: 14px;
-  border-radius: 8px;
-  text-decoration: none;
-}
-
-.action-card span {
-  font-size: 1.18rem;
-  font-weight: 800;
-}
-
-.action-card strong {
-  font-size: 0.9rem;
-}
-
-.action-card.expense {
-  color: #ffffff;
-  background: #2563eb;
-}
-
-.action-card.trip {
-  color: #ffffff;
-  background: #0891b2;
-}
-
-.secondary-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 1rem;
-}
-
-.secondary-actions a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 42px;
-  padding: 0 10px;
-  color: #334155;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 800;
-  text-decoration: none;
-}
-
 .daily-summary-panel,
+.insights-panel,
 .status-panel,
 .recent-panel {
   padding: 16px;
@@ -490,7 +599,6 @@ h1 {
 }
 
 .latest-summary,
-.budget-warning-summary,
 .summary-empty-action {
   display: grid;
   gap: 5px;
@@ -508,31 +616,6 @@ h1 {
   min-width: 0;
   color: #1f2933;
   font-size: 0.98rem;
-}
-
-.budget-warning-summary {
-  color: #991b1b;
-  background: #fef2f2;
-  border-color: #fecaca;
-  text-decoration: none;
-}
-
-.budget-warning-summary span {
-  color: #b91c1c;
-  font-size: 0.76rem;
-  font-weight: 900;
-}
-
-.budget-warning-summary strong {
-  color: #991b1b;
-  font-size: 0.98rem;
-}
-
-.budget-warning-summary p {
-  margin: 0;
-  color: #b91c1c;
-  font-size: 0.8rem;
-  line-height: 1.4;
 }
 
 .latest-summary small {
@@ -553,6 +636,109 @@ h1 {
   font-weight: 900;
   text-align: center;
   text-decoration: none;
+}
+
+.insights-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.insight-list {
+  display: grid;
+  gap: 10px;
+}
+
+.insight-card,
+.insight-empty {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.insight-card {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  color: #334155;
+  text-decoration: none;
+}
+
+.insight-card.needs-action {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.insight-card.attention {
+  background: #f8fafc;
+  border-color: #dbe4ee;
+}
+
+.insight-marker {
+  width: 10px;
+  height: 42px;
+  border-radius: 999px;
+  background: #64748b;
+}
+
+.insight-card.needs-action .insight-marker {
+  background: #f97316;
+}
+
+.insight-card.attention .insight-marker {
+  background: #2563eb;
+}
+
+.insight-content {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.insight-content span {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.insight-empty span {
+  color: #0f766e;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.insight-content strong {
+  color: #1f2933;
+  font-size: 0.96rem;
+  font-weight: 900;
+}
+
+.insight-content p,
+.insight-empty p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.insight-empty strong {
+  color: #0f766e;
+  font-size: 0.98rem;
+}
+
+.insight-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #dbe4ee;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .monthly-overview-card {
@@ -689,6 +875,35 @@ h1 {
   background: #fecaca;
 }
 
+.overview-expense-source {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  margin-top: 16px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+}
+
+.overview-expense-source span {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.overview-expense-source strong {
+  color: #ffffff;
+  font-size: 0.96rem;
+  font-weight: 900;
+}
+
+.overview-expense-source p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
 .section-heading {
   display: flex;
   align-items: center;
@@ -811,6 +1026,15 @@ h1 {
 
   .daily-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .insight-card {
+    grid-template-columns: 1fr;
+  }
+
+  .insight-marker {
+    width: 100%;
+    height: 6px;
   }
 }
 </style>

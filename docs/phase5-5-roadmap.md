@@ -79,11 +79,20 @@ Phase 5.5 是 Phase 5 MVP 可用性初步通過後的收斂階段。此階段不
 
 ## Phase 6 建議優先順序
 
-1. 多人旅行個人統計偏好。
-2. 正式登入策略與 provider 加綁。
-3. 完整 timezone 與匯率策略。
-4. 投資 / 資金分配獨立頁。
-5. iOS / App 化。
+1. Nomica Insights 首頁狀態中心。
+2. 多人旅行個人統計偏好。
+3. 正式登入策略與 provider 加綁。
+4. 完整 timezone 與匯率策略。
+5. Money Flow 資金流向圖。
+6. 投資 / 資金分配獨立頁。
+7. iOS / App 化。
+
+## Phase 6 第一輪：Nomica Insights
+
+- 首頁新增 `Nomica Insights` 狀態中心，回答「我現在需要注意什麼？」。
+- V1 只做已知事實提醒，不做推測提醒、不新增 schema、不做信用卡到期日或目的分類。
+- 目前提醒包含信用卡負數待核對、預算超支、預算即將用完、旅行帳本核對入口與本月最大支出。
+- Money Flow 移到 Phase 7；Purpose Model 移到 Phase 8。
 
 ## Phase 5.5 通過標準
 
