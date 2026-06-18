@@ -104,6 +104,11 @@ class MessageHandler:
             return self._get_help_message()
         elif message_type == "other" and parsed_data.get("error") == "unrecognized_input":
             return self.response_builder.create_unrecognized_input_message()
+        elif message_type == "other" and parsed_data.get("error") == "investment_allocation_requires_transfer":
+            return self.response_builder.create_notice_message(
+                "請改用帳戶轉帳",
+                "投資投入或定期定額屬於資金流向，不會記成一般支出。請輸入「我要轉帳」，把金額從來源帳戶轉到投資帳戶。",
+            )
         elif message_type in {
             "goal_query",
             "manage_goal",

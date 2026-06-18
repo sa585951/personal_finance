@@ -39,6 +39,7 @@ class AIParseService:
         legacy_result, parser_source = self._parse_legacy(raw_text)
         legacy_result = self._apply_standard_field_split(legacy_result, raw_text)
         legacy_result = self._apply_transaction_date(legacy_result, raw_text)
+        legacy_result = self._redirect_investment_allocation(legacy_result, raw_text)
 
         return {
             "intent": self._detect_intent(legacy_result),
@@ -71,6 +72,9 @@ class AIParseService:
         """Gemini 失敗時的本地規則 fallback，供本地開發與基本輸入測試使用。"""
         if gemini_result.get("type") != "other" or not gemini_result.get("error"):
             return None
+
+        if self._looks_like_investment_allocation(message):
+            return {"type": "other", "error": "investment_allocation_requires_transfer"}
 
         amount = self._extract_amount(message)
         if amount is None:
@@ -134,6 +138,16 @@ class AIParseService:
         refined["date"] = parsed_date
         return refined
 
+    def _redirect_investment_allocation(self, legacy_result, raw_text):
+        if legacy_result.get("type") != "expense":
+            return legacy_result
+        if (
+            legacy_result.get("budget_category") == "投資"
+            or self._looks_like_investment_allocation(raw_text)
+        ):
+            return {"type": "other", "error": "investment_allocation_requires_transfer"}
+        return legacy_result
+
     def _extract_amount(self, message):
         match = re.search(r"(\d+(?:\.\d+)?)\s*(?:元|塊|圓|twd|ntd)?", message, re.IGNORECASE)
         if not match:
@@ -179,6 +193,7 @@ class AIParseService:
             ("購物", "購物", ["購物", "衣服", "鞋", "包", "網購"]),
             ("娛樂", "娛樂", ["電影", "遊戲", "唱歌", "娛樂"]),
             ("醫療", "醫療", ["醫院", "診所", "看醫生", "藥"]),
+            ("工作", "工作", ["工作", "公司", "公務", "出差", "辦公用品", "影印", "列印", "郵寄", "代墊"]),
             ("訂閱", "訂閱", ["訂閱", "月費", "年費"]),
             ("手續費", "手續費", ["手續費", "匯費"]),
         ]
@@ -228,7 +243,7 @@ class AIParseService:
         description = self._remove_date_phrase(description)
         description = self._remove_account_phrase(description)
         description = self._remove_currency_words(description)
-        description = re.sub(r"(用|使用|付|付款|刷卡|現金|信用卡|銀行|郵局|LINE Pay|街口|悠遊卡)", "", description)
+        description = re.sub(r"(使用|付|付款|刷卡|現金|信用卡|銀行|郵局|LINE Pay|街口|悠遊卡)", "", description)
         description = re.sub(r"[，,。．\s]+", " ", description).strip()
         return description
 
@@ -277,8 +292,8 @@ class AIParseService:
             ("購物", "治裝費", ["治裝費"]),
             ("娛樂", "娛樂", ["電影", "遊戲", "唱歌", "娛樂"]),
             ("醫療", "醫療", ["醫院", "診所", "看醫生", "藥"]),
+            ("工作", "工作", ["公司代墊", "辦公用品", "公務", "出差", "影印", "列印", "郵寄", "代墊", "工作"]),
             ("生活", "生活", ["生活用品", "日用品"]),
-            ("投資", "投資", ["投資", "定期定額"]),
         ]
         return self._split_by_leading_keyword(content, expense_keywords)
 
@@ -465,7 +480,21 @@ class AIParseService:
             return []
         if error == "unrecognized_input":
             return ["目前看不出這是一筆收入、支出或可執行操作，請試試：午餐麥當勞 150"]
+        if error == "investment_allocation_requires_transfer":
+            return ["投資投入或定期定額屬於資金流向，請改輸入「我要轉帳」來記錄。"]
         return [str(error)]
+
+    def _looks_like_investment_allocation(self, message):
+        lowered_message = str(message or "").lower()
+        return any(keyword in lowered_message for keyword in [
+            "定期定額",
+            "買股票",
+            "買基金",
+            "買etf",
+            "投入投資",
+            "投資帳戶",
+            "券商",
+        ])
 
     def _normalize_amount(self, value):
         if value is None:

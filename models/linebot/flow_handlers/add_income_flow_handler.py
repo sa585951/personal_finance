@@ -9,7 +9,7 @@ class AddIncomeFlowHandler:
         self.theme = operation_theme
         self.budget_manager = budget_manager
         self.asset_manager = asset_manager
-        self.income_categories = ["薪資", "獎金", "投資", "利息", "其他"]
+        self.income_categories = ["薪資", "獎金", "利息", "其他"]
 
     def start_flow(self, user_id):
         """開始新增收入流程"""

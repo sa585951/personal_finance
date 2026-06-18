@@ -84,9 +84,10 @@ class LineBotManager:
            - `currency`: 若訊息提到「日幣、日圓、JPY」回傳 JPY；「台幣、TWD、NTD」回傳 TWD；「美金、美元、USD」回傳 USD；未提到則回傳 null。
            - `target_asset`: 從訊息中提取支付方式，如「用現金」、「刷卡」、「從郵局轉帳」。
         4. **其他請求**: 根據訊息類型回傳對應的 JSON 結構。
+        5. **投資投入 / 定期定額**: 例如「定期定額 5000」、「買 ETF 10000」屬於帳戶間資金流向，不要解析成 expense；請回傳 {{ "type": "other", "error": "investment_allocation_requires_transfer" }}。
 
         **類別限制 (用於 budget_category):**
-        伙食、交通、購物、娛樂、醫療、投資、生活、其他、收入
+        伙食、交通、購物、娛樂、醫療、工作、生活、其他、收入
 
         **精選範例:**
         - 訊息: "午餐吃麥當勞 150元 用國泰信用卡"
@@ -99,6 +100,8 @@ class LineBotManager:
           應解析為: {{ "type": "expense", "budget_category": "交通", "category": "計程車", "description": "", "amount": 250, "target_asset": null }}
         - 訊息: "治裝費 3000"
           應解析為: {{ "type": "expense", "budget_category": "購物", "category": "治裝費", "description": "", "amount": 3000, "target_asset": null }}
+        - 訊息: "公司代墊影印費 120"
+          應解析為: {{ "type": "expense", "budget_category": "工作", "category": "影印費", "description": "公司代墊", "amount": 120, "target_asset": null }}
 
 
         注意：只回傳純 JSON，不要 markdown 標記。

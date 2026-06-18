@@ -14,7 +14,7 @@ class SetBudgetFlowHandler:
         self.user_state_manager = user_state_manager
         self.operation_theme = operation_theme
         self.budget_manager = budget_manager
-        self.categories = ["伙食", "交通", "購物", "娛樂", "醫療", "投資", "生活", "其他"]
+        self.categories = ["伙食", "交通", "購物", "娛樂", "醫療", "工作", "生活", "其他"]
 
     def start_flow(self, user_id):
         """啟動流程"""

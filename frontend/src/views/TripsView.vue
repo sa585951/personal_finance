@@ -1598,7 +1598,7 @@ export default {
         }
       } catch (error) {
         console.error("無法載入交易類別", error);
-        this.expenseCategories = ["伙食", "交通", "住宿", "購物", "娛樂", "生活", "其他"];
+        this.expenseCategories = ["伙食", "交通", "住宿", "購物", "娛樂", "醫療", "工作", "生活", "其他"];
       }
     },
     async fetchAssets() {

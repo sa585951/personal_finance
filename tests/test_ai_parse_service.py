@@ -152,6 +152,46 @@ def test_transport_ticket_route_is_split_into_category_item_and_note():
     assert result["transaction"]["description"] == "A到B"
 
 
+def test_work_expense_is_classified_as_work_category():
+    service = AIParseService(
+        gemini_model=FakeGeminiModel(
+            """
+            {
+              "type": "expense",
+              "budget_category": "其他",
+              "category": "影印費",
+              "description": "公司代墊",
+              "amount": 120,
+              "target_asset": null
+            }
+            """
+        ),
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("公司代墊影印費 120")
+
+    assert result["intent"] == "create_transaction"
+    assert result["transaction"]["budget_category"] == "工作"
+    assert result["transaction"]["title"] == "工作"
+    assert result["transaction"]["description"] == "影印費"
+
+
+def test_office_supplies_expense_is_classified_as_work_category():
+    service = AIParseService(
+        gemini_model=FakeGeminiModel('{"type":"other","error":"API key not valid"}'),
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("辦公用品 300")
+
+    assert result["intent"] == "create_transaction"
+    assert result["source"] == "local_fallback"
+    assert result["transaction"]["budget_category"] == "工作"
+    assert result["transaction"]["title"] == "工作"
+    assert result["transaction"]["description"] == ""
+
+
 def test_gemini_raw_text_description_is_treated_as_empty_note():
     fake_model = FakeGeminiModel(
         """
@@ -414,6 +454,42 @@ def test_unrecognized_input_returns_friendly_error_without_transaction():
     assert result["errors"] == [
         "目前看不出這是一筆收入、支出或可執行操作，請試試：午餐麥當勞 150"
     ]
+
+
+def test_investment_allocation_is_not_created_as_expense():
+    service = AIParseService(
+        gemini_model=FakeGeminiModel("{}"),
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("定期定額 5000")
+
+    assert result["intent"] == "other"
+    assert result["source"] == "quick"
+    assert result["legacy"] == {
+        "type": "other",
+        "error": "investment_allocation_requires_transfer",
+    }
+    assert result["transaction"] is None
+    assert result["errors"] == [
+        "投資投入或定期定額屬於資金流向，請改輸入「我要轉帳」來記錄。"
+    ]
+
+
+def test_gemini_investment_expense_is_redirected_to_transfer_guidance():
+    service = AIParseService(
+        gemini_model=FakeGeminiModel(
+            '{"type":"expense","budget_category":"投資","category":"投資","amount":5000}'
+        ),
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("投資 5000")
+
+    assert result["intent"] == "other"
+    assert result["source"] == "gemini"
+    assert result["transaction"] is None
+    assert result["legacy"]["error"] == "investment_allocation_requires_transfer"
 
 
 def test_legacy_goal_button_payloads_are_temporarily_disabled():

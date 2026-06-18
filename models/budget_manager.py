@@ -28,6 +28,7 @@ CATEGORY_ALIASES = {
     "購物": "shopping",
     "娛樂": "entertainment",
     "醫療": "medical",
+    "工作": "work",
     "生活": "daily",
     "訂閱": "subscriptions",
     "手續費": "fees",

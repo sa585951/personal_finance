@@ -20,6 +20,7 @@ EXPENSE_CATEGORIES = [
     ("shopping", "購物"),
     ("entertainment", "娛樂"),
     ("medical", "醫療"),
+    ("work", "工作"),
     ("daily", "生活"),
     ("subscriptions", "訂閱"),
     ("fees", "手續費"),

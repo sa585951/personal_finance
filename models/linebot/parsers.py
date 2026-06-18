@@ -146,6 +146,12 @@ class QuickParser:
         # 轉帳相關
         if any(word in message_lower for word in ['我要轉帳', '轉帳', '帳戶間轉帳']):
             return {"type": "start_transfer"}
+
+        # 投資投入/定期定額目前屬於資金流向，應走帳戶互轉，不建立一般支出。
+        if has_amount_hint and any(word in message_lower for word in [
+            '定期定額', '買股票', '買基金', '買etf', '投入投資', '投資帳戶', '券商'
+        ]):
+            return {"type": "other", "error": "investment_allocation_requires_transfer"}
         
         # 查詢相關 - 放在後面，避免被 "餘額" 等關鍵字誤觸
         if any(word in message_lower for word in ['查詢', '統計', '本月']) or (
