@@ -52,7 +52,7 @@ class MessageHandler:
         if user_state:
             return self._handle_flow_message(user_id, message, user_state)
         
-        return self._handle_parsed_message(user_id, parsed_data)
+        return self._handle_parsed_message(user_id, parsed_data, message)
     
     def handle_postback(self, user_id, data, params):
         """處理 Postback 事件"""
@@ -88,14 +88,14 @@ class MessageHandler:
             self.user_state_manager.clear_user_state(user_id)
             return "操作流程已重置，請重新開始"
         
-    def _handle_parsed_message(self, user_id, parsed_data):
+    def _handle_parsed_message(self, user_id, parsed_data, raw_message=""):
         """處理解析後的訊息"""
         message_type = parsed_data.get("type")
         
         if message_type == "expense":
-            return self._handle_expense(parsed_data, user_id)
+            return self._handle_expense(parsed_data, user_id, raw_message)
         elif message_type == "income":
-            return self._handle_income(parsed_data, user_id)
+            return self._handle_income(parsed_data, user_id, raw_message)
         elif message_type == "query":
             return self._handle_query(user_id)
         elif message_type == "asset_query":
@@ -127,7 +127,7 @@ class MessageHandler:
         
         return self._get_help_message()
         
-    def _handle_expense(self, parsed_data, user_id):
+    def _handle_expense(self, parsed_data, user_id, raw_message=""):
         """處理支出記錄並更新資產餘額"""
         try:
             target_asset_name = parsed_data.get("target_asset")
@@ -137,6 +137,7 @@ class MessageHandler:
                     user_id,
                     target_asset_name,
                     currency=parsed_data.get("currency"),
+                    context_text=raw_message,
                 )
 
             # 1. 新增交易紀錄
@@ -167,7 +168,7 @@ class MessageHandler:
         except Exception as e:
             return self.response_builder.create_error_message(f"紀錄失敗: {e}")
 
-    def _handle_income(self, parsed_data, user_id):
+    def _handle_income(self, parsed_data, user_id, raw_message=""):
         """處理收入記錄並更新資產餘額"""
         try:
             target_asset_name = parsed_data.get("target_asset")
@@ -177,6 +178,7 @@ class MessageHandler:
                     user_id,
                     target_asset_name,
                     currency=parsed_data.get("currency"),
+                    context_text=raw_message,
                 )
 
             # 1. 新增交易紀錄

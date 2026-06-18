@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
@@ -30,6 +31,30 @@ ACCOUNT_TYPE_ALIASES = {
 }
 
 SUPPORTED_CURRENCIES = {"TWD", "JPY", "KRW", "USD", "EUR"}
+ACCOUNT_TYPE_LABELS = {
+    "cash": "現金",
+    "bank": "銀行",
+    "credit_card": "信用卡",
+    "e_wallet": "電子錢包",
+    "prepaid_card": "預付卡",
+    "external": "外部帳戶",
+    "investment": "投資",
+    "other": "其他",
+}
+GENERIC_ACCOUNT_WORDS = [
+    "信用卡",
+    "銀行",
+    "帳戶",
+    "活存",
+    "定存",
+    "現金",
+    "電子錢包",
+    "錢包",
+    "預付卡",
+    "投資",
+    "券商",
+    "卡",
+]
 
 
 class AssetManager:
@@ -106,17 +131,96 @@ class AssetManager:
             assets[asset["account_key"]] = asset
         return assets
 
-    def find_asset_by_name(self, user_id, name, currency=None):
-        """根據自然語言名稱尋找指定使用者的帳戶。"""
+    def find_asset_by_name(self, user_id, name, currency=None, context_text=None):
+        """根據自然語言名稱尋找指定使用者的帳戶。
+
+        多帳戶情境下避免用「信用卡」這類泛稱直接抓第一筆；只有有明確名稱、
+        關鍵字或唯一類型帳戶時才回傳，避免 LINE 記帳扣到錯誤帳戶。
+        """
+        normalized_hint = self._normalize_account_search_text(name)
+        if not normalized_hint:
+            return None
+
         stmt = select(accounts_table).where(
             accounts_table.c.user_id == self._parse_user_id(user_id),
             accounts_table.c.deleted_at.is_(None),
-            accounts_table.c.name.ilike(name),
         )
         if currency:
             stmt = stmt.where(accounts_table.c.currency == self._normalize_currency(currency))
-        row = self.db_session.execute(stmt).first()
-        return self._to_legacy_asset(dict(row._mapping)) if row else None
+        rows = [dict(row._mapping) for row in self.db_session.execute(stmt)]
+        if not rows:
+            return None
+
+        scored_accounts = [
+            (self._score_account_match(account, normalized_hint, context_text), account)
+            for account in rows
+        ]
+        scored_accounts = [
+            (score, account)
+            for score, account in scored_accounts
+            if score > 0
+        ]
+        if not scored_accounts:
+            return None
+
+        scored_accounts.sort(key=lambda item: item[0], reverse=True)
+        top_score, top_account = scored_accounts[0]
+        if len(scored_accounts) > 1 and scored_accounts[1][0] == top_score:
+            return None
+        return self._to_legacy_asset(top_account)
+
+    def _score_account_match(self, account, normalized_hint, context_text=None):
+        normalized_name = self._normalize_account_search_text(account["name"])
+        if not normalized_name:
+            return 0
+
+        type_hint = self._detect_account_type_hint(normalized_hint)
+        meaningful_hint = self._meaningful_account_token(normalized_hint)
+        normalized_context = self._normalize_account_search_text(context_text)
+
+        score = 0
+        if meaningful_hint:
+            if normalized_name == normalized_hint:
+                score += 120
+            elif normalized_hint in normalized_name:
+                score += 90
+            elif normalized_name in normalized_hint:
+                score += 80
+
+            if meaningful_hint in normalized_name:
+                score += 70
+
+        if normalized_context and normalized_name in normalized_context:
+            score += 65
+
+        if type_hint and account["type"] == type_hint:
+            score += 20
+
+        if not meaningful_hint and type_hint and account["type"] != type_hint:
+            return 0
+        if not meaningful_hint and type_hint and account["type"] == type_hint:
+            return score or 10
+        return score
+
+    def _normalize_account_search_text(self, value):
+        normalized = str(value or "").strip().lower()
+        normalized = re.sub(r"\s+", "", normalized)
+        return normalized
+
+    def _meaningful_account_token(self, normalized_value):
+        token = normalized_value
+        for word in GENERIC_ACCOUNT_WORDS:
+            token = token.replace(word.lower(), "")
+        return token
+
+    def _detect_account_type_hint(self, normalized_value):
+        for account_type, label in ACCOUNT_TYPE_LABELS.items():
+            normalized_label = self._normalize_account_search_text(label)
+            if normalized_label and normalized_label in normalized_value:
+                return account_type
+        if "刷卡" in normalized_value:
+            return "credit_card"
+        return None
 
     def add_account(self, user_id, bank_name, account_type, balance, currency=None):
         """新增帳戶。"""
