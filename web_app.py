@@ -696,6 +696,26 @@ def update_trip_member_role(current_user_id, trip_id, member_id):
         app.logger.error(f"Error in update_trip_member_role: {e}")
         return jsonify({"success": False, "message": str(e)}), 400
 
+@app.route("/api/trips/<string:trip_id>/members/me/monthly-report-preference", methods=["PATCH"])
+@token_required
+def update_my_trip_monthly_report_preference(current_user_id, trip_id):
+    data = request.get_json(silent=True) or {}
+    if "monthly_report_preference" not in data:
+        return jsonify({"success": False, "message": "缺少 monthly_report_preference 欄位"}), 400
+
+    try:
+        result = trip_manager.update_current_member_monthly_report_preference(
+            current_user_id,
+            trip_id,
+            data.get("monthly_report_preference"),
+        )
+        db_session.commit()
+        return jsonify({"success": True, "message": "個人月報偏好已更新", "data": result}), 200
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in update_my_trip_monthly_report_preference: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
 @app.route("/api/trips/<string:trip_id>/leave", methods=["POST"])
 @token_required
 def leave_trip(current_user_id, trip_id):
@@ -1214,28 +1234,16 @@ def get_asset_allocation(current_user_id):
 def get_income_expense_summary(current_user_id):
     month = request.args.get("month")
     try:
-        parsed_user_id = UUID(str(current_user_id))
-        stmt = select(transactions_table.c.type, func.sum(transactions_table.c.converted_amount).label("total")) \
-            .outerjoin(trips_table, transactions_table.c.trip_id == trips_table.c.id) \
-            .where(
-                transactions_table.c.user_id == parsed_user_id,
-                transactions_table.c.deleted_at.is_(None),
-                (
-                    transactions_table.c.trip_id.is_(None)
-                    | trips_table.c.include_in_monthly_report.is_(True)
-                ),
-            )
-        if month:
-            stmt = stmt.where(func.to_char(transactions_table.c.transaction_date, 'YYYY-MM') == month)
-        stmt = stmt.group_by(transactions_table.c.type)
-
         income, expense = 0, 0
-        result = db_session.execute(stmt)
-        for row in result:
-            if row.type == 'income':
-                income = row.total or 0
-            elif row.type == 'expense':
-                expense = row.total or 0
+        transactions = budget_manager.get_all_transactions(current_user_id, monthly_report=True)
+        for transaction in transactions:
+            if month and not str(transaction.get("date", "")).startswith(month):
+                continue
+            amount = float(transaction.get("converted_amount") or 0)
+            if transaction["type"] == "income":
+                income += amount
+            elif transaction["type"] == "expense":
+                expense += amount
 
         chart_data = {
             "labels": ["收入", "支出"],

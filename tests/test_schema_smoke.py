@@ -183,6 +183,7 @@ def test_mvp_schema_can_create_core_records():
         loaded_trip = trip_manager.get_trip(user_id, trip_id)
         assert listed_trips[0]["id"] == trip["id"]
         assert loaded_trip["members"][0]["role"] == "owner"
+        assert loaded_trip["members"][0]["monthly_report_preference"] == "exclude"
 
         updated_trip = trip_manager.update_trip(
             user_id=user_id,
@@ -190,6 +191,12 @@ def test_mvp_schema_can_create_core_records():
             include_in_monthly_report=True,
         )
         assert updated_trip["include_in_monthly_report"] is True
+        owner_preference = trip_manager.update_current_member_monthly_report_preference(
+            user_id,
+            trip["id"],
+            "include",
+        )
+        assert owner_preference["member"]["monthly_report_preference"] == "include"
 
         managed_trip = trip_manager.create_trip(
             user_id=user_id,
@@ -439,7 +446,7 @@ def test_mvp_schema_can_create_core_records():
             user_id,
             "2027-03",
         )
-        assert monthly_report_before_included_trip["伙食"] == Decimal("120.0000")
+        assert monthly_report_before_included_trip["伙食"] == Decimal("450.2200")
 
         budget_manager.add_transaction(
             user_id=user_id,
@@ -479,6 +486,7 @@ def test_mvp_schema_can_create_core_records():
         )
         report_trip_members = trip_manager.list_trip_members(user_id=user_id, trip_id=report_trip["id"])
         report_owner_member = next(member for member in report_trip_members if member["role"] == "owner")
+        assert report_owner_member["monthly_report_preference"] == "include"
         budget_manager.add_transaction(
             user_id=user_id,
             date="2027-03-04",
@@ -495,23 +503,64 @@ def test_mvp_schema_can_create_core_records():
 
         budget_summary = budget_manager.get_budget_summary(user_id, "2027-03")
         food_budget = next(item for item in budget_summary if item["category"] == "伙食")
-        assert food_budget["spent"] == 120
+        assert food_budget["spent"] == 750.22
         assert food_budget["budget"] == 10000
-        assert food_budget["remaining"] == 9880
+        assert food_budget["remaining"] == 9249.78
 
         daily_expenses = budget_manager.calculate_monthly_expenses(user_id, "2027-03")
         assert daily_expenses["伙食"] == Decimal("120.0000")
 
         monthly_report_expenses = budget_manager.calculate_monthly_report_expenses(user_id, "2027-03")
-        assert monthly_report_expenses["伙食"] == Decimal("420.0000")
+        assert monthly_report_expenses["伙食"] == Decimal("750.2200")
 
         monthly_report_transactions = budget_manager.get_all_transactions(user_id, monthly_report=True)
-        assert {transaction["category"] for transaction in monthly_report_transactions} == {"便當", "旅行便當"}
+        assert {transaction["category"] for transaction in monthly_report_transactions} == {"拉麵加點", "便當", "旅行便當"}
 
         trend_data = budget_manager.get_transactions_by_category_over_time(user_id, interval="month")
         assert trend_data["labels"] == ["2027-03"]
         assert trend_data["datasets"][0]["label"] == "伙食"
-        assert trend_data["datasets"][0]["data"] == [420.0]
+        assert trend_data["datasets"][0]["data"] == [750.22]
+
+        shared_trip = trip_manager.create_trip(
+            user_id=user_id,
+            name="分攤月報測試",
+            destination="Taipei",
+            start_date="2027-03-05",
+            end_date="2027-03-05",
+            timezone_name="Asia/Taipei",
+            base_currency="TWD",
+            default_currency="TWD",
+            include_in_monthly_report=True,
+        )
+        shared_friend = trip_manager.add_external_member(
+            user_id=user_id,
+            trip_id=shared_trip["id"],
+            display_name="朋友 B",
+            role="viewer",
+        )
+        shared_members = trip_manager.list_trip_members(user_id=user_id, trip_id=shared_trip["id"])
+        shared_owner_member = next(member for member in shared_members if member["role"] == "owner")
+        budget_manager.add_transaction(
+            user_id=user_id,
+            date="2027-03-05",
+            item="共享晚餐",
+            amount=Decimal("1000"),
+            transaction_type="expense",
+            budget_category="伙食",
+            trip_id=uuid.UUID(shared_trip["id"]),
+            paid_by_member_id=uuid.UUID(shared_owner_member["id"]),
+            original_currency="TWD",
+            exchange_rate=Decimal("1"),
+            split_member_ids=[uuid.UUID(shared_owner_member["id"]), uuid.UUID(shared_friend["id"])],
+        )
+
+        monthly_report_expenses = budget_manager.calculate_monthly_report_expenses(user_id, "2027-03")
+        assert monthly_report_expenses["伙食"] == Decimal("1250.2200")
+
+        monthly_report_transactions = budget_manager.get_all_transactions(user_id, monthly_report=True)
+        shared_dinner = next(transaction for transaction in monthly_report_transactions if transaction["category"] == "共享晚餐")
+        assert shared_dinner["amount"] == 500
+        assert shared_dinner["converted_amount"] == 500
 
         split_count = connection.execute(
             select(transaction_splits_table.c.id).where(

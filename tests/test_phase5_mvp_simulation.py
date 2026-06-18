@@ -107,6 +107,8 @@ def test_phase5_mvp_handles_10_person_trip_flow_and_edge_cases():
 
         members = _trip_members_by_name(trip_manager, owner_id, trip["id"])
         assert len(members) == 10
+        assert members["我"]["monthly_report_preference"] == "include"
+        assert members["Amy"]["monthly_report_preference"] is None
         owner_member_id = uuid.UUID(members["我"]["id"])
         amy_member_id = uuid.UUID(members["Amy"]["id"])
         all_member_ids = [uuid.UUID(member["id"]) for member in members.values()]
@@ -471,6 +473,7 @@ def test_reusable_trip_invite_join_rejoin_limit_and_close():
         accepted = trip_manager.accept_invite(amy["id"], invite["token"])
         assert accepted["member"]["role"] == "editor"
         assert accepted["member"]["user_id"] == str(amy["id"])
+        assert accepted["member"]["monthly_report_preference"] == "pending"
         assert accepted["already_joined"] is False
 
         accepted_again = trip_manager.accept_invite(amy["id"], invite["token"])
@@ -481,6 +484,7 @@ def test_reusable_trip_invite_join_rejoin_limit_and_close():
         rejoined = trip_manager.accept_invite(amy["id"], invite["token"])
         assert rejoined["member"]["id"] == left_member["id"]
         assert rejoined["member"]["status"] == "active"
+        assert rejoined["member"]["monthly_report_preference"] == "pending"
 
         for index in range(13):
             user = _create_test_user(connection, f"U-phase5-member-{index}", f"Member {index}")

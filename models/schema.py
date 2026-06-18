@@ -155,6 +155,7 @@ trip_members_table = Table(
     Column("display_name", String(255), nullable=False),
     Column("role", String(20), nullable=False),
     Column("status", String(20), nullable=False, server_default=text("'active'")),
+    Column("monthly_report_preference", String(20)),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
     Column("removed_at", DateTime(timezone=True)),
@@ -162,6 +163,10 @@ trip_members_table = Table(
     Column("purge_after", DateTime(timezone=True)),
     CheckConstraint("role in ('owner', 'editor', 'viewer')", name="ck_trip_members_role"),
     CheckConstraint("status in ('active', 'invited', 'removed')", name="ck_trip_members_status"),
+    CheckConstraint(
+        "monthly_report_preference in ('pending', 'include', 'exclude')",
+        name="ck_trip_members_monthly_report_preference",
+    ),
 )
 
 trip_invites_table = Table(

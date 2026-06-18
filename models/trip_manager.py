@@ -3,7 +3,7 @@ import secrets
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import func, insert, or_, select, update
+from sqlalchemy import and_, func, insert, or_, select, update
 
 from .schema import (
     settlements_table,
@@ -18,6 +18,8 @@ from .schema import (
 
 class TripManager:
     """管理旅行帳本與旅伴。"""
+
+    MONTHLY_REPORT_PREFERENCES = {"pending", "include", "exclude"}
 
     def __init__(self, db_session):
         self.db_session = db_session
@@ -42,6 +44,14 @@ class TripManager:
     def _get_user_display_name(self, user_id):
         stmt = select(users_table.c.display_name).where(users_table.c.id == user_id)
         return self.db_session.execute(stmt).scalar_one_or_none() or "我"
+
+    def _normalize_monthly_report_preference(self, value):
+        if value not in self.MONTHLY_REPORT_PREFERENCES:
+            raise ValueError("monthly_report_preference 僅支援 pending、include 或 exclude")
+        return value
+
+    def _preference_from_legacy_flag(self, include_in_monthly_report):
+        return "include" if include_in_monthly_report else "exclude"
 
     def _hash_invite_token(self, token):
         return hashlib.sha256(str(token).encode("utf-8")).hexdigest()
@@ -163,7 +173,20 @@ class TripManager:
         if not include_archived:
             stmt = stmt.where(trips_table.c.status == "active")
 
-        return [self._to_trip_dict(row._mapping) for row in self.db_session.execute(stmt)]
+        trips = []
+        for row in self.db_session.execute(stmt):
+            trip = self._to_trip_dict(row._mapping)
+            members = self._list_trip_members_for_trip(trip["id"])
+            current_member = next(
+                (member for member in members if member.get("user_id") == str(parsed_user_id)),
+                None,
+            )
+            trips.append({
+                **trip,
+                "members": members,
+                "current_member_id": current_member["id"] if current_member else None,
+            })
+        return trips
 
     def get_trip(self, user_id, trip_id):
         trip = self._ensure_trip_access(user_id, trip_id)
@@ -234,15 +257,20 @@ class TripManager:
                 display_name=self._get_user_display_name(parsed_user_id),
                 role="owner",
                 status="active",
+                monthly_report_preference=self._preference_from_legacy_flag(include_in_monthly_report),
             )
         )
         return self.get_trip(parsed_user_id, trip["id"])
 
     def update_trip(self, user_id, trip_id, include_in_monthly_report=None):
         trip = self._ensure_owner(user_id, trip_id)
+        parsed_user_id = self._parse_user_id(user_id)
         values = {}
+        member_preference = None
         if include_in_monthly_report is not None:
-            values["include_in_monthly_report"] = bool(include_in_monthly_report)
+            include_flag = bool(include_in_monthly_report)
+            values["include_in_monthly_report"] = include_flag
+            member_preference = self._preference_from_legacy_flag(include_flag)
 
         if not values:
             raise ValueError("缺少可更新欄位")
@@ -253,11 +281,50 @@ class TripManager:
             .where(trips_table.c.id == trip["id"])
             .values(**values)
         )
+        if member_preference is not None:
+            self.db_session.execute(
+                update(trip_members_table)
+                .where(
+                    and_(
+                        trip_members_table.c.trip_id == trip["id"],
+                        trip_members_table.c.user_id == parsed_user_id,
+                        trip_members_table.c.status == "active",
+                        trip_members_table.c.deleted_at.is_(None),
+                    )
+                )
+                .values(
+                    monthly_report_preference=member_preference,
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
         return self.get_trip(user_id, trip["id"])
 
     def list_trip_members(self, user_id, trip_id):
         trip = self._ensure_trip_access(user_id, trip_id)
         return self._list_trip_members_for_trip(trip["id"])
+
+    def update_current_member_monthly_report_preference(self, user_id, trip_id, preference):
+        trip = self._ensure_trip_access(user_id, trip_id)
+        parsed_user_id = self._parse_user_id(user_id)
+        normalized_preference = self._normalize_monthly_report_preference(preference)
+        member = self._get_current_member(parsed_user_id, trip["id"])
+        if not member or member["user_id"] is None:
+            raise ValueError("找不到可更新的登入旅伴")
+
+        row = self.db_session.execute(
+            update(trip_members_table)
+            .where(trip_members_table.c.id == member["id"])
+            .values(
+                monthly_report_preference=normalized_preference,
+                updated_at=datetime.now(timezone.utc),
+            )
+            .returning(trip_members_table)
+        ).first()
+
+        return {
+            "trip": self.get_trip(parsed_user_id, trip["id"]),
+            "member": self._to_member_dict(row._mapping),
+        }
 
     def add_external_member(self, user_id, trip_id, display_name, role="viewer"):
         trip = self._ensure_trip_access(user_id, trip_id)
@@ -276,6 +343,7 @@ class TripManager:
                 display_name=str(display_name).strip(),
                 role=role,
                 status="active",
+                monthly_report_preference=None,
             )
             .returning(trip_members_table)
         ).first()
@@ -445,6 +513,7 @@ class TripManager:
                 .values(
                     role=existing_member["role"] if existing_member["role"] == "owner" else invite["invite_role"],
                     status="active",
+                    monthly_report_preference=existing_member["monthly_report_preference"] or "pending",
                     removed_at=None,
                     deleted_at=None,
                     purge_after=None,
@@ -462,6 +531,7 @@ class TripManager:
                     display_name=self._get_user_display_name(parsed_user_id),
                     role=invite["invite_role"],
                     status="active",
+                    monthly_report_preference="pending",
                 )
                 .returning(trip_members_table)
             ).first()

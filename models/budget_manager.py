@@ -187,12 +187,6 @@ class BudgetManager:
             return Decimal("1")
         return DEFAULT_EXCHANGE_RATES.get((original_currency, base_currency), Decimal("1"))
 
-    def _monthly_report_scope(self):
-        return or_(
-            transactions_table.c.trip_id.is_(None),
-            trips_table.c.include_in_monthly_report.is_(True),
-        )
-
     def _accessible_trip_ids_for_user(self, user_id):
         return select(trip_members_table.c.trip_id).where(
             trip_members_table.c.user_id == user_id,
@@ -247,6 +241,41 @@ class BudgetManager:
             except (TypeError, ValueError):
                 parsed_limit = None
         creator_users = users_table.alias("creator_users")
+        split_counts = (
+            select(
+                transaction_splits_table.c.transaction_id,
+                func.count(transaction_splits_table.c.id).label("split_count"),
+            )
+            .group_by(transaction_splits_table.c.transaction_id)
+            .subquery()
+        )
+        amount_column = transactions_table.c.original_amount.label("amount")
+        currency_column = transactions_table.c.original_currency.label("currency")
+        exchange_rate_column = transactions_table.c.exchange_rate
+        converted_amount_column = transactions_table.c.converted_amount
+        base_currency_column = transactions_table.c.base_currency
+        if monthly_report:
+            amount_column = func.coalesce(
+                transaction_splits_table.c.share_amount,
+                transactions_table.c.original_amount,
+            ).label("amount")
+            currency_column = func.coalesce(
+                transaction_splits_table.c.share_currency,
+                transactions_table.c.original_currency,
+            ).label("currency")
+            exchange_rate_column = func.coalesce(
+                transaction_splits_table.c.exchange_rate,
+                transactions_table.c.exchange_rate,
+            ).label("exchange_rate")
+            converted_amount_column = func.coalesce(
+                transaction_splits_table.c.converted_share_amount,
+                transactions_table.c.converted_amount,
+            ).label("converted_amount")
+            base_currency_column = func.coalesce(
+                transaction_splits_table.c.base_currency,
+                transactions_table.c.base_currency,
+            ).label("base_currency")
+
         stmt = (
             select(
                 transactions_table.c.id,
@@ -260,21 +289,23 @@ class BudgetManager:
                 transactions_table.c.type,
                 transactions_table.c.title.label("category"),
                 categories_table.c.name.label("budget_category"),
-                transactions_table.c.original_amount.label("amount"),
+                amount_column,
                 transactions_table.c.description,
                 transactions_table.c.merchant,
-                transactions_table.c.original_currency.label("currency"),
-                transactions_table.c.exchange_rate,
-                transactions_table.c.converted_amount,
-                transactions_table.c.base_currency,
+                currency_column,
+                exchange_rate_column,
+                converted_amount_column,
+                base_currency_column,
                 transactions_table.c.trip_id,
                 transactions_table.c.paid_by_member_id,
+                func.coalesce(split_counts.c.split_count, 0).label("split_count"),
                 transactions_table.c.account_id,
                 accounts_table.c.name.label("account_name"),
                 accounts_table.c.currency.label("account_currency"),
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
             .join(creator_users, transactions_table.c.created_by_user_id == creator_users.c.id)
+            .outerjoin(split_counts, split_counts.c.transaction_id == transactions_table.c.id)
             .outerjoin(
                 accounts_table,
                 and_(
@@ -292,9 +323,24 @@ class BudgetManager:
                 current_trip_member = self._get_current_trip_member(parsed_user_id, parsed_trip_id)
             stmt = stmt.where(transactions_table.c.trip_id == parsed_trip_id)
         elif monthly_report:
-            member_trip_ids = self._accessible_trip_ids_for_user(parsed_user_id)
             stmt = (
                 stmt.outerjoin(trips_table, transactions_table.c.trip_id == trips_table.c.id)
+                .outerjoin(
+                    trip_members_table,
+                    and_(
+                        trip_members_table.c.trip_id == transactions_table.c.trip_id,
+                        trip_members_table.c.user_id == parsed_user_id,
+                        trip_members_table.c.status == "active",
+                        trip_members_table.c.deleted_at.is_(None),
+                    ),
+                )
+                .outerjoin(
+                    transaction_splits_table,
+                    and_(
+                        transaction_splits_table.c.transaction_id == transactions_table.c.id,
+                        transaction_splits_table.c.trip_member_id == trip_members_table.c.id,
+                    ),
+                )
                 .where(
                     or_(
                         and_(
@@ -302,11 +348,8 @@ class BudgetManager:
                             transactions_table.c.user_id == parsed_user_id,
                         ),
                         and_(
-                            trips_table.c.include_in_monthly_report.is_(True),
-                            or_(
-                                trips_table.c.owner_user_id == parsed_user_id,
-                                trips_table.c.id.in_(member_trip_ids),
-                            ),
+                            trip_members_table.c.monthly_report_preference == "include",
+                            transaction_splits_table.c.id.isnot(None),
                         ),
                     )
                 )
@@ -367,6 +410,7 @@ class BudgetManager:
             transaction["paid_by_member_id"] = (
                 str(transaction["paid_by_member_id"]) if transaction["paid_by_member_id"] else None
             )
+            transaction["split_count"] = int(transaction["split_count"] or 0)
             transaction["account_id"] = str(transaction["account_id"]) if transaction["account_id"] else None
             transaction["can_edit"] = can_manage
             transaction["can_delete"] = can_manage
@@ -619,6 +663,8 @@ class BudgetManager:
             self.db_session.execute(stmt)
 
             if parsed_trip_id and transaction_type == "expense":
+                if not split_allocations and not split_member_ids and parsed_paid_by_member_id:
+                    split_member_ids = [str(parsed_paid_by_member_id)]
                 if split_allocations:
                     self.add_custom_splits(
                         transaction_id=transaction_id,
@@ -779,6 +825,8 @@ class BudgetManager:
                 )
             )
             if parsed_trip_id and transaction_type == "expense":
+                if not split_allocations and not split_member_ids and parsed_paid_by_member_id:
+                    split_member_ids = [str(parsed_paid_by_member_id)]
                 if split_allocations:
                     self.add_custom_splits(
                         transaction_id=parsed_transaction_id,
@@ -1456,25 +1504,49 @@ class BudgetManager:
         return {row.name: row.total_spent for row in result}
 
     def calculate_monthly_report_expenses(self, user_id, year_month):
-        """彙總月報支出：日常支出 + 勾選併入月報的旅行支出。"""
+        """彙總月報支出：日常支出 + 使用者選擇納入的旅行分攤金額。"""
         parsed_user_id = self._parse_user_id(user_id)
         period_start, period_end = self._month_range(year_month)
-        stmt = (
+        daily_stmt = (
             select(categories_table.c.name, func.sum(transactions_table.c.converted_amount).label("total_spent"))
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
-            .outerjoin(trips_table, transactions_table.c.trip_id == trips_table.c.id)
             .where(
                 transactions_table.c.user_id == parsed_user_id,
+                transactions_table.c.trip_id.is_(None),
                 transactions_table.c.type == "expense",
                 transactions_table.c.deleted_at.is_(None),
                 transactions_table.c.transaction_date >= period_start,
                 transactions_table.c.transaction_date <= period_end,
-                self._monthly_report_scope(),
             )
             .group_by(categories_table.c.name)
         )
-        result = self.db_session.execute(stmt)
-        return {row.name: row.total_spent for row in result}
+        totals = {row.name: row.total_spent for row in self.db_session.execute(daily_stmt)}
+
+        trip_stmt = (
+            select(
+                categories_table.c.name,
+                func.sum(transaction_splits_table.c.converted_share_amount).label("total_spent"),
+            )
+            .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
+            .join(transaction_splits_table, transaction_splits_table.c.transaction_id == transactions_table.c.id)
+            .join(trip_members_table, transaction_splits_table.c.trip_member_id == trip_members_table.c.id)
+            .where(
+                trip_members_table.c.user_id == parsed_user_id,
+                trip_members_table.c.status == "active",
+                trip_members_table.c.deleted_at.is_(None),
+                trip_members_table.c.monthly_report_preference == "include",
+                transactions_table.c.trip_id.isnot(None),
+                transactions_table.c.type == "expense",
+                transactions_table.c.deleted_at.is_(None),
+                transactions_table.c.transaction_date >= period_start,
+                transactions_table.c.transaction_date <= period_end,
+            )
+            .group_by(categories_table.c.name)
+        )
+        for row in self.db_session.execute(trip_stmt):
+            totals[row.name] = totals.get(row.name, Decimal("0")) + (row.total_spent or Decimal("0"))
+
+        return totals
 
     def get_budget_summary(self, user_id, month):
         """取得某月預算、已花費、剩餘金額。"""
@@ -1496,7 +1568,7 @@ class BudgetManager:
             row.name: {"budget": row.amount, "notes": row.notes}
             for row in self.db_session.execute(budget_stmt)
         }
-        expenses = self.calculate_monthly_expenses(parsed_user_id, month)
+        expenses = self.calculate_monthly_report_expenses(parsed_user_id, month)
 
         response_data = []
         for category in sorted(set(expenses.keys()) | set(budgets.keys())):
@@ -1520,28 +1592,52 @@ class BudgetManager:
         time_format = "YYYY-MM" if interval == "month" else "YYYY"
         time_period = func.to_char(transactions_table.c.transaction_date, time_format).label("time_period")
 
-        stmt = (
+        daily_stmt = (
             select(
                 time_period,
                 categories_table.c.name.label("category"),
                 func.sum(transactions_table.c.converted_amount).label("total_spent"),
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
-            .outerjoin(trips_table, transactions_table.c.trip_id == trips_table.c.id)
             .where(
                 transactions_table.c.user_id == parsed_user_id,
+                transactions_table.c.trip_id.is_(None),
                 transactions_table.c.type == "expense",
                 transactions_table.c.deleted_at.is_(None),
-                self._monthly_report_scope(),
             )
             .group_by(time_period, categories_table.c.name)
             .order_by(time_period.asc(), categories_table.c.name.asc())
         )
 
         data = {}
-        for row in self.db_session.execute(stmt):
+        for row in self.db_session.execute(daily_stmt):
             period, category, spent = row.time_period, row.category, float(row.total_spent)
             data.setdefault(period, {})[category] = spent
+
+        trip_stmt = (
+            select(
+                time_period,
+                categories_table.c.name.label("category"),
+                func.sum(transaction_splits_table.c.converted_share_amount).label("total_spent"),
+            )
+            .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
+            .join(transaction_splits_table, transaction_splits_table.c.transaction_id == transactions_table.c.id)
+            .join(trip_members_table, transaction_splits_table.c.trip_member_id == trip_members_table.c.id)
+            .where(
+                trip_members_table.c.user_id == parsed_user_id,
+                trip_members_table.c.status == "active",
+                trip_members_table.c.deleted_at.is_(None),
+                trip_members_table.c.monthly_report_preference == "include",
+                transactions_table.c.trip_id.isnot(None),
+                transactions_table.c.type == "expense",
+                transactions_table.c.deleted_at.is_(None),
+            )
+            .group_by(time_period, categories_table.c.name)
+            .order_by(time_period.asc(), categories_table.c.name.asc())
+        )
+        for row in self.db_session.execute(trip_stmt):
+            period, category, spent = row.time_period, row.category, float(row.total_spent)
+            data.setdefault(period, {})[category] = data.setdefault(period, {}).get(category, 0) + spent
 
         if not data:
             return {"labels": [], "datasets": []}

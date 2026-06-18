@@ -68,10 +68,10 @@
         </label>
         <label class="toggle-row">
           <input v-model="newTrip.include_in_monthly_report" type="checkbox" />
-          計入日常統計
+          納入我的月報
         </label>
         <p class="field-hint">
-          開啟後，此旅行支出會一起出現在首頁與收支統計；關閉則只保留在旅行帳本內。
+          開啟後，你在這趟旅行的分攤金額會出現在首頁與收支統計；其他成員可自行決定。
         </p>
         <button class="primary-action" type="submit" :disabled="submittingTrip">
           <Plus />
@@ -127,7 +127,7 @@
       <article v-if="selectedTrip" class="trip-detail">
         <div class="current-trip-card">
           <div>
-            <span class="trip-state-badge" :class="{ included: selectedTrip.include_in_monthly_report }">
+            <span class="trip-state-badge" :class="tripReportPreferenceClass(selectedTrip)">
               {{ tripReportLabel(selectedTrip) }}
             </span>
             <strong>{{ selectedTrip.name }}</strong>
@@ -140,19 +140,55 @@
           </div>
           <div class="current-trip-actions">
             <button
-              v-if="canManageSelectedTrip"
+              v-if="currentMemberMonthlyReportPreference !== 'pending'"
               class="quiet-action"
               type="button"
               :disabled="updatingTripSettings"
               @click="toggleSelectedTripReportScope"
             >
-              {{ selectedTrip.include_in_monthly_report ? "改為獨立統計" : "計入日常統計" }}
+              {{ currentMemberMonthlyReportPreference === "include" ? "不納入我的月報" : "納入我的月報" }}
             </button>
             <button class="secondary-action" type="button" @click="showTripSwitcher = true">
               切換旅行
             </button>
           </div>
         </div>
+
+        <section
+          v-if="currentMemberMonthlyReportPreference === 'pending'"
+          class="monthly-preference-panel"
+        >
+          <div>
+            <strong>這趟旅行要納入你的個人月報嗎？</strong>
+            <p>只有你的分攤金額會影響你的首頁、收支分析與預算統計。</p>
+          </div>
+          <div class="monthly-preference-actions">
+            <button
+              type="button"
+              class="primary-action"
+              :disabled="updatingTripSettings"
+              @click="updateMonthlyReportPreference('include')"
+            >
+              納入我的月報
+            </button>
+            <button
+              type="button"
+              class="secondary-action"
+              :disabled="updatingTripSettings"
+              @click="updateMonthlyReportPreference('exclude')"
+            >
+              不納入
+            </button>
+            <button
+              type="button"
+              class="quiet-action"
+              :disabled="updatingTripSettings"
+              @click="updateMonthlyReportPreference('pending')"
+            >
+              稍後再決定
+            </button>
+          </div>
+        </section>
 
         <nav class="trip-tabs" aria-label="旅行操作">
           <button
@@ -516,6 +552,10 @@
               <small>{{ filter.count }} 筆</small>
             </button>
           </div>
+          <div v-if="transactionsMissingSplits.length > 0" class="split-warning">
+            <strong>{{ transactionsMissingSplits.length }} 筆支出缺少分帳設定</strong>
+            <p>需完成分攤設定後，這些支出才會依個人分攤金額納入月報。</p>
+          </div>
           <div v-if="tripTransactions.length === 0" class="empty-state">尚未新增旅行支出</div>
           <div v-else-if="filteredTripTransactions.length === 0" class="empty-state">這一天尚無旅行支出</div>
           <div v-else class="transaction-list">
@@ -803,7 +843,7 @@
             @click="switchTrip(trip.id)"
           >
             <div>
-              <span class="trip-state-badge" :class="{ included: trip.include_in_monthly_report }">
+              <span class="trip-state-badge" :class="tripReportPreferenceClass(trip)">
                 {{ tripReportLabel(trip) }}
               </span>
               <strong>{{ trip.name }}</strong>
@@ -966,6 +1006,13 @@ export default {
       return this.tripTransactions.filter(
         (transaction) => transaction.date === this.selectedTransactionDate
       );
+    },
+    transactionsMissingSplits() {
+      return this.tripTransactions.filter((transaction) => (
+        transaction.type === "expense"
+        && Number(transaction.converted_amount || 0) > 0
+        && Number(transaction.split_count || 0) === 0
+      ));
     },
     tripCloseoutStatus() {
       if (this.tripTransactions.length === 0) {
@@ -1149,6 +1196,9 @@ export default {
       return this.selectedTrip.members.find(
         (member) => member.id === this.selectedTrip.current_member_id
       ) || null;
+    },
+    currentMemberMonthlyReportPreference() {
+      return this.currentTripMember?.monthly_report_preference || null;
     },
     isTripOwner() {
       return this.currentTripMember?.role === "owner";
@@ -1382,33 +1432,39 @@ export default {
     async toggleSelectedTripReportScope() {
       if (!this.selectedTrip || this.updatingTripSettings) return;
 
-      const nextValue = !this.selectedTrip.include_in_monthly_report;
+      const nextPreference = this.currentMemberMonthlyReportPreference === "include" ? "exclude" : "include";
       const result = await this.$swal.fire({
-        title: nextValue ? "計入日常統計？" : "改為旅行獨立統計？",
-        text: nextValue
-          ? "此旅行支出會一起出現在首頁與收支統計中。"
-          : "此旅行支出將只保留在旅行帳本內，不併入日常統計。",
+        title: nextPreference === "include" ? "納入我的月報？" : "不納入我的月報？",
+        text: nextPreference === "include"
+          ? "你的分攤金額會出現在首頁、收支統計與預算中。"
+          : "你的分攤金額將只保留在旅行帳本內，不併入個人月報。",
         icon: "question",
         showCancelButton: true,
-        confirmButtonText: nextValue ? "計入日常統計" : "改為獨立統計",
+        confirmButtonText: nextPreference === "include" ? "納入我的月報" : "不納入",
         cancelButtonText: "取消",
       });
       if (!result.isConfirmed) return;
 
+      await this.updateMonthlyReportPreference(nextPreference);
+    },
+    async updateMonthlyReportPreference(preference) {
+      if (!this.selectedTrip || this.updatingTripSettings) return;
+
       this.updatingTripSettings = true;
       try {
-        const response = await apiClient.patch(`/api/trips/${this.selectedTrip.id}`, {
-          include_in_monthly_report: nextValue,
+        const response = await apiClient.patch(`/api/trips/${this.selectedTrip.id}/members/me/monthly-report-preference`, {
+          monthly_report_preference: preference,
         });
-        const updatedTrip = response.data.data;
-        this.selectedTrip = {
-          ...this.selectedTrip,
-          ...updatedTrip,
-        };
-        this.trips = this.trips.map((trip) => (
-          trip.id === updatedTrip.id ? { ...trip, ...updatedTrip } : trip
-        ));
-        this.$swal.fire("已更新", response.data.message || "旅行設定已更新。", "success");
+        const updatedTrip = response.data.data?.trip;
+        if (updatedTrip) {
+          this.selectedTrip = updatedTrip;
+          this.trips = this.trips.map((trip) => (
+            trip.id === updatedTrip.id ? { ...trip, ...updatedTrip } : trip
+          ));
+        }
+        if (preference !== "pending") {
+          this.$swal.fire("已更新", response.data.message || "個人月報偏好已更新。", "success");
+        }
       } catch (error) {
         this.$swal.fire(
           "更新失敗",
@@ -2140,8 +2196,25 @@ export default {
     formatRange(trip) {
       return `${trip.start_date} - ${trip.end_date}`;
     },
+    tripCurrentMember(trip) {
+      if (!trip?.current_member_id) return null;
+      return (trip.members || []).find((member) => member.id === trip.current_member_id) || null;
+    },
+    tripReportPreference(trip) {
+      return this.tripCurrentMember(trip)?.monthly_report_preference || null;
+    },
+    tripReportPreferenceClass(trip) {
+      return {
+        included: this.tripReportPreference(trip) === "include",
+        pending: this.tripReportPreference(trip) === "pending",
+      };
+    },
     tripReportLabel(trip) {
-      return trip?.include_in_monthly_report ? "計入日常統計" : "旅行獨立統計";
+      const preference = this.tripReportPreference(trip);
+      if (preference === "include") return "計入我的月報";
+      if (preference === "exclude") return "不計入我的月報";
+      if (preference === "pending") return "尚未決定";
+      return trip?.include_in_monthly_report ? "舊設定：計入月報" : "尚未設定";
     },
     formatDateChip(dateString) {
       if (!dateString) return "";
@@ -2649,6 +2722,40 @@ select:disabled {
   border-color: #99f6e4;
 }
 
+.trip-state-badge.pending {
+  color: #92400e;
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.monthly-preference-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  margin-top: 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+}
+
+.monthly-preference-panel strong {
+  color: #78350f;
+  font-size: 0.98rem;
+}
+
+.monthly-preference-panel p {
+  margin: 4px 0 0;
+  color: #92400e;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.monthly-preference-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .trip-hero {
   justify-content: space-between;
   gap: 12px;
@@ -2922,6 +3029,27 @@ select:disabled {
   border-radius: 8px;
   font-size: 0.88rem;
   font-weight: 700;
+}
+
+.split-warning {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  margin-bottom: 12px;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+}
+
+.split-warning strong {
+  font-size: 0.92rem;
+}
+
+.split-warning p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 .split-header {
