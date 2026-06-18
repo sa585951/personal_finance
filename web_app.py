@@ -21,6 +21,7 @@ from models.linebot.manager import LineBotManager
 from models.app_state import AppStateManager
 from models.database import db_session 
 from models.schema import transactions_table, trips_table
+from models.transaction_service import TransactionService
 from models.trip_manager import TripManager
 from models.user_manager import UserManager
 
@@ -80,6 +81,10 @@ budget_manager = BudgetManager(db_session)
 goal_manager = GoalManager(db_session)
 trip_manager = TripManager(db_session)
 user_manager = UserManager(db_session)
+
+
+def get_transaction_service():
+    return TransactionService(budget_manager, asset_manager)
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
@@ -1023,21 +1028,9 @@ def add_transaction(current_user_id):
         return jsonify({"success": False, "message": "缺少必要欄位"}), 400
 
     try:
-        success, message = budget_manager.add_transaction(
-            current_user_id, data["date"], data["item"], data["amount"], 
-            data["type"], data["budget_category"], data.get("description", ""),
-            account_id=data.get("account_id"),
-            trip_id=data.get("trip_id"),
-            paid_by_member_id=data.get("paid_by_member_id"),
-            merchant=data.get("merchant"),
-            original_currency=data.get("original_currency"),
-            exchange_rate=data.get("exchange_rate"),
-            timezone_name=data.get("timezone", "Asia/Taipei"),
-            split_member_ids=data.get("split_member_ids"),
-            split_allocations=data.get("split_allocations"),
-            review_status=data.get("review_status", "confirmed"),
-        )
-        created_transaction_id = getattr(budget_manager, "last_created_transaction_id", None)
+        result = get_transaction_service().create_transaction(current_user_id, data)
+        created_transaction_id = result["transaction_id"]
+        success = result["success"]
         if success:
             parse_event_id = data.get("parse_event_id")
             if parse_event_id and created_transaction_id:
@@ -1050,7 +1043,7 @@ def add_transaction(current_user_id):
             db_session.commit()
         return jsonify({
             "success": success,
-            "message": message,
+            "message": result["message"],
             "data": {
                 "transaction_id": str(created_transaction_id) if created_transaction_id else None,
             },
@@ -1079,28 +1072,10 @@ def update_transaction(current_user_id, transaction_id):
         return jsonify({"success": False, "message": "缺少必要欄位"}), 400
 
     try:
-        success, message = budget_manager.update_transaction(
-            current_user_id,
-            transaction_id,
-            data["date"],
-            data["item"],
-            data["amount"],
-            data["type"],
-            data["budget_category"],
-            data.get("description", ""),
-            account_id=data.get("account_id"),
-            paid_by_member_id=data.get("paid_by_member_id"),
-            merchant=data.get("merchant"),
-            original_currency=data.get("original_currency"),
-            exchange_rate=data.get("exchange_rate"),
-            timezone_name=data.get("timezone", "Asia/Taipei"),
-            split_member_ids=data.get("split_member_ids"),
-            split_allocations=data.get("split_allocations"),
-            review_status=data.get("review_status", "confirmed"),
-        )
-        if success:
+        result = get_transaction_service().update_transaction(current_user_id, transaction_id, data)
+        if result["success"]:
             db_session.commit()
-        return jsonify({"success": success, "message": message}), 200
+        return jsonify({"success": result["success"], "message": result["message"]}), 200
     except Exception as e:
         db_session.rollback()
         app.logger.error(f"Error in update_transaction: {e}")
@@ -1110,10 +1085,10 @@ def update_transaction(current_user_id, transaction_id):
 @token_required
 def delete_transaction(current_user_id, transaction_id):
     try:
-        success, message = budget_manager.delete_transaction(current_user_id, transaction_id)
-        if success:
+        result = get_transaction_service().delete_transaction(current_user_id, transaction_id)
+        if result["success"]:
             db_session.commit()
-        return jsonify({"success": success, "message": message}), 200
+        return jsonify({"success": result["success"], "message": result["message"]}), 200
     except Exception as e:
         db_session.rollback()
         app.logger.error(f"Error in delete_transaction: {e}")

@@ -1,13 +1,13 @@
 # models/linebot/message_handler.py
 
 from datetime import datetime
-from zoneinfo import ZoneInfo
 # 移除簡單的 Handler 導入，因為我們會將其邏輯直接整合進來
 # from .handlers import ExpenseHandler, IncomeHandler, QueryHandler, AssetHandler, GoalHandler
 
 # 導入我們需要的 Manager 類別
 from ..budget_manager import BudgetManager
 from ..asset_manager import AssetManager
+from ..transaction_service import TransactionService
 
 # 導入 Flow Handlers
 from .flow_handlers.transfer_flow_handler import TransferFlowHandler
@@ -21,8 +21,6 @@ from .flow_handlers.set_budget_flow_handler import SetBudgetFlowHandler
 from .response_builder import ResponseBuilder
 
 class MessageHandler:
-    DEFAULT_TRANSACTION_TIMEZONE = "Asia/Taipei"
-
     """訊息處理器 - 負責訊息路由和處理邏輯"""
     def __init__(self, user_state_manager, db_session):
         self.user_state_manager = user_state_manager
@@ -33,6 +31,7 @@ class MessageHandler:
         # 初始化資料管理器
         self.budget_manager = BudgetManager(db_session)
         self.asset_manager = AssetManager(db_session)
+        self.transaction_service = TransactionService(self.budget_manager, self.asset_manager)
 
         # 初始化流程處理器，並傳入 manager
         self.flow_handlers = {
@@ -130,90 +129,34 @@ class MessageHandler:
     def _handle_expense(self, parsed_data, user_id, raw_message=""):
         """處理支出記錄並更新資產餘額"""
         try:
-            target_asset_name = parsed_data.get("target_asset")
-            asset = None
-            if target_asset_name:
-                asset = self.asset_manager.find_asset_by_name(
-                    user_id,
-                    target_asset_name,
-                    currency=parsed_data.get("currency"),
-                    context_text=raw_message,
-                )
-
-            # 1. 新增交易紀錄
-            self.budget_manager.add_transaction(
-                user_id, self._transaction_date(parsed_data),
-                parsed_data['category'], parsed_data['amount'], 'expense',
-                parsed_data['budget_category'], parsed_data.get('description', ''),
-                account_id=asset["account_key"] if asset else None,
-                original_currency=parsed_data.get("currency") or (asset["currency"] if asset else None),
+            result = self._get_transaction_service().create_from_parsed_transaction(
+                user_id,
+                {**parsed_data, "type": "expense"},
+                raw_message,
             )
-
-            # 2. 帳戶餘額已由 BudgetManager 依 account_id 同步更新，避免交易與餘額狀態分離。
-            asset_update_msg = None
-            if target_asset_name:
-                if asset:
-                    asset_update_msg = f"已從 {asset['bank_name']} 扣款"
-                else:
-                    asset_update_msg = f"找不到名為 {target_asset_name} 的資產"
-            
-            response_data = {
-                "category": parsed_data["category"],
-                "amount": parsed_data["amount"],
-                "description": parsed_data.get("description") or "",
-                "date": self._transaction_date(parsed_data),
-                "account_message": asset_update_msg,
-            }
-            return self.response_builder.create_expense_success(response_data)
+            return self.response_builder.create_expense_success(result["data"])
         except Exception as e:
             return self.response_builder.create_error_message(f"紀錄失敗: {e}")
 
     def _handle_income(self, parsed_data, user_id, raw_message=""):
         """處理收入記錄並更新資產餘額"""
         try:
-            target_asset_name = parsed_data.get("target_asset")
-            asset = None
-            if target_asset_name:
-                asset = self.asset_manager.find_asset_by_name(
-                    user_id,
-                    target_asset_name,
-                    currency=parsed_data.get("currency"),
-                    context_text=raw_message,
-                )
-
-            # 1. 新增交易紀錄
-            self.budget_manager.add_transaction(
-                user_id, self._transaction_date(parsed_data),
-                parsed_data['category'], parsed_data['amount'], 'income',
-                parsed_data['budget_category'], parsed_data.get('description', ''),
-                account_id=asset["account_key"] if asset else None,
-                original_currency=parsed_data.get("currency") or (asset["currency"] if asset else None),
+            result = self._get_transaction_service().create_from_parsed_transaction(
+                user_id,
+                {**parsed_data, "type": "income"},
+                raw_message,
             )
-
-            # 2. 帳戶餘額已由 BudgetManager 依 account_id 同步更新，避免交易與餘額狀態分離。
-            asset_update_msg = None
-            if target_asset_name:
-                if asset:
-                    asset_update_msg = f"已存入 {asset['bank_name']}"
-                else:
-                    asset_update_msg = f"找不到名為 {target_asset_name} 的資產"
-
-            response_data = {
-                "amount": parsed_data["amount"],
-                "description": parsed_data.get("description") or "",
-                "date": self._transaction_date(parsed_data),
-                "account_message": asset_update_msg,
-            }
-            return self.response_builder.create_income_success(response_data)
+            return self.response_builder.create_income_success(result["data"])
         except Exception as e:
             return self.response_builder.create_error_message(f"紀錄失敗: {e}")
 
-    def _transaction_date(self, parsed_data):
-        parsed_date = parsed_data.get("date")
-        if parsed_date:
-            return parsed_date
-        return datetime.now(ZoneInfo(self.DEFAULT_TRANSACTION_TIMEZONE)).strftime("%Y-%m-%d")
-    
+    def _get_transaction_service(self):
+        service = getattr(self, "transaction_service", None)
+        if service is None:
+            service = TransactionService(self.budget_manager, self.asset_manager)
+            self.transaction_service = service
+        return service
+
     def _handle_query(self, user_id):
         """處理查詢請求"""
         try:
