@@ -68,16 +68,21 @@
     <section class="insights-panel" aria-label="Nomica Insights">
       <div class="section-heading">
         <h2>Nomica Insights</h2>
-        <span>現在需要注意什麼</span>
+        <span>{{ insightSummaryText }}</span>
       </div>
 
       <div v-if="insightItems.length === 0" class="insight-empty">
         <span>狀態良好</span>
         <strong>目前沒有需要處理的提醒</strong>
-        <p>預算、旅行與帳戶狀態暫時沒有明顯警示。</p>
+        <p>預算、旅行與帳戶狀態暫時沒有明顯警示；需要細看時可進入各頁面。</p>
       </div>
 
       <div v-else class="insight-list">
+        <div class="insight-summary-strip" aria-label="提醒層級統計">
+          <span>需要處理 {{ needsActionInsights.length }}</span>
+          <span>值得注意 {{ attentionInsights.length }}</span>
+          <span>資訊 {{ infoInsights.length }}</span>
+        </div>
         <router-link
           v-for="insight in insightItems"
           :key="insight.key"
@@ -341,7 +346,10 @@ export default {
         .filter((transaction) => transaction.type === "expense")
         .sort((a, b) => this.monthlyReportAmount(b) - this.monthlyReportAmount(a))[0] || null;
     },
-    insightItems() {
+    pendingMonthlyReportTrips() {
+      return this.activeTrips.filter((trip) => this.tripMonthlyPreference(trip) === "pending");
+    },
+    needsActionInsights() {
       const items = [];
 
       this.creditCardAccountsToCheck.slice(0, 1).forEach((asset) => {
@@ -368,36 +376,62 @@ export default {
         });
       }
 
-      this.nearlyUsedBudgets.slice(0, 1).forEach((item) => {
-        const ratio = Math.round((Number(item.spent || 0) / Number(item.budget || 1)) * 100);
+      if (this.pendingMonthlyReportTrips.length > 0) {
         items.push({
-          key: `budget-near-limit-${item.category}`,
-          level: "attention",
-          group: "值得注意",
-          title: `${item.category} 預算快用完`,
-          description: `已使用 ${ratio}%，剩餘 ${this.formatDisplayMoney(item.remaining)}。`,
-          action: "看預算",
-          to: "/budgets",
-        });
-      });
-
-      if (this.activeTrips.length > 0) {
-        items.push({
-          key: "active-trips",
-          level: "attention",
-          group: "值得注意",
-          title: `${this.activeTrips.length} 個旅行帳本可核對`,
-          description: "旅行分帳與結算狀態請到旅行頁確認，首頁 V1 不推測待結算金額。",
+          key: "trip-monthly-report-pending",
+          level: "needs-action",
+          group: "需要處理",
+          title: `${this.pendingMonthlyReportTrips.length} 個旅行尚未決定月報`,
+          description: "請決定是否把自己的旅行分攤金額納入月報與預算統計。",
           action: "看旅行",
           to: "/trips",
         });
       }
 
-      if (this.largestMonthlyExpense) {
+      return items;
+    },
+    attentionInsights() {
+      const items = [];
+
+      if (this.overspendingWarnings.length === 0) {
+        this.nearlyUsedBudgets.slice(0, 1).forEach((item) => {
+          const ratio = Math.round((Number(item.spent || 0) / Number(item.budget || 1)) * 100);
+          items.push({
+            key: `budget-near-limit-${item.category}`,
+            level: "attention",
+            group: "值得注意",
+            title: `${item.category} 預算快用完`,
+            description: `已使用 ${ratio}%，剩餘 ${this.formatDisplayMoney(item.remaining)}。`,
+            action: "看預算",
+            to: "/budgets",
+          });
+        });
+      }
+
+      const activeDecidedTrips = this.activeTrips.filter(
+        (trip) => this.tripMonthlyPreference(trip) !== "pending"
+      );
+      if (activeDecidedTrips.length > 0) {
         items.push({
-          key: `largest-expense-${this.largestMonthlyExpense.id}`,
+          key: "active-trips",
           level: "attention",
           group: "值得注意",
+          title: `${activeDecidedTrips.length} 個旅行帳本可核對`,
+          description: "旅行分帳與結算狀態請到旅行頁確認，首頁只提示入口。",
+          action: "看旅行",
+          to: "/trips",
+        });
+      }
+
+      return items;
+    },
+    infoInsights() {
+      if (!this.largestMonthlyExpense) return [];
+      return [
+        {
+          key: `largest-expense-${this.largestMonthlyExpense.id}`,
+          level: "info",
+          group: "資訊",
           title: "本月最大支出",
           description: `${this.largestMonthlyExpense.category || "未分類"} ${this.formatMoney(
             this.monthlyReportAmount(this.largestMonthlyExpense),
@@ -405,10 +439,24 @@ export default {
           )}`,
           action: "看收支",
           to: "/transactions?type=expense",
-        });
+        },
+      ];
+    },
+    insightSummaryText() {
+      if (this.needsActionInsights.length > 0) {
+        return `需要處理 ${this.needsActionInsights.length}`;
       }
-
-      return items.slice(0, 4);
+      if (this.attentionInsights.length > 0) {
+        return `值得注意 ${this.attentionInsights.length}`;
+      }
+      return "狀態良好";
+    },
+    insightItems() {
+      return [
+        ...this.needsActionInsights.slice(0, 3),
+        ...this.attentionInsights.slice(0, 2),
+        ...this.infoInsights.slice(0, 1),
+      ].slice(0, 4);
     },
   },
   methods: {
@@ -496,6 +544,12 @@ export default {
     },
     transactionDateKey(transaction) {
       return String(transaction?.date || "").slice(0, 10);
+    },
+    tripMonthlyPreference(trip) {
+      const currentMember = (trip.members || []).find(
+        (member) => member.id === trip.current_member_id
+      );
+      return currentMember?.monthly_report_preference || null;
     },
     formatShortDate(dateString) {
       if (!dateString) return "";
@@ -648,6 +702,38 @@ h1 {
   gap: 10px;
 }
 
+.insight-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.insight-summary-strip span {
+  min-width: 0;
+  min-height: 30px;
+  padding: 7px 8px;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.insight-summary-strip span:first-child {
+  color: #9a3412;
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.insight-summary-strip span:nth-child(2) {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
 .insight-card,
 .insight-empty {
   display: grid;
@@ -675,6 +761,11 @@ h1 {
   border-color: #dbe4ee;
 }
 
+.insight-card.info {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
 .insight-marker {
   width: 10px;
   height: 42px;
@@ -688,6 +779,10 @@ h1 {
 
 .insight-card.attention .insight-marker {
   background: #2563eb;
+}
+
+.insight-card.info .insight-marker {
+  background: #64748b;
 }
 
 .insight-content {
@@ -1029,6 +1124,10 @@ h1 {
   }
 
   .insight-card {
+    grid-template-columns: 1fr;
+  }
+
+  .insight-summary-strip {
     grid-template-columns: 1fr;
   }
 
