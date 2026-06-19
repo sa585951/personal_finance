@@ -18,6 +18,7 @@
     </div>
 
     <AIQuickInput
+      :type="activeType"
       @apply-draft="applyAIDraft"
       @parsed="refreshAIEvents"
     />
@@ -27,14 +28,26 @@
       ref="aiParseEventsPanel"
     />
 
-    <TransactionForm
-      :type="activeType"
-      :draft="aiDraft"
-      :editing-transaction="editingTransaction"
-      @transaction-added="handleTransactionAdded"
-      @transaction-updated="handleTransactionUpdated"
-      @edit-cancelled="cancelEditingTransaction"
-    />
+    <section class="entry-form-section">
+      <button
+        v-if="!showTransactionForm"
+        class="manual-entry-toggle"
+        type="button"
+        @click="openManualForm"
+      >
+        {{ manualEntryLabel }}
+      </button>
+
+      <TransactionForm
+        v-if="showTransactionForm"
+        :type="activeType"
+        :draft="aiDraft"
+        :editing-transaction="editingTransaction"
+        @transaction-added="handleTransactionAdded"
+        @transaction-updated="handleTransactionUpdated"
+        @edit-cancelled="cancelEditingTransaction"
+      />
+    </section>
 
     <TransactionSummary :transactions="transactions" />
 
@@ -140,6 +153,7 @@ export default {
       activeAnalysisTab: "category",
       showAllRecords: false,
       recordPreviewLimit: 10,
+      showTransactionForm: false,
     };
   },
   watch: {
@@ -248,6 +262,9 @@ export default {
       };
       return titleMap[this.activeType];
     },
+    manualEntryLabel() {
+      return this.activeType === "income" ? "手動新增收入" : "手動新增支出";
+    },
     showDevAIEvents() {
       return import.meta.env.DEV;
     },
@@ -261,6 +278,8 @@ export default {
       this.editingTransaction = null;
       this.selectedRecordDate = "all";
       this.showAllRecords = false;
+      this.aiDraft = null;
+      this.showTransactionForm = false;
       this.$router.replace({
         path: this.$route.path,
         query: {
@@ -275,13 +294,25 @@ export default {
         this.setActiveType(draft.type);
       }
       this.editingTransaction = null;
+      this.showTransactionForm = true;
       this.aiDraft = {
         ...draft,
         switchedType,
         appliedAt: Date.now(),
       };
       this.$nextTick(() => {
-        document.querySelector(".form-container")?.scrollIntoView({
+        document.querySelector(".entry-form-section")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    },
+    openManualForm() {
+      this.aiDraft = null;
+      this.editingTransaction = null;
+      this.showTransactionForm = true;
+      this.$nextTick(() => {
+        document.querySelector(".entry-form-section")?.scrollIntoView({
           behavior: "smooth",
           block: "start",
         });
@@ -290,15 +321,19 @@ export default {
     async handleTransactionAdded() {
       await this.fetchTransactions();
       this.refreshAIEvents();
+      this.showTransactionForm = false;
+      this.aiDraft = null;
     },
     async handleTransactionUpdated() {
       this.editingTransaction = null;
       await this.fetchTransactions();
       this.clearEditQuery();
+      this.showTransactionForm = false;
     },
     cancelEditingTransaction() {
       this.editingTransaction = null;
       this.clearEditQuery();
+      this.showTransactionForm = false;
     },
     startEditingTransaction(transaction) {
       if (!transaction?.id) return;
@@ -317,8 +352,9 @@ export default {
         ...transaction,
         selectedAt: Date.now(),
       };
+      this.showTransactionForm = true;
       this.$nextTick(() => {
-        document.querySelector(".form-container")?.scrollIntoView({
+        document.querySelector(".entry-form-section")?.scrollIntoView({
           behavior: "smooth",
           block: "start",
         });
@@ -485,6 +521,27 @@ h1 {
 .records-section,
 .analysis-section {
   margin-top: 1rem;
+}
+
+.entry-form-section {
+  margin: 0 0 1rem;
+}
+
+.manual-entry-toggle {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: none;
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
+.manual-entry-toggle:hover {
+  background: #f8fafc;
 }
 
 .analysis-panel {

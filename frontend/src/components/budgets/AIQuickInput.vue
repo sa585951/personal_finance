@@ -15,7 +15,7 @@
           id="aiQuickText"
           v-model="text"
           rows="2"
-          placeholder="例如：晚餐 680 用國泰信用卡"
+          :placeholder="placeholderText"
           :disabled="isParsing"
         ></textarea>
       </label>
@@ -99,6 +99,13 @@ import apiClient from "@/api";
 
 export default {
   name: "AIQuickInput",
+  props: {
+    type: {
+      type: String,
+      default: "expense",
+      validator: (value) => ["expense", "income"].includes(value),
+    },
+  },
   emits: ["apply-draft", "parsed"],
   data() {
     return {
@@ -108,15 +115,30 @@ export default {
       parseEventId: "",
       errorMessage: "",
       hasAppliedResult: false,
-      examples: [
-        "午餐麥當勞 150",
-        "晚餐 680 用國泰信用卡",
-        "薪資 50000 存入銀行",
-        "拉麵 1200 日幣 用日幣現金",
-      ],
     };
   },
   computed: {
+    placeholderText() {
+      return this.type === "income"
+        ? "例如：薪資 50000 存入玉山帳戶"
+        : "例如：晚餐 680 用國泰信用卡";
+    },
+    examples() {
+      if (this.type === "income") {
+        return [
+          "薪資 50000 存入玉山帳戶",
+          "獎金 8000 存入銀行",
+          "退款 1200 存入現金",
+          "利息 300 存入台新活存",
+        ];
+      }
+      return [
+        "午餐麥當勞 150",
+        "晚餐 680 用國泰信用卡",
+        "火車票 台北到台中 460 用現金",
+        "拉麵 1200 日幣 用日幣現金",
+      ];
+    },
     transaction() {
       return this.parseResult?.transaction || null;
     },
@@ -142,6 +164,14 @@ export default {
         local_fallback: "本地解析",
       };
       return labelMap[this.parseResult?.source] || "解析";
+    },
+  },
+  watch: {
+    type() {
+      this.errorMessage = "";
+      this.parseResult = null;
+      this.parseEventId = "";
+      this.hasAppliedResult = false;
     },
   },
   methods: {
