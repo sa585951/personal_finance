@@ -37,6 +37,9 @@
       >
         {{ manualEntryLabel }}
       </button>
+      <p v-if="!showTransactionForm" class="manual-entry-hint">
+        AI 解析後也會在這裡展開表單，送出前仍可調整日期、類別與帳戶。
+      </p>
 
       <TransactionForm
         v-if="showTransactionForm"
@@ -54,7 +57,7 @@
     <section class="records-section">
       <div class="section-heading">
         <h2>{{ tableTitle }}</h2>
-        <span>近期紀錄</span>
+        <span>{{ tableMetaText }}</span>
       </div>
       <div
         v-if="recordDateFilters.length > 1"
@@ -100,8 +103,8 @@
 
     <section v-if="activeType !== 'income'" class="analysis-section">
       <div class="section-heading">
-        <h2>支出分析</h2>
-        <span>分析</span>
+        <h2>{{ analysisTitle }}</h2>
+        <span>支出分析</span>
       </div>
       <div class="analysis-panel">
         <div class="analysis-tabs" aria-label="支出分析切換">
@@ -247,23 +250,39 @@ export default {
       return [
         {
           key: "category",
-          label: "分類比例",
+          label: "花在哪裡",
         },
         {
           key: "trend",
-          label: "月年趨勢",
+          label: "變化趨勢",
         },
       ];
     },
     tableTitle() {
-      const titleMap = {
-        expense: "支出紀錄",
-        income: "收入紀錄",
-      };
-      return titleMap[this.activeType];
+      const typeLabel = this.activeType === "income" ? "收入" : "支出";
+      if (this.selectedRecordDate !== "all") {
+        return `${this.formatDateChip(this.selectedRecordDate)} 的${typeLabel}`;
+      }
+      if (this.showAllRecords || this.recordListTransactions.length <= this.recordPreviewLimit) {
+        return `全部${typeLabel}紀錄`;
+      }
+      return `最近 ${this.recordPreviewLimit} 筆${typeLabel}`;
+    },
+    tableMetaText() {
+      const count = this.recordListTransactions.length;
+      if (this.selectedRecordDate !== "all") {
+        return `${count} 筆`;
+      }
+      if (this.showAllRecords || count <= this.recordPreviewLimit) {
+        return `共 ${count} 筆`;
+      }
+      return `共 ${count} 筆`;
     },
     manualEntryLabel() {
       return this.activeType === "income" ? "手動新增收入" : "手動新增支出";
+    },
+    analysisTitle() {
+      return this.activeAnalysisTab === "category" ? "支出花在哪裡" : "支出變化趨勢";
     },
     showDevAIEvents() {
       return import.meta.env.DEV;
@@ -542,6 +561,15 @@ h1 {
 
 .manual-entry-toggle:hover {
   background: #f8fafc;
+}
+
+.manual-entry-hint {
+  margin: 8px 4px 0;
+  color: #64748b;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: left;
 }
 
 .analysis-panel {
