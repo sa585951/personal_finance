@@ -52,7 +52,11 @@
       />
     </section>
 
-    <TransactionSummary :transactions="transactions" />
+    <TransactionSummary
+      :transactions="transactions"
+      :month="selectedSummaryMonth"
+      @month-change="selectedSummaryMonth = $event"
+    />
 
     <section class="records-section">
       <div class="section-heading">
@@ -122,6 +126,62 @@
         <SpendingTrendsChart v-else />
       </div>
     </section>
+    <section v-else class="income-check-section">
+      <div class="section-heading">
+        <h2>收入來源核對</h2>
+        <span>{{ selectedMonthLabel }}</span>
+      </div>
+      <div class="income-check-panel">
+        <div v-if="monthlyIncomeTotal > 0">
+          <div class="income-check-total">
+            <div>
+              <span>本月收入</span>
+              <strong>{{ formatMoney(monthlyIncomeTotal) }}</strong>
+            </div>
+            <small>{{ incomeSourceRows.length }} 個來源 · {{ selectedMonthIncomeTransactions.length }} 筆</small>
+          </div>
+          <div class="income-distribution-bar" aria-label="收入來源分布">
+            <span
+              v-for="source in incomeSourceRows"
+              :key="source.name"
+              :style="{
+                width: `${source.percentage}%`,
+                background: source.color,
+              }"
+            ></span>
+          </div>
+          <div class="income-distribution-legend">
+            <span
+              v-for="source in incomeSourceRows"
+              :key="source.name"
+            >
+              <i :style="{ background: source.color }"></i>
+              {{ source.name }} {{ Math.round(source.rawPercentage) }}%
+            </span>
+          </div>
+          <div class="income-source-list">
+            <div
+              v-for="source in incomeSourceRows"
+              :key="source.name"
+              class="income-source-row"
+            >
+              <div class="income-source-main">
+                <span>{{ source.name }}</span>
+                <small>{{ source.count }} 筆</small>
+              </div>
+              <strong>{{ formatMoney(source.amount) }}</strong>
+              <small class="income-source-percent">{{ Math.round(source.rawPercentage) }}%</small>
+            </div>
+          </div>
+          <p v-if="hiddenIncomeSourceCount > 0" class="income-check-note">
+            另有 {{ hiddenIncomeSourceCount }} 個收入來源未顯示。
+          </p>
+        </div>
+        <p v-else class="income-check-empty">
+          這個月份尚未記錄收入。新增收入後，這裡會依收入類別整理來源。
+        </p>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -157,6 +217,7 @@ export default {
       showAllRecords: false,
       recordPreviewLimit: 10,
       showTransactionForm: false,
+      selectedSummaryMonth: this.defaultMonthKey(),
     };
   },
   watch: {
@@ -284,11 +345,66 @@ export default {
     analysisTitle() {
       return this.activeAnalysisTab === "category" ? "支出花在哪裡" : "支出變化趨勢";
     },
+    selectedMonthLabel() {
+      if (!this.selectedSummaryMonth) return "本月";
+      const [year, month] = this.selectedSummaryMonth.split("-");
+      if (!year || !month) return this.selectedSummaryMonth;
+      return `${Number(month)} 月`;
+    },
+    selectedMonthIncomeTransactions() {
+      return this.transactions.filter((transaction) => (
+        transaction.type === "income"
+        && this.transactionMonthKey(transaction) === this.selectedSummaryMonth
+      ));
+    },
+    monthlyIncomeTotal() {
+      return this.selectedMonthIncomeTransactions.reduce(
+        (sum, transaction) => sum + Number(transaction.amount || 0),
+        0
+      );
+    },
+    allIncomeSourceRows() {
+      const sourceMap = new Map();
+      this.selectedMonthIncomeTransactions.forEach((transaction) => {
+        const sourceName = transaction.budget_category || "未分類收入";
+        const current = sourceMap.get(sourceName) || {
+          name: sourceName,
+          amount: 0,
+          count: 0,
+        };
+        current.amount += Number(transaction.amount || 0);
+        current.count += 1;
+        sourceMap.set(sourceName, current);
+      });
+      const colors = ["#0f766e", "#2563eb", "#f59e0b", "#7c3aed"];
+      return Array.from(sourceMap.values())
+        .sort((left, right) => right.amount - left.amount)
+        .map((source, index) => ({
+          ...source,
+          color: colors[index % colors.length],
+          rawPercentage: this.monthlyIncomeTotal > 0
+            ? (source.amount / this.monthlyIncomeTotal) * 100
+            : 0,
+          percentage: this.monthlyIncomeTotal > 0
+            ? Math.max((source.amount / this.monthlyIncomeTotal) * 100, 2)
+            : 0,
+        }));
+    },
+    incomeSourceRows() {
+      return this.allIncomeSourceRows.slice(0, 4);
+    },
+    hiddenIncomeSourceCount() {
+      return Math.max(this.allIncomeSourceRows.length - this.incomeSourceRows.length, 0);
+    },
     showDevAIEvents() {
       return import.meta.env.DEV;
     },
   },
   methods: {
+    defaultMonthKey() {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    },
     initialTypeFromRoute() {
       return this.$route.query.type === "income" ? "income" : "expense";
     },
@@ -429,6 +545,19 @@ export default {
       const day = Number(parts[2]);
       if (!Number.isFinite(month) || !Number.isFinite(day)) return dateString;
       return `${month}/${day}`;
+    },
+    transactionMonthKey(transaction) {
+      if (!transaction?.date) return "";
+      const transactionDate = new Date(transaction.date);
+      if (Number.isNaN(transactionDate.getTime())) return "";
+      return `${transactionDate.getFullYear()}-${String(
+        transactionDate.getMonth() + 1
+      ).padStart(2, "0")}`;
+    },
+    formatMoney(amount, currency = "TWD") {
+      return `${currency} ${Number(amount || 0).toLocaleString("zh-TW", {
+        maximumFractionDigits: 0,
+      })}`;
     },
     sortTransactionsNewestFirst(left, right) {
       const leftDate = left.date || "";
@@ -577,6 +706,156 @@ h1 {
   border: 1px solid #dbe4ee;
   border-radius: 10px;
   background: #ffffff;
+}
+
+.income-check-section {
+  margin-top: 1rem;
+}
+
+.income-check-panel {
+  padding: 14px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.income-check-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 76px;
+  padding: 14px;
+  color: #134e4a;
+  background: linear-gradient(135deg, #ecfdf5 0%, #eff6ff 100%);
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+}
+
+.income-check-total div {
+  display: grid;
+  gap: 4px;
+}
+
+.income-check-total span {
+  color: #0f766e;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.income-check-total strong {
+  color: #134e4a;
+  font-size: 1.28rem;
+}
+
+.income-check-total small {
+  flex: 0 0 auto;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.income-distribution-bar {
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  margin-top: 12px;
+  background: #e2e8f0;
+  border-radius: 999px;
+}
+
+.income-distribution-bar span {
+  min-width: 2px;
+}
+
+.income-distribution-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.income-distribution-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.income-distribution-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.income-source-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.income-source-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.income-source-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.income-source-main span {
+  color: #0f172a;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.income-source-main small {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.income-source-row strong {
+  color: #0f172a;
+  font-size: 0.94rem;
+  white-space: nowrap;
+}
+
+.income-source-percent {
+  display: inline-flex;
+  justify-content: flex-end;
+  min-width: 38px;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.income-check-note,
+.income-check-empty {
+  margin: 12px 0 0;
+  color: #64748b;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.income-check-empty {
+  margin: 0;
+  padding: 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
 }
 
 .analysis-tabs {

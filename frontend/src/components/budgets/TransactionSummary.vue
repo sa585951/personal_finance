@@ -8,8 +8,8 @@
       <input
         type="month"
         id="selectedMonth"
-        v-model="selectedMonth"
-        @change="calculateSummary"
+        v-model="localSelectedMonth"
+        @change="handleMonthChange"
       />
     </div>
 
@@ -35,10 +35,15 @@ export default {
       type: Array,
       required: true,
     },
+    month: {
+      type: String,
+      default: "",
+    },
   },
+  emits: ["month-change"],
   data() {
     return {
-      selectedMonth: "",
+      localSelectedMonth: "",
       totalIncome: 0,
       totalExpense: 0,
     };
@@ -52,6 +57,12 @@ export default {
     transactions() {
       this.calculateSummary();
     },
+    month(value) {
+      if (value && value !== this.localSelectedMonth) {
+        this.localSelectedMonth = value;
+        this.calculateSummary();
+      }
+    },
   },
   methods: {
     formatMoney(amount) {
@@ -60,7 +71,7 @@ export default {
       })}`;
     },
     calculateSummary() {
-      if (!this.selectedMonth) {
+      if (!this.localSelectedMonth) {
         this.resetSummary();
         return;
       }
@@ -72,7 +83,7 @@ export default {
         const transactionYearMonth = `${transactionDate.getFullYear()}-${String(
           transactionDate.getMonth() + 1
         ).padStart(2, "0")}`;
-        return transactionYearMonth === this.selectedMonth;
+        return transactionYearMonth === this.localSelectedMonth;
       });
 
       // 計算總收入和總支出
@@ -89,13 +100,22 @@ export default {
       this.totalIncome = 0;
       this.totalExpense = 0;
     },
+    handleMonthChange() {
+      this.$emit("month-change", this.localSelectedMonth);
+      this.calculateSummary();
+    },
   },
   mounted() {
-    // 預設為當前月份
-    const now = new Date();
-    this.selectedMonth = `${now.getFullYear()}-${String(
-      now.getMonth() + 1
-    ).padStart(2, "0")}`;
+    if (this.month) {
+      this.localSelectedMonth = this.month;
+    } else {
+      // 預設為當前月份
+      const now = new Date();
+      this.localSelectedMonth = `${now.getFullYear()}-${String(
+        now.getMonth() + 1
+      ).padStart(2, "0")}`;
+      this.$emit("month-change", this.localSelectedMonth);
+    }
     this.calculateSummary();
   },
 };
