@@ -1,11 +1,10 @@
 <template>
   <div class="budget-screen">
     <header class="budget-header">
-      <p class="eyebrow">Budget</p>
-      <h1>每月預算</h1>
-    </header>
-
-    <div class="budget-actions">
+      <div>
+        <p class="eyebrow">Budget</p>
+        <h1>每月預算</h1>
+      </div>
       <button
         type="button"
         class="primary-toggle"
@@ -13,7 +12,7 @@
       >
         {{ showBudgetForm ? "收合設定" : "設定預算" }}
       </button>
-    </div>
+    </header>
 
     <BudgetSummaryTable
       ref="budgetSummaryTable"
@@ -62,6 +61,7 @@
             type="number"
             id="budgetAmount"
             v-model.number="newBudget.amount"
+            min="1"
             required
           />
         </div>
@@ -136,6 +136,10 @@ export default {
       }
     },
     async setBudget() {
+      if (!this.newBudget.amount || Number(this.newBudget.amount) <= 0) {
+        this.$swal.fire("請確認金額", "預算金額需大於 0。", "warning");
+        return;
+      }
       try {
         const response = await apiClient.post(`/api/budgets`, this.newBudget);
         this.$swal.fire("成功！", response.data.message, "success");
@@ -150,6 +154,10 @@ export default {
       }
     },
     async updateBudget(month, category, amount, notes) {
+      if (!amount || Number(amount) <= 0) {
+        this.$swal.fire("請確認金額", "預算金額需大於 0。", "warning");
+        return;
+      }
       try {
         const response = await apiClient.post(`/api/budgets`, {
           month,
@@ -184,16 +192,17 @@ export default {
 }
 
 .budget-header {
-  margin-bottom: 1rem;
-}
-
-.budget-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 1rem;
 }
 
 .primary-toggle {
-  width: 100%;
-  min-height: 46px;
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 0 12px;
   color: #ffffff;
   background: #0f766e;
   border-radius: 8px;

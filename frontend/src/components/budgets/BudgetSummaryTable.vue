@@ -14,40 +14,105 @@
     </div>
 
     <div v-if="budgetSummary.length > 0" class="budget-list">
-      <section class="overspend-alert" :class="{ clear: overspentItems.length === 0 }">
+      <section class="monthly-budget-card">
         <div>
-          <span>{{ overspentItems.length > 0 ? "超支提醒" : "目前無超支" }}</span>
-          <strong>
-            {{ overspentItems.length > 0 ? formatMoney(totalOverspent) : "控制良好" }}
-          </strong>
+          <span>本月預算狀態</span>
+          <strong>{{ budgetUsageRate }}%</strong>
         </div>
-        <p v-if="overspentItems.length > 0">
-          {{ overspentItems.length }} 個分類已超出預算，最高超支是 {{ topOverspentItem.category }}。
-        </p>
-        <p v-else>
-          {{ selectedMonth }} 的預算目前都在範圍內。
-        </p>
-        <div v-if="overspentItems.length > 0" class="overspend-list">
-          <article
-            v-for="item in topOverspentItems"
-            :key="`overspend-${item.category}`"
-            class="overspend-item"
-          >
-            <span>{{ item.category }}</span>
-            <strong>超支 {{ formatMoney(Math.abs(item.remaining)) }}</strong>
-          </article>
+        <div class="summary-progress">
+          <div
+            class="summary-progress-fill"
+            :class="{ overbudget: totalRemaining < 0 }"
+            :style="{ width: summaryProgressWidth + '%' }"
+          ></div>
         </div>
+        <div class="budget-metrics">
+          <div>
+            <span>總預算</span>
+            <strong>{{ formatMoney(totalBudget) }}</strong>
+          </div>
+          <div>
+            <span>已花費</span>
+            <strong>{{ formatMoney(totalSpentWithBudget) }}</strong>
+          </div>
+          <div>
+            <span>剩餘</span>
+            <strong :class="{ negative: totalRemaining < 0 }">{{ formatMoney(totalRemaining) }}</strong>
+          </div>
+          <div>
+            <span>已設定分類</span>
+            <strong>{{ budgetedItems.length }}</strong>
+          </div>
+        </div>
+        <p v-if="unbudgetedSpentItems.length > 0">
+          另有 {{ unbudgetedSpentItems.length }} 個分類尚未設定預算，已花費 {{ formatMoney(totalUnbudgetedSpent) }}。
+        </p>
+        <p v-else-if="budgetedItems.length === 0">
+          先設定 1 到 3 個常用分類，就能開始追蹤本月支出上限。
+        </p>
+      </section>
+
+      <section class="budget-alerts">
+        <article v-if="overspentItems.length > 0" class="alert-card danger">
+          <div>
+            <span>超支提醒</span>
+            <strong>{{ formatMoney(totalOverspent) }}</strong>
+          </div>
+          <p>{{ overspentItems.length }} 個分類已超出預算。</p>
+          <div class="alert-list">
+            <span v-for="item in topOverspentItems" :key="`overspend-${item.category}`">
+              {{ item.category }} · 已超出 {{ formatMoney(Math.abs(item.remaining)) }}
+            </span>
+          </div>
+        </article>
+
+        <article v-if="nearLimitItems.length > 0" class="alert-card warning">
+          <div>
+            <span>快用完</span>
+            <strong>{{ nearLimitItems.length }} 類</strong>
+          </div>
+          <p>以下分類已使用超過 90%，可優先留意。</p>
+          <div class="alert-list">
+            <span v-for="item in topNearLimitItems" :key="`near-limit-${item.category}`">
+              {{ item.category }} · {{ usageRate(item) }}%
+            </span>
+          </div>
+        </article>
+
+        <article v-if="unbudgetedSpentItems.length > 0" class="alert-card neutral">
+          <div>
+            <span>可設定上限</span>
+            <strong>{{ formatMoney(totalUnbudgetedSpent) }}</strong>
+          </div>
+          <p>這些分類已有支出，但尚未設定預算。</p>
+          <div class="alert-list">
+            <span v-for="item in topUnbudgetedSpentItems" :key="`unbudgeted-${item.category}`">
+              {{ item.category }} · {{ formatMoney(item.spent) }}
+            </span>
+          </div>
+        </article>
+
+        <article
+          v-if="overspentItems.length === 0 && nearLimitItems.length === 0 && unbudgetedSpentItems.length === 0"
+          class="alert-card clear"
+        >
+          <div>
+            <span>目前狀態</span>
+            <strong>控制良好</strong>
+          </div>
+          <p>{{ selectedMonth }} 的預算目前都在範圍內。</p>
+        </article>
       </section>
 
       <article v-for="item in budgetSummary" :key="item.category" class="budget-card">
         <div class="card-top">
           <div>
             <h3>{{ item.category }}</h3>
-            <span :class="{ overspend: item.remaining < 0 }">
-              {{ item.remaining < 0 ? "超支" : "良好" }}
+            <span :class="statusClass(item)">
+              {{ statusLabel(item) }}
             </span>
           </div>
-          <strong>{{ formatMoney(item.remaining) }}</strong>
+          <strong>{{ item.budget ? formatMoney(item.remaining) : "可設定上限" }}</strong>
         </div>
 
         <div class="budget-values">
@@ -57,7 +122,7 @@
           </div>
           <div>
             <span>預算</span>
-            <strong>{{ item.budget ? formatMoney(item.budget) : "未設定" }}</strong>
+            <strong>{{ hasBudget(item) ? formatMoney(item.budget) : "未設定" }}</strong>
           </div>
         </div>
 
@@ -73,9 +138,14 @@
 
         <div class="card-actions">
           <button class="update-btn" type="button" @click="promptEditBudget(item)">
-            編輯
+            {{ hasBudget(item) ? "編輯" : "設定上限" }}
           </button>
-          <button class="delete-btn" type="button" @click="promptDeleteBudget(item.category)">
+          <button
+            v-if="hasBudget(item)"
+            class="delete-btn"
+            type="button"
+            @click="promptDeleteBudget(item.category)"
+          >
             刪除
           </button>
         </div>
@@ -104,8 +174,27 @@ export default {
     };
   },
   computed: {
+    budgetedItems() {
+      return this.budgetSummary.filter((item) => this.hasBudget(item));
+    },
+    totalBudget() {
+      return this.budgetedItems.reduce((sum, item) => sum + Number(item.budget || 0), 0);
+    },
+    totalSpentWithBudget() {
+      return this.budgetedItems.reduce((sum, item) => sum + Number(item.spent || 0), 0);
+    },
+    totalRemaining() {
+      return this.totalBudget - this.totalSpentWithBudget;
+    },
+    budgetUsageRate() {
+      if (this.totalBudget <= 0) return 0;
+      return Math.round((this.totalSpentWithBudget / this.totalBudget) * 100);
+    },
+    summaryProgressWidth() {
+      return Math.min(this.budgetUsageRate, 100);
+    },
     overspentItems() {
-      return this.budgetSummary.filter((item) => Number(item.remaining || 0) < 0);
+      return this.budgetedItems.filter((item) => Number(item.remaining || 0) < 0);
     },
     totalOverspent() {
       return this.overspentItems.reduce(
@@ -123,6 +212,25 @@ export default {
     },
     topOverspentItem() {
       return this.topOverspentItems[0] || { category: "" };
+    },
+    nearLimitItems() {
+      return this.budgetedItems
+        .filter((item) => Number(item.remaining || 0) >= 0 && this.usageRate(item) >= 90)
+        .sort((a, b) => this.usageRate(b) - this.usageRate(a));
+    },
+    topNearLimitItems() {
+      return this.nearLimitItems.slice(0, 3);
+    },
+    unbudgetedSpentItems() {
+      return this.budgetSummary
+        .filter((item) => !this.hasBudget(item) && Number(item.spent || 0) > 0)
+        .sort((a, b) => Number(b.spent || 0) - Number(a.spent || 0));
+    },
+    topUnbudgetedSpentItems() {
+      return this.unbudgetedSpentItems.slice(0, 3);
+    },
+    totalUnbudgetedSpent() {
+      return this.unbudgetedSpentItems.reduce((sum, item) => sum + Number(item.spent || 0), 0);
     },
   },
   methods: {
@@ -150,11 +258,31 @@ export default {
       }
     },
     calculateProgress(item) {
-      if (!item.budget || item.budget === 0) {
+      if (!this.hasBudget(item)) {
         return 0;
       }
       const progress = (item.spent / item.budget) * 100;
       return Math.min(progress, 100);
+    },
+    hasBudget(item) {
+      return item.budget !== null && item.budget !== undefined && Number(item.budget) > 0;
+    },
+    usageRate(item) {
+      if (!this.hasBudget(item)) return 0;
+      return Math.round((Number(item.spent || 0) / Number(item.budget || 1)) * 100);
+    },
+    statusLabel(item) {
+      if (!this.hasBudget(item)) return "未設定預算";
+      if (Number(item.remaining || 0) < 0) return "超支";
+      if (this.usageRate(item) >= 90) return "快用完";
+      return "控制良好";
+    },
+    statusClass(item) {
+      return {
+        overspend: this.hasBudget(item) && Number(item.remaining || 0) < 0,
+        warning: this.hasBudget(item) && Number(item.remaining || 0) >= 0 && this.usageRate(item) >= 90,
+        unset: !this.hasBudget(item),
+      };
     },
     formatMoney(amount) {
       if (amount === null || amount === undefined) return "N/A";
@@ -168,7 +296,7 @@ export default {
         title: `編輯 ${item.category} 預算`,
         html:
           `<label for="swal-input1">預算金額:</label>` +
-          `<input id="swal-input1" class="swal2-input" type="number" value="${item.budget}">` +
+          `<input id="swal-input1" class="swal2-input" type="number" min="1" value="${item.budget || ''}">` +
           `<label for="swal-input2">備註:</label>` +
           `<input id="swal-input2" class="swal2-input" value="${item.notes || ''}">`,
         focusConfirm: false,
@@ -179,8 +307,8 @@ export default {
           const amount = parseFloat(this.$swal.getPopup().querySelector('#swal-input1').value);
           const notes = this.$swal.getPopup().querySelector('#swal-input2').value;
 
-          if (isNaN(amount) || amount < 0) {
-            this.$swal.showValidationMessage(`請輸入有效的非負數金額`);
+          if (isNaN(amount) || amount <= 0) {
+            this.$swal.showValidationMessage(`請輸入大於 0 的預算金額`);
             return false;
           }
           return { amount, notes };
@@ -283,74 +411,160 @@ select {
   gap: 10px;
 }
 
-.overspend-alert {
+.monthly-budget-card {
   display: grid;
-  gap: 8px;
-  padding: 14px;
-  border: 1px solid #fecaca;
-  border-left: 4px solid #dc2626;
+  gap: 12px;
+  padding: 16px;
+  color: #134e4a;
+  background: #ecfdf5;
+  border: 1px solid #99f6e4;
   border-radius: 10px;
-  background: #fef2f2;
-  color: #991b1b;
 }
 
-.overspend-alert.clear {
-  border-color: #bbf7d0;
-  border-left-color: #16a34a;
-  background: #f0fdf4;
-  color: #166534;
-}
-
-.overspend-alert div {
+.monthly-budget-card > div:first-child,
+.alert-card > div:first-child {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.overspend-alert span,
-.overspend-alert strong {
+.monthly-budget-card span,
+.monthly-budget-card strong,
+.alert-card span,
+.alert-card strong {
   font-weight: 900;
 }
 
-.overspend-alert p {
+.monthly-budget-card > div:first-child span,
+.alert-card > div:first-child span {
+  font-size: 0.86rem;
+}
+
+.monthly-budget-card > div:first-child strong {
+  font-size: 1.55rem;
+}
+
+.summary-progress {
+  width: 100%;
+  height: 12px;
+  overflow: hidden;
+  background: rgba(15, 118, 110, 0.14);
+  border-radius: 999px;
+}
+
+.summary-progress-fill {
+  height: 100%;
+  background: #0f766e;
+  transition: width 0.3s ease-in-out;
+}
+
+.summary-progress-fill.overbudget {
+  background: #dc2626;
+}
+
+.budget-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.budget-metrics div {
+  display: grid;
+  gap: 3px;
+  min-height: 58px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(20, 184, 166, 0.24);
+  border-radius: 8px;
+}
+
+.budget-metrics span {
+  color: #0f766e;
+  font-size: 0.8rem;
+}
+
+.budget-metrics strong {
+  color: #134e4a;
+  font-size: 1rem;
+}
+
+.budget-metrics .negative {
+  color: #dc2626;
+}
+
+.monthly-budget-card p {
+  margin: 0;
+  color: #0f766e;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.budget-alerts {
+  display: grid;
+  gap: 8px;
+}
+
+.alert-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 10px;
+}
+
+.alert-card.danger {
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+}
+
+.alert-card.warning {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-left: 4px solid #f59e0b;
+}
+
+.alert-card.neutral {
+  color: #1e3a8a;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #2563eb;
+}
+
+.alert-card.clear {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-left: 4px solid #16a34a;
+}
+
+.alert-card p {
   margin: 0;
   color: inherit;
   font-size: 0.86rem;
   line-height: 1.45;
 }
 
-.overspend-list {
+.alert-list {
   display: grid;
   gap: 6px;
 }
 
-.overspend-item {
+.alert-list span {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
-  color: #991b1b;
+  min-height: 32px;
+  padding: 7px 9px;
+  color: inherit;
   background: rgba(255, 255, 255, 0.64);
-  border: 1px solid #fecaca;
+  border: 1px solid rgba(255, 255, 255, 0.56);
   border-radius: 8px;
-}
-
-.overspend-item span,
-.overspend-item strong {
   min-width: 0;
   font-size: 0.84rem;
-}
-
-.overspend-item span {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.overspend-item strong {
-  flex-shrink: 0;
   white-space: nowrap;
 }
 
@@ -389,6 +603,14 @@ select {
 
 .card-top .overspend {
   color: #dc2626;
+}
+
+.card-top .warning {
+  color: #d97706;
+}
+
+.card-top .unset {
+  color: #2563eb;
 }
 
 .card-top > strong {
