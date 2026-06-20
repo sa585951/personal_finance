@@ -15,6 +15,7 @@ def test_expense_success_card_includes_account_message():
     message = theme.create_expense_success(
         {
             "category": "午餐",
+            "budget_category": "伙食",
             "amount": 150,
             "description": "麥當勞",
             "account_message": "已從 現金 扣款",
@@ -24,8 +25,8 @@ def test_expense_success_card_includes_account_message():
     detail_rows = message.contents.body.contents[2].contents
 
     assert message.alt_text == "午餐 $150 記帳成功"
-    assert detail_rows[2].contents[0].text == "帳戶"
-    assert detail_rows[2].contents[1].text == "已從 現金 扣款"
+    assert _detail_value(detail_rows, "類別") == "伙食"
+    assert _detail_value(detail_rows, "帳戶") == "已從 現金 扣款"
 
 
 def test_expense_success_card_omits_empty_description_row():
@@ -52,6 +53,7 @@ def test_income_success_card_includes_account_message():
     message = theme.create_income_success(
         {
             "amount": 3000,
+            "budget_category": "薪資",
             "description": "薪資",
             "account_message": "已存入 銀行",
         }
@@ -60,8 +62,24 @@ def test_income_success_card_includes_account_message():
     detail_rows = message.contents.body.contents[2].contents
 
     assert message.alt_text == "收入 +$3,000 記錄成功"
-    assert detail_rows[2].contents[0].text == "帳戶"
-    assert detail_rows[2].contents[1].text == "已存入 銀行"
+    assert _detail_value(detail_rows, "類別") == "薪資"
+    assert _detail_value(detail_rows, "帳戶") == "已存入 銀行"
+
+
+def test_transaction_confirmation_accepts_chinese_income_type():
+    message = OperationTheme().create_transaction_confirmation(
+        "收入",
+        {
+            "category": "薪資",
+            "amount": 3000,
+            "description": "六月薪資",
+        },
+    )
+
+    assert message.alt_text == "確認新增收入"
+    assert message.contents.header.contents[0].text == "確認新增收入"
+    assert message.contents.body.contents[0].contents[1].text == "收入"
+    assert message.contents.body.contents[2].contents[1].text == "+$3,000"
 
 
 def test_asset_overview_supports_currency_grouped_totals():
@@ -157,3 +175,10 @@ def test_unrecognized_input_message_guides_user_to_examples():
     assert "目前看不出這是一筆記錄" in payload_text
     assert "午餐麥當勞 150" in payload_text
     assert "查看幫助" in payload_text
+
+
+def _detail_value(detail_rows, label):
+    for row in detail_rows:
+        if row.contents[0].text == label:
+            return row.contents[1].text
+    return None

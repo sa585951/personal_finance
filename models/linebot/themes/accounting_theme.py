@@ -7,6 +7,7 @@ class AccountingTheme(BaseTheme):
     def create_expense_success(self, data, budget_status=None):
         """建立支出成功訊息 - 模仿小旺來的氣泡風格"""
         category = data.get("category", "其他")
+        budget_category = data.get("budget_category")
         amount = data.get("amount", 0)
         description = data.get("description") or ""
         transaction_date = data.get("date")
@@ -16,6 +17,8 @@ class AccountingTheme(BaseTheme):
         detail_rows = [
             self._create_info_row("時間", "剛剛"),
         ]
+        if budget_category:
+            detail_rows.insert(0, self._create_info_row("類別", budget_category))
         if transaction_date:
             detail_rows.insert(0, self._create_info_row("日期", transaction_date))
         if description:
@@ -123,12 +126,18 @@ class AccountingTheme(BaseTheme):
     def create_income_success(self, data):
         """建立收入成功訊息"""
         amount = data.get("amount", 0)
+        budget_category = data.get("budget_category")
+        income_source = data.get("category")
         description = data.get("description") or ""
         transaction_date = data.get("date")
         account_message = data.get("account_message")
         detail_rows = [
             self._create_info_row("時間", "剛剛"),
         ]
+        if budget_category:
+            detail_rows.insert(0, self._create_info_row("類別", budget_category))
+        if income_source and income_source != budget_category:
+            detail_rows.insert(1 if budget_category else 0, self._create_info_row("來源", income_source))
         if transaction_date:
             detail_rows.insert(0, self._create_info_row("日期", transaction_date))
         if description:

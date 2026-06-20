@@ -88,6 +88,7 @@ class TransactionService:
             **result,
             "data": {
                 "category": parsed_data.get("category"),
+                "budget_category": parsed_data.get("budget_category"),
                 "amount": parsed_data.get("amount"),
                 "description": parsed_data.get("description") or "",
                 "date": transaction_date,

@@ -2123,9 +2123,10 @@ class OperationTheme(BaseTheme):
 
     def create_transaction_confirmation(self, transaction_type, data):
         """建立交易確認 Flex Message"""
-        type_text = "收入" if transaction_type == 'income' else "支出"
-        amount_color = self.COLORS['text_success'] if transaction_type == 'income' else self.COLORS['text_error']
-        amount_text = f"+${data['amount']:,}" if transaction_type == 'income' else f"-${data['amount']:,}"
+        normalized_type = self._normalize_transaction_type(transaction_type)
+        type_text = "收入" if normalized_type == "income" else "支出"
+        amount_color = self.COLORS['text_success'] if normalized_type == "income" else self.COLORS['text_error']
+        amount_text = f"+${data['amount']:,}" if normalized_type == "income" else f"-${data['amount']:,}"
 
         flex_content = {
             "type": "bubble",
@@ -2178,9 +2179,10 @@ class OperationTheme(BaseTheme):
 
     def create_add_transaction_success(self, transaction_type, data):
         """建立新增交易成功 Flex Message"""
-        type_text = "收入" if transaction_type == 'income' else "支出"
-        header_color = self.COLORS['text_success'] if transaction_type == 'income' else self.COLORS['dark_green']
-        amount_text = f"+${data['amount']:,}" if transaction_type == 'income' else f"-${data['amount']:,}"
+        normalized_type = self._normalize_transaction_type(transaction_type)
+        type_text = "收入" if normalized_type == "income" else "支出"
+        header_color = self.COLORS['text_success'] if normalized_type == "income" else self.COLORS['dark_green']
+        amount_text = f"+${data['amount']:,}" if normalized_type == "income" else f"-${data['amount']:,}"
 
         flex_content = {
             "type": "bubble",
@@ -2218,6 +2220,12 @@ class OperationTheme(BaseTheme):
             }
         }
         return FlexSendMessage(alt_text=f"{type_text}成功", contents=flex_content)
+
+    def _normalize_transaction_type(self, transaction_type):
+        """接受流程層傳入的中文或英文交易類型，避免顯示誤判。"""
+        if transaction_type in ("income", "收入"):
+            return "income"
+        return "expense"
 
     def _create_step_bubble(self, title, step_text, body_contents, error_message=None):
         """建立一個帶有步驟說明的標準泡泡"""
