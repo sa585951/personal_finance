@@ -394,6 +394,13 @@ export default {
         .join("、");
       return `目前累積 ${totalText}，可點開信用卡帳戶核對支出紀錄。`;
     },
+    formatMoney(amount, currency = "TWD") {
+      const minorUnit = ["TWD", "JPY", "KRW"].includes(currency) ? 0 : 2;
+      return `${currency} ${Number(amount || 0).toLocaleString("zh-TW", {
+        minimumFractionDigits: minorUnit,
+        maximumFractionDigits: minorUnit,
+      })}`;
+    },
     async deleteAccount(accountId) {
       try {
         await apiClient.delete(`/api/assets/${accountId}`);
