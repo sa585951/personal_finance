@@ -10,6 +10,27 @@
     <div v-else class="assets-content">
       <TotalCards :totals="totals" />
 
+      <section class="account-health-panel" aria-label="帳戶健康度">
+        <div class="section-heading">
+          <h2>帳戶健康度</h2>
+          <span>{{ accountHealthSummary }}</span>
+        </div>
+        <div class="health-card-grid">
+          <article
+            v-for="card in accountHealthCards"
+            :key="card.key"
+            class="health-card"
+            :class="card.tone"
+          >
+            <div>
+              <span>{{ card.label }}</span>
+              <strong>{{ card.value }}</strong>
+            </div>
+            <p>{{ card.hint }}</p>
+          </article>
+        </div>
+      </section>
+
       <section class="action-panel">
         <div class="action-tabs" aria-label="帳戶操作">
           <button
@@ -112,6 +133,94 @@ export default {
   computed: {
     assetCount() {
       return Object.keys(this.assets || {}).length;
+    },
+    assetList() {
+      return Object.values(this.assets || {});
+    },
+    accountHealthSummary() {
+      const attentionCount = this.accountHealthCards.filter((card) => card.tone !== "success").length;
+      if (this.assetCount === 0) return "尚無帳戶";
+      if (attentionCount === 0) return "狀態良好";
+      return `${attentionCount} 項需留意`;
+    },
+    accountHealthCards() {
+      if (this.assetCount === 0) {
+        return [
+          {
+            key: "empty",
+            label: "尚未建立帳戶",
+            value: "先新增常用帳戶",
+            hint: "建立現金、銀行或信用卡帳戶後，就能核對收支與資金流向。",
+            tone: "neutral",
+          },
+        ];
+      }
+
+      const cards = [];
+      const creditDebtAccounts = this.assetList.filter((asset) => (
+        asset.account_type === "credit_card" && Number(asset.balance || 0) < 0
+      ));
+      const zeroBalanceAccounts = this.assetList.filter((asset) => (
+        asset.account_type !== "credit_card" && Number(asset.balance || 0) === 0
+      ));
+      const untrackedAccounts = this.assetList.filter((asset) => asset.track_balance === false);
+      const invalidNegativeAccounts = this.assetList.filter((asset) => (
+        asset.account_type !== "credit_card" && Number(asset.balance || 0) < 0
+      ));
+
+      if (creditDebtAccounts.length > 0) {
+        cards.push({
+          key: "credit-card",
+          label: "信用卡待核對",
+          value: `${creditDebtAccounts.length} 個帳戶`,
+          hint: this.creditDebtHint(creditDebtAccounts),
+          tone: "warning",
+        });
+      }
+
+      if (invalidNegativeAccounts.length > 0) {
+        cards.push({
+          key: "negative",
+          label: "非信用卡負數",
+          value: `${invalidNegativeAccounts.length} 個帳戶`,
+          hint: "非信用卡帳戶出現負數，建議檢查餘額或近期交易。",
+          tone: "danger",
+        });
+      }
+
+      if (zeroBalanceAccounts.length > 0) {
+        cards.push({
+          key: "zero",
+          label: "零餘額帳戶",
+          value: `${zeroBalanceAccounts.length} 個帳戶`,
+          hint: "若已不再使用，可考慮更新名稱、整理分類或刪除前先確認沒有近期活動。",
+          tone: "neutral",
+        });
+      }
+
+      if (untrackedAccounts.length > 0) {
+        cards.push({
+          key: "untracked",
+          label: "未追蹤餘額",
+          value: `${untrackedAccounts.length} 個帳戶`,
+          hint: "這些帳戶不會參與餘額追蹤，適合作為外部或暫時紀錄用途。",
+          tone: "info",
+        });
+      }
+
+      if (cards.length === 0) {
+        return [
+          {
+            key: "healthy",
+            label: "目前沒有需要處理的帳戶提醒",
+            value: "狀態良好",
+            hint: "信用卡、帳戶餘額與追蹤狀態目前看起來都正常。",
+            tone: "success",
+          },
+        ];
+      }
+
+      return cards.slice(0, 4);
     },
   },
   created() {
@@ -273,6 +382,17 @@ export default {
         investment: "投資",
       };
       return typeMap[type] || "其他";
+    },
+    creditDebtHint(accounts) {
+      const totalsByCurrency = accounts.reduce((totals, account) => {
+        const currency = account.currency || "TWD";
+        totals[currency] = (totals[currency] || 0) + Math.abs(Number(account.balance || 0));
+        return totals;
+      }, {});
+      const totalText = Object.entries(totalsByCurrency)
+        .map(([currency, amount]) => this.formatMoney(amount, currency))
+        .join("、");
+      return `目前累積 ${totalText}，可點開信用卡帳戶核對支出紀錄。`;
     },
     async deleteAccount(accountId) {
       try {
@@ -442,6 +562,100 @@ h1 {
   border-color: #fecaca;
   color: #b91c1c;
   background: #fef2f2;
+}
+
+.account-health-panel {
+  padding: 16px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: #1f2933;
+  font-size: 1.15rem;
+  letter-spacing: 0;
+}
+
+.section-heading span {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.health-card-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.health-card {
+  display: grid;
+  gap: 8px;
+  min-height: 92px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #94a3b8;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.health-card.warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  border-left-color: #f59e0b;
+}
+
+.health-card.danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  border-left-color: #dc2626;
+}
+
+.health-card.info {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  border-left-color: #2563eb;
+}
+
+.health-card.success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  border-left-color: #16a34a;
+}
+
+.health-card div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.health-card span {
+  color: #475569;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.health-card strong {
+  color: #0f172a;
+  font-size: 1rem;
+  text-align: right;
+}
+
+.health-card p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .action-panel {
