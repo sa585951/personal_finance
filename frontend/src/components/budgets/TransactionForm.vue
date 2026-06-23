@@ -171,6 +171,8 @@ export default {
       },
       budgetCategories: [],
       assets: {},
+      budgetCategoriesLoaded: false,
+      assetsLoaded: false,
       submitMessage: "",
       accountSearchText: "",
       aiReview: null,
@@ -254,11 +256,10 @@ export default {
     type() {
       if (!this.isEditing) {
         this.newTransaction.type = this.type;
-        this.ensureCategoryMatchesType();
+        if (!this.draft && this.budgetCategoriesLoaded) {
+          this.ensureCategoryMatchesType();
+        }
       }
-    },
-    budgetCategories() {
-      this.ensureCategoryMatchesType();
     },
     "newTransaction.account_id"(accountId) {
       const account = Object.values(this.assets || {}).find((asset) => asset.id === accountId);
@@ -268,20 +269,20 @@ export default {
     },
     draft: {
       handler(value) {
-        if (value && !this.isEditing) {
-          this.applyDraft(value);
-        }
+        this.applyIncomingState();
       },
+      immediate: true,
       deep: true,
     },
     editingTransaction: {
       handler(value, oldValue) {
         if (value) {
-          this.applyEditingTransaction(value);
+          this.applyIncomingState();
         } else if (oldValue) {
           this.resetForm();
         }
       },
+      immediate: true,
       deep: true,
     },
   },
@@ -316,6 +317,20 @@ export default {
         return;
       }
       this.newTransaction.budget_category = this.filteredBudgetCategories[0]?.name || "";
+    },
+    applyIncomingState() {
+      if (!this.budgetCategoriesLoaded || !this.assetsLoaded) {
+        return;
+      }
+      if (this.editingTransaction) {
+        this.applyEditingTransaction(this.editingTransaction);
+        return;
+      }
+      if (this.draft) {
+        this.applyDraft(this.draft);
+        return;
+      }
+      this.ensureCategoryMatchesType();
     },
     applyDraft(draft) {
       const transactionType = ["expense", "income"].includes(draft.type)
@@ -403,17 +418,25 @@ export default {
       try {
         const response = await apiClient.get(`/api/budgets/categories?include_meta=true`);
         this.budgetCategories = response.data.data || [];
+        this.budgetCategoriesLoaded = true;
+        this.applyIncomingState();
       } catch (error) {
         console.error("無法載入預算類別:", error);
+        this.budgetCategoriesLoaded = true;
+        this.applyIncomingState();
       }
     },
     async fetchAssets() {
       try {
         const response = await apiClient.get(`/api/assets`);
         this.assets = response.data.data || {};
+        this.assetsLoaded = true;
+        this.applyIncomingState();
       } catch (error) {
         console.error("無法載入帳戶資料:", error);
         this.assets = {};
+        this.assetsLoaded = true;
+        this.applyIncomingState();
       }
     },
     translateAccountType(type) {
