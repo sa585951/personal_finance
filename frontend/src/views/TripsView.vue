@@ -157,6 +157,7 @@
         <section
           v-if="currentMemberMonthlyReportPreference === 'pending'"
           class="monthly-preference-panel"
+          ref="monthlyPreferencePanel"
         >
           <div>
             <strong>這趟旅行要納入你的個人月報嗎？</strong>
@@ -186,6 +187,30 @@
               @click="updateMonthlyReportPreference('pending')"
             >
               稍後再決定
+            </button>
+          </div>
+        </section>
+
+        <section class="trip-status-center" aria-label="旅行狀態中心">
+          <div class="trip-status-heading">
+            <div>
+              <span>Trip Check</span>
+              <h2>旅行狀態中心</h2>
+            </div>
+            <p>快速核對這趟旅行目前需要處理的地方。</p>
+          </div>
+          <div class="trip-status-grid">
+            <button
+              v-for="card in tripStatusCards"
+              :key="card.key"
+              class="trip-status-card"
+              :class="card.tone"
+              type="button"
+              @click="handleTripStatusAction(card.action)"
+            >
+              <span>{{ card.label }}</span>
+              <strong>{{ card.value }}</strong>
+              <small>{{ card.hint }}</small>
             </button>
           </div>
         </section>
@@ -1042,6 +1067,64 @@ export default {
         },
       ];
     },
+    tripStatusCards() {
+      const monthlyPreference = this.currentMemberMonthlyReportPreference || "legacy";
+      const monthlyPreferenceHints = {
+        include: "你的分攤金額會進入首頁、收支分析與預算。",
+        exclude: "這趟旅行只保留在旅行帳本，不進個人月報。",
+        pending: "請先決定是否納入，避免月報口徑不清楚。",
+        legacy: "尚未讀到個人偏好，建議重新整理或檢查成員狀態。",
+      };
+      const monthlyPreferenceTone = {
+        include: "success",
+        exclude: "neutral",
+        pending: "warning",
+        legacy: "neutral",
+      };
+      const missingSplitCount = this.transactionsMissingSplits.length;
+      const expenseCount = this.tripTransactions.filter((transaction) => transaction.type === "expense").length;
+
+      return [
+        {
+          key: "monthly",
+          label: "個人月報",
+          value: this.tripReportLabel(this.selectedTrip),
+          hint: monthlyPreferenceHints[monthlyPreference] || monthlyPreferenceHints.legacy,
+          tone: monthlyPreferenceTone[monthlyPreference] || "neutral",
+          action: monthlyPreference === "pending" ? "preference" : "transactions",
+        },
+        {
+          key: "split",
+          label: "分攤完整度",
+          value: missingSplitCount > 0 ? `${missingSplitCount} 筆待補` : "已完成",
+          hint: missingSplitCount > 0
+            ? "缺少分攤的支出不會納入個人月報。"
+            : "目前旅行支出都有分攤資料。",
+          tone: missingSplitCount > 0 ? "warning" : "success",
+          action: "transactions",
+        },
+        {
+          key: "settlement",
+          label: "待收待付",
+          value: this.settlementSuggestions.length > 0 ? `${this.settlementSuggestions.length} 筆待結算` : "已平衡",
+          hint: this.settlementSuggestions.length > 0
+            ? "可到分帳頁確認誰要給誰。"
+            : "目前沒有需要處理的結算建議。",
+          tone: this.settlementSuggestions.length > 0 ? "warning" : "success",
+          action: "split",
+        },
+        {
+          key: "category",
+          label: "類別比例",
+          value: expenseCount > 0 ? `${expenseCount} 筆支出` : "尚無資料",
+          hint: expenseCount > 0
+            ? "可展開查看這趟旅行花在哪些類別。"
+            : "新增旅行支出後會產生類別比例。",
+          tone: expenseCount > 0 ? "info" : "neutral",
+          action: "summary",
+        },
+      ];
+    },
     currentMemberSummary() {
       if (!this.selectedTrip || !this.selectedTrip.current_member_id) return null;
       return this.splitSummary.find(
@@ -1473,6 +1556,24 @@ export default {
         );
       } finally {
         this.updatingTripSettings = false;
+      }
+    },
+    handleTripStatusAction(action) {
+      if (action === "preference") {
+        this.$nextTick(() => {
+          this.$refs.monthlyPreferencePanel?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        });
+        return;
+      }
+      if (action === "summary") {
+        this.showTripSummary = true;
+        return;
+      }
+      if (["expense", "transactions", "split", "members"].includes(action)) {
+        this.activeSection = action;
       }
     },
     async addMember() {
@@ -3212,6 +3313,108 @@ select:disabled {
   gap: 10px;
 }
 
+.trip-status-center {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+}
+
+.trip-status-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.trip-status-heading span {
+  color: #0f766e;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.trip-status-heading h2 {
+  margin: 2px 0 0;
+  color: #1f2933;
+  font-size: 1.02rem;
+  letter-spacing: 0;
+}
+
+.trip-status-heading p {
+  max-width: 300px;
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.trip-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.trip-status-card {
+  display: grid;
+  gap: 5px;
+  min-height: 112px;
+  padding: 12px;
+  color: #475569;
+  text-align: left;
+  background: #ffffff;
+  border: 1px solid #dbe4ee;
+  border-left: 4px solid #94a3b8;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.trip-status-card:hover {
+  border-color: #99f6e4;
+  box-shadow: 0 10px 24px rgba(15, 118, 110, 0.09);
+}
+
+.trip-status-card.success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  border-left-color: #16a34a;
+}
+
+.trip-status-card.warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  border-left-color: #f59e0b;
+}
+
+.trip-status-card.info {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  border-left-color: #2563eb;
+}
+
+.trip-status-card span {
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.trip-status-card strong {
+  color: #111827;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.trip-status-card small {
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .trip-category-panel {
   display: block;
 }
@@ -3922,6 +4125,7 @@ select:disabled {
   .trips-layout,
   .metric-grid,
   .trip-summary-grid,
+  .trip-status-grid,
   .member-form,
   .expense-form,
   .advanced-expense-grid,
@@ -3932,6 +4136,16 @@ select:disabled {
 
   .closeout-list {
     grid-template-columns: 1fr;
+  }
+
+  .trip-status-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .trip-status-heading p {
+    max-width: none;
+    text-align: left;
   }
 
   .trip-summary-compact {
