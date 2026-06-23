@@ -125,6 +125,56 @@
         <MonthlyExpensesChart v-if="activeAnalysisTab === 'category'" />
         <SpendingTrendsChart v-else />
       </div>
+      <div class="account-flow-panel">
+        <div class="account-flow-header">
+          <div>
+            <h3>付款來源分析</h3>
+            <p>{{ selectedMonthLabel }}的支出依付款帳戶類型整理。</p>
+          </div>
+          <small>{{ selectedMonthTypeTransactions.length }} 筆支出</small>
+        </div>
+        <div v-if="accountFlowGroups.length > 0" class="account-flow-groups">
+          <div
+            v-for="group in accountFlowGroups"
+            :key="group.currency"
+            class="account-flow-group"
+          >
+            <div class="account-flow-total">
+              <span>{{ group.currency }} 合計</span>
+              <strong>{{ formatMoney(group.total, group.currency) }}</strong>
+            </div>
+            <div class="account-flow-bar" aria-label="付款來源比例">
+              <span
+                v-for="row in group.rows"
+                :key="`${group.currency}-${row.key}`"
+                :style="{
+                  width: `${row.percentage}%`,
+                  background: row.color,
+                }"
+              ></span>
+            </div>
+            <div class="account-flow-list">
+              <div
+                v-for="row in group.rows"
+                :key="`${group.currency}-${row.key}`"
+                class="account-flow-row"
+              >
+                <div class="account-flow-main">
+                  <span>
+                    <i :style="{ background: row.color }"></i>
+                    {{ row.label }}
+                  </span>
+                  <small>{{ row.count }} 筆 · {{ Math.round(row.rawPercentage) }}%</small>
+                </div>
+                <strong>{{ formatMoney(row.amount, group.currency) }}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p v-else class="account-flow-empty">
+          這個月份尚未有支出紀錄。新增支出並連動帳戶後，這裡會顯示現金、銀行、信用卡等付款來源比例。
+        </p>
+      </div>
     </section>
     <section v-else class="income-check-section">
       <div class="section-heading">
@@ -179,6 +229,56 @@
         </div>
         <p v-else class="income-check-empty">
           這個月份尚未記錄收入。新增收入後，這裡會依收入類別整理來源。
+        </p>
+      </div>
+      <div class="account-flow-panel">
+        <div class="account-flow-header">
+          <div>
+            <h3>入帳帳戶分析</h3>
+            <p>{{ selectedMonthLabel }}的收入依入帳帳戶類型整理。</p>
+          </div>
+          <small>{{ selectedMonthTypeTransactions.length }} 筆收入</small>
+        </div>
+        <div v-if="accountFlowGroups.length > 0" class="account-flow-groups">
+          <div
+            v-for="group in accountFlowGroups"
+            :key="group.currency"
+            class="account-flow-group"
+          >
+            <div class="account-flow-total">
+              <span>{{ group.currency }} 合計</span>
+              <strong>{{ formatMoney(group.total, group.currency) }}</strong>
+            </div>
+            <div class="account-flow-bar" aria-label="入帳帳戶比例">
+              <span
+                v-for="row in group.rows"
+                :key="`${group.currency}-${row.key}`"
+                :style="{
+                  width: `${row.percentage}%`,
+                  background: row.color,
+                }"
+              ></span>
+            </div>
+            <div class="account-flow-list">
+              <div
+                v-for="row in group.rows"
+                :key="`${group.currency}-${row.key}`"
+                class="account-flow-row"
+              >
+                <div class="account-flow-main">
+                  <span>
+                    <i :style="{ background: row.color }"></i>
+                    {{ row.label }}
+                  </span>
+                  <small>{{ row.count }} 筆 · {{ Math.round(row.rawPercentage) }}%</small>
+                </div>
+                <strong>{{ formatMoney(row.amount, group.currency) }}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p v-else class="account-flow-empty">
+          這個月份尚未有收入紀錄。新增收入並連動帳戶後，這裡會顯示銀行、現金或其他入帳來源比例。
         </p>
       </div>
     </section>
@@ -352,10 +452,10 @@ export default {
       return `${Number(month)} 月`;
     },
     selectedMonthIncomeTransactions() {
-      return this.transactions.filter((transaction) => (
-        transaction.type === "income"
-        && this.transactionMonthKey(transaction) === this.selectedSummaryMonth
-      ));
+      return this.selectedMonthTransactions("income");
+    },
+    selectedMonthTypeTransactions() {
+      return this.selectedMonthTransactions(this.activeType);
     },
     monthlyIncomeTotal() {
       return this.selectedMonthIncomeTransactions.reduce(
@@ -395,6 +495,57 @@ export default {
     },
     hiddenIncomeSourceCount() {
       return Math.max(this.allIncomeSourceRows.length - this.incomeSourceRows.length, 0);
+    },
+    accountFlowGroups() {
+      const palette = ["#0f766e", "#2563eb", "#f59e0b", "#7c3aed", "#dc2626", "#64748b"];
+      const groupMap = new Map();
+
+      this.selectedMonthTypeTransactions.forEach((transaction) => {
+        const currency = transaction.base_currency || transaction.currency || "TWD";
+        const amount = Number(transaction.converted_amount ?? transaction.amount ?? 0);
+        if (amount <= 0) return;
+
+        const accountType = transaction.account_id
+          ? transaction.account_type || "other"
+          : "unlinked";
+        const accountLabel = this.translateAccountType(accountType);
+        const groupKey = `${currency}:${accountType}`;
+        const current = groupMap.get(groupKey) || {
+          key: accountType,
+          currency,
+          label: accountLabel,
+          amount: 0,
+          count: 0,
+        };
+        current.amount += amount;
+        current.count += 1;
+        groupMap.set(groupKey, current);
+      });
+
+      const rowsByCurrency = Array.from(groupMap.values()).reduce((map, row) => {
+        if (!map[row.currency]) {
+          map[row.currency] = [];
+        }
+        map[row.currency].push(row);
+        return map;
+      }, {});
+
+      return Object.entries(rowsByCurrency)
+        .map(([currency, rows]) => {
+          const sortedRows = rows.sort((left, right) => right.amount - left.amount);
+          const total = sortedRows.reduce((sum, row) => sum + row.amount, 0);
+          return {
+            currency,
+            total,
+            rows: sortedRows.map((row, index) => ({
+              ...row,
+              color: palette[index % palette.length],
+              rawPercentage: total > 0 ? (row.amount / total) * 100 : 0,
+              percentage: total > 0 ? Math.max((row.amount / total) * 100, 2) : 0,
+            })),
+          };
+        })
+        .sort((left, right) => right.total - left.total);
     },
     showDevAIEvents() {
       return import.meta.env.DEV;
@@ -537,6 +688,12 @@ export default {
         this.selectedRecordDate = "all";
       }
     },
+    selectedMonthTransactions(type) {
+      return this.transactions.filter((transaction) => (
+        transaction.type === type
+        && this.transactionMonthKey(transaction) === this.selectedSummaryMonth
+      ));
+    },
     formatDateChip(dateString) {
       if (!dateString) return "";
       const parts = String(dateString).split("-");
@@ -555,9 +712,25 @@ export default {
       ).padStart(2, "0")}`;
     },
     formatMoney(amount, currency = "TWD") {
+      const minorUnit = ["TWD", "JPY", "KRW"].includes(currency) ? 0 : 2;
       return `${currency} ${Number(amount || 0).toLocaleString("zh-TW", {
-        maximumFractionDigits: 0,
+        minimumFractionDigits: minorUnit,
+        maximumFractionDigits: minorUnit,
       })}`;
+    },
+    translateAccountType(type) {
+      const typeMap = {
+        bank: "銀行",
+        cash: "現金",
+        credit_card: "信用卡",
+        e_wallet: "電子錢包",
+        prepaid_card: "預付卡",
+        investment: "投資",
+        external: "外部帳戶",
+        unlinked: "未連動帳戶",
+        other: "其他",
+      };
+      return typeMap[type] || type || "其他";
     },
     sortTransactionsNewestFirst(left, right) {
       const leftDate = left.date || "";
@@ -706,6 +879,144 @@ h1 {
   border: 1px solid #dbe4ee;
   border-radius: 10px;
   background: #ffffff;
+}
+
+.account-flow-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.account-flow-header,
+.account-flow-total {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-flow-header h3 {
+  margin: 0;
+  color: #1f2933;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.account-flow-header p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.account-flow-header small {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.account-flow-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.account-flow-group {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.account-flow-total span {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.account-flow-total strong {
+  color: #0f172a;
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+
+.account-flow-bar {
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  background: #e2e8f0;
+  border-radius: 999px;
+}
+
+.account-flow-bar span {
+  min-width: 2px;
+}
+
+.account-flow-list {
+  display: grid;
+  gap: 8px;
+}
+
+.account-flow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.account-flow-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account-flow-main span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.account-flow-main i {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.account-flow-main small {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.account-flow-row strong {
+  color: #0f172a;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.account-flow-empty {
+  margin: 0;
+  padding: 12px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.5;
 }
 
 .income-check-section {

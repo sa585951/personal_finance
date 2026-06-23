@@ -301,6 +301,7 @@ class BudgetManager:
                 func.coalesce(split_counts.c.split_count, 0).label("split_count"),
                 transactions_table.c.account_id,
                 accounts_table.c.name.label("account_name"),
+                accounts_table.c.type.label("account_type"),
                 accounts_table.c.currency.label("account_currency"),
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
@@ -432,6 +433,9 @@ class BudgetManager:
                 transactions_table.c.deleted_by_user_id,
                 transactions_table.c.trip_id,
                 transactions_table.c.account_id,
+                accounts_table.c.name.label("account_name"),
+                accounts_table.c.type.label("account_type"),
+                accounts_table.c.currency.label("account_currency"),
                 transactions_table.c.paid_by_member_id,
                 transactions_table.c.transaction_date,
                 transactions_table.c.transaction_time,
@@ -450,6 +454,13 @@ class BudgetManager:
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
             .join(creator_users, transactions_table.c.created_by_user_id == creator_users.c.id)
+            .outerjoin(
+                accounts_table,
+                and_(
+                    transactions_table.c.account_id == accounts_table.c.id,
+                    accounts_table.c.user_id == parsed_user_id,
+                ),
+            )
             .where(
                 transactions_table.c.id == parsed_transaction_id,
                 transactions_table.c.deleted_at.is_(None),
@@ -518,6 +529,9 @@ class BudgetManager:
             "deleted_by_user_id": str(transaction["deleted_by_user_id"]) if transaction["deleted_by_user_id"] else None,
             "trip_id": str(transaction["trip_id"]) if transaction["trip_id"] else None,
             "account_id": str(transaction["account_id"]) if transaction["account_id"] else None,
+            "account_name": transaction["account_name"],
+            "account_type": transaction["account_type"],
+            "account_currency": transaction["account_currency"],
             "paid_by_member_id": str(transaction["paid_by_member_id"]) if transaction["paid_by_member_id"] else None,
             "paid_by_member": paid_by_member,
             "date": transaction["transaction_date"].strftime("%Y-%m-%d"),

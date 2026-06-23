@@ -143,6 +143,14 @@ Money Flow 已移到 Phase 7；Purpose Model 已移到 Phase 8。
 - 本輪沿用既有旅行 overview、transaction splits 與 settlement suggestions，不新增 API、不新增 migration。
 - 記帳提醒通知先列為後續策略題，不在 Phase 6.5 直接實作推播或 LINE 主動提醒。
 
+## Phase 6.6：收支頁帳戶流向分析
+
+- 收支頁新增支出 `付款來源分析`，回答「同樣是支出，從哪些帳戶類型付出去」。
+- 收入頁新增 `入帳帳戶分析`，回答「收入進到哪些帳戶類型」。
+- 分析依帳戶類型與幣別分組；多幣別不硬加總，避免在沒有匯率模型前產生錯誤總額。
+- 未連動帳戶會獨立列為 `未連動帳戶`，協助使用者發現需要補連動的交易。
+- 本輪由 `/api/transactions` 直接回傳 `account_type`，不新增 endpoint、不新增 migration。
+
 ## Phase 5.5 通過標準
 
 - 使用者能更快完成日常記帳與帳戶核對。
