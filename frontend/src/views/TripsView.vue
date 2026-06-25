@@ -1748,8 +1748,10 @@ export default {
     },
     async fetchExpenseCategories() {
       try {
-        const response = await apiClient.get("/api/budgets/categories");
-        this.expenseCategories = (response.data.data || []).filter((category) => category !== "收入");
+        const response = await apiClient.get("/api/budgets/categories?include_meta=true");
+        this.expenseCategories = (response.data.data || [])
+          .filter((category) => category.kind === "expense" || category.kind === "both")
+          .map((category) => category.name);
         if (!this.expenseCategories.includes(this.newExpense.budget_category)) {
           this.newExpense.budget_category = this.expenseCategories[0] || "伙食";
         }

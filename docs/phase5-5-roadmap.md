@@ -2,7 +2,7 @@
 
 Phase 5.5 是 Phase 5 MVP 可用性初步通過後的收斂階段。此階段不追求大功能堆疊，而是驗證使用者是否有理由持續打開 Nomica，並降低日常記帳、帳戶核對與旅行支出追查的操作摩擦。
 
-目前狀態：第一輪完成，進入後續觀察與 Phase 6 規劃。
+目前狀態：Phase 5.5 已完成；Phase 6.1 到 Phase 6.7 第一版與最終回歸已完成。
 
 ## 目標
 
@@ -141,6 +141,7 @@ Money Flow 已移到 Phase 7；Purpose Model 已移到 Phase 8。
 - 旅行頁新增 `旅行狀態中心`，集中顯示個人月報偏好、分攤完整度、待收待付與類別比例狀態。
 - 每個狀態卡可直接帶使用者前往對應區塊，例如交易、分帳或類別比例摘要。
 - 本輪沿用既有旅行 overview、transaction splits 與 settlement suggestions，不新增 API、不新增 migration。
+- 旅行支出類別改用 API 的 category kind 篩選，只顯示 `expense` 與 `both`，避免收入類別混入支出表單。
 - 記帳提醒通知先列為後續策略題，不在 Phase 6.5 直接實作推播或 LINE 主動提醒。
 
 ## Phase 6.6：收支頁帳戶流向分析
@@ -158,6 +159,20 @@ Money Flow 已移到 Phase 7；Purpose Model 已移到 Phase 8。
 - 不做信用卡繳款日、不做低水位門檻、不做推測型提醒；這些列入後續帳戶健康度進階版本。
 - 本輪沿用既有 `/api/assets` 資料，不新增 API、不新增 migration。
 
+## Phase 6 最終回歸
+
+2026-06-25 已完成：
+
+- 前端 `npm run build` 通過。
+- 前端 `npm run lint` 通過。
+- 後端完整 pytest：`78 passed, 6 skipped`；skip 項目為需明確開啟的資料庫 smoke 測試。
+- 資料庫 schema smoke test：`4 passed`。
+- 首頁、收入 / 支出、預算、旅行與帳戶頁均可載入，瀏覽器未出現 JavaScript runtime error。
+- 390px 手機寬度下主要頁面沒有水平溢出。
+- 收支編輯表單第一次點擊即可帶入資料；旅行支出表單不再顯示收入類別。
+
+Phase 6 第一版可判定完成。正式登入與 provider 加綁、完整 timezone、匯率、Money Flow、投資獨立頁與 iOS App 仍屬後續規劃，不列為本次回歸失敗。
+
 ## Phase 5.5 通過標準
 
 - 使用者能更快完成日常記帳與帳戶核對。
@@ -169,5 +184,5 @@ Money Flow 已移到 Phase 7；Purpose Model 已移到 Phase 8。
 ## 收尾結論
 
 - Phase 5.5 第一輪可判定完成，已涵蓋首頁回訪理由、預算可見性、帳戶核對、LINE / AI 輸入一致性與近期高風險 bug 修正。
-- 目前可以進入 Phase 6 規劃與真實使用觀察；若後續測試發現阻塞級 bug，仍先以低風險修補處理。
+- Phase 6.1 到 Phase 6.7 第一版與最終回歸已完成，目前可進入真實使用觀察與下一階段討論；若後續測試發現阻塞級 bug，仍先以低風險修補處理。
 - 此階段不是市場驗證完成，使用頻率、留存與付費價值仍需後續資料驗證。
