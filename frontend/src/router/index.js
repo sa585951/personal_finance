@@ -84,7 +84,13 @@ function hasValidLocalToken() {
   if (!token) return false;
   try {
     const decoded = jwtDecode(token);
-    return decoded.exp * 1000 > Date.now();
+    const hasSession = Boolean(decoded.session_id);
+    const isFresh = decoded.exp * 1000 > Date.now();
+    if (!hasSession || !isFresh) {
+      localStorage.removeItem('authToken');
+      return false;
+    }
+    return true;
   } catch (e) {
     localStorage.removeItem('authToken');
     return false;

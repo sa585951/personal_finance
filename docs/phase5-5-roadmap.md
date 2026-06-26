@@ -190,6 +190,13 @@ Phase 6 第一版可判定完成。正式登入與 provider 加綁、完整 time
 - 本輪不做 refresh token、silent refresh、sliding session、cookie-only session、正式 Apple / Google OAuth 或裝置管理 UI。
 - Phase 7.2 優先接 Apple Login；Phase 7.3 再接 Google Login；帳號合併採登入後手動加綁，不使用 email 自動合併。
 
+## Phase App 0：iOS 原生殼 Prototype
+
+- 新增 `ios/Nomica` SwiftUI prototype，先作為 iOS 學習與 API 可行性驗證。
+- 第一版只做本地 dev API 串接：登入狀態測試、首頁摘要、收支列表與帳戶列表。
+- 不做 Apple Login、Google Login、Keychain、TestFlight、Push 或完整新增編輯流程。
+- Web / LINE 仍是現階段主要測試入口；iOS 先驗證原生 App 架構是否成立。
+
 ## Phase 5.5 通過標準
 
 - 使用者能更快完成日常記帳與帳戶核對。

@@ -89,8 +89,8 @@ export default {
       if (token) {
         try {
           const decoded = jwtDecode(token);
-          // 檢查 token 是否過期
-          if (decoded.exp * 1000 > Date.now()) {
+          // Phase 7.1 後 token 必須綁定後端 session，舊 token 需重新登入。
+          if (decoded.session_id && decoded.exp * 1000 > Date.now()) {
             this.isLoggedIn = true;
             this.userName = decoded.name; // 從 JWT payload 中讀取 name
             return;

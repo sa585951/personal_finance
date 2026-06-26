@@ -58,6 +58,9 @@ apiClient.interceptors.response.use(
         `[api timing] ${error.config?.method?.toUpperCase()} ${error.config?.url} failed after ${durationMs}ms`
       );
     }
+    if (error.response?.status === 401) {
+      localStorage.removeItem('authToken');
+    }
     return Promise.reject(error);
   }
 );

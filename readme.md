@@ -451,6 +451,14 @@ Phase 7.1：Nomica 主帳號與正式 Session 地基。
 - 本輪不做 refresh token、silent refresh、sliding session、cookie-only session、正式 Apple / Google OAuth 或裝置管理 UI。
 - 後續規劃：Phase 7.2 優先接 Apple Login；Phase 7.3 再接 Google Login；帳號合併採登入後手動加綁，不使用 email 自動合併。
 
+Phase App 0：iOS 原生殼 Prototype。
+
+- 在 `ios/Nomica` 新增 SwiftUI iOS prototype，作為親手學習 iOS 開發與驗證 API 介面的起點。
+- 第一版使用 SwiftUI、async/await、URLSession，不引入第三方套件。
+- App 先讀取本地 dev API：`/api/auth/me`、`/api/dashboard/overview`、`/api/assets`、`/api/transactions`。
+- iOS 端先提供首頁、收支、帳戶三個只讀 tab，不做新增、編輯、Apple Login、TestFlight 或 Push。
+- 此階段不是正式 App 上架，也不需要 Apple Developer 付費帳號；正式 Apple Login 與 TestFlight 仍放後續階段。
+
 候選項目：
 
 - 外部旅伴與真實登入使用者的安全合併流程，避免重複成員或誤合併。
