@@ -1,6 +1,6 @@
 from datetime import datetime
 from .base_theme import BaseTheme
-from linebot.models import FlexSendMessage
+from ..line_sdk import FlexSendMessage
 
 class OperationTheme(BaseTheme):
     def _create_error_box(self, error_message):

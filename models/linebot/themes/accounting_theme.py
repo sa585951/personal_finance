@@ -1,5 +1,5 @@
 from .base_theme import BaseTheme
-from linebot.models import FlexSendMessage
+from ..line_sdk import FlexSendMessage
 
 class AccountingTheme(BaseTheme):
     """記帳主題 - 氣泡式、即時反饋風格"""

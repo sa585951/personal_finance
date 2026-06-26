@@ -2,16 +2,15 @@ import { createRouter, createWebHistory } from "vue-router";
 import { jwtDecode } from 'jwt-decode';
 import apiClient from "@/api";
 
-// View Components
-import HomeView from "../views/HomeView.vue";
-import LoginView from "../views/LoginView.vue";
-import AssetsOverview from "../views/AssetsOverview.vue";
-import TransactionRecord from "../views/TransactionRecord.vue";
-import BudgetPlanner from "@/views/BudgetPlanner.vue";
-import Goals from "../views/FinancialGoals.vue";
-import TripsView from "../views/TripsView.vue";
-import TripInviteAccept from "../views/TripInviteAccept.vue";
-import AuthCallback from "../views/AuthCallback.vue";
+const HomeView = () => import("../views/HomeView.vue");
+const LoginView = () => import("../views/LoginView.vue");
+const AssetsOverview = () => import("../views/AssetsOverview.vue");
+const TransactionRecord = () => import("../views/TransactionRecord.vue");
+const BudgetPlanner = () => import("@/views/BudgetPlanner.vue");
+const Goals = () => import("../views/FinancialGoals.vue");
+const TripsView = () => import("../views/TripsView.vue");
+const TripInviteAccept = () => import("../views/TripInviteAccept.vue");
+const AuthCallback = () => import("../views/AuthCallback.vue");
 
 const routes = [
   {

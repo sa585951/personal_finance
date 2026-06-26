@@ -435,6 +435,13 @@ Phase 6 收尾結論：
 - 首頁、收入 / 支出、預算、旅行與帳戶頁已完成桌面與 390px 手機寬度巡覽，未發現水平溢出或 JavaScript runtime error。
 - 此處的「完成」代表 Phase 6 第一版功能與統計口徑可進入持續測試，不代表登入商品化、跨時區、正式匯率或原生 App 已完成。
 
+Phase 7 前維護整理：
+
+- 前端 routes 改為 lazy loading，各功能頁按需載入；原本約 559 KB 的單一 JavaScript bundle 已拆分，最大 chunk 約 189 KB。
+- LINE Messaging API 已從 deprecated 相容介面遷移到 `line-bot-sdk` v3 的 webhook parser、Messaging API 與 request models。
+- 現有 Flex Message JSON 與畫面維持不變，透過內部 adapter 轉成 v3 `FlexMessage`，避免重寫既有卡片。
+- LINE v3 自動化測試、webhook signature 驗證與本地後端啟動均已通過；正式部署後仍需以官方帳號實測文字訊息、postback、reply 與 push。
+
 候選項目：
 
 - 外部旅伴與真實登入使用者的安全合併流程，避免重複成員或誤合併。

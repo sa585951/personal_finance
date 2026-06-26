@@ -1,9 +1,8 @@
 import json
 from types import SimpleNamespace
 
-from linebot.models import FlexSendMessage
-
 from models.linebot.manager import LineBotManager
+from models.linebot.line_sdk import FlexSendMessage
 from models.linebot.themes.accounting_theme import AccountingTheme
 from models.linebot.themes.operation_theme import OperationTheme
 from models.linebot.response_builder import ResponseBuilder

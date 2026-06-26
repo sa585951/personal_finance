@@ -7,8 +7,15 @@ from .message_parser import MessageParser
 from .user_state_manager import UserStateManager
 from ..ai_parse_event_manager import AIParseEventManager
 from ..user_manager import UserManager
-from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import LineBotApiError
+from linebot.v3 import WebhookParser
+from linebot.v3.messaging import (
+    ApiClient,
+    Configuration,
+    MessagingApi,
+    PushMessageRequest,
+    ReplyMessageRequest,
+)
+from linebot.v3.messaging.exceptions import ApiException
 
 
 class GeminiModelAdapter:
@@ -41,8 +48,11 @@ class LineBotManager:
         self.app_state = app_state
         self.db_session = db_session
         # Line Bot 設定
-        self.line_bot_api = LineBotApi(os.getenv("LINE_MSG_CHANNEL_ACCESS_TOKEN"))
-        self.handler = WebhookHandler(os.getenv("LINE_MSG_CHANNEL_SECRET"))
+        self.line_api_client = ApiClient(
+            Configuration(access_token=os.getenv("LINE_MSG_CHANNEL_ACCESS_TOKEN"))
+        )
+        self.line_bot_api = MessagingApi(self.line_api_client)
+        self.parser = WebhookParser(os.getenv("LINE_MSG_CHANNEL_SECRET"))
         
         # Gemini 設定
         self.gemini_model_name = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
@@ -195,8 +205,13 @@ class LineBotManager:
         支援 Flex Message 的回覆方法
         """
         try:
-            self.line_bot_api.reply_message(reply_token, self._to_line_message(message))
-        except LineBotApiError as e:
+            self.line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    replyToken=reply_token,
+                    messages=[self._to_line_message(message)],
+                )
+            )
+        except ApiException as e:
             print(f"Line API Error: {e}")
 
     def push_message_flex(self, user_id, message):
@@ -204,8 +219,13 @@ class LineBotManager:
         支援 Flex Message 的推送方法
         """
         try:
-            self.line_bot_api.push_message(user_id, self._to_line_message(message))
-        except LineBotApiError as e:
+            self.line_bot_api.push_message(
+                PushMessageRequest(
+                    to=user_id,
+                    messages=[self._to_line_message(message)],
+                )
+            )
+        except ApiException as e:
             print(f"Line Push Error: {e}")
 
     def _to_line_message(self, message):

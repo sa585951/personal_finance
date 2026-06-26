@@ -173,6 +173,14 @@ Money Flow 已移到 Phase 7；Purpose Model 已移到 Phase 8。
 
 Phase 6 第一版可判定完成。正式登入與 provider 加綁、完整 timezone、匯率、Money Flow、投資獨立頁與 iOS App 仍屬後續規劃，不列為本次回歸失敗。
 
+## Phase 7 前維護整理
+
+- 前端 router 改為 route-level lazy loading，移除單一 bundle 超過 500 KB 的 build warning。
+- LINE Messaging API 改用 `line-bot-sdk` v3 parser、Messaging API、`ReplyMessageRequest` 與 `PushMessageRequest`。
+- Flex 卡片內容維持既有 JSON 與視覺，透過專案內部 adapter 建立 v3 `FlexMessage`。
+- 新增 v3 reply、push 與 webhook parser 測試；完整後端測試通過且不再出現 LINE SDK deprecated warnings。
+- 正式環境仍需以 LINE 官方帳號完成文字訊息、postback、reply 與 push 的實機驗收。
+
 ## Phase 5.5 通過標準
 
 - 使用者能更快完成日常記帳與帳戶核對。

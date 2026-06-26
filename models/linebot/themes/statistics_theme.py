@@ -1,6 +1,6 @@
 from .base_theme import BaseTheme
 from datetime import datetime
-from linebot.models import FlexSendMessage
+from ..line_sdk import FlexSendMessage
 
 class StatisticsTheme(BaseTheme):
     """統計主題 - 表格化、數據呈現風格"""
@@ -613,7 +613,7 @@ class StatisticsTheme(BaseTheme):
 
     from .base_theme import BaseTheme
 from datetime import datetime
-from linebot.models import FlexSendMessage
+from ..line_sdk import FlexSendMessage
 
 class StatisticsTheme(BaseTheme):
     """統計主題 - 表格化、數據呈現風格"""

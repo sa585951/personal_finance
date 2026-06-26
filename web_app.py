@@ -7,8 +7,8 @@ import time
 from flask import Flask, jsonify, request, redirect, g
 from flask_cors import CORS
 from sqlalchemy import select, func
-from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, PostbackEvent
+from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3.webhooks import MessageEvent, PostbackEvent, TextMessageContent
 import os
 import requests
 import jwt
@@ -1273,8 +1273,8 @@ def line_webhook():
     app.logger.info(f"Request body: {body}")
 
     try:
-        # 使用 manager 中的 handler 來驗證簽名並解析事件
-        events = linebot_manager.handler.parser.parse(body, signature)
+        # 使用 SDK v3 parser 驗證簽名並解析事件
+        events = linebot_manager.parser.parse(body, signature)
     except InvalidSignatureError:
         app.logger.warning("Invalid signature. Please check your channel secret.")
         return 'Invalid signature', 400
@@ -1286,7 +1286,7 @@ def line_webhook():
     for event in events:
         try:
             # 處理文字訊息事件
-            if isinstance(event, MessageEvent) and isinstance(event.message, TextMessage):
+            if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
                 linebot_manager.handle_message_flex(event)
                 db_session.commit()
             # 處理 Postback 事件 (例如 DatetimePicker)

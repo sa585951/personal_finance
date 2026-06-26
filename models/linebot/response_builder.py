@@ -1,4 +1,4 @@
-from linebot.models import FlexSendMessage
+from .line_sdk import FlexSendMessage
 from .themes import AccountingTheme, StatisticsTheme, OperationTheme
 
 class ResponseBuilder:
