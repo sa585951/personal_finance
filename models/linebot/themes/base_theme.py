@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
@@ -82,3 +83,14 @@ class BaseTheme:
         except ZoneInfoNotFoundError:
             tzinfo = ZoneInfo(self.DEFAULT_DISPLAY_TIMEZONE)
         return datetime.now(tzinfo).strftime("%Y/%m/%d %H:%M")
+
+    def _format_money(self, amount):
+        """LINE 顯示用金額，最多保留兩位小數，避免 Decimal 精度直接露出。"""
+        try:
+            value = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
+        except (InvalidOperation, ValueError, TypeError):
+            value = Decimal("0.00")
+
+        if value == value.to_integral_value():
+            return f"{value:,.0f}"
+        return f"{value:,.2f}"

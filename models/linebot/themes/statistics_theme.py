@@ -42,7 +42,7 @@ class StatisticsTheme(BaseTheme):
                     },
                     {
                         "type": "text",
-                        "text": f"${total:,}",
+                        "text": f"${self._format_money(total)}",
                         "weight": "bold", 
                         "size": "3xl",
                         "color": "#333333",
@@ -171,7 +171,7 @@ class StatisticsTheme(BaseTheme):
                     },
                     {
                         "type": "text",
-                        "text": f"${amount:,}",
+                        "text": f"${self._format_money(amount)}",
                         "size": "sm",
                         "color": "#333333",
                         "align": "end",
@@ -186,7 +186,7 @@ class StatisticsTheme(BaseTheme):
             flex_content["body"]["contents"].append(transaction_row)
         
         return FlexSendMessage(
-            alt_text=f"{month} 支出統計 ${total:,}",
+            alt_text=f"{month} 支出統計 ${self._format_money(total)}",
             contents=flex_content
         )
     
@@ -655,7 +655,7 @@ class StatisticsTheme(BaseTheme):
                     },
                     {
                         "type": "text",
-                        "text": f"${total:,}",
+                        "text": f"${self._format_money(total)}",
                         "weight": "bold", 
                         "size": "3xl",
                         "color": "#333333",
@@ -784,7 +784,7 @@ class StatisticsTheme(BaseTheme):
                     },
                     {
                         "type": "text",
-                        "text": f"${amount:,}",
+                        "text": f"${self._format_money(amount)}",
                         "size": "sm",
                         "color": "#333333",
                         "align": "end",
@@ -799,7 +799,7 @@ class StatisticsTheme(BaseTheme):
             flex_content["body"]["contents"].append(transaction_row)
         
         return FlexSendMessage(
-            alt_text=f"{month} 支出統計 ${total:,}",
+            alt_text=f"{month} 支出統計 ${self._format_money(total)}",
             contents=flex_content
         )
     

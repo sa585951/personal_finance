@@ -1,10 +1,12 @@
 import json
+from decimal import Decimal
 from types import SimpleNamespace
 
 from models.linebot.manager import LineBotManager
 from models.linebot.line_sdk import FlexSendMessage
 from models.linebot.themes.accounting_theme import AccountingTheme
 from models.linebot.themes.operation_theme import OperationTheme
+from models.linebot.themes.statistics_theme import StatisticsTheme
 from models.linebot.response_builder import ResponseBuilder
 
 
@@ -162,6 +164,29 @@ def test_help_message_lists_line_command_examples():
     assert "旅行帳本請開啟 Web 使用；LINE 目前用於快速記帳與查詢。" in text_values
     assert "我的資產" in text_values
     assert "我要轉帳" in text_values
+
+
+def test_monthly_summary_formats_decimal_amounts_for_line_display():
+    message = StatisticsTheme().create_monthly_summary(
+        "2026-06",
+        Decimal("450.2200"),
+        1,
+        [
+            {
+                "date": "2026-06-26",
+                "budget_category": "伙食",
+                "amount": Decimal("450.2200"),
+            }
+        ],
+        [{"category": "伙食", "count": 1, "total": Decimal("450.2200")}],
+    )
+
+    payload = json.loads(message.as_json_string())
+    payload_text = json.dumps(payload, ensure_ascii=False)
+
+    assert message.alt_text == "2026-06 支出統計 $450.22"
+    assert "$450.2200" not in payload_text
+    assert "$450.22" in payload_text
 
 
 def test_unrecognized_input_message_guides_user_to_examples():
