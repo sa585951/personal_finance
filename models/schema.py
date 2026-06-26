@@ -76,6 +76,22 @@ user_identities_table = Table(
 )
 
 
+auth_sessions_table = Table(
+    "auth_sessions",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("provider", String(50), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("revoked_at", DateTime(timezone=True)),
+    Column("last_used_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+)
+
+Index("ix_auth_sessions_user_active", auth_sessions_table.c.user_id, auth_sessions_table.c.revoked_at)
+
+
 accounts_table = Table(
     "accounts",
     metadata,

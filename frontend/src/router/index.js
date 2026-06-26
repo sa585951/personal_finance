@@ -11,6 +11,7 @@ const Goals = () => import("../views/FinancialGoals.vue");
 const TripsView = () => import("../views/TripsView.vue");
 const TripInviteAccept = () => import("../views/TripInviteAccept.vue");
 const AuthCallback = () => import("../views/AuthCallback.vue");
+const AccountSettings = () => import("../views/AccountSettings.vue");
 
 const routes = [
   {
@@ -58,6 +59,12 @@ const routes = [
     path: "/goals",
     name: "Goals",
     component: Goals,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/account",
+    name: "AccountSettings",
+    component: AccountSettings,
     meta: { requiresAuth: true },
   },
   {

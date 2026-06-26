@@ -183,6 +183,56 @@ class FakeAssetManager:
         ]
 
 
+class FakeAuthSessionManager:
+    def __init__(self):
+        self.revoked_session = None
+        self.sessions = {
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa": {
+                "id": uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                "user_id": uuid.UUID("22222222-2222-2222-2222-222222222222"),
+                "provider": "line",
+                "expires_at": datetime.now(timezone.utc) + timedelta(days=1),
+                "revoked_at": None,
+            }
+        }
+
+    def validate_session(self, session_id, user_id):
+        session = self.sessions.get(str(session_id))
+        if not session or str(session["user_id"]) != str(user_id):
+            return None
+        if session.get("revoked_at"):
+            return None
+        if session["expires_at"] <= datetime.now(timezone.utc):
+            return None
+        return session
+
+    def revoke_session(self, session_id, user_id):
+        session = self.sessions.get(str(session_id))
+        if not session or str(session["user_id"]) != str(user_id):
+            return False
+        session["revoked_at"] = datetime.now(timezone.utc)
+        self.revoked_session = {"session_id": str(session_id), "user_id": str(user_id)}
+        return True
+
+    def list_user_identities(self, user_id):
+        return [
+            {
+                "provider": "line",
+                "provider_email": None,
+                "provider_display_name": "Test User",
+                "created_at": datetime.now(timezone.utc),
+            }
+        ]
+
+    def create_session(self, user_id, provider, expires_at):
+        return {
+            "id": uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            "user_id": uuid.UUID(str(user_id)),
+            "provider": provider,
+            "expires_at": expires_at,
+        }
+
+
 def _load_web_app(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://personal_finance:personal_finance@localhost:5433/personal_finance")
     monkeypatch.setenv("LINE_LOGIN_CHANNEL_ID", "line-login-channel")
@@ -196,7 +246,9 @@ def _load_web_app(monkeypatch):
     monkeypatch.setenv("DEV_AUTH_BYPASS", "false")
 
     sys.modules.pop("web_app", None)
-    return importlib.import_module("web_app")
+    web_app = importlib.import_module("web_app")
+    web_app.auth_session_manager = FakeAuthSessionManager()
+    return web_app
 
 
 def _auth_headers():
@@ -207,6 +259,8 @@ def _auth_headers():
 def _auth_token(**overrides):
     payload = {
         "user_id": "22222222-2222-2222-2222-222222222222",
+        "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "provider": "line",
         "name": "Test User",
         "exp": datetime.now(timezone.utc) + timedelta(days=1),
     }
@@ -226,6 +280,8 @@ def test_auth_me_accepts_bearer_token(monkeypatch):
         "data": {
             "user_id": "22222222-2222-2222-2222-222222222222",
             "name": "Test User",
+            "provider": "line",
+            "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
         },
     }
 
@@ -266,6 +322,48 @@ def test_auth_me_rejects_expired_cookie_token(monkeypatch):
     assert response.get_json() == {"message": "Token has expired!"}
 
 
+def test_auth_me_rejects_token_without_session_id(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    payload = {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "name": "Test User",
+        "exp": datetime.now(timezone.utc) + timedelta(days=1),
+    }
+    token = jwt.encode(payload, "test-secret", algorithm="HS256")
+
+    response = web_app.app.test_client().get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 401
+    assert response.get_json() == {"message": "Session is missing!"}
+
+
+def test_auth_me_rejects_revoked_session(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    web_app.auth_session_manager.sessions["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"][
+        "revoked_at"
+    ] = datetime.now(timezone.utc)
+
+    response = web_app.app.test_client().get("/api/auth/me", headers=_auth_headers())
+
+    assert response.status_code == 401
+    assert response.get_json() == {"message": "Session is invalid!"}
+
+
+def test_auth_me_rejects_expired_session(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    web_app.auth_session_manager.sessions["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"][
+        "expires_at"
+    ] = datetime.now(timezone.utc) - timedelta(minutes=1)
+
+    response = web_app.app.test_client().get("/api/auth/me", headers=_auth_headers())
+
+    assert response.status_code == 401
+    assert response.get_json() == {"message": "Session is invalid!"}
+
+
 def test_cookie_auth_rejects_unsafe_request_without_allowed_origin(monkeypatch):
     web_app = _load_web_app(monkeypatch)
     client = web_app.app.test_client()
@@ -292,14 +390,32 @@ def test_cookie_auth_allows_unsafe_request_from_allowed_origin(monkeypatch):
     assert response.get_json() == {"success": False, "message": "缺少 text 欄位"}
 
 
+def test_auth_account_lists_provider_statuses(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+
+    response = web_app.app.test_client().get("/api/auth/account", headers=_auth_headers())
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    providers = {item["provider"]: item for item in payload["data"]["providers"]}
+    assert providers["line"]["status"] == "connected"
+    assert providers["line"]["role"] == "快速記帳入口"
+    assert providers["apple"]["status"] == "not_enabled"
+    assert providers["google"]["status"] == "not_enabled"
+
+
 def test_logout_clears_auth_cookie(monkeypatch):
     web_app = _load_web_app(monkeypatch)
 
-    response = web_app.app.test_client().post("/api/auth/logout")
+    response = web_app.app.test_client().post("/api/auth/logout", headers=_auth_headers())
     set_cookie_headers = response.headers.getlist("Set-Cookie")
 
     assert response.status_code == 200
     assert response.get_json() == {"success": True}
+    assert web_app.auth_session_manager.revoked_session == {
+        "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "user_id": "22222222-2222-2222-2222-222222222222",
+    }
     assert any(
         header.startswith(f"{web_app.APP_AUTH_COOKIE_NAME}=;")
         and "HttpOnly" in header
@@ -319,6 +435,23 @@ def test_production_auth_cookie_options_are_http_only_secure(monkeypatch):
     assert options["samesite"] == "None"
     assert options["path"] == "/"
     assert options["max_age"] == 30 * 24 * 60 * 60
+
+
+def test_create_app_auth_token_includes_session_id(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+
+    token = web_app._create_app_auth_token(
+        {
+            "id": uuid.UUID("22222222-2222-2222-2222-222222222222"),
+            "display_name": "Test User",
+        },
+        "line",
+    )
+    payload = jwt.decode(token, "test-secret", algorithms=["HS256"])
+
+    assert payload["user_id"] == "22222222-2222-2222-2222-222222222222"
+    assert payload["session_id"] == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    assert payload["provider"] == "line"
 
 
 def test_ai_parse_api_rejects_empty_text(monkeypatch):

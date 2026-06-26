@@ -442,11 +442,20 @@ Phase 7 前維護整理：
 - 現有 Flex Message JSON 與畫面維持不變，透過內部 adapter 轉成 v3 `FlexMessage`，避免重寫既有卡片。
 - LINE v3 自動化測試、webhook signature 驗證與本地後端啟動均已通過；正式部署後仍需以官方帳號實測文字訊息、postback、reply 與 push。
 
+Phase 7.1：Nomica 主帳號與正式 Session 地基。
+
+- Nomica `users.id` 是主帳號；LINE、Apple、Google 都視為可綁定的 identity provider。
+- Session 採 session-backed JWT：前端仍以 Bearer JWT 呼叫 API，但 JWT 必須綁定後端 `auth_sessions`，後端以 active session 作為有效性來源。
+- LINE Login 保留為登入入口與快速記帳入口；LINE Bot 仍用同一個 Nomica user 寫入資料。
+- 帳號設定頁先顯示目前 provider 狀態：LINE 已啟用，Apple / Google 尚未啟用。
+- 本輪不做 refresh token、silent refresh、sliding session、cookie-only session、正式 Apple / Google OAuth 或裝置管理 UI。
+- 後續規劃：Phase 7.2 優先接 Apple Login；Phase 7.3 再接 Google Login；帳號合併採登入後手動加綁，不使用 email 自動合併。
+
 候選項目：
 
 - 外部旅伴與真實登入使用者的安全合併流程，避免重複成員或誤合併。
-- iOS 主畫面 PWA / 原生 App 登入策略，優先評估同站網域、正式 session 架構或原生 OAuth callback。
-- Google / Apple Login 與 LINE 加綁策略。
+- iOS 主畫面 PWA / 原生 App 登入策略，優先評估同站網域或原生 OAuth callback。
+- Apple / Google Login 正式 OAuth 串接與 LINE 加綁流程。
 - 完整 timezone 顯示模型，依使用者或旅行帳本時區顯示建立時間與交易時間。
 - 自動匯率 API、旅行分類預算與進階旅行報表是否進入商品化版本。
 - 投資 / 資金分配若要獨立成頁，仍維持「投入成本與資金流向」定位，不做券商串接或即時市值。
@@ -456,11 +465,12 @@ Phase 7 前維護整理：
 1. TripMember 個人月報偏好與旅行分攤統計口徑。
 2. Nomica Insights 首頁狀態中心。
 3. 預算頁、收支頁與 LINE / AI 高頻操作收斂。
-4. 正式登入策略與 provider 加綁。
-5. 完整 timezone 與匯率策略。
-6. Money Flow 資金流向圖。
-7. 投資 / 資金分配獨立頁。
-8. iOS / App 化。
+4. Phase 7.1 正式 Session 地基與帳號設定頁。
+5. Apple / Google Login 與 LINE 加綁。
+6. 完整 timezone 與匯率策略。
+7. Money Flow 資金流向圖。
+8. 投資 / 資金分配獨立頁。
+9. iOS / App 化。
 
 ## 進度 Check
 

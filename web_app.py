@@ -15,6 +15,7 @@ import jwt
 
 # 匯入重構後的核心類別和資料庫引擎
 from models.asset_manager import AssetManager
+from models.auth_session_manager import AuthSessionManager
 from models.budget_manager import BudgetManager
 from models.goal_manager import GoalManager
 from models.linebot.manager import LineBotManager
@@ -77,6 +78,7 @@ CORS(
 
 # 實例化 Manager
 asset_manager = AssetManager(db_session)
+auth_session_manager = AuthSessionManager(db_session)
 budget_manager = BudgetManager(db_session)
 goal_manager = GoalManager(db_session)
 trip_manager = TripManager(db_session)
@@ -152,6 +154,12 @@ def _decode_auth_payload():
         data = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
         if not data.get("user_id"):
             return None, jsonify({'message': 'Token is invalid!'}), 401
+        if not data.get("session_id"):
+            return None, jsonify({'message': 'Session is missing!'}), 401
+        session = auth_session_manager.validate_session(data["session_id"], data["user_id"])
+        if not session:
+            return None, jsonify({'message': 'Session is invalid!'}), 401
+        data["session"] = session
         return data, None, None
     except jwt.ExpiredSignatureError:
         return None, jsonify({'message': 'Token has expired!'}), 401
@@ -208,6 +216,18 @@ def _decode_line_login_state(state):
     if payload.get("type") != "line_login_state":
         raise ValueError("LINE Login state 類型不正確")
     return _safe_frontend_redirect_path(payload.get("redirect"))
+
+def _create_app_auth_token(user, provider):
+    expires_at = datetime.now(timezone.utc) + timedelta(days=APP_AUTH_TOKEN_DAYS)
+    session = auth_session_manager.create_session(user["id"], provider, expires_at)
+    payload = {
+        "user_id": str(user["id"]),
+        "session_id": str(session["id"]),
+        "provider": provider,
+        "name": user["display_name"],
+        "exp": expires_at,
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
 
 app_state = AppStateManager()
 linebot_manager = LineBotManager(app_state, db_session)
@@ -266,15 +286,47 @@ def get_current_auth_user():
             "data": {
                 "user_id": data["user_id"],
                 "name": data.get("name") or "",
+                "provider": data.get("provider") or "",
+                "session_id": data.get("session_id"),
             },
         }
     )
 
 @app.route("/api/auth/logout", methods=["POST"])
 def logout():
+    data, _, _ = _decode_auth_payload()
+    if data and data.get("session_id"):
+        auth_session_manager.revoke_session(data["session_id"], data["user_id"])
+        db_session.commit()
     response = jsonify({"success": True})
     _clear_auth_cookie(response)
     return response
+
+@app.route("/api/auth/account", methods=["GET"])
+@token_required
+def get_auth_account(user_id):
+    identities = auth_session_manager.list_user_identities(user_id)
+    bound_providers = {identity["provider"] for identity in identities}
+    providers = []
+    for provider in ("line", "apple", "google"):
+        identity = next((item for item in identities if item["provider"] == provider), None)
+        providers.append(
+            {
+                "provider": provider,
+                "status": "connected" if provider in bound_providers else "not_enabled",
+                "email": identity.get("provider_email") if identity else None,
+                "display_name": identity.get("provider_display_name") if identity else None,
+                "role": "快速記帳入口" if provider == "line" else "尚未啟用",
+            }
+        )
+    return jsonify(
+        {
+            "success": True,
+            "data": {
+                "providers": providers,
+            },
+        }
+    )
 
 # --- API - AI 快速輸入 ---
 
@@ -1363,14 +1415,9 @@ def line_login_callback():
         )
         db_session.commit() # Commit after user creation/retrieval
 
-        # 4. 產生應用程式 JWT
-        payload = {
-            'user_id': str(user['id']),
-            'line_user_id': line_user_id,
-            'name': user['display_name'],
-            'exp': datetime.now(timezone.utc) + timedelta(days=APP_AUTH_TOKEN_DAYS)
-        }
-        app_token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
+        # 4. 產生綁定後端 session 的應用程式 JWT
+        app_token = _create_app_auth_token(user, "line")
+        db_session.commit()
 
         # 5. 重定向到前端
         callback_query = urlencode({"token": app_token, "redirect": frontend_redirect_path})

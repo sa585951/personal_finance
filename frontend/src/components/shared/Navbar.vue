@@ -28,6 +28,9 @@
         </button>
         <div v-if="showAccountMenu" class="account-menu">
           <span>{{ userName || "已登入" }}</span>
+          <router-link class="account-menu-link" to="/account" @click="showAccountMenu = false">
+            帳號設定
+          </router-link>
           <button class="logout-button" type="button" @click="logout">登出</button>
         </div>
       </template>
@@ -286,13 +289,27 @@ export default {
     font-weight: 800;
   }
 
+  .account-menu-link,
   .logout-button {
     min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 800;
+  }
+
+  .account-menu-link {
+    color: #0f766e;
+    background: #ccfbf1;
+    border: 1px solid #99f6e4;
+  }
+
+  .logout-button {
     color: #b91c1c;
     background: #fee2e2;
     border: 1px solid #fecaca;
-    border-radius: 8px;
-    font-weight: 800;
   }
 }
 </style>

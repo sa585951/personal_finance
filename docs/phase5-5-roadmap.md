@@ -181,6 +181,15 @@ Phase 6 第一版可判定完成。正式登入與 provider 加綁、完整 time
 - 新增 v3 reply、push 與 webhook parser 測試；完整後端測試通過且不再出現 LINE SDK deprecated warnings。
 - 正式環境仍需以 LINE 官方帳號完成文字訊息、postback、reply 與 push 的實機驗收。
 
+## Phase 7.1：Nomica 主帳號與正式 Session 地基
+
+- Nomica `users.id` 是主帳號；LINE、Apple、Google 都只是可綁定 identity provider。
+- 第一版採 session-backed JWT：JWT 是前端憑證，`auth_sessions` 是後端有效性來源；JWT 與 session 固定 30 天同時過期。
+- LINE Login 保留為登入與快速記帳入口，避免破壞目前 Web / LINE 測試流程。
+- 新增帳號設定頁雛形，顯示 LINE 已啟用、Apple / Google 尚未啟用。
+- 本輪不做 refresh token、silent refresh、sliding session、cookie-only session、正式 Apple / Google OAuth 或裝置管理 UI。
+- Phase 7.2 優先接 Apple Login；Phase 7.3 再接 Google Login；帳號合併採登入後手動加綁，不使用 email 自動合併。
+
 ## Phase 5.5 通過標準
 
 - 使用者能更快完成日常記帳與帳戶核對。
