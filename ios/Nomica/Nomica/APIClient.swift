@@ -28,6 +28,7 @@ struct APIClient {
     private func get<T: Decodable>(_ path: String) async throws -> T {
         var request = URLRequest(url: baseURL.appendingPathComponent(path))
         request.httpMethod = "GET"
+        request.timeoutInterval = 8
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(devUser, forHTTPHeaderField: "X-Dev-User")
         if let authToken, !authToken.isEmpty {

@@ -8,6 +8,10 @@ __pycache__/
 # 其他通用忽略檔案
 .DS_Store
 
+# Xcode 使用者專屬狀態
+xcuserdata/
+*.xcuserstate
+
 # 後端環境變數檔案
 .env
 

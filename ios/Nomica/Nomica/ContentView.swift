@@ -84,10 +84,12 @@ struct HomeScreen: View {
         NavigationStack {
             List {
                 if let overview {
-                    Section("本月摘要") {
-                        SummaryRow(label: "收入", value: overview.monthlyIncome, tint: .green)
-                        SummaryRow(label: "支出", value: overview.monthlyExpense, tint: .red)
-                        SummaryRow(label: "結餘", value: overview.monthlyBalance, tint: overview.monthlyBalance >= 0 ? .teal : .orange)
+                    Section{
+                        MonthlySummaryCard(overview: overview)
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                    } header: {
+                        Text("本月摘要")
                     }
 
                     Section("最近紀錄") {
@@ -139,6 +141,29 @@ struct TransactionsScreen: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    HStack {
+                        Text("目前 \(transactions.count) 筆")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        Button(isLoading ? "讀取中" : "重新讀取") {
+                            Task {
+                                await loadTransactions()
+                            }
+                        }
+                        .font(.caption)
+                        .disabled(isLoading)
+                    }
+
+                    Text("API：\(session.baseURLText)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
                 if transactions.isEmpty {
                     LoadingOrEmptyState(
                         isLoading: isLoading,
@@ -157,6 +182,16 @@ struct TransactionsScreen: View {
             }
             .task {
                 await loadTransactions()
+            }
+            .onChange(of: session.baseURLText) { _, _ in
+                Task {
+                    await loadTransactions()
+                }
+            }
+            .onChange(of: session.devUser) { _, _ in
+                Task {
+                    await loadTransactions()
+                }
             }
         }
     }
@@ -236,6 +271,66 @@ struct AccountsScreen: View {
     }
 }
 
+struct MonthlySummaryCard: View{
+    let overview: DashboardOverview
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16){
+            Text("本月結餘")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text(overview.monthlyBalance.nomicaMoneyText)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundStyle(overview.monthlyBalance >= 0 ? .teal : .orange)
+
+            HStack(spacing: 12){
+                SummaryMetric(
+                    title: "收入",
+                    value: overview.monthlyIncome,
+                    tint: .green
+                )
+
+                SummaryMetric(
+                    title: "支出",
+                    value: overview.monthlyExpense,
+                    tint: .red
+                )
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+}
+
+struct SummaryMetric: View {
+    let title: String
+    let value: Double
+    let tint: Color
+
+    var body: some View{
+        VStack(alignment: .leading, spacing: 6){
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text(value.nomicaMoneyText)
+                .font(.headline)
+                .foregroundStyle(tint)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(tint.opacity(0.12))
+        )
+    }
+}
+
 struct SummaryRow: View {
     let label: String
     let value: Double
@@ -255,22 +350,46 @@ struct SummaryRow: View {
 struct TransactionRow: View {
     let transaction: Transaction
 
+    var isIncome: Bool{
+        transaction.type == "income"
+    }
+
+    var tint: Color{
+        isIncome ? .green : .red
+    }
+
     var body: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 12){
+            Circle()
+                .fill(tint.opacity(0.16))
+                .frame(width: 38,height:38)
+                .overlay{
+                    Image(systemName: isIncome ? "arrow.down.left" : "arrow.up.right")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(tint)
+                }
+
+            VStack(alignment: .leading, spacing: 4){
                 Text(transaction.displayTitle)
                     .font(.headline)
+                    .lineLimit(1)
+
                 Text("\(transaction.displayCategory) · \(transaction.dateText)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            Spacer()
+
+            Spacer(minLength: 12)
+
             Text(transaction.amountText)
                 .font(.headline)
-                .foregroundStyle(transaction.type == "income" ? .green : .red)
+                .foregroundStyle(tint)
+                .monospacedDigit()
         }
-        .padding(.vertical, 4)
+        .padding(.vertical,6)
     }
+
 }
 
 struct LoadingOrEmptyState: View {

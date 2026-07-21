@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor
 final class AppSession: ObservableObject {
-    @Published var baseURLText = "http://127.0.0.1:5001"
+    @Published var baseURLText = "http://127.0.0.1:5003"
     @Published var devUser = "local-dev-user"
     @Published var authToken = ""
     @Published var authUser: AuthUser?
@@ -11,7 +11,7 @@ final class AppSession: ObservableObject {
 
     var apiClient: APIClient {
         APIClient(
-            baseURL: URL(string: baseURLText) ?? URL(string: "http://127.0.0.1:5001")!,
+            baseURL: URL(string: baseURLText) ?? URL(string: "http://127.0.0.1:5003")!,
             authToken: authToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : authToken,
             devUser: devUser
         )
