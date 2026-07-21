@@ -197,6 +197,16 @@ Phase 6 第一版可判定完成。正式登入與 provider 加綁、完整 time
 - 不做 Apple Login、Google Login、Keychain、TestFlight、Push 或完整新增編輯流程。
 - Web / LINE 仍是現階段主要測試入口；iOS 先驗證原生 App 架構是否成立。
 
+## Allocation 0：Asset Allocation Domain 定案
+
+- Asset Allocation 是 Web、LINE 與 iOS 共用的產品 Domain，不歸類為 iOS 專屬功能。
+- Account 回答資金位置，Portfolio 回答配置策略，Holding 回答持有標的，Bucket 回答資金用途；四者不可混用。
+- Recorded Cost 與 Portfolio Snapshot 分離；Snapshot 是使用者在特定日期手動建立的完整 Portfolio 快照，不是即時行情。
+- Allocation V1 不把 Snapshot value 與既有 Account balance 相加，避免資產總額重複計算。
+- 新增資金配置只做確定性試算，不提供賣出、選股、市場預測或交易建議。
+- Bucket / Purpose Model 延後到 Allocation 2。
+- 詳細 Domain、驗證規則與 API 草案記錄於 `docs/asset-allocation-domain-plan.md`。
+
 ## Phase 5.5 通過標準
 
 - 使用者能更快完成日常記帳與帳戶核對。
