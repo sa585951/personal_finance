@@ -294,6 +294,109 @@ transfers_table = Table(
 )
 
 
+portfolios_table = Table(
+    "portfolios",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False),
+    Column("name", String(100), nullable=False),
+    Column("base_currency", String(3), ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False),
+    Column("is_active", Boolean, nullable=False, server_default=text("true")),
+    Column("archived_at", DateTime(timezone=True)),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("deleted_at", DateTime(timezone=True)),
+    Column("purge_after", DateTime(timezone=True)),
+    CheckConstraint("char_length(trim(name)) > 0", name="ck_portfolios_name_not_blank"),
+)
+
+
+holdings_table = Table(
+    "holdings",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("portfolio_id", UUID(as_uuid=True), ForeignKey("portfolios.id", ondelete="RESTRICT"), nullable=False),
+    Column("account_id", UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=False),
+    Column("name", String(100), nullable=False),
+    Column("symbol", String(50)),
+    Column("asset_class", String(50)),
+    Column("target_weight", Numeric(9, 8)),
+    Column("is_active", Boolean, nullable=False, server_default=text("true")),
+    Column("archived_at", DateTime(timezone=True)),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("deleted_at", DateTime(timezone=True)),
+    Column("purge_after", DateTime(timezone=True)),
+    CheckConstraint("char_length(trim(name)) > 0", name="ck_holdings_name_not_blank"),
+    CheckConstraint(
+        "target_weight IS NULL OR (target_weight >= 0 AND target_weight <= 1)",
+        name="ck_holdings_target_weight_range",
+    ),
+)
+
+
+holding_cost_entries_table = Table(
+    "holding_cost_entries",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("holding_id", UUID(as_uuid=True), ForeignKey("holdings.id", ondelete="RESTRICT"), nullable=False),
+    Column("source_transfer_id", UUID(as_uuid=True), ForeignKey("transfers.id", ondelete="RESTRICT")),
+    Column("entry_type", String(30), nullable=False),
+    Column("amount", AMOUNT, nullable=False),
+    Column("currency", String(3), ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False),
+    Column("occurred_on", Date, nullable=False),
+    Column("note", Text),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("deleted_at", DateTime(timezone=True)),
+    Column("purge_after", DateTime(timezone=True)),
+    CheckConstraint(
+        "entry_type in ('transfer', 'manual_adjustment')",
+        name="ck_holding_cost_entries_type",
+    ),
+    CheckConstraint("amount > 0", name="ck_holding_cost_entries_amount_positive"),
+    CheckConstraint(
+        "(entry_type = 'transfer' AND source_transfer_id IS NOT NULL) OR "
+        "(entry_type = 'manual_adjustment' AND source_transfer_id IS NULL)",
+        name="ck_holding_cost_entries_source",
+    ),
+)
+
+
+portfolio_snapshots_table = Table(
+    "portfolio_snapshots",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("portfolio_id", UUID(as_uuid=True), ForeignKey("portfolios.id", ondelete="RESTRICT"), nullable=False),
+    Column("snapshot_date", Date, nullable=False),
+    Column("currency", String(3), ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False),
+    Column("note", Text),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("deleted_at", DateTime(timezone=True)),
+    Column("purge_after", DateTime(timezone=True)),
+)
+
+
+portfolio_snapshot_items_table = Table(
+    "portfolio_snapshot_items",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column(
+        "snapshot_id",
+        UUID(as_uuid=True),
+        ForeignKey("portfolio_snapshots.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("holding_id", UUID(as_uuid=True), ForeignKey("holdings.id", ondelete="RESTRICT"), nullable=False),
+    Column("value", AMOUNT, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    UniqueConstraint("snapshot_id", "holding_id", name="uq_portfolio_snapshot_items_holding"),
+    CheckConstraint("value >= 0", name="ck_portfolio_snapshot_items_value_non_negative"),
+)
+
+
 settlements_table = Table(
     "settlements",
     metadata,
@@ -410,6 +513,21 @@ Index("ix_transaction_splits_transaction", transaction_splits_table.c.transactio
 Index("ix_transaction_splits_member", transaction_splits_table.c.trip_member_id)
 Index("ix_transfers_user_date", transfers_table.c.user_id, transfers_table.c.transfer_date)
 Index("ix_transfers_user_trip_date", transfers_table.c.user_id, transfers_table.c.trip_id, transfers_table.c.transfer_date)
+Index("ix_portfolios_user_active", portfolios_table.c.user_id, portfolios_table.c.is_active)
+Index("ix_holdings_portfolio_active", holdings_table.c.portfolio_id, holdings_table.c.is_active)
+Index("ix_holdings_account", holdings_table.c.account_id)
+Index(
+    "ix_holding_cost_entries_holding_date",
+    holding_cost_entries_table.c.holding_id,
+    holding_cost_entries_table.c.occurred_on,
+)
+Index("ix_holding_cost_entries_transfer", holding_cost_entries_table.c.source_transfer_id)
+Index(
+    "ix_portfolio_snapshots_portfolio_date",
+    portfolio_snapshots_table.c.portfolio_id,
+    portfolio_snapshots_table.c.snapshot_date,
+)
+Index("ix_portfolio_snapshot_items_snapshot", portfolio_snapshot_items_table.c.snapshot_id)
 Index("ix_settlements_trip_status", settlements_table.c.trip_id, settlements_table.c.status)
 Index("ix_settlements_from_member", settlements_table.c.from_member_id)
 Index("ix_settlements_to_member", settlements_table.c.to_member_id)
@@ -481,6 +599,38 @@ Index(
     trip_invites_table.c.trip_id,
     unique=True,
     postgresql_where=trip_invites_table.c.status == "active",
+)
+
+Index(
+    "uq_portfolios_user_currency_name_active",
+    portfolios_table.c.user_id,
+    portfolios_table.c.base_currency,
+    portfolios_table.c.name,
+    unique=True,
+    postgresql_where=portfolios_table.c.deleted_at.is_(None),
+)
+Index(
+    "uq_holdings_portfolio_account_name_active",
+    holdings_table.c.portfolio_id,
+    holdings_table.c.account_id,
+    holdings_table.c.name,
+    unique=True,
+    postgresql_where=holdings_table.c.deleted_at.is_(None),
+)
+Index(
+    "uq_holding_cost_entries_holding_transfer_active",
+    holding_cost_entries_table.c.holding_id,
+    holding_cost_entries_table.c.source_transfer_id,
+    unique=True,
+    postgresql_where=holding_cost_entries_table.c.deleted_at.is_(None)
+    & holding_cost_entries_table.c.source_transfer_id.isnot(None),
+)
+Index(
+    "uq_portfolio_snapshots_portfolio_date_active",
+    portfolio_snapshots_table.c.portfolio_id,
+    portfolio_snapshots_table.c.snapshot_date,
+    unique=True,
+    postgresql_where=portfolio_snapshots_table.c.deleted_at.is_(None),
 )
 
 

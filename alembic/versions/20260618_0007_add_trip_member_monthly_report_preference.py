@@ -25,6 +25,11 @@ def _has_trips_table(bind):
     return "trips" in inspector.get_table_names()
 
 
+def _has_check_constraint(bind, table_name, constraint_name):
+    constraints = sa.inspect(bind).get_check_constraints(table_name)
+    return any(constraint.get("name") == constraint_name for constraint in constraints)
+
+
 def upgrade():
     bind = op.get_bind()
     if not _has_trip_members_table(bind):
@@ -69,11 +74,16 @@ def upgrade():
         )
     )
 
-    op.create_check_constraint(
-        "ck_trip_members_monthly_report_preference",
+    if not _has_check_constraint(
+        bind,
         "trip_members",
-        "monthly_report_preference in ('pending', 'include', 'exclude')",
-    )
+        "ck_trip_members_monthly_report_preference",
+    ):
+        op.create_check_constraint(
+            "ck_trip_members_monthly_report_preference",
+            "trip_members",
+            "monthly_report_preference in ('pending', 'include', 'exclude')",
+        )
 
 
 def downgrade():
@@ -81,11 +91,16 @@ def downgrade():
     if not _has_trip_members_table(bind):
         return
 
-    op.drop_constraint(
-        "ck_trip_members_monthly_report_preference",
+    if _has_check_constraint(
+        bind,
         "trip_members",
-        type_="check",
-    )
+        "ck_trip_members_monthly_report_preference",
+    ):
+        op.drop_constraint(
+            "ck_trip_members_monthly_report_preference",
+            "trip_members",
+            type_="check",
+        )
     columns = {column["name"] for column in sa.inspect(bind).get_columns("trip_members")}
     if "monthly_report_preference" in columns:
         op.drop_column("trip_members", "monthly_report_preference")

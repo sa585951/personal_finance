@@ -20,7 +20,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - 旅行成員與輕量分帳
 - 旅行結算與本幣彙總
 - 帳戶與資金流向管理
-- 使用者自行維護的資產配置策略（Allocation 0 規劃完成，尚未實作）
+- 使用者自行維護的資產配置策略（Allocation 1A schema / migration 完成，API 與 UI 尚未實作）
 - 手機優先操作體驗
 - LINE / Web 兩種快速輸入入口
 
@@ -31,7 +31,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - 日常收入 / 支出可記錄，並可連動帳戶餘額。
 - 帳戶可依銀行、現金、信用卡、電子錢包、預付卡、投資、外部帳戶與其他類型管理，帳戶列表與交易帳戶選擇已依類型分組。
 - 帳戶互轉已支援同幣別與跨幣別轉帳；信用卡帳戶允許負數累積，其他帳戶仍保守限制不可為負數。
-- 投資類型目前只用於資金分配與投入成本紀錄；Asset Allocation 已進入 Domain 規劃，但仍不串接券商或即時行情，未來價值資料只接受使用者手動建立 Snapshot。
+- 投資類型目前用於資金分配與投入成本紀錄；Asset Allocation 已完成第一版資料地基，但仍不串接券商或即時行情，未來價值資料只接受使用者手動建立 Snapshot。
 - 旅行帳本可建立、切換、封存、軟刪除、復原，並支援每位登入成員自行決定是否納入個人月報。
 - 旅行支出可指定付款人、幣別、匯率與是否連動自己的帳戶。
 - 若付款人不是目前登入使用者，交易不會連動自己的帳戶，避免未來多人帳本時誤扣他人操作造成的帳戶餘額。
@@ -178,7 +178,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - 資產帳戶
 - 基本預算
 - 基本報表
-- 手動 Asset Allocation（規劃中）
+- 手動 Asset Allocation（schema / migration 已完成，操作功能尚未開放）
 
 資產帳戶可記錄現金、信用卡與不同付款方式，也能記錄薪資轉往儲蓄、旅費或投資帳戶的資金流向。Asset Allocation 後續只管理使用者自行輸入的 Portfolio、Holding、投入成本、目標比例與手動 Snapshot；不做券商串接、即時報價或完整交易績效。預算則維持月支出上限與旅行支出控制的職責。
 
@@ -331,7 +331,7 @@ Phase 3 到此先不再擴大旅行頁功能。後續若沒有實測發現阻塞
 已知限制與延後項目：
 
 - iOS 主畫面 PWA 的 LINE Login 目前不作為 Phase 5 解法，後續搭配同站網域、正式 session 或原生 App 再處理。
-- 投資目前只做帳戶類型、資金流向與投入成本紀錄；Asset Allocation 尚未進入 migration，不接券商 API 或即時行情。
+- 投資目前已有帳戶類型、資金流向與投入成本紀錄；Asset Allocation 已進入 schema / migration 地基，不接券商 API 或即時行情。
 - 外部旅伴與登入旅伴自動合併暫緩，避免 MVP 階段誤合併。
 - 自動匯率 API 暫緩，實際旅行前後再評估是否需要。
 
@@ -477,18 +477,20 @@ Allocation 0：Asset Allocation Domain 定案。
 - Apple / Google Login 正式 OAuth 串接與 LINE 加綁流程。
 - 完整 timezone 顯示模型，依使用者或旅行帳本時區顯示建立時間與交易時間。
 - 自動匯率 API、旅行分類預算與進階旅行報表是否進入商品化版本。
-- Allocation 1 的 migration、API、後端測試與 Web 驗證；手動 Snapshot 不接券商或即時行情。
+- Allocation 1B / 1C 的 API、後端測試與 Web 驗證；手動 Snapshot 不接券商或即時行情。
 
 建議優先順序：
 
 1. 完成 Phase App 0 的首頁、收支、帳戶與錯誤狀態驗收。
-2. Allocation 1：migration、共用 API、後端測試與 Web 驗證。
-3. Phase App 1：正式 session 儲存、Keychain 與核心 CRUD。
-4. Phase App 1.5：iOS 接入穩定的 Asset Allocation API。
-5. Apple / Google Login 與 LINE 加綁。
-6. 完整 timezone 與匯率策略。
-7. Money Flow 資金流向圖。
-8. Allocation 2：Bucket / Purpose Model。
+2. Allocation 1A：Portfolio、Holding、Recorded Cost 與 Snapshot schema / migration。
+3. Allocation 1B：共用 API、ownership validation 與後端測試。
+4. Allocation 1C：Web 操作與驗證。
+5. Phase App 1：正式 session 儲存、Keychain 與核心 CRUD。
+6. Phase App 1.5：iOS 接入穩定的 Asset Allocation API。
+7. Apple / Google Login 與 LINE 加綁。
+8. 完整 timezone 與匯率策略。
+9. Money Flow 資金流向圖。
+10. Allocation 2：Bucket / Purpose Model。
 
 ## 進度 Check
 
@@ -497,6 +499,7 @@ Allocation 0：Asset Allocation Domain 定案。
 | 產品定位收斂 | 完成 | 對外定位為整合記帳、帳戶、旅行與資產配置的個人財務工具；Personal Finance OS 作為長期內部願景 |
 | README 與方向文件 | 完成 | 已補目前進度、核心資料流與測試方式 |
 | 新版 schema / Alembic | 完成 | 本地 migration 與 smoke test 可跑 |
+| Asset Allocation 1A | 完成 | 已建立 Portfolio、Holding、Recorded Cost 與 Snapshot schema；API / UI 排入 1B / 1C |
 | 日常收支 | 完成 | 支援收入、支出、帳戶餘額連動、交易編輯、近期日期篩選、AI 快速輸入分流、收入來源核對、帳戶流向分析與支出分析文案收斂 |
 | 帳戶與資金流向 | 完成第一輪 | 支援帳戶類型分組、信用卡負數、帳戶健康度、同/跨幣別帳戶互轉、investment 投入成本紀錄與單一帳戶近期活動追查 |
 | 旅行帳本 | 完成 | 支援建立、切換、封存、軟刪除、復原、永久刪除，並支援每位登入成員自行決定是否納入個人月報 |

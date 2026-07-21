@@ -40,7 +40,7 @@ Portfolio 保存名稱與基準幣別，並包含多個 Holding。V1 可跨多�
 
 回答「實際配置在哪個標的」。
 
-例如 0050、00631L、VOO、債券或 BTC。Holding 可選擇所屬的投資類型 Account，並保存使用者設定的目標比例；它不是銀行帳戶，也不直接取代 Account。
+例如 0050、00631L、VOO、債券或 BTC。Allocation V1 的 Holding 必須連結所屬的投資類型 Account，並保存使用者設定的目標比例；它不是銀行帳戶，也不直接取代 Account。
 
 ### Recorded Cost
 
@@ -125,7 +125,7 @@ portfolios
 holdings
 ├─ id
 ├─ portfolio_id
-├─ account_id (nullable, V1 僅允許 investment account)
+├─ account_id (required, V1 僅允許 investment account)
 ├─ name
 ├─ symbol (nullable)
 ├─ asset_class (nullable)
@@ -172,6 +172,14 @@ portfolio_snapshot_items
 - 同一 Portfolio 同一天只保留一份 active Snapshot；修改採更新既有 Snapshot。
 - 已連結 transfer 的 Cost Entry 合計不可超過 transfer 的 target amount。
 - 刪除 Holding 前若已有 Cost Entry 或 Snapshot，應改為停用，不直接硬刪除歷史。
+
+## Allocation 1A Schema 決議
+
+- V1 只管理 investment Account 中的投資資產，不把銀行、現金或信用卡重複建成 Holding。
+- Portfolio 採單一基準幣別；不同幣別建立不同 Portfolio，不在 V1 引入手動或自動匯率。
+- Holding 必須連結 Account；同一 Portfolio 可跨多個同幣別的 investment Account。
+- 目標比例允許先以草稿保存，配置比較與新增投入試算時才要求 active Holding 合計為 100%。
+- 一筆 transfer 可分配至多個 Holding；帳戶 ownership、type、currency 與分配總額由 Allocation 1B service 在同一 transaction 驗證。
 
 ## 新增資金配置試算
 
@@ -220,10 +228,14 @@ POST   /api/portfolios/<portfolio_id>/allocation-preview
 - 完成本文件、README 與 roadmap 定位同步。
 - 不新增 migration 或 UI。
 
-### Allocation 1
+### Allocation 1A
 
-- 建立 migration、manager/service、API 與後端測試。
-- Web 先驗證 Portfolio、Holding、Cost Entry、Snapshot 與配置試算。
+- 建立 schema、migration、constraints 與 DB smoke tests。
+
+### Allocation 1B / 1C
+
+- 1B 建立 manager/service、API、ownership validation 與後端測試。
+- 1C 由 Web 驗證 Portfolio、Holding、Cost Entry、Snapshot 與配置試算。
 - Snapshot 暫不影響既有資產總額。
 
 ### Phase App 1 / 1.5

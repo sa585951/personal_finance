@@ -207,6 +207,13 @@ Phase 6 第一版可判定完成。正式登入與 provider 加綁、完整 time
 - Bucket / Purpose Model 延後到 Allocation 2。
 - 詳細 Domain、驗證規則與 API 草案記錄於 `docs/asset-allocation-domain-plan.md`。
 
+## Allocation 1A：Asset Allocation Schema 地基
+
+- 新增 Portfolio、Holding、Recorded Cost Entry 與完整 Portfolio Snapshot 的資料結構。
+- V1 僅支援 investment Account，且 Portfolio 維持單一基準幣別。
+- Holding 目標比例可先保存草稿；正式配置比較與新增投入試算才要求合計 100%。
+- 一筆既有帳戶轉帳可分配到多個 Holding；完整 ownership 與總額驗證排入 Allocation 1B API/service。
+
 ## Phase 5.5 通過標準
 
 - 使用者能更快完成日常記帳與帳戶核對。
