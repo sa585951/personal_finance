@@ -214,6 +214,14 @@ Phase 6 第一版可判定完成。正式登入與 provider 加綁、完整 time
 - Holding 目標比例可先保存草稿；正式配置比較與新增投入試算才要求合計 100%。
 - 一筆既有帳戶轉帳可分配到多個 Holding；完整 ownership 與總額驗證排入 Allocation 1B API/service。
 
+## Allocation 1B：Asset Allocation 共用 API
+
+- 已完成 Portfolio、Holding、Recorded Cost Entry、完整 Snapshot 與新增投入試算 API。
+- Web 與 iOS 共用相同 Nomica user / session 驗證，不建立 App 專用 endpoint。
+- Holding 僅能連結本人、同幣別的 investment Account；轉帳成本分配不可超過轉入金額。
+- 已被 Cost Entry 引用的帳戶轉帳不可直接編輯或刪除，避免成本來源失真。
+- 下一步 Allocation 1C 由 Web 驗證完整操作流程，再提供 iOS 接入。
+
 ## Phase 5.5 通過標準
 
 - 使用者能更快完成日常記帳與帳戶核對。

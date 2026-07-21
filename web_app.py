@@ -15,6 +15,7 @@ import jwt
 
 # 匯入重構後的核心類別和資料庫引擎
 from models.asset_manager import AssetManager
+from models.asset_allocation_manager import AllocationNotFoundError, AssetAllocationManager
 from models.auth_session_manager import AuthSessionManager
 from models.budget_manager import BudgetManager
 from models.goal_manager import GoalManager
@@ -78,6 +79,7 @@ CORS(
 
 # 實例化 Manager
 asset_manager = AssetManager(db_session)
+asset_allocation_manager = AssetAllocationManager(db_session)
 auth_session_manager = AuthSessionManager(db_session)
 budget_manager = BudgetManager(db_session)
 goal_manager = GoalManager(db_session)
@@ -556,6 +558,259 @@ def delete_transfer(current_user_id, transfer_id):
     except Exception as e:
         app.logger.error(f"Error in delete_transfer: {e}")
         return jsonify({"success": False, "message": str(e)}), 400
+
+# --- API - Asset Allocation ---
+
+def _allocation_error_response(error):
+    db_session.rollback()
+    status_code = 404 if isinstance(error, AllocationNotFoundError) else 400
+    return jsonify({"success": False, "message": str(error)}), status_code
+
+
+@app.route("/api/portfolios", methods=["GET"])
+@token_required
+def get_portfolios(current_user_id):
+    try:
+        return jsonify({"success": True, "data": asset_allocation_manager.list_portfolios(current_user_id)}), 200
+    except Exception as error:
+        app.logger.error(f"Error in get_portfolios: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/portfolios", methods=["POST"])
+@token_required
+def create_portfolio(current_user_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        portfolio = asset_allocation_manager.create_portfolio(
+            current_user_id,
+            data.get("name"),
+            data.get("base_currency"),
+        )
+        db_session.commit()
+        return jsonify({"success": True, "message": "Portfolio 已建立", "data": portfolio}), 201
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        db_session.rollback()
+        app.logger.error(f"Error in create_portfolio: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/portfolios/<string:portfolio_id>", methods=["GET"])
+@token_required
+def get_portfolio(current_user_id, portfolio_id):
+    try:
+        portfolio = asset_allocation_manager.get_portfolio(current_user_id, portfolio_id)
+        return jsonify({"success": True, "data": portfolio}), 200
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        app.logger.error(f"Error in get_portfolio: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/portfolios/<string:portfolio_id>", methods=["PATCH"])
+@token_required
+def update_portfolio(current_user_id, portfolio_id):
+    try:
+        portfolio = asset_allocation_manager.update_portfolio(
+            current_user_id,
+            portfolio_id,
+            **(request.get_json(silent=True) or {}),
+        )
+        db_session.commit()
+        return jsonify({"success": True, "message": "Portfolio 已更新", "data": portfolio}), 200
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        db_session.rollback()
+        app.logger.error(f"Error in update_portfolio: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/portfolios/<string:portfolio_id>", methods=["DELETE"])
+@token_required
+def delete_portfolio(current_user_id, portfolio_id):
+    try:
+        asset_allocation_manager.delete_portfolio(current_user_id, portfolio_id)
+        db_session.commit()
+        return jsonify({"success": True, "message": "Portfolio 已刪除"}), 200
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        db_session.rollback()
+        app.logger.error(f"Error in delete_portfolio: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/portfolios/<string:portfolio_id>/holdings", methods=["POST"])
+@token_required
+def create_holding(current_user_id, portfolio_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        holding = asset_allocation_manager.create_holding(
+            current_user_id,
+            portfolio_id,
+            data.get("account_id"),
+            data.get("name"),
+            symbol=data.get("symbol"),
+            asset_class=data.get("asset_class"),
+            target_weight=data.get("target_weight"),
+        )
+        db_session.commit()
+        return jsonify({"success": True, "message": "Holding 已建立", "data": holding}), 201
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        db_session.rollback()
+        app.logger.error(f"Error in create_holding: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/holdings/<string:holding_id>", methods=["PATCH"])
+@token_required
+def update_holding(current_user_id, holding_id):
+    try:
+        holding = asset_allocation_manager.update_holding(
+            current_user_id,
+            holding_id,
+            **(request.get_json(silent=True) or {}),
+        )
+        db_session.commit()
+        return jsonify({"success": True, "message": "Holding 已更新", "data": holding}), 200
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        db_session.rollback()
+        app.logger.error(f"Error in update_holding: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/holdings/<string:holding_id>", methods=["DELETE"])
+@token_required
+def delete_holding(current_user_id, holding_id):
+    try:
+        asset_allocation_manager.delete_holding(current_user_id, holding_id)
+        db_session.commit()
+        return jsonify({"success": True, "message": "Holding 已移除"}), 200
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        db_session.rollback()
+        app.logger.error(f"Error in delete_holding: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/holdings/<string:holding_id>/cost-entries", methods=["POST"])
+@token_required
+def create_holding_cost_entry(current_user_id, holding_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        entry = asset_allocation_manager.create_cost_entry(
+            current_user_id,
+            holding_id,
+            data.get("entry_type"),
+            data.get("amount"),
+            data.get("occurred_on"),
+            source_transfer_id=data.get("source_transfer_id"),
+            note=data.get("note"),
+        )
+        db_session.commit()
+        return jsonify({"success": True, "message": "投入成本已建立", "data": entry}), 201
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        db_session.rollback()
+        app.logger.error(f"Error in create_holding_cost_entry: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/holding-cost-entries/<string:cost_entry_id>", methods=["PATCH"])
+@token_required
+def update_holding_cost_entry(current_user_id, cost_entry_id):
+    try:
+        entry = asset_allocation_manager.update_cost_entry(
+            current_user_id,
+            cost_entry_id,
+            **(request.get_json(silent=True) or {}),
+        )
+        db_session.commit()
+        return jsonify({"success": True, "message": "投入成本已更新", "data": entry}), 200
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        db_session.rollback()
+        app.logger.error(f"Error in update_holding_cost_entry: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/holding-cost-entries/<string:cost_entry_id>", methods=["DELETE"])
+@token_required
+def delete_holding_cost_entry(current_user_id, cost_entry_id):
+    try:
+        asset_allocation_manager.delete_cost_entry(current_user_id, cost_entry_id)
+        db_session.commit()
+        return jsonify({"success": True, "message": "投入成本已刪除"}), 200
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        db_session.rollback()
+        app.logger.error(f"Error in delete_holding_cost_entry: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/portfolios/<string:portfolio_id>/snapshots", methods=["GET"])
+@token_required
+def get_portfolio_snapshots(current_user_id, portfolio_id):
+    try:
+        snapshots = asset_allocation_manager.list_snapshots(current_user_id, portfolio_id)
+        return jsonify({"success": True, "data": snapshots}), 200
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        app.logger.error(f"Error in get_portfolio_snapshots: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/portfolios/<string:portfolio_id>/snapshots", methods=["POST"])
+@token_required
+def create_portfolio_snapshot(current_user_id, portfolio_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        snapshot = asset_allocation_manager.create_or_update_snapshot(
+            current_user_id,
+            portfolio_id,
+            data.get("snapshot_date"),
+            data.get("items"),
+            note=data.get("note"),
+        )
+        db_session.commit()
+        return jsonify({"success": True, "message": "Portfolio Snapshot 已儲存", "data": snapshot}), 201
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        db_session.rollback()
+        app.logger.error(f"Error in create_portfolio_snapshot: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+
+@app.route("/api/portfolios/<string:portfolio_id>/allocation-preview", methods=["POST"])
+@token_required
+def get_allocation_preview(current_user_id, portfolio_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        preview = asset_allocation_manager.allocation_preview(
+            current_user_id,
+            portfolio_id,
+            data.get("amount"),
+        )
+        return jsonify({"success": True, "data": preview}), 200
+    except (ValueError, AllocationNotFoundError) as error:
+        return _allocation_error_response(error)
+    except Exception as error:
+        app.logger.error(f"Error in get_allocation_preview: {error}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
 
 # --- API - 旅行帳本 ---
 

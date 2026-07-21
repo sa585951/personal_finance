@@ -500,6 +500,7 @@ Allocation 0：Asset Allocation Domain 定案。
 | README 與方向文件 | 完成 | 已補目前進度、核心資料流與測試方式 |
 | 新版 schema / Alembic | 完成 | 本地 migration 與 smoke test 可跑 |
 | Asset Allocation 1A | 完成 | 已建立 Portfolio、Holding、Recorded Cost 與 Snapshot schema；API / UI 排入 1B / 1C |
+| Asset Allocation 1B | 完成 | 已建立共用 Manager / API、ownership 與幣別驗證、轉帳成本分配、完整 Snapshot 與新增投入試算 |
 | 日常收支 | 完成 | 支援收入、支出、帳戶餘額連動、交易編輯、近期日期篩選、AI 快速輸入分流、收入來源核對、帳戶流向分析與支出分析文案收斂 |
 | 帳戶與資金流向 | 完成第一輪 | 支援帳戶類型分組、信用卡負數、帳戶健康度、同/跨幣別帳戶互轉、investment 投入成本紀錄與單一帳戶近期活動追查 |
 | 旅行帳本 | 完成 | 支援建立、切換、封存、軟刪除、復原、永久刪除，並支援每位登入成員自行決定是否納入個人月報 |

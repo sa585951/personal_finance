@@ -197,17 +197,22 @@ portfolio_snapshot_items
 
 若沒有完整 Snapshot，可用 Recorded Cost 進行試算，但畫面必須標示「依投入成本試算」，不得與 Snapshot 配置混為同一口徑。
 
-## API 草案
+## Allocation 1B API
 
 ```text
 GET    /api/portfolios
 POST   /api/portfolios
 GET    /api/portfolios/<portfolio_id>
 PATCH  /api/portfolios/<portfolio_id>
+DELETE /api/portfolios/<portfolio_id>
 
 POST   /api/portfolios/<portfolio_id>/holdings
 PATCH  /api/holdings/<holding_id>
+DELETE /api/holdings/<holding_id>
+
 POST   /api/holdings/<holding_id>/cost-entries
+PATCH  /api/holding-cost-entries/<cost_entry_id>
+DELETE /api/holding-cost-entries/<cost_entry_id>
 
 POST   /api/portfolios/<portfolio_id>/snapshots
 GET    /api/portfolios/<portfolio_id>/snapshots
@@ -216,6 +221,15 @@ POST   /api/portfolios/<portfolio_id>/allocation-preview
 ```
 
 所有 API 沿用 Nomica user 與 session 驗證，不建立 iOS 專用 endpoint。LINE V1 不提供 Portfolio 編輯，只保留 Web / iOS 操作入口。
+
+Allocation 1B 已完成以下驗證：
+
+- Portfolio、Holding、Cost Entry 與 Snapshot 均由目前登入的 Nomica user 進行 ownership 驗證。
+- Holding 只能連結本人、同幣別的 investment Account。
+- 一筆 transfer 可分配到多個 Holding，但 active Cost Entry 合計不可超過 target amount。
+- 已被 Cost Entry 引用的 transfer 不可直接編輯或刪除。
+- Snapshot 必須一次包含所有 active Holding；同日再次送出會更新既有 Snapshot。
+- Allocation Preview 優先使用最近完整 Snapshot，沒有 Snapshot 時才使用 Recorded Cost，且只提供新增投入分配。
 
 ## 開發順序
 
@@ -234,7 +248,7 @@ POST   /api/portfolios/<portfolio_id>/allocation-preview
 
 ### Allocation 1B / 1C
 
-- 1B 建立 manager/service、API、ownership validation 與後端測試。
+- 1B 已完成 manager/service、API、ownership validation 與後端測試。
 - 1C 由 Web 驗證 Portfolio、Holding、Cost Entry、Snapshot 與配置試算。
 - Snapshot 暫不影響既有資產總額。
 

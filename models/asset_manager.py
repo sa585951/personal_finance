@@ -6,7 +6,13 @@ from uuid import UUID
 from sqlalchemy import desc, insert, or_, select, update
 
 from config import DEFAULT_CURRENCY
-from .schema import accounts_table, categories_table, transactions_table, transfers_table
+from .schema import (
+    accounts_table,
+    categories_table,
+    holding_cost_entries_table,
+    transactions_table,
+    transfers_table,
+)
 
 
 ACCOUNT_TYPE_ALIASES = {
@@ -393,6 +399,8 @@ class AssetManager:
         transfer = self._get_transfer(user_id, transfer_id)
         if not transfer:
             raise ValueError("找不到此轉帳紀錄或權限不足")
+        if self._transfer_has_cost_entries(transfer["id"]):
+            raise ValueError("此轉帳已分配到投資標的，請先刪除相關投入成本紀錄")
 
         transfer_amount = Decimal(str(amount))
         if transfer_amount <= 0:
@@ -440,6 +448,8 @@ class AssetManager:
         transfer = self._get_transfer(user_id, transfer_id)
         if not transfer:
             raise ValueError("找不到此轉帳紀錄或權限不足")
+        if self._transfer_has_cost_entries(transfer["id"]):
+            raise ValueError("此轉帳已分配到投資標的，請先刪除相關投入成本紀錄")
 
         now = datetime.now(timezone.utc)
         self._reverse_transfer_effect(user_id, transfer, now)
@@ -453,6 +463,16 @@ class AssetManager:
             )
         )
         return True, "轉帳已刪除"
+
+    def _transfer_has_cost_entries(self, transfer_id):
+        return self.db_session.execute(
+            select(holding_cost_entries_table.c.id)
+            .where(
+                holding_cost_entries_table.c.source_transfer_id == transfer_id,
+                holding_cost_entries_table.c.deleted_at.is_(None),
+            )
+            .limit(1)
+        ).first() is not None
 
     def _get_transfer(self, user_id, transfer_id):
         stmt = select(transfers_table).where(
