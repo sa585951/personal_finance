@@ -249,7 +249,8 @@ Allocation 1B 已完成以下驗證：
 ### Allocation 1B / 1C
 
 - 1B 已完成 manager/service、API、ownership validation 與後端測試。
-- 1C 由 Web 驗證 Portfolio、Holding、Cost Entry、Snapshot 與配置試算。
+- 1C 已完成 Web 的 Portfolio 列表、Holding、Cost Entry、Snapshot 與配置試算操作。
+- Web 由帳戶頁進入獨立資產配置頁，不把資產配置混入帳戶餘額或底部主導覽。
 - Snapshot 暫不影響既有資產總額。
 
 ### Phase App 1 / 1.5

@@ -2,14 +2,20 @@
    基礎排版與通用樣式
    ======================== */
 :root {
-  --primary-color: #4CAF50; /* 綠色 */
-  --secondary-color: #f0f0f0;
-  --card-bg: #fff;
-  --border-color: #e0e0e0;
-  --text-color: #333;
-  --light-text-color: #666;
-  --danger-color: #F44336;
-  --update-color: #2196F3;
+  --primary-color: #0f766e;
+  --primary-soft: #ccfbf1;
+  --secondary-color: #f8fafc;
+  --card-bg: #ffffff;
+  --border-color: #dbe4ee;
+  --text-color: #1f2933;
+  --light-text-color: #64748b;
+  --danger-color: #dc2626;
+  --update-color: #2563eb;
+  --warning-color: #ca8a04;
+  --page-bg: #f4f7f9;
+  --page-max-width: 960px;
+  --compact-page-max-width: 520px;
+  --card-radius: 10px;
   --app-bottom-nav-height: 82px;
 }
 
@@ -23,8 +29,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  font-family: 'Helvetica Neue', Arial, sans-serif;
-  background-color: #f5f5f5;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--page-bg);
   color: var(--text-color);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -43,15 +49,14 @@ button {
   color: white;
   font-weight: bold;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  box-shadow: none;
   -webkit-tap-highlight-color: transparent;
 }
 
 @media (hover: hover) and (pointer: fine) {
   button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    filter: brightness(0.97);
   }
 }
 

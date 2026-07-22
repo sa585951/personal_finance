@@ -12,6 +12,8 @@ const TripsView = () => import("../views/TripsView.vue");
 const TripInviteAccept = () => import("../views/TripInviteAccept.vue");
 const AuthCallback = () => import("../views/AuthCallback.vue");
 const AccountSettings = () => import("../views/AccountSettings.vue");
+const AllocationOverview = () => import("../views/AllocationOverview.vue");
+const AllocationDetail = () => import("../views/AllocationDetail.vue");
 
 const routes = [
   {
@@ -29,6 +31,18 @@ const routes = [
     path: "/assets",
     name: "AssetsOverview",
     component: AssetsOverview,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/allocation",
+    name: "AllocationOverview",
+    component: AllocationOverview,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/allocation/:portfolioId",
+    name: "AllocationDetail",
+    component: AllocationDetail,
     meta: { requiresAuth: true },
   },
   {

@@ -220,7 +220,13 @@ Phase 6 第一版可判定完成。正式登入與 provider 加綁、完整 time
 - Web 與 iOS 共用相同 Nomica user / session 驗證，不建立 App 專用 endpoint。
 - Holding 僅能連結本人、同幣別的 investment Account；轉帳成本分配不可超過轉入金額。
 - 已被 Cost Entry 引用的帳戶轉帳不可直接編輯或刪除，避免成本來源失真。
-- 下一步 Allocation 1C 由 Web 驗證完整操作流程，再提供 iOS 接入。
+
+## Allocation 1C：Asset Allocation Web 操作
+
+- Web 新增獨立 `/allocation` 列表與 `/allocation/:portfolioId` 詳情頁，由帳戶頁進入，不增加手機底部導覽項目。
+- 詳情以配置標的、投入成本、資產快照與投入試算四個分頁管理，使用全中文產品用詞。
+- Portfolio 列表只載入名稱、基準幣別與狀態；完整 Holdings、成本與 Snapshot 進入詳情後才載入，避免 N+1 requests。
+- 新頁採 responsive 寬版內容區，手機仍維持單欄；全站大型視覺改版另排獨立階段，不與 Allocation 功能驗收混在一起。
 
 ## Phase 5.5 通過標準
 

@@ -10,6 +10,17 @@
     <div v-else class="assets-content">
       <TotalCards :totals="totals" />
 
+      <router-link class="allocation-entry" to="/allocation">
+        <span class="allocation-entry-icon" aria-hidden="true">
+          <TrendCharts />
+        </span>
+        <span class="allocation-entry-copy">
+          <strong>資產配置</strong>
+          <small>管理投資標的、投入成本與手動資產快照</small>
+        </span>
+        <ArrowRight class="allocation-entry-arrow" aria-hidden="true" />
+      </router-link>
+
       <section class="account-health-panel" aria-label="帳戶健康度">
         <div class="section-heading">
           <h2>帳戶健康度</h2>
@@ -104,6 +115,7 @@ import AssetsTable from "../components/assets/AssetsTable.vue";
 import TotalCards from "../components/assets/TotalCards.vue";
 import TransferForm from "../components/assets/TransferForm.vue";
 import TransferHistory from "../components/assets/TransferHistory.vue";
+import { ArrowRight, TrendCharts } from "@element-plus/icons-vue";
 
 export default {
   name: "AssetsOverview",
@@ -113,6 +125,8 @@ export default {
     TotalCards,
     TransferForm,
     TransferHistory,
+    ArrowRight,
+    TrendCharts,
   },
   data() {
     return {
@@ -529,6 +543,55 @@ export default {
   margin: 0 auto;
   padding: 24px 14px calc(var(--app-bottom-nav-height) + 22px);
   color: #1f2933;
+}
+
+.allocation-entry {
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  color: #1f2933;
+  text-decoration: none;
+  border: 1px solid #99f6e4;
+  border-radius: 10px;
+  background: #f0fdfa;
+}
+
+.allocation-entry-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  color: #0f766e;
+  background: #ccfbf1;
+  border-radius: 8px;
+}
+
+.allocation-entry-icon svg,
+.allocation-entry-arrow {
+  width: 20px;
+  height: 20px;
+}
+
+.allocation-entry-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.allocation-entry-copy strong {
+  color: #134e4a;
+}
+
+.allocation-entry-copy small {
+  color: #475569;
+  line-height: 1.45;
+}
+
+.allocation-entry-arrow {
+  color: #0f766e;
 }
 
 .assets-header {
