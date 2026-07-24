@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -23,6 +23,11 @@
 		A10000000000000000000006 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000000000000000000007 /* Nomica.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Nomica.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		FC220E5330133651002CD826 /* Components */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Components; sourceTree = "<group>"; };
+		FC220E543013365F002CD826 /* Views */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Views; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A10000000000000000000021 /* Frameworks */ = {
@@ -46,6 +51,8 @@
 		A10000000000000000000031 /* Nomica */ = {
 			isa = PBXGroup;
 			children = (
+				FC220E543013365F002CD826 /* Views */,
+				FC220E5330133651002CD826 /* Components */,
 				A10000000000000000000001 /* NomicaApp.swift */,
 				A10000000000000000000002 /* ContentView.swift */,
 				A10000000000000000000003 /* APIClient.swift */,
@@ -78,6 +85,10 @@
 			buildRules = (
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				FC220E5330133651002CD826 /* Components */,
+				FC220E543013365F002CD826 /* Views */,
 			);
 			name = Nomica;
 			productName = Nomica;
