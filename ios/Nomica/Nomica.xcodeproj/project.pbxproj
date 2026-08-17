@@ -27,6 +27,7 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FC220E5330133651002CD826 /* Components */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Components; sourceTree = "<group>"; };
 		FC220E543013365F002CD826 /* Views */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Views; sourceTree = "<group>"; };
+		FC3321143017613000A8BE8E /* Services */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Services; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,6 +52,7 @@
 		A10000000000000000000031 /* Nomica */ = {
 			isa = PBXGroup;
 			children = (
+				FC3321143017613000A8BE8E /* Services */,
 				FC220E543013365F002CD826 /* Views */,
 				FC220E5330133651002CD826 /* Components */,
 				A10000000000000000000001 /* NomicaApp.swift */,
@@ -89,6 +91,7 @@
 			fileSystemSynchronizedGroups = (
 				FC220E5330133651002CD826 /* Components */,
 				FC220E543013365F002CD826 /* Views */,
+				FC3321143017613000A8BE8E /* Services */,
 			);
 			name = Nomica;
 			productName = Nomica;
