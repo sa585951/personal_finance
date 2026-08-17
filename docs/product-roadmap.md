@@ -4,8 +4,8 @@
 
 - Roadmap 版本：M0 至 M9
 - 生效日期：2026-08-17
-- 目前 Milestone：M0 Finance Contract 與產品量測基準
-- M0 完成後第一個程式實作批次：M1A Mobile UX Bug 修正
+- 目前 Milestone：M1 Minimum Product UX
+- 下一個程式實作批次：M1A Mobile UX Bug 修正
 
 舊有 Phase 1 至 Phase 7、Phase App 與 Allocation 文件保留為歷史開發紀錄。新工作一律使用本文件的 Milestone 命名，避免同時維護兩套進度語言。
 
@@ -33,6 +33,8 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 6. PWA Alpha 驗證操作可發現性；PWA Beta 驗證 Shared Expense 到 Personal Finance 的財務語意。
 
 ## M0 Finance Contract 與產品量測基準
+
+狀態：第一版完成（2026-08-17）。Finance Contract、Balance／Settlement Ownership Contract、Product Event Taxonomy 與 characterization tests 已建立；完整後端回歸為 102 passed，前端 production build 通過。
 
 ### 目標
 

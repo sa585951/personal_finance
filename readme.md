@@ -26,7 +26,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 
 ## 目前進度
 
-目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C，以及 Phase App 0 的 iOS read-only prototype。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；目前進入 **M0 Finance Contract 與產品量測基準**。核心流程已可在本地與部署環境操作：
+目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；目前進入 **M1A Mobile UX Bug 修正**。核心流程已可在本地與部署環境操作：
 
 - 日常收入 / 支出可記錄，並可連動帳戶餘額。
 - 帳戶可依銀行、現金、信用卡、電子錢包、預付卡、投資、外部帳戶與其他類型管理，帳戶列表與交易帳戶選擇已依類型分組。
@@ -499,6 +499,7 @@ Allocation 0：Asset Allocation Domain 定案。
 | --- | --- | --- |
 | 產品定位收斂 | 完成 | 對外定位為整合記帳、帳戶、旅行與資產配置的個人財務工具；Personal Finance OS 作為長期內部願景 |
 | README 與方向文件 | 完成 | 已補目前進度、核心資料流與測試方式 |
+| M0 Finance Contract | 第一版完成 | 已固定 Payment、Expense、Settlement、Transfer、Adjustment、Balance 與 ownership 語意，建立安全的 Product Event Taxonomy；後端 102 tests 與前端 build 通過 |
 | 新版 schema / Alembic | 完成 | 本地 migration 與 smoke test 可跑 |
 | Asset Allocation 1A | 完成 | 已建立 Portfolio、Holding、Recorded Cost 與 Snapshot schema / migration |
 | Asset Allocation 1B | 完成 | 已建立共用 Manager / API、ownership 與幣別驗證、轉帳成本分配、完整 Snapshot 與新增投入試算 |

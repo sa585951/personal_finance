@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 import pytest
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 
 from models.schema import (
     accounts_table,
@@ -438,6 +438,69 @@ def test_mvp_schema_can_create_core_records():
             select(accounts_table.c.balance).where(accounts_table.c.id == source_account_id)
         ).scalar_one()
         assert source_balance_after_daily_expense == Decimal("9880.0000")
+
+        # Finance Contract: 手動校正只改帳戶快照，不建立收入或支出。
+        transaction_count_before_adjustment = connection.execute(
+            select(func.count()).select_from(transactions_table)
+        ).scalar_one()
+        success, message = asset_manager.update_balance(user_id, source_account_id, Decimal("10380"))
+        assert success is True
+        assert message == "餘額更新成功"
+        success, _ = asset_manager.update_balance(user_id, source_account_id, Decimal("9880"))
+        assert success is True
+        transaction_count_after_adjustment = connection.execute(
+            select(func.count()).select_from(transactions_table)
+        ).scalar_one()
+        assert transaction_count_after_adjustment == transaction_count_before_adjustment
+
+        # Finance Contract: 信用卡還款是帳戶互轉，不是第二筆支出。
+        success, message = asset_manager.add_account(
+            user_id=user_id,
+            bank_name="測試信用卡",
+            account_type="credit_card",
+            balance=Decimal("-1000"),
+            currency="TWD",
+        )
+        assert success is True
+        assert message == "成功新增帳戶"
+        credit_card = asset_manager.find_asset_by_name(user_id, "測試信用卡")
+        transaction_count_before_card_payment = connection.execute(
+            select(func.count()).select_from(transactions_table)
+        ).scalar_one()
+
+        success, message = asset_manager.transfer(
+            user_id,
+            source_account_id,
+            credit_card["id"],
+            Decimal("1000"),
+            note="繳信用卡費",
+        )
+        assert success is True
+        assert message == "轉帳成功"
+        source_balance_after_card_payment = connection.execute(
+            select(accounts_table.c.balance).where(accounts_table.c.id == source_account_id)
+        ).scalar_one()
+        credit_balance_after_card_payment = connection.execute(
+            select(accounts_table.c.balance).where(accounts_table.c.id == uuid.UUID(credit_card["id"]))
+        ).scalar_one()
+        assert source_balance_after_card_payment == Decimal("8880.0000")
+        assert credit_balance_after_card_payment == Decimal("0.0000")
+        assert connection.execute(select(func.count()).select_from(transactions_table)).scalar_one() == (
+            transaction_count_before_card_payment
+        )
+
+        card_payment_transfer_id = connection.execute(
+            select(transfers_table.c.id).where(transfers_table.c.note == "繳信用卡費")
+        ).scalar_one()
+        success, message = asset_manager.delete_transfer(user_id, card_payment_transfer_id)
+        assert success is True
+        assert message == "轉帳已刪除"
+        assert connection.execute(
+            select(accounts_table.c.balance).where(accounts_table.c.id == source_account_id)
+        ).scalar_one() == Decimal("9880.0000")
+        assert connection.execute(
+            select(accounts_table.c.balance).where(accounts_table.c.id == uuid.UUID(credit_card["id"]))
+        ).scalar_one() == Decimal("-1000.0000")
 
         daily_only_transactions = budget_manager.get_all_transactions(user_id)
         assert {transaction["category"] for transaction in daily_only_transactions} == {"便當"}
