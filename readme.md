@@ -26,7 +26,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 
 ## 目前進度
 
-目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；目前進入 **M1A Mobile UX Bug 修正**。核心流程已可在本地與部署環境操作：
+目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract 與 M1A Mobile UX Bug 第一輪。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；目前進入 **M1B Trip Route 拆分**。M1A 已完成六個主要頁面的 390、430、768px overflow audit，並修正手機 bottom navigation 與 Dev 使用者選單重疊。核心流程已可在本地與部署環境操作：
 
 - 日常收入 / 支出可記錄，並可連動帳戶餘額。
 - 帳戶可依銀行、現金、信用卡、電子錢包、預付卡、投資、外部帳戶與其他類型管理，帳戶列表與交易帳戶選擇已依類型分組。

@@ -152,6 +152,7 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
+  gap: 4px;
   position: fixed;
   bottom: 0;
   left: 0;
@@ -173,7 +174,9 @@ export default {
   display: flex;
   justify-content: space-between;
   gap: 0;
-  width: min(520px, 100%);
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 520px;
   margin: 0;
   padding: 0;
 }
@@ -225,27 +228,37 @@ export default {
 @media (min-width: 1px) {
   .auth-section {
     display: block;
-    position: fixed;
-    top: 8px;
-    right: 8px;
-    z-index: 30;
+    position: relative;
+    flex: 0 0 auto;
+    z-index: 1;
   }
 
   .dev-user-switcher {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 8px;
+    padding: 4px;
     color: #334155;
-    background: rgba(255, 255, 255, 0.94);
+    background: #f8fafc;
     border: 1px solid #dbe4ee;
     border-radius: 8px;
-    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
     font-size: 0.75rem;
     font-weight: 700;
   }
 
+  .dev-user-switcher span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   .dev-user-switcher select {
+    width: 74px;
     min-height: 28px;
     border: 1px solid #cbd5e1;
     border-radius: 6px;
@@ -255,13 +268,12 @@ export default {
 
   .account-button {
     min-height: 34px;
-    max-width: 128px;
-    padding: 6px 10px;
+    max-width: 78px;
+    padding: 6px 8px;
     color: #334155;
     background: rgba(255, 255, 255, 0.94);
     border: 1px solid #dbe4ee;
     border-radius: 8px;
-    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
     font-size: 0.78rem;
     font-weight: 800;
     overflow: hidden;
@@ -271,7 +283,7 @@ export default {
 
   .account-menu {
     position: absolute;
-    top: calc(100% + 8px);
+    bottom: calc(100% + 8px);
     right: 0;
     min-width: 150px;
     padding: 10px;

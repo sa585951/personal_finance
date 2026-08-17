@@ -5,7 +5,7 @@
 - Roadmap 版本：M0 至 M9
 - 生效日期：2026-08-17
 - 目前 Milestone：M1 Minimum Product UX
-- 下一個程式實作批次：M1A Mobile UX Bug 修正
+- 下一個程式實作批次：M1B Trip Route 拆分
 
 舊有 Phase 1 至 Phase 7、Phase App 與 Allocation 文件保留為歷史開發紀錄。新工作一律使用本文件的 Milestone 命名，避免同時維護兩套進度語言。
 
@@ -62,8 +62,11 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 ### M1A Mobile UX Bug
 
+狀態：第一版完成（2026-08-17）。
+
 - 修正 horizontal overflow、標題與 bottom navigation 裁切、固定寬度、spacing、sheet/modal 捲動。
 - 驗收 390、430、768px，不以縮小字體掩蓋問題。
+- 第一輪已完成六個主要頁面的 390、430、768px overflow audit，並修正 bottom navigation 與 Dev 使用者選單重疊；目前各寬度皆無水平溢出或導覽裁切。
 
 ### M1B Trip Route 拆分
 
