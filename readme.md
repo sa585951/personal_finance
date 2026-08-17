@@ -1,6 +1,6 @@
 # Nomica
 
-Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、帳戶與旅行，並正規劃使用者自行維護的資產配置，協助使用者掌握資金位置與自己制定的配置策略。
+Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、帳戶、旅行與使用者自行維護的資產配置，協助使用者掌握資金位置與自己制定的配置策略。
 
 本專案一開始是為了讓自己能更方便地記錄日常支出，後續加入了 Web 管理介面、LINE Login、LINE Bot 自然語言記帳、資產、預算與報表等功能。接下來的開發方向會收斂，不再追求全功能理財 App，而是聚焦在自己真正會使用的場景：平常快速記帳，出國時能獨立記錄旅行支出，回來後可換算成本幣並產生結算。
 
@@ -26,7 +26,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 
 ## 目前進度
 
-目前專案已完成 Phase 1 的主要 MVP 收斂、Phase 2 的手機優先第一輪整理、Phase 3 的旅行前操作核心打磨，以及 Phase 5 的 MVP 可用性初步驗證。核心流程已可在本地與部署環境操作：
+目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C，以及 Phase App 0 的 iOS read-only prototype。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；目前進入 **M0 Finance Contract 與產品量測基準**。核心流程已可在本地與部署環境操作：
 
 - 日常收入 / 支出可記錄，並可連動帳戶餘額。
 - 帳戶可依銀行、現金、信用卡、電子錢包、預付卡、投資、外部帳戶與其他類型管理，帳戶列表與交易帳戶選擇已依類型分組。
@@ -43,11 +43,13 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - 首頁月統計可切換「含旅行」與「日常」範圍；含旅行時只納入目前使用者選擇 include 的旅行分攤金額。
 - 預算目前以月預算為主；已納入個人月報的旅行分攤會一起計入預算已花費。
 
-尚未進入的範圍：
+尚未正式完成的範圍：
 
 - 自動匯率 API。
-- iOS App 原生體驗。
+- iOS 正式登入、Keychain session lifecycle、核心 CRUD 與 TestFlight；目前只有 read-only prototype。
 - 旅行分類預算與進階旅行報表。
+
+新的執行 Roadmap 見 `docs/product-roadmap.md`。舊 Phase 文件保留作為歷史紀錄，不再作為新工作的階段判定來源。
 
 ## 為什麼要調整方向
 
@@ -470,7 +472,7 @@ Allocation 0：Asset Allocation Domain 定案。
 - Bucket 屬於後續 Purpose Model，不納入 Allocation V1。
 - 詳細規則見 `docs/asset-allocation-domain-plan.md`。
 
-候選項目：
+舊 Roadmap 的候選項目：
 
 - 外部旅伴與真實登入使用者的安全合併流程，避免重複成員或誤合併。
 - iOS 主畫面 PWA / 原生 App 登入策略，優先評估同站網域或原生 OAuth callback。
@@ -479,15 +481,17 @@ Allocation 0：Asset Allocation Domain 定案。
 - 自動匯率 API、旅行分類預算與進階旅行報表是否進入商品化版本。
 - Phase App 1 的正式 session 儲存、Keychain 與核心 CRUD；手動 Snapshot 仍不接券商或即時行情。
 
-建議優先順序：
+新 Roadmap 執行順序：
 
-1. 完成 Phase App 0 的首頁、收支、帳戶與錯誤狀態驗收。
-2. Phase App 1：正式 session 儲存、Keychain 與核心 CRUD。
-3. Phase App 1.5：iOS 接入穩定的 Asset Allocation API。
-4. Apple / Google Login 與 LINE 加綁。
-5. 完整 timezone 與匯率策略。
-6. Money Flow 資金流向圖。
-7. Allocation 2：Bucket / Purpose Model。
+1. M0：Finance Contract、Balance Contract、Settlement Ownership 與 Product Event Taxonomy。
+2. M1：Mobile UX、Trip route 拆分、Universal Add、Home 與 Analysis 收斂。
+3. M2：PWA Alpha 操作驗證。
+4. M3：Balance Anchor、Adjustment、Settlement Account Entry 與 Reconciliation。
+5. M4 至 M5：Travel Product 與 PWA Beta。
+6. M6：iOS Auth Foundation、Vertical Slice 與 TestFlight。
+7. M7 至 M9：依 Beta 數據決定 LINE Travel Context、App Store 與 Plus。
+
+完整範圍、驗收條件與暫緩項目見 `docs/product-roadmap.md`。Money Flow、Allocation 擴充與 Bucket 不再是目前緊接的開發項目。
 
 ## 進度 Check
 

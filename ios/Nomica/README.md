@@ -1,6 +1,8 @@
 # Nomica iOS Prototype
 
-這是 Phase App 0 的 SwiftUI 原生殼。目標是讓 iOS App 先能啟動、呼叫 Nomica 後端 API，並顯示首頁摘要、最近收支與帳戶列表。
+這是已完成第一輪驗證的 SwiftUI read-only prototype。它能啟動、呼叫 Nomica 後端 API，並顯示首頁摘要、最近收支與帳戶列表。
+
+依 2026-08-17 的產品 Roadmap，iOS 功能開發暫停在此可運行基線。專案會先完成 M0 至 M5 的財務語意、Mobile Web、PWA Alpha、Ledger Correctness 與 PWA Beta，再於 M6 繼續正式 iOS Vertical Slice。
 
 ## 開啟方式
 
@@ -49,8 +51,12 @@ http://192.168.1.20:5001
 - 收支：最近 30 筆收支。
 - 帳戶：帳戶名稱、類型、幣別、餘額。
 
-## 後續方向
+## 目前暫停點
 
-- 第二輪再加入正式 JWT 儲存與 Keychain。
-- Apple Developer 通過後再接 Sign in with Apple。
-- 若要給朋友測，之後才進 TestFlight。
+- 已完成 `SessionGateView` 與 API 登入狀態檢查。
+- `KeychainStore` 是尚未接入 `AppSession` 的探索草稿，不代表 token persistence 已完成。
+- 正式 JWT／Keychain、Sign in with Apple、LINE Login、session expiry／logout／revocation 統一移到 M6A。
+- M6B 再實作 Login、Home、Quick Add、Transaction 與 Trip 的第一條 mobile vertical slice。
+- M6C 才進入 TestFlight 測試。
+
+完整順序見 `../../docs/product-roadmap.md`。
