@@ -64,6 +64,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: "/trips/:tripId",
+    name: "TripDetail",
+    component: TripsView,
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/budgets",
     name: "BudgetPlanner",
     component: BudgetPlanner,

@@ -3,28 +3,36 @@
     <header class="trips-header">
       <div>
         <p class="eyebrow">Nomica Travel</p>
-        <h1>旅行帳本</h1>
+        <h1>{{ isTripDetailRoute ? "旅行詳情" : "旅行帳本" }}</h1>
       </div>
       <div class="header-actions">
         <button class="icon-button" type="button" @click="fetchTrips" title="重新整理">
           <Refresh />
         </button>
         <button
-          v-if="trips.length === 0"
+          v-if="!isTripDetailRoute && trips.length === 0"
           class="quiet-action"
           type="button"
           @click="toggleTripManagement"
         >
           管理
         </button>
-        <button class="new-trip-button" type="button" @click="showCreateTrip = !showCreateTrip">
+        <button
+          v-if="!isTripDetailRoute"
+          class="new-trip-button"
+          type="button"
+          @click="showCreateTrip = !showCreateTrip"
+        >
           <Plus />
           {{ showCreateTrip ? "收合" : "新增" }}
+        </button>
+        <button v-else class="quiet-action" type="button" @click="returnToTripList">
+          旅行列表
         </button>
       </div>
     </header>
 
-    <section v-if="showCreateTrip || trips.length === 0" class="create-panel">
+    <section v-if="!isTripDetailRoute && (showCreateTrip || trips.length === 0)" class="create-panel">
       <div class="section-title">
         <Plus />
         <h2>新增旅行</h2>
@@ -81,7 +89,7 @@
       <p v-if="tripMessage" class="status-message">{{ tripMessage }}</p>
     </section>
 
-    <section v-if="showTripManagement && !selectedTrip" class="management-panel standalone-management">
+    <section v-if="!isTripDetailRoute && showTripManagement" class="management-panel standalone-management">
       <div>
         <strong>旅行管理</strong>
         <span>可在這裡找回已封存或 30 天內軟刪除的帳本。</span>
@@ -121,9 +129,49 @@
     </section>
 
     <div v-if="loading" class="loading-state">載入中...</div>
-    <div v-else-if="trips.length === 0" class="empty-state">尚未建立旅行帳本</div>
+    <div v-else-if="isTripDetailRoute && !selectedTrip" class="trip-route-state">
+      <strong>無法開啟旅行帳本</strong>
+      <span>{{ tripLoadError || "這趟旅行可能已封存、刪除，或你沒有存取權限。" }}</span>
+      <button class="secondary-action" type="button" @click="returnToTripList">回到旅行列表</button>
+    </div>
+    <div v-else-if="!isTripDetailRoute && trips.length === 0" class="empty-state">尚未建立旅行帳本</div>
 
-    <section v-else class="trips-layout">
+    <section v-else-if="!isTripDetailRoute" class="trip-list-page" aria-label="旅行帳本列表">
+      <div class="trip-list-heading">
+        <div>
+          <span>全部旅行</span>
+          <strong>{{ trips.length }} 本帳本</strong>
+        </div>
+        <button class="quiet-action" type="button" @click="toggleTripManagement">
+          {{ showTripManagement ? "收合管理" : "管理帳本" }}
+        </button>
+      </div>
+      <div class="trip-list-grid">
+        <button
+          v-for="trip in trips"
+          :key="trip.id"
+          class="trip-list-card"
+          type="button"
+          @click="openTrip(trip.id)"
+        >
+          <div class="trip-list-card-topline">
+            <span class="trip-state-badge" :class="tripReportPreferenceClass(trip)">
+              {{ tripReportLabel(trip) }}
+            </span>
+            <span>{{ tripDays(trip) }} 天</span>
+          </div>
+          <strong>{{ trip.name }}</strong>
+          <span>{{ trip.destination || "未設定地點" }}</span>
+          <small>{{ formatRange(trip) }}</small>
+          <div class="trip-list-meta">
+            <span>{{ trip.members?.length || 0 }} 人</span>
+            <span>{{ trip.default_currency }} / {{ trip.base_currency }}</span>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <section v-else-if="selectedTrip" class="trips-layout">
       <article v-if="selectedTrip" class="trip-detail">
         <div class="current-trip-card">
           <div>
@@ -924,6 +972,7 @@ export default {
       splitSummary: [],
       settlementSuggestions: [],
       settlementRecords: [],
+      tripLoadError: "",
       splitDetailsLoaded: false,
       inviteStatusLoaded: false,
       activeInvite: null,
@@ -973,6 +1022,12 @@ export default {
     };
   },
   computed: {
+    routeTripId() {
+      return this.$route.params.tripId || "";
+    },
+    isTripDetailRoute() {
+      return Boolean(this.routeTripId);
+    },
     operationTabs() {
       const tabs = [
         { key: "expense", label: "記支出", icon: "Money" },
@@ -1291,6 +1346,15 @@ export default {
     },
   },
   watch: {
+    routeTripId(nextTripId, previousTripId) {
+      if (nextTripId === previousTripId) return;
+      if (!nextTripId) {
+        this.selectedTrip = null;
+        this.tripLoadError = "";
+        return;
+      }
+      this.selectTrip(nextTripId);
+    },
     "newExpense.original_currency"() {
       this.applyDefaultExchangeRate();
       if (
@@ -1412,15 +1476,11 @@ export default {
       try {
         const response = await apiClient.get("/api/trips");
         this.trips = response.data.data || [];
-        if (this.trips.length > 0) {
-          const currentId = this.selectedTrip && this.selectedTrip.id;
-          const routeTripId = this.$route.query.trip_id;
-          const nextTrip = this.trips.find((trip) => trip.id === routeTripId)
-            || this.trips.find((trip) => trip.id === currentId)
-            || this.trips[0];
-          await this.selectTrip(nextTrip.id);
+        if (this.routeTripId) {
+          await this.selectTrip(this.routeTripId);
         } else {
           this.selectedTrip = null;
+          this.tripLoadError = "";
         }
       } catch (error) {
         console.error("無法載入旅行資料", error);
@@ -1446,13 +1506,25 @@ export default {
       }
     },
     async selectTrip(tripId) {
+      this.tripLoadError = "";
       try {
         const response = await apiClient.get(`/api/trips/${tripId}/overview`);
         this.applyTripOverview(response.data.data);
         await this.ensureActiveSectionData(this.activeSection);
       } catch (error) {
         console.error("無法載入旅行明細", error);
+        this.selectedTrip = null;
+        this.tripLoadError = error.response?.data?.message || "旅行資料載入失敗，請稍後再試。";
       }
+    },
+    openTrip(tripId) {
+      if (!tripId) return;
+      this.$router.push({ name: "TripDetail", params: { tripId } });
+    },
+    returnToTripList() {
+      this.showTripSwitcher = false;
+      this.selectedTrip = null;
+      this.$router.push({ name: "Trips" });
     },
     applyTripOverview(overview) {
       this.selectedTrip = overview.trip;
@@ -1487,8 +1559,9 @@ export default {
       }
     },
     async switchTrip(tripId) {
-      await this.selectTrip(tripId);
       this.showTripSwitcher = false;
+      if (tripId === this.routeTripId) return;
+      await this.$router.push({ name: "TripDetail", params: { tripId } });
     },
     async createTrip() {
       this.submittingTrip = true;
@@ -1501,11 +1574,11 @@ export default {
           createdTrip,
           ...this.trips.filter((trip) => trip.id !== createdTrip.id),
         ];
-        await this.selectTrip(createdTrip.id);
         this.newTrip.name = "";
         this.newTrip.destination = "";
         this.showCreateTrip = false;
         this.activeSection = "expense";
+        await this.$router.push({ name: "TripDetail", params: { tripId: createdTrip.id } });
       } catch (error) {
         this.tripMessage = error.response?.data?.message || "旅行建立失敗";
       } finally {
@@ -1659,6 +1732,7 @@ export default {
 
       try {
         await apiClient.post(`/api/trips/${this.selectedTrip.id}/leave`);
+        await this.$router.push({ name: "Trips" });
         this.selectedTrip = null;
         await this.fetchTrips();
         this.$swal.fire("已退出", "你已離開此旅行帳本。", "success");
@@ -2215,6 +2289,7 @@ export default {
 
       try {
         await apiClient.post(`/api/trips/${this.selectedTrip.id}/archive`);
+        await this.$router.push({ name: "Trips" });
         await this.fetchTrips();
         await this.fetchManagedTrips();
         this.showTripManagement = true;
@@ -2246,6 +2321,7 @@ export default {
 
       try {
         await apiClient.delete(`/api/trips/${this.selectedTrip.id}`);
+        await this.$router.push({ name: "Trips" });
         await this.fetchTrips();
         await this.fetchManagedTrips();
         this.showTripManagement = true;
@@ -2744,6 +2820,112 @@ select:disabled {
   display: grid;
   grid-template-columns: 1fr;
   gap: 16px;
+}
+
+.trip-route-state {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 18px;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #dbe4ee;
+  border-left: 4px solid #d97706;
+  border-radius: 8px;
+}
+
+.trip-route-state strong {
+  color: #1f2933;
+}
+
+.trip-list-page {
+  display: grid;
+  gap: 12px;
+}
+
+.trip-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trip-list-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.trip-list-heading span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.trip-list-heading strong {
+  color: #1f2933;
+  font-size: 1rem;
+}
+
+.trip-list-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.trip-list-card {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  min-height: 154px;
+  padding: 14px;
+  color: #475569;
+  text-align: left;
+  background: #ffffff;
+  border: 1px solid #dbe4ee;
+  border-left: 4px solid #0f766e;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.trip-list-card:hover {
+  background: #f8fafc;
+  border-color: #99c9c2;
+}
+
+.trip-list-card > strong {
+  overflow: hidden;
+  color: #1f2933;
+  font-size: 1.05rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-list-card > span,
+.trip-list-card > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-list-card-topline,
+.trip-list-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.trip-list-card-topline > span:last-child,
+.trip-list-meta {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.trip-list-meta {
+  align-self: end;
+  padding-top: 4px;
+  border-top: 1px solid #eef2f6;
 }
 
 .trip-detail {
@@ -4124,6 +4306,7 @@ select:disabled {
   }
 
   .trip-form,
+  .trip-list-grid,
   .trips-layout,
   .metric-grid,
   .trip-summary-grid,
