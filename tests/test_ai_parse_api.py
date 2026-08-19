@@ -96,7 +96,9 @@ class FakeDBSession:
 class FakeBudgetManager:
     def __init__(self):
         self.last_created_transaction_id = uuid.UUID("33333333-3333-3333-3333-333333333333")
+        self.last_create_replayed = False
         self.last_payload = None
+        self.last_list_request = None
 
     def add_transaction(
         self,
@@ -120,6 +122,20 @@ class FakeBudgetManager:
             **kwargs,
         }
         return True, "交易新增成功"
+
+    def get_all_transactions(self, user_id, **kwargs):
+        self.last_list_request = {"user_id": user_id, **kwargs}
+        if kwargs.get("return_pagination"):
+            return {
+                "items": [{"id": "transaction-1"}],
+                "pagination": {
+                    "next_cursor": "next-page",
+                    "has_more": True,
+                    "limit": 10,
+                    "total_count": 12,
+                },
+            }
+        return [{"id": "transaction-1"}]
 
 
 class FakeAssetManager:
@@ -520,6 +536,7 @@ def test_add_transaction_confirms_parse_event_when_present(monkeypatch):
 
     assert response.status_code == 201
     assert payload["data"]["transaction_id"] == "33333333-3333-3333-3333-333333333333"
+    assert payload["replayed"] is False
     assert fake_linebot_manager.ai_parse_event_manager.confirmed_event == {
         "user_id": "22222222-2222-2222-2222-222222222222",
         "event_id": "11111111-1111-1111-1111-111111111111",
@@ -527,6 +544,73 @@ def test_add_transaction_confirms_parse_event_when_present(monkeypatch):
         "result_id": uuid.UUID("33333333-3333-3333-3333-333333333333"),
     }
     assert fake_db_session.commits == 1
+
+
+def test_add_transaction_replay_returns_existing_result_without_reconfirming(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_linebot_manager = FakeLineBotManager()
+    fake_budget_manager = FakeBudgetManager()
+    fake_budget_manager.last_create_replayed = True
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "linebot_manager", fake_linebot_manager)
+    monkeypatch.setattr(web_app, "budget_manager", fake_budget_manager)
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().post(
+        "/api/transactions",
+        json={
+            "date": "2027-03-01",
+            "item": "早餐",
+            "amount": 100,
+            "type": "expense",
+            "budget_category": "伙食",
+            "client_request_id": "44444444-4444-4444-4444-444444444444",
+            "parse_event_id": "11111111-1111-1111-1111-111111111111",
+        },
+        headers=_auth_headers(),
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["replayed"] is True
+    assert fake_budget_manager.last_payload["client_request_id"] == (
+        "44444444-4444-4444-4444-444444444444"
+    )
+    assert fake_linebot_manager.ai_parse_event_manager.confirmed_event is None
+    assert fake_db_session.commits == 1
+
+
+def test_get_transactions_returns_pagination_contract(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_budget_manager = FakeBudgetManager()
+    monkeypatch.setattr(web_app, "budget_manager", fake_budget_manager)
+
+    response = web_app.app.test_client().get(
+        "/api/transactions?type=expense&month=2027-03&limit=10&cursor=page-one",
+        headers=_auth_headers(),
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["data"] == [{"id": "transaction-1"}]
+    assert payload["pagination"]["total_count"] == 12
+    assert fake_budget_manager.last_list_request["transaction_type"] == "expense"
+    assert fake_budget_manager.last_list_request["month"] == "2027-03"
+    assert fake_budget_manager.last_list_request["cursor"] == "page-one"
+    assert fake_budget_manager.last_list_request["return_pagination"] is True
+
+
+def test_get_transactions_without_pagination_query_keeps_legacy_shape(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_budget_manager = FakeBudgetManager()
+    monkeypatch.setattr(web_app, "budget_manager", fake_budget_manager)
+
+    response = web_app.app.test_client().get("/api/transactions", headers=_auth_headers())
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload == {"success": True, "data": [{"id": "transaction-1"}]}
+    assert fake_budget_manager.last_list_request["return_pagination"] is False
 
 
 def test_ai_parse_events_api_returns_recent_events(monkeypatch):

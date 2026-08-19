@@ -30,11 +30,13 @@ class TransactionService:
             split_member_ids=payload.get("split_member_ids"),
             split_allocations=payload.get("split_allocations"),
             review_status=payload.get("review_status", "confirmed"),
+            client_request_id=payload.get("client_request_id"),
         )
         return {
             "success": success,
             "message": message,
             "transaction_id": getattr(self.budget_manager, "last_created_transaction_id", None),
+            "replayed": getattr(self.budget_manager, "last_create_replayed", False),
         }
 
     def update_transaction(self, user_id, transaction_id, payload):

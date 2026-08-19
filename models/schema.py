@@ -234,6 +234,7 @@ transactions_table = Table(
     Column("voided_at", DateTime(timezone=True)),
     Column("void_reason", Text),
     Column("review_status", String(20), nullable=False, server_default=text("'confirmed'")),
+    Column("client_request_id", UUID(as_uuid=True)),
     CheckConstraint("type in ('expense', 'income', 'transfer', 'adjustment')", name="ck_transactions_type"),
     CheckConstraint("original_amount >= 0", name="ck_transactions_original_amount_non_negative"),
     CheckConstraint("exchange_rate > 0", name="ck_transactions_exchange_rate_positive"),
@@ -509,6 +510,13 @@ Index("ix_transactions_user_category_date", transactions_table.c.user_id, transa
 Index("ix_transactions_user_account_date", transactions_table.c.user_id, transactions_table.c.account_id, transactions_table.c.transaction_date)
 Index("ix_transactions_created_by_date", transactions_table.c.created_by_user_id, transactions_table.c.transaction_date)
 Index("ix_transactions_trip_date", transactions_table.c.trip_id, transactions_table.c.transaction_date)
+Index(
+    "uq_transactions_user_client_request_id",
+    transactions_table.c.user_id,
+    transactions_table.c.client_request_id,
+    unique=True,
+    postgresql_where=transactions_table.c.client_request_id.isnot(None),
+)
 Index("ix_transaction_splits_transaction", transaction_splits_table.c.transaction_id)
 Index("ix_transaction_splits_member", transaction_splits_table.c.trip_member_id)
 Index("ix_transfers_user_date", transfers_table.c.user_id, transfers_table.c.transfer_date)

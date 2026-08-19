@@ -1314,14 +1314,30 @@ def get_available_months(current_user_id):
 @token_required
 def get_transactions(current_user_id):
     try:
-        transactions_data = budget_manager.get_all_transactions(
+        pagination_requested = any(
+            request.args.get(name) is not None
+            for name in ("type", "month", "limit", "cursor")
+        )
+        result = budget_manager.get_all_transactions(
             current_user_id,
             trip_id=request.args.get("trip_id"),
             include_trips=request.args.get("include_trips") == "true",
             monthly_report=request.args.get("monthly_report") == "true",
             limit=request.args.get("limit"),
+            transaction_type=request.args.get("type"),
+            month=request.args.get("month"),
+            cursor=request.args.get("cursor"),
+            return_pagination=pagination_requested,
         )
-        return jsonify({"success": True, "data": transactions_data}), 200
+        if pagination_requested:
+            return jsonify({
+                "success": True,
+                "data": result["items"],
+                "pagination": result["pagination"],
+            }), 200
+        return jsonify({"success": True, "data": result}), 200
+    except ValueError as e:
+        return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
         app.logger.error(f"Error in get_transactions: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
@@ -1340,7 +1356,7 @@ def add_transaction(current_user_id):
         success = result["success"]
         if success:
             parse_event_id = data.get("parse_event_id")
-            if parse_event_id and created_transaction_id:
+            if parse_event_id and created_transaction_id and not result["replayed"]:
                 linebot_manager.ai_parse_event_manager.confirm_event(
                     current_user_id,
                     parse_event_id,
@@ -1354,7 +1370,11 @@ def add_transaction(current_user_id):
             "data": {
                 "transaction_id": str(created_transaction_id) if created_transaction_id else None,
             },
-        }), 201
+            "replayed": result["replayed"],
+        }), 200 if result["replayed"] else 201
+    except ValueError as e:
+        db_session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
         db_session.rollback()
         app.logger.error(f"Error in add_transaction: {e}")

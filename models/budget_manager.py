@@ -1,9 +1,13 @@
+import base64
+import binascii
+import json
 from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import and_, delete, func, insert, or_, select, update
+from sqlalchemy.exc import IntegrityError
 
 from config import DEFAULT_CURRENCY
 from .schema import (
@@ -230,6 +234,10 @@ class BudgetManager:
         limit=None,
         trip=None,
         current_trip_member=None,
+        transaction_type=None,
+        month=None,
+        cursor=None,
+        return_pagination=False,
     ):
         """獲取指定使用者的所有交易紀錄。"""
         parsed_user_id = self._parse_user_id(user_id)
@@ -237,9 +245,24 @@ class BudgetManager:
         parsed_limit = None
         if limit is not None:
             try:
-                parsed_limit = max(1, min(int(limit), 200))
-            except (TypeError, ValueError):
-                parsed_limit = None
+                parsed_limit = int(limit)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("limit 格式不正確") from exc
+            if parsed_limit < 1 or parsed_limit > 50:
+                raise ValueError("limit 必須介於 1 到 50")
+        elif return_pagination:
+            parsed_limit = 10
+        if transaction_type is not None and transaction_type not in {"expense", "income"}:
+            raise ValueError("type 僅支援 expense 或 income")
+        month_start = None
+        month_end = None
+        if month is not None:
+            try:
+                month_start = datetime.strptime(month, "%Y-%m").date().replace(day=1)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("month 格式必須為 YYYY-MM") from exc
+            month_end = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        cursor_values = self._decode_transaction_cursor(cursor) if cursor else None
         creator_users = users_table.alias("creator_users")
         split_counts = (
             select(
@@ -285,6 +308,7 @@ class BudgetManager:
                 transactions_table.c.updated_by_user_id,
                 transactions_table.c.deleted_by_user_id,
                 transactions_table.c.review_status,
+                transactions_table.c.created_at,
                 transactions_table.c.transaction_date.label("date"),
                 transactions_table.c.type,
                 transactions_table.c.title.label("category"),
@@ -315,7 +339,11 @@ class BudgetManager:
                 ),
             )
             .where(transactions_table.c.deleted_at.is_(None))
-            .order_by(transactions_table.c.transaction_date.desc(), transactions_table.c.created_at.desc())
+            .order_by(
+                transactions_table.c.transaction_date.desc(),
+                transactions_table.c.created_at.desc(),
+                transactions_table.c.id.desc(),
+            )
         )
         if parsed_trip_id:
             if trip is None:
@@ -377,13 +405,49 @@ class BudgetManager:
                 transactions_table.c.trip_id.is_(None),
                 transactions_table.c.user_id == parsed_user_id,
             )
+        if transaction_type:
+            stmt = stmt.where(transactions_table.c.type == transaction_type)
+        if month_start:
+            stmt = stmt.where(
+                transactions_table.c.transaction_date >= month_start,
+                transactions_table.c.transaction_date < month_end,
+            )
+
+        total_count = None
+        if return_pagination:
+            count_stmt = select(func.count()).select_from(
+                stmt.with_only_columns(transactions_table.c.id).order_by(None).subquery()
+            )
+            total_count = int(self.db_session.execute(count_stmt).scalar_one())
+
+        if cursor_values:
+            cursor_date, cursor_created_at, cursor_id = cursor_values
+            stmt = stmt.where(
+                or_(
+                    transactions_table.c.transaction_date < cursor_date,
+                    and_(
+                        transactions_table.c.transaction_date == cursor_date,
+                        transactions_table.c.created_at < cursor_created_at,
+                    ),
+                    and_(
+                        transactions_table.c.transaction_date == cursor_date,
+                        transactions_table.c.created_at == cursor_created_at,
+                        transactions_table.c.id < cursor_id,
+                    ),
+                )
+            )
         if parsed_limit:
-            stmt = stmt.limit(parsed_limit)
+            stmt = stmt.limit(parsed_limit + 1 if return_pagination else parsed_limit)
 
         result = self.db_session.execute(stmt)
 
+        rows = list(result)
+        has_more = bool(return_pagination and parsed_limit and len(rows) > parsed_limit)
+        if has_more:
+            rows = rows[:parsed_limit]
+
         transactions = []
-        for row in result:
+        for row in rows:
             transaction = dict(row._mapping)
             transaction["id"] = str(transaction["id"])
             if parsed_trip_id and current_trip_member:
@@ -404,6 +468,7 @@ class BudgetManager:
             transaction["updated_by_user_id"] = str(transaction["updated_by_user_id"]) if transaction["updated_by_user_id"] else None
             transaction["deleted_by_user_id"] = str(transaction["deleted_by_user_id"]) if transaction["deleted_by_user_id"] else None
             transaction["date"] = transaction["date"].strftime("%Y-%m-%d")
+            transaction["created_at"] = transaction["created_at"].isoformat()
             transaction["amount"] = float(transaction["amount"])
             transaction["exchange_rate"] = float(transaction["exchange_rate"])
             transaction["converted_amount"] = float(transaction["converted_amount"])
@@ -416,7 +481,51 @@ class BudgetManager:
             transaction["can_edit"] = can_manage
             transaction["can_delete"] = can_manage
             transactions.append(transaction)
-        return transactions
+        if not return_pagination:
+            return transactions
+
+        next_cursor = None
+        if has_more and rows:
+            last_row = rows[-1]._mapping
+            next_cursor = self._encode_transaction_cursor(
+                last_row["date"],
+                last_row["created_at"],
+                last_row["id"],
+            )
+        return {
+            "items": transactions,
+            "pagination": {
+                "next_cursor": next_cursor,
+                "has_more": has_more,
+                "limit": parsed_limit,
+                "total_count": total_count,
+            },
+        }
+
+    @staticmethod
+    def _encode_transaction_cursor(transaction_date, created_at, transaction_id):
+        payload = json.dumps(
+            {
+                "date": transaction_date.isoformat(),
+                "created_at": created_at.isoformat(),
+                "id": str(transaction_id),
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+
+    @staticmethod
+    def _decode_transaction_cursor(cursor):
+        try:
+            padded = str(cursor) + "=" * (-len(str(cursor)) % 4)
+            payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+            return (
+                date.fromisoformat(payload["date"]),
+                datetime.fromisoformat(payload["created_at"]),
+                UUID(payload["id"]),
+            )
+        except (binascii.Error, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ValueError("cursor 格式不正確") from exc
 
     def get_transaction_detail(self, user_id, transaction_id):
         """取得單筆交易明細與分帳資料。"""
@@ -595,10 +704,24 @@ class BudgetManager:
         split_member_ids=None,
         split_allocations=None,
         review_status="confirmed",
+        client_request_id=None,
     ):
         """新增一筆交易紀錄。"""
         self.last_created_transaction_id = None
+        self.last_create_replayed = False
         parsed_user_id = self._parse_user_id(user_id)
+        parsed_client_request_id = self._parse_optional_uuid(client_request_id, "client_request_id")
+        if parsed_client_request_id:
+            replayed_id = self.db_session.execute(
+                select(transactions_table.c.id).where(
+                    transactions_table.c.user_id == parsed_user_id,
+                    transactions_table.c.client_request_id == parsed_client_request_id,
+                )
+            ).scalar_one_or_none()
+            if replayed_id:
+                self.last_created_transaction_id = replayed_id
+                self.last_create_replayed = True
+                return True, "交易已建立"
         parsed_amount = self._normalize_amount(amount)
         if transaction_type not in {"expense", "income"}:
             raise ValueError("交易類型僅支援 expense 或 income")
@@ -636,72 +759,88 @@ class BudgetManager:
 
         transaction_id = uuid4()
 
-        with self.db_session.begin_nested():
-            account = self._get_account_for_balance_update(parsed_user_id, account_id)
-            parsed_account_id = account["id"] if account else None
-            if account:
-                account_amount = self._resolve_account_delta_amount(
-                    account,
-                    parsed_amount,
-                    transaction_currency,
-                    converted_amount,
-                    base_currency,
-                )
-                self._apply_account_balance_delta(
-                    account,
-                    self._balance_delta_for_transaction(transaction_type, account_amount),
-                )
-
-            stmt = insert(transactions_table).values(
-                id=transaction_id,
-                user_id=parsed_user_id,
-                created_by_user_id=parsed_user_id,
-                updated_by_user_id=parsed_user_id,
-                trip_id=parsed_trip_id,
-                account_id=parsed_account_id,
-                category_id=category_id,
-                paid_by_member_id=parsed_paid_by_member_id,
-                transaction_date=transaction_date,
-                timezone=timezone_name,
-                type=transaction_type,
-                merchant=merchant,
-                title=item,
-                description=description,
-                original_amount=parsed_amount,
-                original_currency=transaction_currency,
-                exchange_rate=parsed_exchange_rate,
-                converted_amount=converted_amount,
-                base_currency=base_currency,
-                review_status=review_status,
-            )
-            self.db_session.execute(stmt)
-
-            if parsed_trip_id and transaction_type == "expense":
-                if not split_allocations and not split_member_ids and parsed_paid_by_member_id:
-                    split_member_ids = [str(parsed_paid_by_member_id)]
-                if split_allocations:
-                    self.add_custom_splits(
-                        transaction_id=transaction_id,
-                        trip_id=parsed_trip_id,
-                        split_allocations=split_allocations,
-                        original_amount=parsed_amount,
-                        original_currency=transaction_currency,
-                        exchange_rate=parsed_exchange_rate,
-                        base_currency=base_currency,
+        try:
+            with self.db_session.begin_nested():
+                account = self._get_account_for_balance_update(parsed_user_id, account_id)
+                parsed_account_id = account["id"] if account else None
+                if account:
+                    account_amount = self._resolve_account_delta_amount(
+                        account,
+                        parsed_amount,
+                        transaction_currency,
+                        converted_amount,
+                        base_currency,
                     )
-                elif split_member_ids:
-                    self.add_equal_splits(
-                        transaction_id=transaction_id,
-                        trip_id=parsed_trip_id,
-                        payer_member_id=parsed_paid_by_member_id,
-                        split_member_ids=split_member_ids,
-                        original_amount=parsed_amount,
-                        original_currency=transaction_currency,
-                        exchange_rate=parsed_exchange_rate,
-                        base_currency=base_currency,
+                    self._apply_account_balance_delta(
+                        account,
+                        self._balance_delta_for_transaction(transaction_type, account_amount),
                     )
 
-            self.last_created_transaction_id = transaction_id
+                stmt = insert(transactions_table).values(
+                    id=transaction_id,
+                    user_id=parsed_user_id,
+                    created_by_user_id=parsed_user_id,
+                    updated_by_user_id=parsed_user_id,
+                    trip_id=parsed_trip_id,
+                    account_id=parsed_account_id,
+                    category_id=category_id,
+                    paid_by_member_id=parsed_paid_by_member_id,
+                    transaction_date=transaction_date,
+                    timezone=timezone_name,
+                    type=transaction_type,
+                    merchant=merchant,
+                    title=item,
+                    description=description,
+                    original_amount=parsed_amount,
+                    original_currency=transaction_currency,
+                    exchange_rate=parsed_exchange_rate,
+                    converted_amount=converted_amount,
+                    base_currency=base_currency,
+                    review_status=review_status,
+                    client_request_id=parsed_client_request_id,
+                )
+                self.db_session.execute(stmt)
+
+                if parsed_trip_id and transaction_type == "expense":
+                    if not split_allocations and not split_member_ids and parsed_paid_by_member_id:
+                        split_member_ids = [str(parsed_paid_by_member_id)]
+                    if split_allocations:
+                        self.add_custom_splits(
+                            transaction_id=transaction_id,
+                            trip_id=parsed_trip_id,
+                            split_allocations=split_allocations,
+                            original_amount=parsed_amount,
+                            original_currency=transaction_currency,
+                            exchange_rate=parsed_exchange_rate,
+                            base_currency=base_currency,
+                        )
+                    elif split_member_ids:
+                        self.add_equal_splits(
+                            transaction_id=transaction_id,
+                            trip_id=parsed_trip_id,
+                            payer_member_id=parsed_paid_by_member_id,
+                            split_member_ids=split_member_ids,
+                            original_amount=parsed_amount,
+                            original_currency=transaction_currency,
+                            exchange_rate=parsed_exchange_rate,
+                            base_currency=base_currency,
+                        )
+
+                self.last_created_transaction_id = transaction_id
+        except IntegrityError as exc:
+            constraint_name = getattr(getattr(exc, "orig", None), "diag", None)
+            constraint_name = getattr(constraint_name, "constraint_name", None)
+            if constraint_name != "uq_transactions_user_client_request_id" or not parsed_client_request_id:
+                raise
+            replayed_id = self.db_session.execute(
+                select(transactions_table.c.id).where(
+                    transactions_table.c.user_id == parsed_user_id,
+                    transactions_table.c.client_request_id == parsed_client_request_id,
+                )
+            ).scalar_one()
+            self.last_created_transaction_id = replayed_id
+            self.last_create_replayed = True
+            return True, "交易已建立"
 
         return True, "交易新增成功"
 

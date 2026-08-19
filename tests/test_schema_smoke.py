@@ -1,5 +1,6 @@
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from decimal import Decimal
 from urllib.parse import urlparse
@@ -709,3 +710,187 @@ def test_mvp_schema_can_create_core_records():
         budget_manager.delete_trip_settlement(user_id, trip_id, settlement_id)
         restored_suggestions = budget_manager.get_trip_settlement_suggestions(user_id, trip_id)
         assert restored_suggestions[0]["amount"] == 440.0
+
+
+def test_transaction_client_request_id_is_idempotent_per_user():
+    engine = create_engine(_get_test_database_url(), future=True)
+
+    with engine.begin() as connection:
+        metadata.drop_all(connection)
+        metadata.create_all(connection)
+        seed_reference_data(connection)
+
+        user_manager = UserManager(connection)
+        first_user = user_manager.get_or_create_user_for_identity(
+            provider="line",
+            provider_user_id="U-idempotency-first",
+            display_name="First User",
+        )
+        second_user = user_manager.get_or_create_user_for_identity(
+            provider="line",
+            provider_user_id="U-idempotency-second",
+            display_name="Second User",
+        )
+        account_id = uuid.uuid4()
+        connection.execute(
+            accounts_table.insert().values(
+                id=account_id,
+                user_id=first_user["id"],
+                name="測試現金",
+                type="cash",
+                currency="TWD",
+                track_balance=True,
+                balance=Decimal("1000"),
+            )
+        )
+
+        client_request_id = uuid.uuid4()
+        manager = BudgetManager(connection)
+        first_result = manager.add_transaction(
+            user_id=first_user["id"],
+            date="2026-08-19",
+            item="午餐",
+            amount=Decimal("100"),
+            transaction_type="expense",
+            budget_category="伙食",
+            account_id=account_id,
+            client_request_id=client_request_id,
+        )
+        first_transaction_id = manager.last_created_transaction_id
+        second_result = manager.add_transaction(
+            user_id=first_user["id"],
+            date="2026-08-19",
+            item="不同內容仍回放第一筆",
+            amount=Decimal("999"),
+            transaction_type="expense",
+            budget_category="伙食",
+            account_id=account_id,
+            client_request_id=client_request_id,
+        )
+
+        assert first_result[0] is True
+        assert second_result[0] is True
+        assert manager.last_create_replayed is True
+        assert manager.last_created_transaction_id == first_transaction_id
+        assert connection.execute(
+            select(func.count()).select_from(transactions_table).where(
+                transactions_table.c.user_id == first_user["id"]
+            )
+        ).scalar_one() == 1
+        assert connection.execute(
+            select(accounts_table.c.balance).where(accounts_table.c.id == account_id)
+        ).scalar_one() == Decimal("900.0000")
+
+        second_user_manager = BudgetManager(connection)
+        second_user_manager.add_transaction(
+            user_id=second_user["id"],
+            date="2026-08-19",
+            item="另一位使用者",
+            amount=Decimal("50"),
+            transaction_type="expense",
+            budget_category="伙食",
+            client_request_id=client_request_id,
+        )
+        assert second_user_manager.last_create_replayed is False
+        assert connection.execute(
+            select(func.count()).select_from(transactions_table).where(
+                transactions_table.c.client_request_id == client_request_id
+            )
+        ).scalar_one() == 2
+
+        for index in range(11):
+            manager.add_transaction(
+                user_id=first_user["id"],
+                date=f"2026-08-{18 - index:02d}",
+                item=f"分頁交易 {index + 1}",
+                amount=Decimal("10"),
+                transaction_type="expense",
+                budget_category="伙食",
+                client_request_id=uuid.uuid4(),
+            )
+
+        first_page = manager.get_all_transactions(
+            first_user["id"],
+            transaction_type="expense",
+            month="2026-08",
+            limit=5,
+            return_pagination=True,
+        )
+        second_page = manager.get_all_transactions(
+            first_user["id"],
+            transaction_type="expense",
+            month="2026-08",
+            limit=5,
+            cursor=first_page["pagination"]["next_cursor"],
+            return_pagination=True,
+        )
+
+        first_ids = {transaction["id"] for transaction in first_page["items"]}
+        second_ids = {transaction["id"] for transaction in second_page["items"]}
+        assert len(first_ids) == 5
+        assert len(second_ids) == 5
+        assert first_ids.isdisjoint(second_ids)
+        assert first_page["pagination"] == {
+            "next_cursor": first_page["pagination"]["next_cursor"],
+            "has_more": True,
+            "limit": 5,
+            "total_count": 12,
+        }
+
+
+def test_concurrent_transaction_replay_only_changes_balance_once():
+    engine = create_engine(_get_test_database_url(), future=True)
+    client_request_id = uuid.uuid4()
+    account_id = uuid.uuid4()
+
+    with engine.begin() as connection:
+        metadata.drop_all(connection)
+        metadata.create_all(connection)
+        seed_reference_data(connection)
+        user = UserManager(connection).get_or_create_user_for_identity(
+            provider="line",
+            provider_user_id="U-idempotency-concurrent",
+            display_name="Concurrent User",
+        )
+        user_id = user["id"]
+        connection.execute(
+            accounts_table.insert().values(
+                id=account_id,
+                user_id=user_id,
+                name="併發測試現金",
+                type="cash",
+                currency="TWD",
+                track_balance=True,
+                balance=Decimal("1000"),
+            )
+        )
+
+    def create_transaction():
+        with engine.begin() as connection:
+            manager = BudgetManager(connection)
+            manager.add_transaction(
+                user_id=user_id,
+                date="2026-08-19",
+                item="同時送出的午餐",
+                amount=Decimal("100"),
+                transaction_type="expense",
+                budget_category="伙食",
+                account_id=account_id,
+                client_request_id=client_request_id,
+            )
+            return str(manager.last_created_transaction_id), manager.last_create_replayed
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: create_transaction(), range(2)))
+
+    with engine.connect() as connection:
+        assert len({transaction_id for transaction_id, _ in results}) == 1
+        assert sorted(replayed for _, replayed in results) == [False, True]
+        assert connection.execute(
+            select(func.count()).select_from(transactions_table).where(
+                transactions_table.c.client_request_id == client_request_id
+            )
+        ).scalar_one() == 1
+        assert connection.execute(
+            select(accounts_table.c.balance).where(accounts_table.c.id == account_id)
+        ).scalar_one() == Decimal("900.0000")
