@@ -365,53 +365,17 @@
           @void="deleteSettlement"
         />
 
-        <section v-if="isTripOwner" class="trip-management">
-          <button class="management-toggle" type="button" @click="toggleTripManagement">
-            {{ showTripManagement ? "收合旅行管理" : "旅行管理" }}
-          </button>
-          <div v-if="showTripManagement" class="management-panel">
-            <div>
-              <strong>帳本狀態</strong>
-              <span>封存會保留資料；刪除會先保留 30 天。</span>
-            </div>
-            <div class="danger-row">
-              <button class="quiet-action" type="button" @click="archiveSelectedTrip">封存帳本</button>
-              <button class="danger-action" type="button" @click="deleteSelectedTrip">刪除帳本</button>
-            </div>
-            <div class="managed-trip-group">
-              <div class="managed-trip-heading">
-                <strong>已封存帳本</strong>
-                <span>{{ archivedManagedTrips.length }} 本</span>
-              </div>
-              <div v-if="archivedManagedTrips.length === 0" class="managed-empty">尚無封存帳本</div>
-              <div v-else class="managed-trip-list">
-                <div v-for="trip in archivedManagedTrips" :key="trip.id" class="managed-trip-row">
-                  <div>
-                    <strong>{{ trip.name }}</strong>
-                    <span>{{ trip.destination || "未設定地點" }} · {{ formatRange(trip) }}</span>
-                  </div>
-                  <button class="quiet-mini-button" type="button" @click="unarchiveTrip(trip)">解除封存</button>
-                </div>
-              </div>
-            </div>
-            <div class="managed-trip-group">
-              <div class="managed-trip-heading">
-                <strong>已刪除帳本</strong>
-                <span>{{ deletedManagedTrips.length }} 本</span>
-              </div>
-              <div v-if="deletedManagedTrips.length === 0" class="managed-empty">尚無可復原帳本</div>
-              <div v-else class="managed-trip-list">
-                <div v-for="trip in deletedManagedTrips" :key="trip.id" class="managed-trip-row deleted">
-                  <div>
-                    <strong>{{ trip.name }}</strong>
-                    <span>可復原至 {{ formatDateTime(trip.purge_after) || "30 天內" }}</span>
-                  </div>
-                  <button class="quiet-mini-button" type="button" @click="restoreTrip(trip)">復原</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <TripManagementPanel
+          v-if="isTripOwner"
+          :expanded="showTripManagement"
+          :archived-trips="archivedManagedTrips"
+          :deleted-trips="deletedManagedTrips"
+          @toggle="toggleTripManagement"
+          @archive="archiveSelectedTrip"
+          @delete="deleteSelectedTrip"
+          @unarchive="unarchiveTrip"
+          @restore="restoreTrip"
+        />
       </article>
     </section>
 
@@ -428,6 +392,7 @@
 <script>
 import { Calendar, List, Location, Money, Plus, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
 import apiClient from "@/api";
+import TripManagementPanel from "@/components/trips/TripManagementPanel.vue";
 import TripMembersPanel from "@/components/trips/TripMembersPanel.vue";
 import TripSettlementPanel from "@/components/trips/TripSettlementPanel.vue";
 import TripStatusCenter from "@/components/trips/TripStatusCenter.vue";
@@ -445,6 +410,7 @@ export default {
     Plus,
     Refresh,
     TrendCharts,
+    TripManagementPanel,
     TripMembersPanel,
     TripSettlementPanel,
     TripStatusCenter,
@@ -2016,8 +1982,7 @@ export default {
 .trips-header,
 .trip-hero,
 .section-title,
-.metric-item,
-.danger-row {
+.metric-item {
   display: flex;
   align-items: center;
 }
@@ -2632,120 +2597,6 @@ select:disabled {
   border-color: #99f6e4;
 }
 
-.quiet-mini-button {
-  min-height: 32px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 8px;
-  box-shadow: none;
-  font-size: 0.86rem;
-  font-weight: 800;
-}
-
-.quiet-mini-button {
-  color: #475569;
-  background: #e2e8f0;
-}
-
-.danger-row {
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.trip-management {
-  display: grid;
-  gap: 10px;
-  padding-top: 4px;
-}
-
-.management-toggle {
-  min-height: 42px;
-  color: #334155;
-  background: #f8fafc;
-  border: 1px solid #dbe4ee;
-  border-radius: 8px;
-  box-shadow: none;
-  font-weight: 800;
-}
-
-.management-panel {
-  display: grid;
-  gap: 12px;
-  padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #dbe4ee;
-  border-radius: 8px;
-}
-
-.management-panel > div:first-child {
-  display: grid;
-  gap: 3px;
-}
-
-.management-panel span {
-  color: #64748b;
-  font-size: 0.88rem;
-  font-weight: 700;
-}
-
-.managed-trip-group {
-  display: grid;
-  gap: 8px;
-  padding-top: 10px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.managed-trip-heading,
-.managed-trip-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.managed-trip-heading span {
-  color: #64748b;
-  font-size: 0.82rem;
-}
-
-.managed-empty {
-  padding: 10px 12px;
-  color: #64748b;
-  background: #ffffff;
-  border: 1px dashed #cbd5e1;
-  border-radius: 8px;
-  font-weight: 700;
-}
-
-.managed-trip-list {
-  display: grid;
-  gap: 8px;
-}
-
-.managed-trip-row {
-  min-height: 58px;
-  padding: 10px 12px;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
-  border-radius: 8px;
-}
-
-.managed-trip-row.deleted {
-  background: #fff7ed;
-  border-color: #fed7aa;
-}
-
-.managed-trip-row > div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.managed-trip-row > div span {
-  color: #64748b;
-  font-size: 0.82rem;
-}
-
 @media (max-width: 820px) {
   .trips-page {
     padding: 18px 12px calc(var(--app-bottom-nav-height) + 22px);
@@ -2799,19 +2650,6 @@ select:disabled {
     min-height: 50px;
     padding: 4px 2px;
     font-size: 0.78rem;
-  }
-
-  .danger-row {
-    justify-content: stretch;
-  }
-
-  .danger-row button {
-    flex: 1;
-  }
-
-  .managed-trip-row {
-    align-items: stretch;
-    flex-direction: column;
   }
 
   .split-header,
