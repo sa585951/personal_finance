@@ -412,123 +412,19 @@
           @edit-transaction="startEditTransaction"
         />
 
-        <div class="split-summary-section app-panel" :class="{ active: activeSection === 'split' }">
-          <div class="trip-closeout-panel" :class="tripCloseoutStatus.tone">
-            <div class="closeout-header">
-              <span>旅行收尾檢查</span>
-              <strong :class="tripCloseoutStatus.tone">{{ tripCloseoutStatus.label }}</strong>
-            </div>
-            <div class="closeout-list">
-              <div
-                v-for="item in tripCloseoutChecks"
-                :key="item.label"
-                class="closeout-item"
-                :class="item.tone"
-              >
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div class="section-title split-title-row">
-            <div>
-              <TrendCharts />
-              <h3>誰要給誰</h3>
-            </div>
-            <button class="copy-summary-button" type="button" @click="copySettlementSummary">
-              複製摘要
-            </button>
-          </div>
-          <div v-if="settlementSuggestions.length === 0" class="empty-state">目前已平衡或尚無需結算</div>
-          <div v-else class="settlement-list settlement-action-list">
-            <div
-              v-for="suggestion in settlementSuggestions"
-              :key="`${suggestion.from_member_id}-${suggestion.to_member_id}-${suggestion.amount}`"
-              class="settlement-row settlement-action-row"
-            >
-              <div class="settlement-route">
-                <strong>{{ suggestion.from_display_name }}</strong>
-                <span>→</span>
-                <strong>{{ suggestion.to_display_name }}</strong>
-              </div>
-              <div class="settlement-actions">
-                <strong>{{ formatMoney(suggestion.amount, suggestion.currency) }}</strong>
-                <button
-                  v-if="suggestion.can_confirm !== false"
-                  class="confirm-settlement-button"
-                  type="button"
-                  @click="confirmSettlement(suggestion)"
-                >
-                  已付款
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <button
-            class="detail-toggle settlement-title"
-            type="button"
-            @click="showSplitDetails = !showSplitDetails"
-          >
-            <span>
-              <TrendCharts />
-              核對明細
-            </span>
-            <strong>{{ showSplitDetails ? "收合" : "展開" }}</strong>
-          </button>
-          <div v-if="showSplitDetails && splitSummary.length === 0" class="empty-state">尚無分帳資料</div>
-          <div v-else-if="showSplitDetails" class="split-summary-list">
-            <div
-              v-for="member in splitSummary"
-              :key="member.member_id"
-              class="split-summary-row"
-              :class="splitStatusClass(member)"
-            >
-              <div>
-                <strong>{{ member.display_name }}</strong>
-                <span>
-                  付款 {{ formatMoney(member.paid_amount, member.currency) }} · 分攤 {{ formatMoney(member.share_amount, member.currency) }}
-                </span>
-              </div>
-              <strong
-                class="net-amount"
-                :class="member.net_amount >= 0 ? 'positive-net' : 'negative-net'"
-              >
-                <small>{{ splitNetStatus(member) }}</small>
-                {{ formatMoney(Math.abs(member.net_amount), member.currency) }}
-              </strong>
-            </div>
-          </div>
-
-          <div class="section-title settlement-title">
-            <TrendCharts />
-            <h3>已確認結算</h3>
-          </div>
-          <div v-if="settlementRecords.length === 0" class="empty-state">尚無已確認結算</div>
-          <div v-else class="settlement-list">
-            <div
-              v-for="settlement in settlementRecords"
-              :key="settlement.id"
-              class="settlement-row settled"
-            >
-              <span>
-                {{ settlement.from_display_name }} 已付給 {{ settlement.to_display_name }}
-              </span>
-              <div class="settlement-actions">
-                <strong>{{ formatMoney(settlement.amount, settlement.currency) }}</strong>
-                <button
-                  v-if="settlement.can_void !== false"
-                  class="quiet-mini-button"
-                  type="button"
-                  @click="deleteSettlement(settlement)"
-                >
-                  撤銷
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <TripSettlementPanel
+          v-show="activeSection === 'split'"
+          :closeout-status="tripCloseoutStatus"
+          :closeout-checks="tripCloseoutChecks"
+          :suggestions="settlementSuggestions"
+          :summary="splitSummary"
+          :records="settlementRecords"
+          :show-details="showSplitDetails"
+          @copy-summary="copySettlementSummary"
+          @confirm="confirmSettlement"
+          @toggle-details="showSplitDetails = !showSplitDetails"
+          @void="deleteSettlement"
+        />
 
         <section v-if="isTripOwner" class="trip-management">
           <button class="management-toggle" type="button" @click="toggleTripManagement">
@@ -593,6 +489,7 @@
 <script>
 import { Calendar, Delete, List, Location, Money, Plus, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
 import apiClient from "@/api";
+import TripSettlementPanel from "@/components/trips/TripSettlementPanel.vue";
 import TripStatusCenter from "@/components/trips/TripStatusCenter.vue";
 import TripSummaryPanel from "@/components/trips/TripSummaryPanel.vue";
 import TripSwitcherModal from "@/components/trips/TripSwitcherModal.vue";
@@ -609,6 +506,7 @@ export default {
     Plus,
     Refresh,
     TrendCharts,
+    TripSettlementPanel,
     TripStatusCenter,
     TripSummaryPanel,
     TripSwitcherModal,
@@ -2145,22 +2043,6 @@ export default {
         });
       }
     },
-    splitStatusClass(member) {
-      const netAmount = Number(member.net_amount || 0);
-      if (netAmount > 0) {
-        return "receivable";
-      }
-      if (netAmount < 0) {
-        return "payable";
-      }
-      return "balanced";
-    },
-    splitNetStatus(member) {
-      const netAmount = Number(member.net_amount || 0);
-      if (netAmount > 0) return "待收";
-      if (netAmount < 0) return "待付";
-      return "已平衡";
-    },
     translateAccountType(type) {
       const typeMap = {
         bank: "銀行",
@@ -2273,31 +2155,6 @@ h1 {
   gap: 8px;
   margin-bottom: 14px;
   color: #334155;
-}
-
-.split-title-row {
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.split-title-row > div {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.copy-summary-button {
-  flex: 0 0 auto;
-  min-height: 34px;
-  padding: 0 10px;
-  color: #0f766e;
-  background: #ccfbf1;
-  border-radius: 8px;
-  box-shadow: none;
-  font-size: 0.84rem;
-  font-weight: 800;
 }
 
 :deep(.swal-copy-textarea) {
@@ -2960,308 +2817,6 @@ select:disabled {
   border-color: #99f6e4;
 }
 
-.trip-closeout-panel {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 14px;
-  padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-left: 5px solid #94a3b8;
-  border-radius: 8px;
-}
-
-.trip-closeout-panel.success {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  border-left-color: #16a34a;
-}
-
-.trip-closeout-panel.warning {
-  background: #fffbeb;
-  border-color: #fde68a;
-  border-left-color: #f59e0b;
-}
-
-.trip-closeout-panel.neutral {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  border-left-color: #94a3b8;
-}
-
-.closeout-header,
-.closeout-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.closeout-header span {
-  color: #334155;
-  font-weight: 900;
-}
-
-.closeout-header strong,
-.closeout-item strong {
-  font-weight: 900;
-}
-
-.closeout-header strong {
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 0.82rem;
-}
-
-.closeout-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.closeout-item {
-  min-height: 40px;
-  padding: 8px 10px;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
-  border-left: 4px solid #94a3b8;
-  border-radius: 8px;
-}
-
-.closeout-item span {
-  color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.closeout-item.success {
-  background: #ffffff;
-  border-color: #bbf7d0;
-  border-left-color: #16a34a;
-}
-
-.closeout-item.warning {
-  background: #fff7ed;
-  border-color: #fed7aa;
-  border-left-color: #f59e0b;
-}
-
-.closeout-item.neutral {
-  background: #ffffff;
-  border-color: #dbe4ee;
-  border-left-color: #94a3b8;
-}
-
-.closeout-header .success,
-.closeout-item.success strong {
-  color: #15803d;
-}
-
-.closeout-header .success {
-  background: #dcfce7;
-}
-
-.closeout-header .warning,
-.closeout-item.warning strong {
-  color: #b45309;
-}
-
-.closeout-header .warning {
-  background: #fef3c7;
-}
-
-.closeout-header .neutral,
-.closeout-item.neutral strong {
-  color: #64748b;
-}
-
-.closeout-header .neutral {
-  background: #e2e8f0;
-}
-
-.split-summary-row,
-.settlement-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  min-height: 62px;
-  padding: 10px 12px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.split-summary-row div:first-child {
-  display: grid;
-  gap: 2px;
-}
-
-.split-summary-row span {
-  color: #64748b;
-}
-
-.split-summary-list {
-  display: grid;
-  gap: 8px;
-}
-
-.split-summary-row.receivable {
-  background: #ecfdf5;
-  border-color: #99f6e4;
-}
-
-.split-summary-row.receivable span {
-  color: #0f766e;
-}
-
-.split-summary-row.payable {
-  background: #fff1f2;
-  border-color: #fecdd3;
-}
-
-.split-summary-row.payable span {
-  color: #be123c;
-}
-
-.split-summary-row.balanced {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-}
-
-.split-summary-row.balanced span {
-  color: #64748b;
-}
-
-.net-amount {
-  display: grid;
-  gap: 2px;
-  min-width: 96px;
-  text-align: right;
-}
-
-.net-amount small {
-  color: #64748b;
-  font-size: 0.76rem;
-  font-weight: 800;
-}
-
-.settlement-title {
-  margin-top: 18px;
-}
-
-.detail-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
-  color: #334155;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: none;
-}
-
-.detail-toggle span {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.96rem;
-  font-weight: 800;
-}
-
-.detail-toggle svg {
-  width: 18px;
-  height: 18px;
-  color: #0f766e;
-}
-
-.detail-toggle strong {
-  color: #64748b;
-  font-size: 0.82rem;
-}
-
-.settlement-list {
-  display: grid;
-  gap: 8px;
-}
-
-.settlement-action-row {
-  align-items: stretch;
-  background: #eff6ff;
-  border-color: #bfdbfe;
-}
-
-.settlement-route {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.settlement-route strong {
-  color: #1e40af;
-  font-size: 1rem;
-}
-
-.settlement-route strong:first-child {
-  text-align: left;
-}
-
-.settlement-route strong:last-child {
-  text-align: right;
-}
-
-.settlement-route span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  color: #1d4ed8;
-  background: #dbeafe;
-  border-radius: 999px;
-  font-weight: 900;
-}
-
-.settlement-row {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-}
-
-.settlement-row.settled {
-  background: #f0fdfa;
-  border-color: #99f6e4;
-}
-
-.settlement-row span {
-  color: #1e40af;
-  font-weight: 700;
-}
-
-.settlement-row.settled span {
-  color: #0f766e;
-}
-
-.settlement-row strong {
-  color: #1d4ed8;
-}
-
-.settlement-row.settled strong {
-  color: #0f766e;
-}
-
-.settlement-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.confirm-settlement-button,
 .quiet-mini-button {
   min-height: 32px;
   padding: 0 10px;
@@ -3272,22 +2827,9 @@ select:disabled {
   font-weight: 800;
 }
 
-.confirm-settlement-button {
-  color: #ffffff;
-  background: #2563eb;
-}
-
 .quiet-mini-button {
   color: #475569;
   background: #e2e8f0;
-}
-
-.positive-net {
-  color: #0f766e;
-}
-
-.negative-net {
-  color: #dc2626;
 }
 
 .danger-row {
@@ -3403,10 +2945,6 @@ select:disabled {
     grid-template-columns: 1fr;
   }
 
-  .closeout-list {
-    grid-template-columns: 1fr;
-  }
-
   .trip-hero {
     align-items: flex-start;
     flex-direction: column;
@@ -3490,26 +3028,6 @@ select:disabled {
   .managed-trip-row {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .split-summary-row,
-  .settlement-row {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .settlement-action-row {
-    gap: 10px;
-  }
-
-  .settlement-route {
-    width: 100%;
-  }
-
-  .settlement-actions {
-    width: 100%;
-    justify-content: space-between;
-    margin-left: 0;
   }
 
   .split-header,
