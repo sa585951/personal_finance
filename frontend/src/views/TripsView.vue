@@ -396,143 +396,21 @@
           <p v-if="expenseMessage" class="status-message">{{ expenseMessage }}</p>
         </div>
 
-        <div class="transactions-section app-panel" :class="{ active: activeSection === 'transactions' }">
-          <div class="section-title split-title-row">
-            <div>
-              <List />
-              <h3>旅行交易</h3>
-            </div>
-            <button
-              v-if="tripTransactions.length > 0"
-              class="copy-summary-button"
-              type="button"
-              @click="exportTripTransactionsCsv"
-            >
-              匯出 CSV
-            </button>
-          </div>
-          <div
-            v-if="tripDateFilters.length > 1"
-            class="transaction-date-tabs"
-            aria-label="旅行交易日期篩選"
-          >
-            <button
-              v-for="filter in tripDateFilters"
-              :key="filter.key"
-              type="button"
-              :class="{ active: selectedTransactionDate === filter.key }"
-              @click="selectedTransactionDate = filter.key"
-            >
-              <span>{{ filter.label }}</span>
-              <small>{{ filter.count }} 筆</small>
-            </button>
-          </div>
-          <div v-if="transactionsMissingSplits.length > 0" class="split-warning">
-            <strong>{{ transactionsMissingSplits.length }} 筆支出缺少分帳設定</strong>
-            <p>需完成分攤設定後，這些支出才會依個人分攤金額納入月報。</p>
-          </div>
-          <div v-if="tripTransactions.length === 0" class="empty-state">尚未新增旅行支出</div>
-          <div v-else-if="filteredTripTransactions.length === 0" class="empty-state">這一天尚無旅行支出</div>
-          <div v-else class="transaction-list">
-            <div
-              v-for="transaction in filteredTripTransactions"
-              :key="transaction.id"
-              class="transaction-row"
-              :class="{ selected: selectedTransactionDetail && selectedTransactionDetail.id === transaction.id }"
-              @click="loadTransactionDetail(transaction.id)"
-            >
-              <div>
-                <strong>{{ transaction.category }}</strong>
-                <span>{{ transaction.date }} · {{ transaction.merchant || transaction.budget_category }}</span>
-              </div>
-              <div class="transaction-amount">
-                <span>{{ formatMoney(transaction.amount, transaction.currency) }}</span>
-                <small>{{ formatMoney(transaction.converted_amount, transaction.base_currency) }}</small>
-              </div>
-              <button
-                v-if="transaction.can_delete !== false"
-                class="transaction-delete"
-                type="button"
-                title="刪除交易"
-                @click.stop="deleteTripTransaction(transaction)"
-              >
-                <Delete />
-              </button>
-              <button
-                v-if="transaction.can_edit !== false"
-                class="transaction-edit"
-                type="button"
-                title="編輯交易"
-                @click.stop="startEditTransaction(transaction.id)"
-              >
-                <Edit />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="selectedTransactionDetail" class="transaction-detail-section app-panel" :class="{ active: activeSection === 'transactions' }">
-          <div class="section-title">
-            <Document />
-            <h3>交易明細</h3>
-          </div>
-          <div class="detail-grid">
-            <div>
-              <span>品項</span>
-              <strong>{{ selectedTransactionDetail.category }}</strong>
-            </div>
-            <div>
-              <span>付款人</span>
-              <strong>{{ selectedTransactionDetail.paid_by_member?.display_name || "未設定" }}</strong>
-            </div>
-            <div>
-              <span>記錄者</span>
-              <strong>{{ selectedTransactionDetail.created_by_display_name || "未設定" }}</strong>
-            </div>
-            <div>
-              <span>確認狀態</span>
-              <strong>{{ translateReviewStatus(selectedTransactionDetail.review_status) }}</strong>
-            </div>
-            <div>
-              <span>原幣金額</span>
-              <strong>{{ formatMoney(selectedTransactionDetail.amount, selectedTransactionDetail.currency) }}</strong>
-            </div>
-            <div>
-              <span>換算金額</span>
-              <strong>{{ formatMoney(selectedTransactionDetail.converted_amount, selectedTransactionDetail.base_currency) }}</strong>
-            </div>
-            <div>
-              <span>此筆成本</span>
-              <strong>{{ formatMyTransactionShare(selectedTransactionDetail) }}</strong>
-            </div>
-            <div>
-              <span>匯率</span>
-              <strong>{{ selectedTransactionDetail.exchange_rate }}</strong>
-            </div>
-            <div>
-              <span>類別</span>
-              <strong>{{ selectedTransactionDetail.budget_category }}</strong>
-            </div>
-            <div class="full-row">
-              <span>備註</span>
-              <strong>{{ selectedTransactionDetail.description || "無" }}</strong>
-            </div>
-          </div>
-
-          <div class="split-detail-list">
-            <div
-              v-for="split in selectedTransactionDetail.splits"
-              :key="split.id"
-              class="split-detail-row"
-            >
-              <span>{{ split.display_name }}</span>
-              <strong>
-                {{ formatMoney(split.share_amount, split.share_currency) }}
-                <small>{{ formatMoney(split.converted_share_amount, split.base_currency) }}</small>
-              </strong>
-            </div>
-          </div>
-        </div>
+        <TripTransactionsPanel
+          v-show="activeSection === 'transactions'"
+          :transactions="tripTransactions"
+          :filtered-transactions="filteredTripTransactions"
+          :date-filters="tripDateFilters"
+          :selected-date="selectedTransactionDate"
+          :missing-split-count="transactionsMissingSplits.length"
+          :selected-transaction="selectedTransactionDetail"
+          :current-member-id="selectedTrip.current_member_id || ''"
+          @export="exportTripTransactionsCsv"
+          @select-date="selectedTransactionDate = $event"
+          @select-transaction="loadTransactionDetail"
+          @delete-transaction="deleteTripTransaction"
+          @edit-transaction="startEditTransaction"
+        />
 
         <div class="split-summary-section app-panel" :class="{ active: activeSection === 'split' }">
           <div class="trip-closeout-panel" :class="tripCloseoutStatus.tone">
@@ -713,19 +591,18 @@
 </template>
 
 <script>
-import { Calendar, Delete, Document, Edit, List, Location, Money, Plus, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
+import { Calendar, Delete, List, Location, Money, Plus, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
 import apiClient from "@/api";
 import TripStatusCenter from "@/components/trips/TripStatusCenter.vue";
 import TripSummaryPanel from "@/components/trips/TripSummaryPanel.vue";
 import TripSwitcherModal from "@/components/trips/TripSwitcherModal.vue";
+import TripTransactionsPanel from "@/components/trips/TripTransactionsPanel.vue";
 
 export default {
   name: "TripsView",
   components: {
     Calendar,
     Delete,
-    Document,
-    Edit,
     List,
     Location,
     Money,
@@ -735,6 +612,7 @@ export default {
     TripStatusCenter,
     TripSummaryPanel,
     TripSwitcherModal,
+    TripTransactionsPanel,
     User,
   },
   data() {
@@ -2180,13 +2058,6 @@ export default {
       };
       return roleMap[role] || role;
     },
-    translateReviewStatus(status) {
-      const statusMap = {
-        confirmed: "已確認",
-        pending: "待確認",
-      };
-      return statusMap[status] || status || "未設定";
-    },
     getMemberName(memberId) {
       if (!memberId || !this.selectedTrip) return "";
       const member = this.selectedTrip.members.find((item) => item.id === memberId);
@@ -2309,13 +2180,6 @@ export default {
         minimumFractionDigits: minorUnit,
         maximumFractionDigits: minorUnit,
       })}`;
-    },
-    formatMyTransactionShare(transaction) {
-      const currentMemberId = this.selectedTrip?.current_member_id;
-      if (!currentMemberId) return "尚未對應";
-      const split = transaction.splits.find((item) => item.trip_member_id === currentMemberId);
-      if (!split) return "未分攤";
-      return this.formatMoney(split.converted_share_amount, split.base_currency);
     },
   },
   created() {
@@ -2942,27 +2806,6 @@ select:disabled {
   font-weight: 700;
 }
 
-.split-warning {
-  display: grid;
-  gap: 4px;
-  padding: 12px;
-  margin-bottom: 12px;
-  color: #92400e;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 8px;
-}
-
-.split-warning strong {
-  font-size: 0.92rem;
-}
-
-.split-warning p {
-  margin: 0;
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-
 .split-header {
   display: flex;
   align-items: center;
@@ -3236,60 +3079,6 @@ select:disabled {
   background: #e2e8f0;
 }
 
-.transaction-list {
-  display: grid;
-  gap: 8px;
-}
-
-.transaction-date-tabs {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  gap: 8px;
-  clear: both;
-  margin: 4px 0 14px;
-  padding: 2px 0 4px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.transaction-date-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.transaction-date-tabs button {
-  display: grid;
-  gap: 2px;
-  flex: 0 0 auto;
-  min-width: 68px;
-  min-height: 48px;
-  padding: 6px 10px;
-  color: #475569;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  box-shadow: none;
-}
-
-.transaction-date-tabs button.active {
-  color: #ffffff;
-  background: #0f766e;
-  border-color: #0f766e;
-}
-
-.transaction-date-tabs span {
-  font-size: 0.86rem;
-  font-weight: 900;
-}
-
-.transaction-date-tabs small {
-  font-size: 0.72rem;
-  font-weight: 800;
-  opacity: 0.82;
-}
-
-.transaction-row,
 .split-summary-row,
 .settlement-row {
   display: flex;
@@ -3303,62 +3092,13 @@ select:disabled {
   border-radius: 8px;
 }
 
-.transaction-row {
-  cursor: pointer;
-}
-
-.transaction-row.selected {
-  border-color: #0f766e;
-  background: #f0fdfa;
-}
-
-.transaction-row div:first-child,
-.transaction-amount,
 .split-summary-row div:first-child {
   display: grid;
   gap: 2px;
 }
 
-.transaction-row span,
-.transaction-amount small,
 .split-summary-row span {
   color: #64748b;
-}
-
-.transaction-amount {
-  text-align: right;
-  flex: 0 0 auto;
-}
-
-.transaction-amount span {
-  color: #111827;
-  font-weight: 800;
-}
-
-.transaction-delete,
-.transaction-edit {
-  flex: 0 0 38px;
-  width: 38px;
-  min-height: 38px;
-  padding: 0;
-  border-radius: 8px;
-  box-shadow: none;
-}
-
-.transaction-delete {
-  color: #dc2626;
-  background: #fee2e2;
-}
-
-.transaction-edit {
-  color: #0f766e;
-  background: #ccfbf1;
-}
-
-.transaction-delete svg,
-.transaction-edit svg {
-  width: 18px;
-  height: 18px;
 }
 
 .split-summary-list {
@@ -3542,51 +3282,6 @@ select:disabled {
   background: #e2e8f0;
 }
 
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.detail-grid > div {
-  display: grid;
-  gap: 2px;
-  min-height: 54px;
-  padding: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.detail-grid span,
-.split-detail-row span,
-.split-detail-row small {
-  color: #64748b;
-}
-
-.split-detail-list {
-  display: grid;
-  gap: 8px;
-}
-
-.split-detail-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 48px;
-  padding: 10px 12px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.split-detail-row strong {
-  display: grid;
-  gap: 2px;
-  text-align: right;
-}
-
 .positive-net {
   color: #0f766e;
 }
@@ -3704,8 +3399,7 @@ select:disabled {
   .member-form,
   .expense-form,
   .advanced-expense-grid,
-  .expense-preview,
-  .detail-grid {
+  .expense-preview {
     grid-template-columns: 1fr;
   }
 
@@ -3818,27 +3512,6 @@ select:disabled {
     margin-left: 0;
   }
 
-  .transaction-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto 38px;
-    align-items: center;
-  }
-
-  .transaction-row div:first-child {
-    min-width: 0;
-  }
-
-  .transaction-row div:first-child span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .transaction-amount {
-    width: auto;
-    text-align: right;
-  }
-
   .split-header,
   .custom-split-summary {
     align-items: stretch;
@@ -3854,8 +3527,5 @@ select:disabled {
     grid-template-columns: 1fr;
   }
 
-  .transaction-delete {
-    align-self: center;
-  }
 }
 </style>
