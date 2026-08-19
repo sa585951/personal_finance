@@ -89,29 +89,10 @@
           </div>
         </section>
 
-        <section class="trip-status-center" aria-label="旅行狀態中心">
-          <div class="trip-status-heading">
-            <div>
-              <span>Trip Check</span>
-              <h2>旅行狀態中心</h2>
-            </div>
-            <p>快速核對這趟旅行目前需要處理的地方。</p>
-          </div>
-          <div class="trip-status-grid">
-            <button
-              v-for="card in tripStatusCards"
-              :key="card.key"
-              class="trip-status-card"
-              :class="card.tone"
-              type="button"
-              @click="handleTripStatusAction(card.action)"
-            >
-              <span>{{ card.label }}</span>
-              <strong>{{ card.value }}</strong>
-              <small>{{ card.hint }}</small>
-            </button>
-          </div>
-        </section>
+        <TripStatusCenter
+          :cards="tripStatusCards"
+          @select="handleTripStatusAction"
+        />
 
         <nav class="trip-tabs" aria-label="旅行操作">
           <button
@@ -126,45 +107,16 @@
           </button>
         </nav>
 
-        <button
-          class="trip-summary-compact"
-          type="button"
-          @click="showTripSummary = !showTripSummary"
-        >
-          <span>
-            我的成本 {{ formatMoney(myTripShareAmount, selectedTrip.base_currency) }}
-          </span>
-          <strong :class="myTripNetStatus.amountClass">
-            {{ myTripNetStatus.label }} {{ formatMoney(Math.abs(myTripNetAmount), selectedTrip.base_currency) }}
-          </strong>
-        </button>
-
-        <div class="trip-summary-grid" :class="{ expanded: showTripSummary }">
-          <div class="summary-card share">
-            <span>我的成本</span>
-            <strong>{{ formatMoney(myTripShareAmount, selectedTrip.base_currency) }}</strong>
-            <small>分帳後歸屬於你的支出</small>
-          </div>
-          <div class="summary-card group">
-            <span>整團花費</span>
-            <strong>{{ formatMoney(tripExpenseTotal, selectedTrip.base_currency) }}</strong>
-            <small>整趟旅行總額</small>
-          </div>
-          <div class="summary-card" :class="myTripNetStatus.tone">
-            <span>{{ myTripNetStatus.label }}</span>
-            <strong :class="myTripNetStatus.amountClass">
-              {{ formatMoney(Math.abs(myTripNetAmount), selectedTrip.base_currency) }}
-            </strong>
-            <small>{{ myTripNetStatus.hint }}</small>
-          </div>
-        </div>
-
-        <div class="trip-category-panel" :class="{ expanded: showTripSummary }">
-          <TripCategoryChart
-            :transactions="tripTransactions"
-            :currency="selectedTrip.base_currency"
-          />
-        </div>
+        <TripSummaryPanel
+          :currency="selectedTrip.base_currency"
+          :my-share-amount="myTripShareAmount"
+          :expense-total="tripExpenseTotal"
+          :net-amount="myTripNetAmount"
+          :net-status="myTripNetStatus"
+          :transactions="tripTransactions"
+          :expanded="showTripSummary"
+          @toggle="showTripSummary = !showTripSummary"
+        />
 
         <div class="members-section app-panel" :class="{ active: activeSection === 'members' }">
           <div class="section-title">
@@ -750,39 +702,22 @@
       </article>
     </section>
 
-    <div v-if="showTripSwitcher" class="modal-backdrop" @click.self="showTripSwitcher = false">
-      <section class="trip-switcher">
-        <div class="switcher-header">
-          <h2>切換旅行</h2>
-          <button class="quiet-action" type="button" @click="showTripSwitcher = false">關閉</button>
-        </div>
-        <div class="trip-switcher-list">
-          <button
-            v-for="trip in trips"
-            :key="trip.id"
-            class="switcher-row"
-            :class="{ active: selectedTrip && selectedTrip.id === trip.id }"
-            type="button"
-            @click="switchTrip(trip.id)"
-          >
-            <div>
-              <span class="trip-state-badge" :class="tripReportPreferenceClass(trip)">
-                {{ tripReportLabel(trip) }}
-              </span>
-              <strong>{{ trip.name }}</strong>
-              <span>{{ trip.destination || "未設定地點" }} · {{ formatRange(trip) }}</span>
-            </div>
-          </button>
-        </div>
-      </section>
-    </div>
+    <TripSwitcherModal
+      v-if="showTripSwitcher"
+      :items="tripSwitcherItems"
+      :selected-id="selectedTrip ? selectedTrip.id : ''"
+      @close="showTripSwitcher = false"
+      @select="switchTrip"
+    />
   </div>
 </template>
 
 <script>
 import { Calendar, Delete, Document, Edit, List, Location, Money, Plus, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
 import apiClient from "@/api";
-import TripCategoryChart from "@/components/charts/TripCategoryChart.vue";
+import TripStatusCenter from "@/components/trips/TripStatusCenter.vue";
+import TripSummaryPanel from "@/components/trips/TripSummaryPanel.vue";
+import TripSwitcherModal from "@/components/trips/TripSwitcherModal.vue";
 
 export default {
   name: "TripsView",
@@ -797,7 +732,9 @@ export default {
     Plus,
     Refresh,
     TrendCharts,
-    TripCategoryChart,
+    TripStatusCenter,
+    TripSummaryPanel,
+    TripSwitcherModal,
     User,
   },
   data() {
@@ -1013,6 +950,15 @@ export default {
           action: "summary",
         },
       ];
+    },
+    tripSwitcherItems() {
+      return this.trips.map((trip) => ({
+        id: trip.id,
+        name: trip.name,
+        description: `${trip.destination || "未設定地點"} · ${this.formatRange(trip)}`,
+        reportLabel: this.tripReportLabel(trip),
+        reportClass: this.tripReportPreferenceClass(trip),
+      }));
     },
     currentMemberSummary() {
       if (!this.selectedTrip || !this.selectedTrip.current_member_id) return null;
@@ -2628,8 +2574,7 @@ select:disabled {
   border-radius: 8px;
 }
 
-.current-trip-card > div,
-.switcher-row > div {
+.current-trip-card > div {
   display: grid;
   gap: 3px;
   min-width: 0;
@@ -2642,14 +2587,12 @@ select:disabled {
   gap: 8px;
 }
 
-.current-trip-card strong,
-.switcher-row strong {
+.current-trip-card strong {
   color: #1f2933;
   font-size: 1rem;
 }
 
-.current-trip-card span,
-.switcher-row span {
+.current-trip-card span {
   color: #64748b;
   font-size: 0.86rem;
 }
@@ -3172,183 +3115,6 @@ select:disabled {
   color: #0f766e;
   background: #ecfdf5;
   border-color: #99f6e4;
-}
-
-.trip-summary-grid {
-  display: grid;
-  grid-template-columns: 1.15fr 1fr 1fr;
-  gap: 10px;
-}
-
-.trip-status-center {
-  display: grid;
-  gap: 12px;
-  padding: 14px;
-  background: #f8fafc;
-  border: 1px solid #dbe4ee;
-  border-radius: 10px;
-}
-
-.trip-status-heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.trip-status-heading span {
-  color: #0f766e;
-  font-size: 0.76rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.trip-status-heading h2 {
-  margin: 2px 0 0;
-  color: #1f2933;
-  font-size: 1.02rem;
-  letter-spacing: 0;
-}
-
-.trip-status-heading p {
-  max-width: 300px;
-  margin: 0;
-  color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 700;
-  line-height: 1.45;
-  text-align: right;
-}
-
-.trip-status-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.trip-status-card {
-  display: grid;
-  gap: 5px;
-  min-height: 112px;
-  padding: 12px;
-  color: #475569;
-  text-align: left;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
-  border-left: 4px solid #94a3b8;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.trip-status-card:hover {
-  border-color: #99f6e4;
-  box-shadow: 0 10px 24px rgba(15, 118, 110, 0.09);
-}
-
-.trip-status-card.success {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  border-left-color: #16a34a;
-}
-
-.trip-status-card.warning {
-  background: #fffbeb;
-  border-color: #fde68a;
-  border-left-color: #f59e0b;
-}
-
-.trip-status-card.info {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  border-left-color: #2563eb;
-}
-
-.trip-status-card span {
-  font-size: 0.78rem;
-  font-weight: 900;
-}
-
-.trip-status-card strong {
-  color: #111827;
-  font-size: 1rem;
-  line-height: 1.25;
-}
-
-.trip-status-card small {
-  color: #64748b;
-  font-size: 0.76rem;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.trip-category-panel {
-  display: block;
-}
-
-.trip-summary-compact {
-  display: none;
-}
-
-.summary-card {
-  display: grid;
-  gap: 4px;
-  min-height: 72px;
-  padding: 12px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-left: 4px solid #cbd5e1;
-  border-radius: 8px;
-  color: #475569;
-}
-
-.summary-card.share {
-  background: #f8feff;
-  border-color: #bae6fd;
-  border-left-color: #0891b2;
-  color: #0e7490;
-}
-
-.summary-card.group {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  border-left-color: #475569;
-  color: #334155;
-}
-
-.summary-card.positive {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  border-left-color: #16a34a;
-}
-
-.summary-card.negative {
-  background: #fff1f2;
-  border-color: #fecdd3;
-  border-left-color: #e11d48;
-}
-
-.summary-card.balanced {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  border-left-color: #94a3b8;
-}
-
-.summary-card span {
-  font-size: 0.86rem;
-  font-weight: 700;
-}
-
-.summary-card strong {
-  color: #111827;
-  font-size: 1.08rem;
-  line-height: 1.25;
-}
-
-.summary-card small {
-  color: #64748b;
-  font-size: 0.76rem;
-  font-weight: 700;
 }
 
 .trip-closeout-panel {
@@ -3928,57 +3694,6 @@ select:disabled {
   font-size: 0.82rem;
 }
 
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  align-items: end;
-  padding: 16px;
-  background: rgba(15, 23, 42, 0.42);
-}
-
-.trip-switcher {
-  width: min(520px, 100%);
-  max-height: 78vh;
-  margin: 0 auto;
-  padding: 16px;
-  overflow: auto;
-  background: #ffffff;
-  border-radius: 10px;
-}
-
-.switcher-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.trip-switcher-list {
-  display: grid;
-  gap: 8px;
-}
-
-.switcher-row {
-  width: 100%;
-  min-height: 82px;
-  padding: 12px;
-  color: #1f2933;
-  text-align: left;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
-  border-left: 4px solid #94a3b8;
-  border-radius: 8px;
-  box-shadow: none;
-}
-
-.switcher-row.active {
-  border-left-color: #0f766e;
-  background: #f0fdfa;
-}
-
 @media (max-width: 820px) {
   .trips-page {
     padding: 18px 12px calc(var(--app-bottom-nav-height) + 22px);
@@ -3986,8 +3701,6 @@ select:disabled {
 
   .trips-layout,
   .metric-grid,
-  .trip-summary-grid,
-  .trip-status-grid,
   .member-form,
   .expense-form,
   .advanced-expense-grid,
@@ -3998,68 +3711,6 @@ select:disabled {
 
   .closeout-list {
     grid-template-columns: 1fr;
-  }
-
-  .trip-status-heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .trip-status-heading p {
-    max-width: none;
-    text-align: left;
-  }
-
-  .trip-summary-compact {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    min-height: 46px;
-    padding: 10px 12px;
-    color: #334155;
-    text-align: left;
-    background: #ffffff;
-    border: 1px solid #dbe4ee;
-    border-left: 4px solid #0f766e;
-    border-radius: 8px;
-    box-shadow: none;
-  }
-
-  .trip-summary-compact span,
-  .trip-summary-compact strong {
-    overflow: hidden;
-    font-size: 0.9rem;
-    line-height: 1.25;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .trip-summary-compact span {
-    min-width: 0;
-    color: #475569;
-    font-weight: 800;
-  }
-
-  .trip-summary-compact strong {
-    flex: 0 0 auto;
-    max-width: 46%;
-  }
-
-  .trip-summary-grid {
-    display: none;
-  }
-
-  .trip-summary-grid.expanded {
-    display: grid;
-  }
-
-  .trip-category-panel {
-    display: none;
-  }
-
-  .trip-category-panel.expanded {
-    display: block;
   }
 
   .trip-hero {
