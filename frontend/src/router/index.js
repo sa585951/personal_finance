@@ -8,6 +8,7 @@ const AssetsOverview = () => import("../views/AssetsOverview.vue");
 const TransactionRecord = () => import("../views/TransactionRecord.vue");
 const BudgetPlanner = () => import("@/views/BudgetPlanner.vue");
 const Goals = () => import("../views/FinancialGoals.vue");
+const TripListView = () => import("../views/TripListView.vue");
 const TripsView = () => import("../views/TripsView.vue");
 const TripInviteAccept = () => import("../views/TripInviteAccept.vue");
 const AuthCallback = () => import("../views/AuthCallback.vue");
@@ -54,7 +55,7 @@ const routes = [
   {
     path: "/trips",
     name: "Trips",
-    component: TripsView,
+    component: TripListView,
     meta: { requiresAuth: true },
   },
   {

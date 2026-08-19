@@ -5,7 +5,7 @@
 - Roadmap 版本：M0 至 M9
 - 生效日期：2026-08-17
 - 目前 Milestone：M1 Minimum Product UX
-- 下一個程式實作批次：M1B Trip Route 拆分
+- 下一個程式實作批次：M1C Universal Add V1
 
 舊有 Phase 1 至 Phase 7、Phase App 與 Allocation 文件保留為歷史開發紀錄。新工作一律使用本文件的 Milestone 命名，避免同時維護兩套進度語言。
 
@@ -70,10 +70,13 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 ### M1B Trip Route 拆分
 
+狀態：第一版完成（2026-08-19）。
+
 - `/trips`：Upcoming、Ongoing、Past 列表。
 - `/trips/:tripId`：Overview、Expenses、Split、Members。
 - `/trips/invite/:token`：保留邀請流程。
 - 逐步拆分既有大型 `TripsView.vue`，不先重構後端。
+- 第一輪已將 `/trips` 與 `/trips/:tripId` 分離，新增獨立 `TripListView.vue`，並保留詳情頁原有支出、分帳、旅伴與結算行為；列表分期分類與詳情內部 component 化可在後續 UX 維護持續收斂。
 
 ### M1C Universal Add V1
 
