@@ -118,89 +118,28 @@
           @toggle="showTripSummary = !showTripSummary"
         />
 
-        <div class="members-section app-panel" :class="{ active: activeSection === 'members' }">
-          <div class="section-title">
-            <User />
-            <h3>旅伴</h3>
-          </div>
-          <div class="member-list">
-            <div v-for="member in selectedTrip.members" :key="member.id" class="member-row">
-              <div>
-                <span>{{ member.display_name }}</span>
-                <small>
-                  {{ translateRole(member.role) }}
-                  <template v-if="member.id === selectedTrip.current_member_id"> · 你</template>
-                </small>
-              </div>
-              <select
-                v-if="isTripOwner && member.role !== 'owner'"
-                class="member-role-select"
-                :value="member.role"
-                @change="updateMemberRole(member, $event.target.value)"
-              >
-                <option value="editor">編輯</option>
-                <option value="viewer">檢視</option>
-              </select>
-              <button
-                v-if="isTripOwner && member.role !== 'owner'"
-                class="member-delete"
-                type="button"
-                aria-label="刪除旅伴"
-                @click="deleteMember(member)"
-              >
-                <Delete />
-              </button>
-            </div>
-          </div>
-
-          <section v-if="isTripOwner" class="invite-panel">
-            <div>
-              <strong>邀請連結</strong>
-              <span>30 天內可重複使用，最多 15 位成員，加入後預設為編輯。</span>
-            </div>
-            <div v-if="activeInvite" class="invite-status-row">
-              <span>連結已開啟至 {{ formatDateTime(activeInvite.expires_at) }}</span>
-              <button class="quiet-mini-button" type="button" @click="closeInvite">關閉</button>
-            </div>
-            <div v-if="latestInviteUrl" class="invite-copy-row">
-              <input :value="latestInviteUrl" readonly />
-              <button class="secondary-action" type="button" @click="copyInviteLink">
-                複製
-              </button>
-            </div>
-            <button
-              v-if="!activeInvite"
-              class="secondary-action"
-              type="button"
-              :disabled="submittingInvite"
-              @click="createInvite"
-            >
-              建立邀請連結
-            </button>
-            <p v-if="inviteMessage" class="status-message">{{ inviteMessage }}</p>
-          </section>
-
-          <form v-if="isTripOwner" class="member-form" @submit.prevent="addMember">
-            <input v-model.trim="newMember.display_name" type="text" required placeholder="朋友 A" />
-            <select v-model="newMember.role">
-              <option value="viewer">檢視</option>
-              <option value="editor">編輯</option>
-            </select>
-            <button class="secondary-action" type="submit" :disabled="submittingMember">
-              <Plus />
-              新增
-            </button>
-          </form>
-          <button
-            v-else-if="currentTripMember && currentTripMember.role !== 'owner'"
-            class="danger-action leave-trip-button"
-            type="button"
-            @click="leaveSelectedTrip"
-          >
-            退出此帳本
-          </button>
-          <p v-if="memberMessage" class="status-message">{{ memberMessage }}</p>
-        </div>
+        <TripMembersPanel
+          v-show="activeSection === 'members'"
+          :members="selectedTrip.members"
+          :current-member-id="selectedTrip.current_member_id || ''"
+          :is-owner="isTripOwner"
+          :current-member="currentTripMember"
+          :active-invite="activeInvite"
+          :latest-invite-url="latestInviteUrl"
+          :submitting-invite="submittingInvite"
+          :submitting-member="submittingMember"
+          :invite-message="inviteMessage"
+          :member-message="memberMessage"
+          :new-member="newMember"
+          @update-role="updateMemberRole"
+          @delete-member="deleteMember"
+          @close-invite="closeInvite"
+          @copy-invite="copyInviteLink"
+          @create-invite="createInvite"
+          @add-member="addMember"
+          @leave="leaveSelectedTrip"
+          @update-new-member="newMember = { ...newMember, ...$event }"
+        />
 
         <div
           v-if="canCreateTripTransaction"
@@ -487,8 +426,9 @@
 </template>
 
 <script>
-import { Calendar, Delete, List, Location, Money, Plus, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
+import { Calendar, List, Location, Money, Plus, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
 import apiClient from "@/api";
+import TripMembersPanel from "@/components/trips/TripMembersPanel.vue";
 import TripSettlementPanel from "@/components/trips/TripSettlementPanel.vue";
 import TripStatusCenter from "@/components/trips/TripStatusCenter.vue";
 import TripSummaryPanel from "@/components/trips/TripSummaryPanel.vue";
@@ -499,13 +439,13 @@ export default {
   name: "TripsView",
   components: {
     Calendar,
-    Delete,
     List,
     Location,
     Money,
     Plus,
     Refresh,
     TrendCharts,
+    TripMembersPanel,
     TripSettlementPanel,
     TripStatusCenter,
     TripSummaryPanel,
@@ -1948,14 +1888,6 @@ export default {
       const diff = end.getTime() - start.getTime();
       return Math.max(Math.round(diff / 86400000) + 1, 1);
     },
-    translateRole(role) {
-      const roleMap = {
-        owner: "擁有者",
-        editor: "編輯",
-        viewer: "檢視",
-      };
-      return roleMap[role] || role;
-    },
     getMemberName(memberId) {
       if (!memberId || !this.selectedTrip) return "";
       const member = this.selectedTrip.members.find((item) => item.id === memberId);
@@ -2179,7 +2111,6 @@ h1 {
   height: 18px;
 }
 
-.member-form,
 .expense-form {
   display: grid;
   gap: 12px;
@@ -2473,122 +2404,6 @@ select:disabled {
 
 .app-panel.active {
   display: block;
-}
-
-.member-list {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.member-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 44px;
-  padding: 10px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.member-row > div {
-  flex: 1 1 auto;
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.member-row span {
-  color: #1f2933;
-  font-weight: 800;
-}
-
-.member-row small {
-  color: #64748b;
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.member-delete {
-  flex: 0 0 34px;
-  width: 34px;
-  min-height: 34px;
-  padding: 0;
-  color: #dc2626;
-  background: #fee2e2;
-  border-radius: 8px;
-  box-shadow: none;
-}
-
-.member-delete svg {
-  width: 16px;
-  height: 16px;
-}
-
-.member-role-select {
-  flex: 0 0 96px;
-  min-height: 34px;
-  padding: 0 8px;
-  border: 1px solid #dbe4ee;
-  border-radius: 8px;
-  background: #ffffff;
-  font-size: 0.85rem;
-}
-
-.invite-panel {
-  display: grid;
-  gap: 10px;
-  margin: 0 0 12px;
-  padding: 12px;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
-  border-radius: 8px;
-}
-
-.invite-panel > div:first-child {
-  display: grid;
-  gap: 3px;
-}
-
-.invite-panel strong {
-  color: #134e4a;
-}
-
-.invite-panel span {
-  color: #475569;
-  font-size: 0.86rem;
-  line-height: 1.45;
-}
-
-.invite-status-row,
-.invite-copy-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.invite-status-row {
-  justify-content: space-between;
-}
-
-.invite-copy-row input {
-  min-width: 0;
-  flex: 1;
-  min-height: 42px;
-  border: 1px solid #dbe4ee;
-  border-radius: 8px;
-  padding: 0 10px;
-  background: #ffffff;
-}
-
-.leave-trip-button {
-  width: 100%;
-}
-
-.member-form {
-  grid-template-columns: minmax(0, 1fr) 120px auto;
 }
 
 .expense-form {
@@ -2938,7 +2753,6 @@ select:disabled {
 
   .trips-layout,
   .metric-grid,
-  .member-form,
   .expense-form,
   .advanced-expense-grid,
   .expense-preview {
@@ -2985,36 +2799,6 @@ select:disabled {
     min-height: 50px;
     padding: 4px 2px;
     font-size: 0.78rem;
-  }
-
-  .member-form {
-    grid-template-columns: minmax(0, 1fr) 108px;
-  }
-
-  .member-form .secondary-action {
-    grid-column: 1 / -1;
-  }
-
-  .member-row {
-    align-items: center;
-    flex-wrap: nowrap;
-    gap: 8px;
-  }
-
-  .member-role-select {
-    flex: 0 0 32%;
-    max-width: 128px;
-    min-width: 92px;
-  }
-
-  .invite-status-row,
-  .invite-copy-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .invite-copy-row .secondary-action {
-    width: 100%;
   }
 
   .danger-row {
