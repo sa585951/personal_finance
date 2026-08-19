@@ -375,6 +375,7 @@ export default {
 
       this.newTransaction = {
         ...this.newTransaction,
+        date: draft.date || this.newTransaction.date,
         type: transactionType,
         item: draft.title || this.newTransaction.item,
         amount: Number.isFinite(amount) ? amount : this.newTransaction.amount,
@@ -394,7 +395,11 @@ export default {
         accountMatched: Boolean(draft.account_hint && matchedAccountId),
         switchedType: Boolean(draft.switchedType),
       };
-      this.ensureCategoryMatchesType();
+      if (this.mode === "preview" && this.missingFields.includes("budget_category")) {
+        this.newTransaction.budget_category = "";
+      } else {
+        this.ensureCategoryMatchesType();
+      }
       this.submitMessage = draft.account_hint && !matchedAccountId
         ? "已套用 AI 解析結果，但帳戶需要手動確認。"
         : "已套用 AI 解析結果，送出前請再確認欄位。";

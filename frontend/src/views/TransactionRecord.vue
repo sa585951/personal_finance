@@ -17,36 +17,10 @@
       </button>
     </div>
 
-    <AIQuickInput
-      :type="activeType"
-      @apply-draft="applyAIDraft"
-      @parsed="refreshAIEvents"
-    />
-
-    <AIParseEventsPanel
-      v-if="showDevAIEvents"
-      ref="aiParseEventsPanel"
-    />
-
-    <section class="entry-form-section">
-      <button
-        v-if="!showTransactionForm"
-        class="manual-entry-toggle"
-        type="button"
-        @click="openManualForm"
-      >
-        {{ manualEntryLabel }}
-      </button>
-      <p v-if="!showTransactionForm" class="manual-entry-hint">
-        AI 解析後也會在這裡展開表單，送出前仍可調整日期、類別與帳戶。
-      </p>
-
+    <section v-if="editingTransaction" class="entry-form-section">
       <TransactionForm
-        v-if="showTransactionForm"
         :type="activeType"
-        :draft="aiDraft"
         :editing-transaction="editingTransaction"
-        @transaction-added="handleTransactionAdded"
         @transaction-updated="handleTransactionUpdated"
         @edit-cancelled="cancelEditingTransaction"
       />
@@ -63,44 +37,42 @@
         <h2>{{ tableTitle }}</h2>
         <span>{{ tableMetaText }}</span>
       </div>
-      <div
-        v-if="recordDateFilters.length > 1"
-        class="record-date-tabs"
-        aria-label="收支紀錄日期篩選"
-      >
+      <div class="record-mode-switch" aria-label="紀錄查找方式">
         <button
-          v-for="filter in recordDateFilters"
-          :key="filter.key"
+          v-for="mode in recordModes"
+          :key="mode.key"
           type="button"
-          :class="{ active: selectedRecordDate === filter.key }"
-          @click="selectedRecordDate = filter.key"
+          :class="{ active: recordMode === mode.key }"
+          @click="setRecordMode(mode.key)"
         >
-          <span>{{ filter.label }}</span>
-          <small>{{ filter.count }} 筆</small>
+          {{ mode.label }}
         </button>
       </div>
+      <label v-if="recordMode === 'month'" class="record-month-picker">
+        查找月份
+        <input v-model="recordMonth" type="month" />
+      </label>
+      <p v-if="recordError" class="record-error">{{ recordError }}</p>
+      <p v-if="isRecordLoading && recordTransactions.length === 0" class="record-loading">
+        讀取紀錄中
+      </p>
       <TransactionTable
-        :transactions="displayedTransactions"
+        v-else
+        :transactions="recordTransactions"
         @transaction-edit="startEditingTransaction"
         @transaction-deleted="fetchTransactions"
       />
-      <div
-        v-if="hiddenRecordCount > 0 || canCollapseRecords"
-        class="record-list-actions"
-      >
+      <div class="record-list-actions">
+        <span>
+          已顯示 {{ recordTransactions.length }} / 共 {{ recordPagination.total_count }} 筆
+        </span>
         <button
-          v-if="hiddenRecordCount > 0"
+          v-if="recordPagination.has_more"
           type="button"
-          @click="showAllRecords = true"
+          :disabled="isRecordLoading"
+          @click="loadMoreRecords"
         >
-          顯示更多（尚有 {{ hiddenRecordCount }} 筆）
-        </button>
-        <button
-          v-else
-          type="button"
-          @click="showAllRecords = false"
-        >
-          收合為最新 {{ recordPreviewLimit }} 筆
+          {{ isRecordLoading ? "載入中" : "再載入 10 筆" }}
         </button>
       </div>
     </section>
@@ -287,8 +259,6 @@
 
 <script>
 import apiClient from "@/api";
-import AIParseEventsPanel from "../components/budgets/AIParseEventsPanel.vue";
-import AIQuickInput from "../components/budgets/AIQuickInput.vue";
 import TransactionForm from "../components/budgets/TransactionForm.vue";
 import TransactionTable from "../components/budgets/TransactionTable.vue";
 import TransactionSummary from "../components/budgets/TransactionSummary.vue";
@@ -298,8 +268,6 @@ import SpendingTrendsChart from "../components/charts/SpendingTrendsChart.vue";
 export default {
   name: "TransactionRecord",
   components: {
-    AIParseEventsPanel,
-    AIQuickInput,
     TransactionForm,
     TransactionTable,
     TransactionSummary,
@@ -309,22 +277,29 @@ export default {
   data() {
     return {
       transactions: [],
+      recordTransactions: [],
       activeType: this.initialTypeFromRoute(),
-      aiDraft: null,
       editingTransaction: null,
-      selectedRecordDate: "all",
       activeAnalysisTab: "category",
-      showAllRecords: false,
       recordPreviewLimit: 10,
-      showTransactionForm: false,
+      recordMode: "recent",
+      recordMonth: this.defaultMonthKey(),
+      recordPagination: {
+        next_cursor: null,
+        has_more: false,
+        limit: 10,
+        total_count: 0,
+      },
+      isRecordLoading: false,
+      recordError: "",
       selectedSummaryMonth: this.defaultMonthKey(),
     };
   },
   watch: {
     "$route.query.type"() {
       this.activeType = this.initialTypeFromRoute();
-      this.selectedRecordDate = "all";
-      this.showAllRecords = false;
+      this.editingTransaction = null;
+      this.fetchTransactions();
     },
     "$route.query.edit": {
       immediate: true,
@@ -334,66 +309,21 @@ export default {
         }
       },
     },
-    selectedRecordDate() {
-      this.showAllRecords = false;
+    selectedSummaryMonth() {
+      this.fetchAnalysisTransactions();
+    },
+    recordMonth() {
+      if (this.recordMode === "month") {
+        this.fetchRecordTransactions();
+      }
     },
   },
   computed: {
-    filteredTransactions() {
-      return this.transactions.filter((transaction) => transaction.type === this.activeType);
-    },
-    sortedFilteredTransactions() {
-      return [...this.filteredTransactions].sort(this.sortTransactionsNewestFirst);
-    },
-    recordDateFilters() {
-      const dateMap = new Map();
-      this.filteredTransactions.forEach((transaction) => {
-        if (!transaction.date) return;
-        const current = dateMap.get(transaction.date) || {
-          key: transaction.date,
-          label: this.formatDateChip(transaction.date),
-          count: 0,
-        };
-        current.count += 1;
-        dateMap.set(transaction.date, current);
-      });
-
-      const dates = Array.from(dateMap.values())
-        .sort((left, right) => right.key.localeCompare(left.key));
-
+    recordModes() {
       return [
-        {
-          key: "all",
-          label: "全部",
-          count: this.filteredTransactions.length,
-        },
-        ...dates,
+        { key: "recent", label: "最近紀錄" },
+        { key: "month", label: "依月份查找" },
       ];
-    },
-    recordListTransactions() {
-      if (this.selectedRecordDate === "all") {
-        return this.sortedFilteredTransactions;
-      }
-      return this.sortedFilteredTransactions.filter(
-        (transaction) => transaction.date === this.selectedRecordDate
-      );
-    },
-    displayedTransactions() {
-      if (this.selectedRecordDate !== "all" || this.showAllRecords) {
-        return this.recordListTransactions;
-      }
-      return this.recordListTransactions.slice(0, this.recordPreviewLimit);
-    },
-    hiddenRecordCount() {
-      if (this.selectedRecordDate !== "all" || this.showAllRecords) return 0;
-      return Math.max(this.recordListTransactions.length - this.recordPreviewLimit, 0);
-    },
-    canCollapseRecords() {
-      return (
-        this.selectedRecordDate === "all" &&
-        this.showAllRecords &&
-        this.recordListTransactions.length > this.recordPreviewLimit
-      );
     },
     transactionTabs() {
       return [
@@ -421,26 +351,16 @@ export default {
     },
     tableTitle() {
       const typeLabel = this.activeType === "income" ? "收入" : "支出";
-      if (this.selectedRecordDate !== "all") {
-        return `${this.formatDateChip(this.selectedRecordDate)} 的${typeLabel}`;
-      }
-      if (this.showAllRecords || this.recordListTransactions.length <= this.recordPreviewLimit) {
-        return `全部${typeLabel}紀錄`;
-      }
-      return `最近 ${this.recordPreviewLimit} 筆${typeLabel}`;
+      return this.recordMode === "month"
+        ? `${this.recordMonthLabel} ${typeLabel}紀錄`
+        : `最近${typeLabel}紀錄`;
     },
     tableMetaText() {
-      const count = this.recordListTransactions.length;
-      if (this.selectedRecordDate !== "all") {
-        return `${count} 筆`;
-      }
-      if (this.showAllRecords || count <= this.recordPreviewLimit) {
-        return `共 ${count} 筆`;
-      }
-      return `共 ${count} 筆`;
+      return `共 ${this.recordPagination.total_count} 筆`;
     },
-    manualEntryLabel() {
-      return this.activeType === "income" ? "手動新增收入" : "手動新增支出";
+    recordMonthLabel() {
+      const [year, month] = String(this.recordMonth || "").split("-");
+      return year && month ? `${year} 年 ${Number(month)} 月` : "指定月份";
     },
     analysisTitle() {
       return this.activeAnalysisTab === "category" ? "支出花在哪裡" : "支出變化趨勢";
@@ -547,9 +467,6 @@ export default {
         })
         .sort((left, right) => right.total - left.total);
     },
-    showDevAIEvents() {
-      return import.meta.env.DEV;
-    },
   },
   methods: {
     defaultMonthKey() {
@@ -562,10 +479,6 @@ export default {
     setActiveType(type) {
       this.activeType = type;
       this.editingTransaction = null;
-      this.selectedRecordDate = "all";
-      this.showAllRecords = false;
-      this.aiDraft = null;
-      this.showTransactionForm = false;
       this.$router.replace({
         path: this.$route.path,
         query: {
@@ -574,52 +487,14 @@ export default {
         },
       });
     },
-    applyAIDraft(draft) {
-      const switchedType = ["expense", "income"].includes(draft.type) && draft.type !== this.activeType;
-      if (["expense", "income"].includes(draft.type) && draft.type !== this.activeType) {
-        this.setActiveType(draft.type);
-      }
-      this.editingTransaction = null;
-      this.showTransactionForm = true;
-      this.aiDraft = {
-        ...draft,
-        switchedType,
-        appliedAt: Date.now(),
-      };
-      this.$nextTick(() => {
-        document.querySelector(".entry-form-section")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      });
-    },
-    openManualForm() {
-      this.aiDraft = null;
-      this.editingTransaction = null;
-      this.showTransactionForm = true;
-      this.$nextTick(() => {
-        document.querySelector(".entry-form-section")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      });
-    },
-    async handleTransactionAdded() {
-      await this.fetchTransactions();
-      this.refreshAIEvents();
-      this.showTransactionForm = false;
-      this.aiDraft = null;
-    },
     async handleTransactionUpdated() {
       this.editingTransaction = null;
       await this.fetchTransactions();
       this.clearEditQuery();
-      this.showTransactionForm = false;
     },
     cancelEditingTransaction() {
       this.editingTransaction = null;
       this.clearEditQuery();
-      this.showTransactionForm = false;
     },
     startEditingTransaction(transaction) {
       if (!transaction?.id) return;
@@ -633,12 +508,10 @@ export default {
           },
         });
       }
-      this.aiDraft = null;
       this.editingTransaction = {
         ...transaction,
         selectedAt: Date.now(),
       };
-      this.showTransactionForm = true;
       this.$nextTick(() => {
         document.querySelector(".entry-form-section")?.scrollIntoView({
           behavior: "smooth",
@@ -675,18 +548,6 @@ export default {
         path: this.$route.path,
         query,
       });
-    },
-    refreshAIEvents() {
-      this.$refs.aiParseEventsPanel?.fetchEvents();
-    },
-    syncSelectedRecordDate() {
-      if (this.selectedRecordDate === "all") return;
-      const hasSelectedDate = this.filteredTransactions.some(
-        (transaction) => transaction.date === this.selectedRecordDate
-      );
-      if (!hasSelectedDate) {
-        this.selectedRecordDate = "all";
-      }
     },
     selectedMonthTransactions(type) {
       return this.transactions.filter((transaction) => (
@@ -732,23 +593,92 @@ export default {
       };
       return typeMap[type] || type || "其他";
     },
-    sortTransactionsNewestFirst(left, right) {
-      const leftDate = left.date || "";
-      const rightDate = right.date || "";
-      const dateComparison = rightDate.localeCompare(leftDate);
-      if (dateComparison !== 0) return dateComparison;
-      return Number(right.id || 0) - Number(left.id || 0);
+    setRecordMode(mode) {
+      if (!["recent", "month"].includes(mode) || mode === this.recordMode) return;
+      this.recordMode = mode;
+      this.fetchRecordTransactions();
+    },
+    async loadMoreRecords() {
+      if (!this.recordPagination.has_more || this.isRecordLoading) return;
+      await this.fetchRecordTransactions(true);
+    },
+    async fetchRecordTransactions(append = false) {
+      if (this.isRecordLoading) return;
+      this.isRecordLoading = true;
+      this.recordError = "";
+      try {
+        const params = {
+          type: this.activeType,
+          limit: this.recordPreviewLimit,
+        };
+        if (this.recordMode === "month") {
+          params.month = this.recordMonth;
+        }
+        if (append && this.recordPagination.next_cursor) {
+          params.cursor = this.recordPagination.next_cursor;
+        }
+        const response = await apiClient.get("/api/transactions", { params });
+        const incoming = response.data.data || [];
+        if (append) {
+          const existingIds = new Set(this.recordTransactions.map((transaction) => transaction.id));
+          this.recordTransactions = [
+            ...this.recordTransactions,
+            ...incoming.filter((transaction) => !existingIds.has(transaction.id)),
+          ];
+        } else {
+          this.recordTransactions = incoming;
+        }
+        this.recordPagination = response.data.pagination || {
+          next_cursor: null,
+          has_more: false,
+          limit: this.recordPreviewLimit,
+          total_count: this.recordTransactions.length,
+        };
+      } catch (error) {
+        console.error("無法載入收支紀錄", error);
+        if (!append) {
+          this.recordTransactions = [];
+          this.recordPagination = {
+            next_cursor: null,
+            has_more: false,
+            limit: this.recordPreviewLimit,
+            total_count: 0,
+          };
+        }
+        this.recordError = error.response?.data?.message || "無法載入紀錄，請稍後再試。";
+      } finally {
+        this.isRecordLoading = false;
+      }
+    },
+    async fetchAnalysisTransactions() {
+      try {
+        const allTransactions = [];
+        let cursor = null;
+        let hasMore = true;
+        while (hasMore) {
+          const params = {
+            month: this.selectedSummaryMonth,
+            limit: 50,
+          };
+          if (cursor) params.cursor = cursor;
+          const response = await apiClient.get("/api/transactions", { params });
+          allTransactions.push(...(response.data.data || []));
+          const pagination = response.data.pagination || {};
+          hasMore = pagination.has_more === true;
+          cursor = pagination.next_cursor || null;
+          if (hasMore && !cursor) break;
+        }
+        this.transactions = allTransactions;
+      } catch (error) {
+        console.error("無法載入月份分析資料", error);
+        this.transactions = [];
+      }
     },
     async fetchTransactions() {
-      try {
-        const response = await apiClient.get(`/api/transactions`);
-        this.transactions = response.data.data || [];
-        this.syncSelectedRecordDate();
-      } catch (error) {
-        console.error("無法載入交易資料", error);
-        this.transactions = [];
-        this.selectedRecordDate = "all";
-      }
+      await Promise.all([
+        this.fetchRecordTransactions(),
+        this.fetchAnalysisTransactions(),
+      ]);
     },
   },
   created() {
@@ -846,32 +776,6 @@ h1 {
 
 .entry-form-section {
   margin: 0 0 1rem;
-}
-
-.manual-entry-toggle {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 14px;
-  color: #0f172a;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  box-shadow: none;
-  font-size: 0.95rem;
-  font-weight: 900;
-}
-
-.manual-entry-toggle:hover {
-  background: #f8fafc;
-}
-
-.manual-entry-hint {
-  margin: 8px 4px 0;
-  color: #64748b;
-  font-size: 0.84rem;
-  font-weight: 700;
-  line-height: 1.45;
-  text-align: left;
 }
 
 .analysis-panel {
@@ -1202,55 +1106,86 @@ h1 {
   box-shadow: none;
 }
 
-.record-date-tabs {
-  display: flex;
-  gap: 8px;
-  margin: 0 0 12px;
-  padding: 2px 0 4px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.record-date-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.record-date-tabs button {
+.record-mode-switch {
   display: grid;
-  gap: 2px;
-  flex: 0 0 auto;
-  min-width: 68px;
-  min-height: 48px;
-  padding: 6px 10px;
-  color: #475569;
-  background: #ffffff;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 6px;
+  background: #e2e8f0;
   border: 1px solid #cbd5e1;
+  border-radius: 10px;
+}
+
+.record-mode-switch button {
+  min-height: 40px;
+  padding: 0 10px;
+  color: #475569;
+  background: transparent;
+  border: 0;
   border-radius: 8px;
   box-shadow: none;
+  font-size: 0.9rem;
+  font-weight: 900;
 }
 
-.record-date-tabs button.active {
-  color: #ffffff;
-  background: #334155;
-  border-color: #334155;
+.record-mode-switch button.active {
+  color: #0f172a;
+  background: #ffffff;
 }
 
-.record-date-tabs span {
+.record-month-picker {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: #475569;
   font-size: 0.86rem;
   font-weight: 900;
 }
 
-.record-date-tabs small {
-  font-size: 0.72rem;
+.record-month-picker input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 10px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.record-error,
+.record-loading {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
   font-weight: 800;
-  opacity: 0.82;
+}
+
+.record-error {
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.record-loading {
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
 }
 
 .record-list-actions {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin: 12px 0 0;
+}
+
+.record-list-actions span {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .record-list-actions button {
@@ -1269,6 +1204,11 @@ h1 {
   transform: none;
   box-shadow: none;
   border-color: #94a3b8;
+}
+
+.record-list-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .section-heading {

@@ -28,3 +28,22 @@ def test_transaction_cursor_round_trip():
 def test_transaction_cursor_rejects_invalid_value(cursor):
     with pytest.raises(ValueError, match="cursor 格式不正確"):
         BudgetManager._decode_transaction_cursor(cursor)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"transaction_type": "transfer"}, "type 僅支援 expense 或 income"),
+        ({"month": "2026/08"}, "month 格式必須為 YYYY-MM"),
+        ({"limit": 0}, "limit 必須介於 1 到 50"),
+        ({"limit": 51}, "limit 必須介於 1 到 50"),
+    ],
+)
+def test_transaction_pagination_rejects_invalid_filters(kwargs, message):
+    manager = BudgetManager(db_session=None)
+
+    with pytest.raises(ValueError, match=message):
+        manager.get_all_transactions(
+            "11111111-1111-1111-1111-111111111111",
+            **kwargs,
+        )

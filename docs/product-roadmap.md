@@ -5,7 +5,7 @@
 - Roadmap 版本：M0 至 M9
 - 生效日期：2026-08-17
 - 目前 Milestone：M1 Minimum Product UX
-- 下一個程式實作批次：M1C Universal Add V1
+- 下一個程式實作批次：M1D Home 與 Analysis V1
 
 舊有 Phase 1 至 Phase 7、Phase App 與 Allocation 文件保留為歷史開發紀錄。新工作一律使用本文件的 Milestone 命名，避免同時維護兩套進度語言。
 
@@ -80,9 +80,16 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 ### M1C Universal Add V1
 
+狀態：第一版完成（2026-08-20）。
+
 - 統一「一句話或手動輸入 -> Preview -> Confirm」。
-- AI 信心不足時只補缺少欄位。
+- AI 回報缺少必要欄位時，只展開需要補完的欄位；不建立 parser 未提供的 confidence 數值。
 - Confirm 需具備防重複送出行為。
+- 日常收支統一由 `/add` 新增；旅行支出維持旅行詳情內的獨立流程。
+- `POST /api/transactions` 以 optional `client_request_id` 支援順序與併發重送，帳戶餘額只異動一次。
+- 交易列表改為 cursor pagination，最近紀錄與月份查找每批 10 筆；月度分析以分頁方式取得完整月份資料。
+- 未刪除帳務資料不因列表分頁而刪除。軟刪除後 30 天僅代表符合永久清理資格，目前未宣稱已有自動 purge worker。
+- 本批部署順序固定為 Alembic migration `20260819_0010`、backend、frontend。
 
 ### M1D Home 與 Analysis V1
 
@@ -144,6 +151,7 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 - Backup、restore drill、migration forward／rollback、structured logging、rate limit、abuse protection、secret rotation、health checks。
 - Account deletion、Token revoke、Privacy Policy、Terms、data retention 與 App Privacy 申報。
+- 建立並驗證自動 purge、資料匯出與帳號刪除流程；在此之前 `purge_after` 只表示符合清理資格。
 - Release build 不得包含 dev auth。
 
 ## M9 Plus

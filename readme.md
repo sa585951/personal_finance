@@ -26,9 +26,11 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 
 ## 目前進度
 
-目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract、M1A Mobile UX Bug 第一輪與 M1B Trip Route 拆分第一版。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；目前進入 **M1C Universal Add V1**。M1A 已完成六個主要頁面的 390、430、768px overflow audit；M1B 已將旅行列表 `/trips` 與旅行詳情 `/trips/:tripId` 分開，並保留既有邀請流程。核心流程已可在本地與部署環境操作：
+目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract、M1A Mobile UX Bug 第一輪、M1B Trip Route 拆分第一版與 **M1C Universal Add V1**。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；下一批進入 M1D Home 與 Analysis V1。M1A 已完成六個主要頁面的 390、430、768px overflow audit；M1B 已將旅行列表 `/trips` 與旅行詳情 `/trips/:tripId` 分開；M1C 已建立 `/add` 統一新增入口與交易歷史分批載入。核心流程已可在本地與部署環境操作：
 
 - 日常收入 / 支出可記錄，並可連動帳戶餘額。
+- Web 日常收支新增已統一由 `/add` 處理，支援 AI Preview、缺少欄位補完、手動收入 / 支出與防重複送出。
+- 收支紀錄預設讀取最近 10 筆，可每次再載入 10 筆或依月份查找；月份摘要與付款來源分析仍取得完整月份資料。
 - 帳戶可依銀行、現金、信用卡、電子錢包、預付卡、投資、外部帳戶與其他類型管理，帳戶列表與交易帳戶選擇已依類型分組。
 - 帳戶互轉已支援同幣別與跨幣別轉帳；信用卡帳戶允許負數累積，其他帳戶仍保守限制不可為負數。
 - 投資類型目前用於資金分配與投入成本紀錄；Asset Allocation 已提供 Portfolio、Holding、投入成本、手動 Snapshot 與新增投入試算，仍不串接券商或即時行情。
@@ -579,9 +581,11 @@ Allocation 0：Asset Allocation Domain 定案。
 ### 封存與軟刪除
 
 1. 封存旅行會將 `trips.status` 改為 `archived`，資料仍保留，可解除封存。
-2. 刪除旅行目前採軟刪除，寫入 `deleted_at` 與 `purge_after`，預設保留 30 天。
+2. 刪除旅行與交易目前採軟刪除，會立即從一般查詢隱藏並寫入 `deleted_at` 與 `purge_after`。
 3. 軟刪除帳本可在旅行管理區復原。
 4. 刪除暫存區可執行永久刪除；此操作不可復原，正式產品流程仍建議保留二次確認。
+5. `purge_after` 代表刪除 30 天後符合永久清理資格；目前尚未確認有定期自動 purge worker，因此不可解讀為系統一定會在第 30 天自動清除。
+6. 未刪除的收入、支出、旅行與帳戶關聯資料會保留至使用者主動刪除；資料匯出、帳號刪除與正式 retention policy 排在 M8 Release Engineering。
 
 ## 技術棧
 
