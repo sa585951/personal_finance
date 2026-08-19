@@ -15,6 +15,7 @@ const AuthCallback = () => import("../views/AuthCallback.vue");
 const AccountSettings = () => import("../views/AccountSettings.vue");
 const AllocationOverview = () => import("../views/AllocationOverview.vue");
 const AllocationDetail = () => import("../views/AllocationDetail.vue");
+const UniversalAddView = () => import("../views/UniversalAddView.vue");
 
 const routes = [
   {
@@ -50,6 +51,12 @@ const routes = [
     path: "/transactions",
     name: "TransactionRecord",
     component: TransactionRecord,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/add",
+    name: "UniversalAdd",
+    component: UniversalAddView,
     meta: { requiresAuth: true },
   },
   {

@@ -12,7 +12,7 @@
       </button>
     </div>
     <form @submit.prevent="submitTransaction">
-      <label for="transactionDate">
+      <label v-if="shouldShowField('date')" for="transactionDate">
         日期
         <input
           type="date"
@@ -22,7 +22,7 @@
         />
       </label>
 
-      <label for="budgetCategory">
+      <label v-if="shouldShowField('budget_category')" for="budgetCategory">
         {{ categoryLabel }}
         <select
           id="budgetCategory"
@@ -40,7 +40,7 @@
         </select>
       </label>
 
-      <label for="transactionCategory">
+      <label v-if="shouldShowField('title')" for="transactionCategory">
         項目
         <input
           type="text"
@@ -51,7 +51,7 @@
         />
       </label>
 
-      <label for="transactionAmount">
+      <label v-if="shouldShowField('amount')" for="transactionAmount">
         金額
         <input
           type="number"
@@ -61,7 +61,7 @@
         />
       </label>
 
-      <label for="transactionAccountSearch">
+      <label v-if="shouldShowField('account_id')" for="transactionAccountSearch">
         搜尋帳戶
         <input
           type="search"
@@ -71,7 +71,7 @@
         />
       </label>
 
-      <label for="transactionAccount">
+      <label v-if="shouldShowField('account_id')" for="transactionAccount">
         帳戶
         <select id="transactionAccount" v-model="newTransaction.account_id">
           <option value="">不連動帳戶</option>
@@ -91,7 +91,7 @@
         </select>
       </label>
 
-      <label for="transactionDescription" class="full-row">
+      <label v-if="shouldShowField('description')" for="transactionDescription" class="full-row">
         備註
         <input
           type="text"
@@ -105,7 +105,7 @@
         <strong>{{ transactionPreview }}</strong>
       </div>
 
-      <div v-if="aiReview" class="ai-review full-row">
+      <div v-if="aiReview && mode === 'full'" class="ai-review full-row">
         <div class="ai-review-heading">
           <strong>AI 已套用，送出前請確認</strong>
           <span>{{ aiReview.type === "income" ? "收入" : "支出" }}</span>
@@ -129,7 +129,9 @@
 
       <p v-if="submitMessage" class="form-message full-row">{{ submitMessage }}</p>
 
-      <button type="submit">{{ submitButtonText }}</button>
+      <button type="submit" :disabled="isSubmitting">
+        {{ isSubmitting ? "儲存中" : submitButtonText }}
+      </button>
     </form>
   </div>
 </template>
@@ -154,6 +156,27 @@ export default {
       type: Object,
       default: null,
     },
+    mode: {
+      type: String,
+      default: "full",
+      validator: (value) => ["full", "preview"].includes(value),
+    },
+    missingFields: {
+      type: Array,
+      default: () => [],
+    },
+    expanded: {
+      type: Boolean,
+      default: false,
+    },
+    clientRequestId: {
+      type: String,
+      default: "",
+    },
+    submitLabel: {
+      type: String,
+      default: "",
+    },
   },
   emits: ["transaction-added", "transaction-updated", "edit-cancelled"],
   data() {
@@ -176,6 +199,7 @@ export default {
       submitMessage: "",
       accountSearchText: "",
       aiReview: null,
+      isSubmitting: false,
     };
   },
   computed: {
@@ -186,9 +210,13 @@ export default {
       if (this.isEditing) {
         return this.type === "income" ? "編輯收入" : "編輯支出";
       }
+      if (this.mode === "preview") {
+        return this.type === "income" ? "確認收入" : "確認支出";
+      }
       return this.type === "income" ? "新增收入" : "新增支出";
     },
     submitButtonText() {
+      if (this.submitLabel) return this.submitLabel;
       if (this.isEditing) {
         return this.type === "income" ? "更新收入" : "更新支出";
       }
@@ -287,6 +315,10 @@ export default {
     },
   },
   methods: {
+    shouldShowField(field) {
+      if (this.isEditing || this.mode === "full" || this.expanded) return true;
+      return this.missingFields.includes(field);
+    },
     accountTypeOrder(type) {
       const order = ["bank", "cash", "credit_card", "e_wallet", "prepaid_card", "investment", "external", "other"];
       const index = order.indexOf(type);
@@ -386,6 +418,8 @@ export default {
       this.aiReview = null;
     },
     async submitTransaction() {
+      if (this.isSubmitting) return;
+      this.isSubmitting = true;
       this.submitMessage = "";
       try {
         if (this.isEditing) {
@@ -400,10 +434,14 @@ export default {
           return;
         }
 
-        await apiClient.post(`/api/transactions`, this.transactionPayload());
+        const response = await apiClient.post(`/api/transactions`, this.transactionPayload());
 
         await this.fetchAssets();
-        this.$emit("transaction-added");
+        this.$emit("transaction-added", {
+          type: this.type,
+          transactionId: response.data?.data?.transaction_id || null,
+          replayed: response.data?.replayed === true,
+        });
         this.resetForm();
       } catch (error) {
         console.error(this.isEditing ? "更新失敗:" : "新增失敗:", error);
@@ -412,6 +450,8 @@ export default {
           error.response?.data?.message || "交易儲存失敗，請稍後再試。",
           "error"
         );
+      } finally {
+        this.isSubmitting = false;
       }
     },
     async fetchBudgetCategories() {
@@ -457,6 +497,9 @@ export default {
       return {
         ...this.newTransaction,
         original_currency: accountCurrency || this.newTransaction.original_currency || "TWD",
+        ...(this.isEditing || !this.clientRequestId
+          ? {}
+          : { client_request_id: this.clientRequestId }),
       };
     },
     findAccountIdByHint(accountHint, currencyHint = null) {

@@ -38,7 +38,7 @@
 
     <p v-if="errorMessage" class="parse-message error">{{ errorMessage }}</p>
 
-    <div v-if="parseResult" class="parse-result">
+    <div v-if="parseResult && !autoApply" class="parse-result">
       <div class="result-heading">
         <span>{{ resultTitle }}</span>
         <small>{{ sourceLabel }}</small>
@@ -105,8 +105,12 @@ export default {
       default: "expense",
       validator: (value) => ["expense", "income"].includes(value),
     },
+    autoApply: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ["apply-draft", "parsed"],
+  emits: ["apply-draft", "parsed", "parse-failed"],
   data() {
     return {
       text: "",
@@ -141,6 +145,12 @@ export default {
     },
     transaction() {
       return this.parseResult?.transaction || null;
+    },
+    parseErrors() {
+      return this.parseResult?.errors || [];
+    },
+    usableTransaction() {
+      return Boolean(this.transaction && this.parseErrors.length === 0);
     },
     missingFields() {
       return this.parseResult?.missing_fields || [];
@@ -196,10 +206,15 @@ export default {
         const responseData = response.data.data || {};
         this.parseResult = responseData.parse_result || null;
         this.parseEventId = responseData.parse_event_id || "";
-        if (this.transaction) {
+        if (this.usableTransaction) {
           this.text = "";
+          if (this.autoApply) {
+            this.applyResult();
+          }
+        } else {
+          this.$emit("parse-failed", this.resultMessage);
         }
-        this.$emit("parsed");
+        this.$emit("parsed", this.parseResult);
       } catch (error) {
         console.error("AI 解析失敗", error);
         this.errorMessage = error.response?.data?.message || "解析失敗，請稍後再試。";
@@ -208,12 +223,14 @@ export default {
       }
     },
     applyResult() {
-      if (!this.transaction) return;
+      if (!this.usableTransaction) return;
       this.hasAppliedResult = true;
       this.$emit("apply-draft", {
         ...this.transaction,
         raw_text: this.parseResult.raw_text,
         parse_event_id: this.parseEventId,
+        missing_fields: this.missingFields,
+        errors: this.parseErrors,
       });
     },
   },
