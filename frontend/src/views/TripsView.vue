@@ -141,199 +141,33 @@
           @update-new-member="newMember = { ...newMember, ...$event }"
         />
 
-        <div
+        <TripExpensePanel
           v-if="canCreateTripTransaction"
-          class="expense-section app-panel"
-          :class="{ active: activeSection === 'expense' }"
-        >
-          <div class="section-title">
-            <Money />
-            <h3>新增旅行支出</h3>
-          </div>
-          <form class="expense-form" @submit.prevent="addTripExpense">
-            <label>
-              品項
-              <input v-model.trim="newExpense.item" type="text" required placeholder="拉麵" />
-            </label>
-            <label>
-              金額
-              <input v-model.number="newExpense.amount" type="number" min="1" step="1" required />
-            </label>
-            <div class="quick-currency-row full-row">
-              <button
-                v-for="currency in quickCurrencies"
-                :key="currency"
-                type="button"
-                :class="{ active: newExpense.original_currency === currency }"
-                @click="newExpense.original_currency = currency"
-              >
-                {{ currency }}
-              </button>
-            </div>
-            <label>
-              類別
-              <select v-model="newExpense.budget_category" required>
-                <option v-for="category in expenseCategories" :key="category" :value="category">
-                  {{ category }}
-                </option>
-              </select>
-            </label>
-            <label>
-              付款人
-              <select v-model="newExpense.paid_by_member_id">
-                <option
-                  v-for="member in selectedTrip.members"
-                  :key="member.id"
-                  :value="member.id"
-                >
-                  {{ member.display_name }}
-                </option>
-              </select>
-            </label>
-            <label class="full-row">
-              搜尋付款帳戶
-              <input
-                v-model.trim="tripAccountSearchText"
-                type="search"
-                placeholder="輸入銀行、信用卡、現金或帳戶名稱"
-                :disabled="!isCurrentUserPayer"
-              />
-            </label>
-            <label class="full-row">
-              付款帳戶
-              <select v-model="newExpense.account_id" :disabled="!isCurrentUserPayer">
-                <option value="">不連動帳戶</option>
-                <optgroup
-                  v-for="group in groupedTripAccounts"
-                  :key="group.type"
-                  :label="group.label"
-                >
-                  <option
-                    v-for="account in group.accounts"
-                    :key="account.id"
-                    :value="account.id"
-                  >
-                    {{ account.label }}
-                  </option>
-                </optgroup>
-              </select>
-            </label>
-            <p v-if="!isCurrentUserPayer" class="account-link-hint full-row">
-              只有自己付款時才會連動帳戶。其他旅伴墊款會進入分帳結算，不會異動你的帳戶餘額。
-            </p>
-            <div v-if="expensePreview" class="expense-preview full-row">
-              <div>
-                <span>約略本幣</span>
-                <strong>{{ expensePreview.convertedText }}</strong>
-              </div>
-              <div>
-                <span>帳戶扣款</span>
-                <strong>{{ expensePreview.accountDebitText }}</strong>
-              </div>
-            </div>
-            <div class="split-box full-row">
-              <div class="split-header">
-                <span>分帳方式</span>
-                <div class="split-mode-tabs">
-                  <button
-                    type="button"
-                    :class="{ active: newExpense.split_mode === 'equal' }"
-                    @click="setSplitMode('equal')"
-                  >
-                    均分
-                  </button>
-                  <button
-                    type="button"
-                    :class="{ active: newExpense.split_mode === 'custom' }"
-                    @click="setSplitMode('custom')"
-                  >
-                    自訂
-                  </button>
-                </div>
-              </div>
-
-              <template v-if="newExpense.split_mode === 'equal'">
-                <button class="split-member-toggle" type="button" @click="showSplitMemberOptions = !showSplitMemberOptions">
-                  <span>{{ splitMemberSummary }}</span>
-                  <strong>{{ showSplitMemberOptions ? "收合" : "調整" }}</strong>
-                </button>
-                <div v-if="showSplitMemberOptions" class="split-member-options">
-                  <label
-                    v-for="member in selectedTrip.members"
-                    :key="member.id"
-                    class="split-option"
-                  >
-                    <input v-model="newExpense.split_member_ids" type="checkbox" :value="member.id" />
-                    {{ member.display_name }}
-                  </label>
-                </div>
-              </template>
-
-              <div v-else class="custom-split-list">
-                <label
-                  v-for="member in selectedTrip.members"
-                  :key="member.id"
-                  class="custom-split-row"
-                >
-                  <span>{{ member.display_name }}</span>
-                  <input
-                    v-model.number="newExpense.split_allocations[member.id]"
-                    type="number"
-                    min="0"
-                    step="1"
-                  />
-                </label>
-                <div class="custom-split-summary" :class="{ invalid: customSplitDifference !== 0 }">
-                  <span>合計 {{ formatMoney(customSplitTotal, newExpense.original_currency) }}</span>
-                  <strong>
-                    {{ customSplitDifference === 0 ? "已平衡" : `差額 ${formatMoney(customSplitDifference, newExpense.original_currency)}` }}
-                  </strong>
-                </div>
-              </div>
-            </div>
-            <button class="advanced-toggle full-row" type="button" @click="showExpenseAdvanced = !showExpenseAdvanced">
-              {{ showExpenseAdvanced ? "收合進階設定" : "進階設定" }}
-            </button>
-            <div v-if="showExpenseAdvanced" class="advanced-expense-grid full-row">
-              <label>
-                日期
-                <input v-model="newExpense.date" type="date" required />
-              </label>
-              <label>
-                店家
-                <input v-model.trim="newExpense.merchant" type="text" placeholder="一蘭" />
-              </label>
-              <label>
-                匯率
-                <input v-model.number="newExpense.exchange_rate" type="number" min="0.00000001" step="0.00000001" required />
-              </label>
-              <label>
-                備註
-                <input v-model.trim="newExpense.description" type="text" placeholder="可留空" />
-              </label>
-              <label>
-                確認狀態
-                <select v-model="newExpense.review_status">
-                  <option value="confirmed">已確認</option>
-                  <option value="pending">待確認</option>
-                </select>
-              </label>
-            </div>
-            <button
-              v-if="editingTransactionId"
-              class="quiet-action full-row"
-              type="button"
-              @click="cancelEditExpense"
-            >
-              取消編輯
-            </button>
-            <button class="primary-action full-row" type="submit" :disabled="submittingExpense">
-              <Plus />
-              {{ editingTransactionId ? "更新支出" : "新增支出" }}
-            </button>
-          </form>
-          <p v-if="expenseMessage" class="status-message">{{ expenseMessage }}</p>
-        </div>
+          v-show="activeSection === 'expense'"
+          :expense="newExpense"
+          :quick-currencies="quickCurrencies"
+          :expense-categories="expenseCategories"
+          :members="selectedTrip.members"
+          :account-search-text="tripAccountSearchText"
+          :grouped-accounts="groupedTripAccounts"
+          :is-current-user-payer="isCurrentUserPayer"
+          :expense-preview="expensePreview"
+          :split-member-summary="splitMemberSummary"
+          :custom-split-total="customSplitTotal"
+          :custom-split-difference="customSplitDifference"
+          :show-member-options="showSplitMemberOptions"
+          :show-advanced="showExpenseAdvanced"
+          :editing-transaction-id="editingTransactionId || ''"
+          :submitting="submittingExpense"
+          :message="expenseMessage"
+          @update-expense="newExpense = { ...newExpense, ...$event }"
+          @update-account-search="tripAccountSearchText = $event"
+          @set-split-mode="setSplitMode"
+          @toggle-member-options="showSplitMemberOptions = !showSplitMemberOptions"
+          @toggle-advanced="showExpenseAdvanced = !showExpenseAdvanced"
+          @cancel-edit="cancelEditExpense"
+          @submit="addTripExpense"
+        />
 
         <TripTransactionsPanel
           v-show="activeSection === 'transactions'"
@@ -390,8 +224,9 @@
 </template>
 
 <script>
-import { Calendar, List, Location, Money, Plus, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
+import { Calendar, List, Location, Money, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
 import apiClient from "@/api";
+import TripExpensePanel from "@/components/trips/TripExpensePanel.vue";
 import TripManagementPanel from "@/components/trips/TripManagementPanel.vue";
 import TripMembersPanel from "@/components/trips/TripMembersPanel.vue";
 import TripSettlementPanel from "@/components/trips/TripSettlementPanel.vue";
@@ -407,9 +242,9 @@ export default {
     List,
     Location,
     Money,
-    Plus,
     Refresh,
     TrendCharts,
+    TripExpensePanel,
     TripManagementPanel,
     TripMembersPanel,
     TripSettlementPanel,
@@ -1981,7 +1816,6 @@ export default {
 
 .trips-header,
 .trip-hero,
-.section-title,
 .metric-item {
   display: flex;
   align-items: center;
@@ -2023,8 +1857,7 @@ h1 {
 .icon-button,
 .primary-action,
 .secondary-action,
-.quiet-action,
-.danger-action {
+.quiet-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2048,12 +1881,6 @@ h1 {
   padding: 16px;
 }
 
-.section-title {
-  gap: 8px;
-  margin-bottom: 14px;
-  color: #334155;
-}
-
 :deep(.swal-copy-textarea) {
   width: 100%;
   min-height: 180px;
@@ -2067,64 +1894,12 @@ h1 {
   resize: vertical;
 }
 
-.section-title svg,
 .metric-item svg,
 .primary-action svg,
 .secondary-action svg,
 .icon-button svg {
   width: 18px;
   height: 18px;
-}
-
-.expense-form {
-  display: grid;
-  gap: 12px;
-}
-
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  color: #475569;
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-input,
-select {
-  box-sizing: border-box;
-  min-height: 42px;
-  min-width: 0;
-  max-width: 100%;
-  width: 100%;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: #fff;
-  color: #111827;
-  font-size: 1rem;
-}
-
-input[type="date"] {
-  appearance: none;
-  -webkit-appearance: none;
-  line-height: 1.2;
-}
-
-input[type="date"]::-webkit-date-and-time-value {
-  min-height: 1.2em;
-  text-align: left;
-}
-
-input[type="date"]::-webkit-calendar-picker-indicator {
-  margin: 0;
-}
-
-select:disabled {
-  cursor: not-allowed;
-  color: #94a3b8;
-  background: #f1f5f9;
 }
 
 .primary-action {
@@ -2141,11 +1916,6 @@ select:disabled {
   background: #e2e8f0;
 }
 
-.danger-action {
-  background: #dc2626;
-}
-
-.status-message,
 .loading-state,
 .empty-state {
   margin: 12px 0 0;
@@ -2371,242 +2141,13 @@ select:disabled {
   display: block;
 }
 
-.expense-form {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.full-row {
-  grid-column: 1 / -1;
-}
-
-.quick-currency-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.quick-currency-row button,
-.advanced-toggle {
-  min-height: 38px;
-  padding: 0 12px;
-  color: #475569;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  box-shadow: none;
-}
-
-.quick-currency-row button.active {
-  color: #ffffff;
-  background: #0f766e;
-  border-color: #0f766e;
-}
-
-.advanced-toggle {
-  width: 100%;
-  color: #334155;
-  background: #e2e8f0;
-  font-weight: 800;
-}
-
-.advanced-expense-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.split-box {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  color: #475569;
-  font-weight: 700;
-}
-
-.account-link-hint {
-  margin: -4px 0 0;
-  padding: 10px 12px;
-  color: #475569;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 0.88rem;
-  font-weight: 700;
-}
-
-.split-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-}
-
-.split-mode-tabs {
-  display: inline-grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  padding: 4px;
-  background: #e2e8f0;
-  border-radius: 8px;
-}
-
-.split-mode-tabs button {
-  min-height: 34px;
-  padding: 0 12px;
-  color: #475569;
-  background: transparent;
-  border-radius: 6px;
-  box-shadow: none;
-}
-
-.split-mode-tabs button.active {
-  color: #0f766e;
-  background: #ffffff;
-}
-
-.split-member-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  min-height: 40px;
-  padding: 0 12px;
-  color: #334155;
-  text-align: left;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  box-shadow: none;
-}
-
-.split-member-toggle span,
-.split-member-toggle strong {
-  font-size: 0.88rem;
-  font-weight: 800;
-}
-
-.split-member-toggle strong {
-  color: #0f766e;
-}
-
-.split-member-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  width: 100%;
-}
-
-.custom-split-list {
-  display: grid;
-  gap: 8px;
-  width: 100%;
-}
-
-.custom-split-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 140px;
-  align-items: center;
-  min-height: 44px;
-  padding: 8px 10px;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-}
-
-.custom-split-row input {
-  min-height: 38px;
-}
-
-.custom-split-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  color: #0f766e;
-  background: #ecfdf5;
-  border: 1px solid #99f6e4;
-  border-radius: 8px;
-}
-
-.custom-split-summary.invalid {
-  color: #b91c1c;
-  background: #fef2f2;
-  border-color: #fecaca;
-}
-
-.expense-preview {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.expense-preview > div {
-  display: grid;
-  gap: 4px;
-  min-height: 64px;
-  padding: 12px;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
-  border-radius: 8px;
-}
-
-.expense-preview span {
-  color: #0f766e;
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.expense-preview strong {
-  color: #134e4a;
-  font-size: 1rem;
-  line-height: 1.35;
-}
-
-.split-option {
-  flex-direction: row;
-  align-items: center;
-  width: auto;
-  min-height: 34px;
-  padding: 6px 10px;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-weight: 600;
-}
-
-.split-option input {
-  width: 16px;
-  min-height: 16px;
-}
-
-.split-option:has(input:checked) {
-  color: #0f766e;
-  background: #ecfdf5;
-  border-color: #99f6e4;
-}
-
 @media (max-width: 820px) {
   .trips-page {
     padding: 18px 12px calc(var(--app-bottom-nav-height) + 22px);
   }
 
   .trips-layout,
-  .metric-grid,
-  .expense-form,
-  .advanced-expense-grid,
-  .expense-preview {
+  .metric-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2650,21 +2191,6 @@ select:disabled {
     min-height: 50px;
     padding: 4px 2px;
     font-size: 0.78rem;
-  }
-
-  .split-header,
-  .custom-split-summary {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .split-mode-tabs,
-  .custom-split-row {
-    width: 100%;
-  }
-
-  .custom-split-row {
-    grid-template-columns: 1fr;
   }
 
 }
