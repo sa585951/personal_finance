@@ -106,7 +106,7 @@
                 編輯帳戶
               </button>
               <button class="update-btn" @click="promptUpdate(account)">
-                更新餘額
+                校正餘額
               </button>
               <button class="delete-btn" @click="promptDelete(account.key)">
                 刪除
@@ -149,17 +149,7 @@
                   </select>
                 </div>
               </div>
-              <div class="field">
-                <label :for="`account-balance-${account.key}`">目前餘額</label>
-                <input
-                  :id="`account-balance-${account.key}`"
-                  v-model.number="editDraft.balance"
-                  type="number"
-                  :min="editDraft.account_type === 'credit_card' ? null : 0"
-                  step="1"
-                  required
-                />
-              </div>
+              <p class="edit-hint">餘額請使用「校正餘額」，系統會保留校正紀錄。</p>
               <div class="edit-actions">
                 <button class="update-btn" type="submit">儲存</button>
                 <button class="cancel-btn" type="button" @click="cancelEdit">取消</button>
@@ -228,7 +218,7 @@ export default {
   emits: [
     "delete-account",
     "request-account-activity",
-    "update-balance",
+    "adjust-balance",
     "update-account",
     "edit-transfer",
     "delete-transfer",
@@ -247,7 +237,6 @@ export default {
         bank_name: "",
         account_type: "bank",
         currency: "TWD",
-        balance: 0,
       },
       currencies: ["TWD", "JPY", "KRW", "USD", "EUR"],
       accountTypes: [
@@ -380,7 +369,6 @@ export default {
         bank_name: account.asset.bank_name || "",
         account_type: account.asset.account_type || "bank",
         currency: account.asset.currency || "TWD",
-        balance: Number(account.asset.balance || 0),
       };
     },
     cancelEdit() {
@@ -391,37 +379,63 @@ export default {
         this.$swal.fire("欄位未完整", "請輸入帳戶名稱。", "warning");
         return;
       }
-      if (
-        this.editDraft.balance === null
-        || (this.editDraft.balance < 0 && this.editDraft.account_type !== "credit_card")
-      ) {
-        this.$swal.fire("金額錯誤", "只有信用卡餘額可為負數。", "warning");
-        return;
-      }
       this.$emit("update-account", accountId, { ...this.editDraft });
       this.editingAccountId = "";
     },
     async promptUpdate(account) {
-      const { value: newBalance } = await this.$swal.fire({
-        title: "更新餘額",
+      const requestId = globalThis.crypto?.randomUUID?.();
+      const { value: adjustment } = await this.$swal.fire({
+        title: "校正帳戶餘額",
         input: "number",
-        inputLabel: "請輸入新的餘額：",
+        inputLabel: `目前餘額：${this.formatMoney(account.asset.balance, account.asset.currency)}`,
         inputValue: account.asset.balance,
+        inputAttributes: {
+          step: "0.01",
+          ...(account.asset.account_type === "credit_card" ? {} : { min: "0" }),
+        },
+        html: `
+          <div class="balance-adjustment-fields">
+            <label for="balance-adjustment-reason">校正原因</label>
+            <select id="balance-adjustment-reason" class="swal2-select">
+              <option value="statement_reconciliation">與帳單或實際餘額核對</option>
+              <option value="balance_correction">修正先前輸入</option>
+              <option value="opening_balance">補登期初餘額</option>
+              <option value="other">其他</option>
+            </select>
+            <label for="balance-adjustment-note">備註（選填）</label>
+            <textarea id="balance-adjustment-note" class="swal2-textarea" maxlength="500" placeholder="例如：依 8 月銀行帳單校正"></textarea>
+            <p class="balance-adjustment-hint">校正只調整帳戶餘額，不會列入收入或支出。</p>
+          </div>
+        `,
         showCancelButton: true,
-        confirmButtonText: "確定",
+        confirmButtonText: "確認校正",
         cancelButtonText: "取消",
-        inputValidator: (value) => {
+        preConfirm: (value) => {
           if (value === "" || isNaN(value)) {
-            return "請輸入有效的數字金額。";
+            this.$swal.showValidationMessage("請輸入有效的數字金額。");
+            return false;
           }
           if (parseFloat(value) < 0 && account.asset.account_type !== "credit_card") {
-            return "只有信用卡餘額可為負數。";
+            this.$swal.showValidationMessage("只有信用卡餘額可為負數。");
+            return false;
           }
+          if (parseFloat(value) === Number(account.asset.balance || 0)) {
+            this.$swal.showValidationMessage("新餘額與目前相同，無需校正。");
+            return false;
+          }
+          const reason = document.getElementById("balance-adjustment-reason")?.value;
+          const note = document.getElementById("balance-adjustment-note")?.value?.trim();
+          return {
+            new_balance: parseFloat(value),
+            reason,
+            note: note || null,
+            client_request_id: requestId || null,
+          };
         },
       });
 
-      if (newBalance !== undefined) {
-        this.$emit("update-balance", account.key, parseFloat(newBalance));
+      if (adjustment) {
+        this.$emit("adjust-balance", account.key, adjustment);
       }
     },
     async promptDelete(accountId) {
@@ -786,6 +800,40 @@ export default {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.edit-hint {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.86rem;
+}
+
+:global(.balance-adjustment-fields) {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  text-align: left;
+}
+
+:global(.balance-adjustment-fields label) {
+  color: #475569;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+:global(.balance-adjustment-fields .swal2-select),
+:global(.balance-adjustment-fields .swal2-textarea) {
+  width: 100%;
+  margin: 0;
+}
+
+:global(.balance-adjustment-hint) {
+  margin: 2px 0 0;
+  color: #64748b;
+  font-size: 0.82rem;
 }
 
 .edit-btn {

@@ -145,6 +145,8 @@ class FakeAssetManager:
         self.update_payload = None
         self.update_transfer_payload = None
         self.deleted_transfer = None
+        self.adjustment_payload = None
+        self.adjustment_list_request = None
 
     def update_account(self, user_id, account_key, **changes):
         self.update_payload = {
@@ -197,6 +199,43 @@ class FakeAssetManager:
                 "note": "定期定額",
             }
         ]
+
+    def create_balance_adjustment(
+        self,
+        user_id,
+        account_key,
+        new_balance,
+        reason,
+        note=None,
+        client_request_id=None,
+    ):
+        self.adjustment_payload = {
+            "user_id": user_id,
+            "account_key": account_key,
+            "new_balance": new_balance,
+            "reason": reason,
+            "note": note,
+            "client_request_id": client_request_id,
+        }
+        return {
+            "id": "adjustment-1",
+            "account_id": account_key,
+            "amount_delta": 500,
+            "balance_before": 1000,
+            "balance_after": 1500,
+            "reason": reason,
+            "note": note,
+            "adjusted_at": "2026-08-20T12:00:00+00:00",
+            "replayed": client_request_id == "44444444-4444-4444-4444-444444444444",
+        }
+
+    def get_account_adjustments(self, user_id, account_key, limit=10):
+        self.adjustment_list_request = {
+            "user_id": user_id,
+            "account_key": account_key,
+            "limit": limit,
+        }
+        return [{"id": "adjustment-1", "balance_after": 1500}]
 
 
 class FakeAuthSessionManager:
@@ -662,6 +701,80 @@ def test_update_asset_api_accepts_account_profile_changes(monkeypatch):
         "balance": 30000,
     }
     assert fake_db_session.commits == 1
+
+
+def test_create_asset_adjustment_api_records_reason_and_commits(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_asset_manager = FakeAssetManager()
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "asset_manager", fake_asset_manager)
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().post(
+        "/api/assets/account-1/adjustments",
+        json={
+            "new_balance": 1500,
+            "reason": "statement_reconciliation",
+            "note": "依帳單核對",
+            "client_request_id": "33333333-3333-3333-3333-333333333333",
+        },
+        headers=_auth_headers(),
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 201
+    assert payload["success"] is True
+    assert payload["replayed"] is False
+    assert fake_asset_manager.adjustment_payload == {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "account_key": "account-1",
+        "new_balance": 1500,
+        "reason": "statement_reconciliation",
+        "note": "依帳單核對",
+        "client_request_id": "33333333-3333-3333-3333-333333333333",
+    }
+    assert fake_db_session.commits == 1
+
+
+def test_create_asset_adjustment_api_returns_replayed_result(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_asset_manager = FakeAssetManager()
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "asset_manager", fake_asset_manager)
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().post(
+        "/api/assets/account-1/adjustments",
+        json={
+            "new_balance": 1500,
+            "reason": "balance_correction",
+            "client_request_id": "44444444-4444-4444-4444-444444444444",
+        },
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["replayed"] is True
+    assert fake_db_session.commits == 1
+
+
+def test_get_asset_adjustments_api_is_scoped_to_account(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_asset_manager = FakeAssetManager()
+    monkeypatch.setattr(web_app, "asset_manager", fake_asset_manager)
+
+    response = web_app.app.test_client().get(
+        "/api/assets/account-1/adjustments?limit=5",
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["data"] == [{"id": "adjustment-1", "balance_after": 1500}]
+    assert fake_asset_manager.adjustment_list_request == {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "account_key": "account-1",
+        "limit": "5",
+    }
 
 
 def test_transfer_api_passes_allocation_note(monkeypatch):

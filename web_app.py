@@ -477,6 +477,54 @@ def get_asset_activity(current_user_id, account_key):
         app.logger.error(f"Error in get_asset_activity: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
 
+@app.route("/api/assets/<string:account_key>/adjustments", methods=["GET"])
+@token_required
+def get_asset_adjustments(current_user_id, account_key):
+    try:
+        adjustments = asset_manager.get_account_adjustments(
+            current_user_id,
+            account_key,
+            limit=request.args.get("limit", 10),
+        )
+        return jsonify({"success": True, "data": adjustments}), 200
+    except ValueError as e:
+        return jsonify({"success": False, "message": str(e)}), 404
+    except Exception as e:
+        app.logger.error(f"Error in get_asset_adjustments: {e}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
+@app.route("/api/assets/<string:account_key>/adjustments", methods=["POST"])
+@token_required
+def create_asset_adjustment(current_user_id, account_key):
+    data = request.get_json(silent=True) or {}
+    if "new_balance" not in data or not data.get("reason"):
+        return jsonify({"success": False, "message": "缺少新餘額或校正原因"}), 400
+
+    try:
+        adjustment = asset_manager.create_balance_adjustment(
+            current_user_id,
+            account_key,
+            data["new_balance"],
+            reason=data["reason"],
+            note=data.get("note"),
+            client_request_id=data.get("client_request_id"),
+        )
+        db_session.commit()
+        replayed = adjustment.pop("replayed", False)
+        return jsonify({
+            "success": True,
+            "message": "餘額已校正",
+            "data": adjustment,
+            "replayed": replayed,
+        }), 200 if replayed else 201
+    except ValueError as e:
+        db_session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in create_asset_adjustment: {e}")
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+
 @app.route("/api/assets/<string:account_key>", methods=["DELETE"])
 @token_required
 def delete_asset(current_user_id, account_key):

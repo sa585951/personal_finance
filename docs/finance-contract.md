@@ -7,7 +7,7 @@
 - 適用端：Web、LINE、未來 iOS 與後端 API
 - 目的：固定 Nomica 的財務語意、統計口徑與帳戶 ownership 邊界
 
-本文件同時描述「現行已實作行為」與「M3 Ledger Correctness 目標」。標記為 M3 的內容不是目前產品已具備的能力。
+本文件同時描述「現行已實作行為」與「M3 Ledger Correctness 目標」。M3A／M3B 已完成第一版；Settlement Account Entry 與完整 reconciliation 仍是後續目標。
 
 ## 核心不變條件
 
@@ -92,7 +92,7 @@ Income / Expense = 0
 - Income transaction。
 - Transfer source／target。
 - M3 Settlement account entry。
-- M3 Adjustment。
+- Adjustment（M3B 已完成）。
 
 Account Movement 與月報分類是兩套不同維度。
 
@@ -100,16 +100,16 @@ Account Movement 與月報分類是兩套不同維度。
 
 使用者為了讓 Nomica 餘額與實際帳戶一致所做的校正。
 
-- M0 現況：`update_balance`／`adjust_asset_balance` 直接更新 `accounts.balance`，尚無獨立 ledger record。
-- M3 目標：建立 `account_adjustments`，保存 delta、原因與時間，再於同一 DB transaction 更新快照。
+- M3B 現況：帳戶餘額校正會建立 `account_adjustments`，保存 delta、校正前後餘額、原因與時間，再於同一 DB transaction 更新 `accounts.balance`。
+- 舊的 `update_balance`／`adjust_asset_balance` 相容入口也會導向 Adjustment，不再直接覆寫快照。
 - Adjustment 永遠不計入 Income／Expense。
 
 ### Balance Anchor
 
 某一時間點經確認的帳戶餘額基準。
 
-- M0 現況：尚無 Anchor table，`accounts.balance` 是目前餘額快照。
-- M3 目標：以最新 Anchor 加總 Anchor 後 movements，得到 Expected Balance。
+- M3A 現況：新帳戶會建立初始 Anchor；既有追蹤餘額帳戶由 migration 以當前快照建立 `migration` Anchor。
+- Anchor 前的歷史 movement 不回推；完整 Expected Balance 計算仍待 M3C／M3D 補齊 movement 與 reconciliation。
 
 ## 帳戶 movement 符號
 
@@ -121,7 +121,7 @@ Account Movement 與月報分類是兩套不同維度。
 | Transfer 目標 | `+target_amount` |
 | Settlement incoming（M3） | `+amount` |
 | Settlement outgoing（M3） | `-amount` |
-| Adjustment（M3） | `amount_delta` |
+| Adjustment（M3B 已完成） | `amount_delta` |
 
 信用卡帳戶允許負數；其他帳戶依目前規則不得因一般支出或轉帳變成負數。
 
@@ -155,13 +155,13 @@ Daily Expense = type=expense、trip_id IS NULL 的 converted_amount
 
 ## Balance Contract
 
-### M0 現況
+### M3A／M3B 現況
 
-`accounts.balance` 是可直接讀取與更新的目前快照。交易與 Transfer 在同一應用層操作中同步更新此欄位；Group Settlement 不更新帳戶。
+`accounts.balance` 仍是可直接讀取的目前快照。交易與 Transfer 在同一應用層操作中同步更新此欄位；Group Settlement 不更新帳戶。
 
-目前尚不能只靠完整歷史資料可靠重算所有舊帳戶，因為使用者可以直接改餘額，而且沒有 Adjustment ledger。
+使用者校正餘額時必須建立 Adjustment，且新帳戶與既有追蹤帳戶已有 Anchor。現階段仍不能只靠完整歷史資料可靠重算所有帳戶，因為交易、Transfer 與 Settlement 尚未全部收斂為可統一重播的 movement ledger。
 
-### M3 目標
+### 完整 M3 目標
 
 ```text
 Expected Balance
@@ -208,7 +208,7 @@ Expected Balance
 | 我替四人刷 12,000、平均分攤 | 我的帳戶 `-12,000` | 我的 Expense `+3,000` | 已完成，需選擇納入月報 |
 | 朋友還我 9,000，只確認群組結算 | `0` | Income／Expense `0` | M0 現況 |
 | 朋友還我 9,000 並由我入帳 | 收款帳戶 `+9,000` | Income／Expense `0` | M3 目標 |
-| 手動校正 +500 | 帳戶 `+500` | Income／Expense `0` | 現況直接改快照；M3 補 Adjustment |
+| 手動校正 +500 | 帳戶 `+500` | Income／Expense `0` | M3B 已完成（Adjustment） |
 
 ## API 與 UI 用詞
 
@@ -218,6 +218,6 @@ Expected Balance
 - 信用卡繳款入口應導向帳戶互轉，不建立新的 Expense。
 - LINE Shared Expense 未來必須經過 Parse、Preview、Confirm、Commit，不可直接 auto-commit。
 
-## M0 邊界
+## 實作邊界
 
-本輪不新增 Anchor、Adjustment 或 Settlement Account Entry schema，也不改現有 API response。M0 只建立共同語言與 characterization tests；資料遷移與 ledger 實作留在 M3。
+M0 已建立共同語言與 characterization tests；M3A／M3B 已新增 Anchor、Adjustment、API 與帳戶校正 UI。Settlement Account Entry、Expected Balance CLI、完整 reconciliation 與 legacy schema 收斂仍留在 M3C 至 M3E。

@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, func, select
 
 from models.schema import (
+    account_adjustments_table,
+    account_balance_anchors_table,
     accounts_table,
     ai_parse_events_table,
     budgets_table,
@@ -118,6 +120,14 @@ def test_mvp_schema_can_create_core_records():
         created_jpy_account = asset_manager.find_asset_by_name(user_id, "日幣旅費")
         assert created_jpy_account["currency"] == "JPY"
         assert created_jpy_account["balance"] == 30000
+        created_anchor = connection.execute(
+            select(account_balance_anchors_table).where(
+                account_balance_anchors_table.c.account_id == uuid.UUID(created_jpy_account["id"])
+            )
+        ).first()
+        assert created_anchor is not None
+        assert created_anchor.balance == Decimal("30000.0000")
+        assert created_anchor.source == "account_created"
 
         connection.execute(
             accounts_table.insert(),
@@ -440,7 +450,7 @@ def test_mvp_schema_can_create_core_records():
         ).scalar_one()
         assert source_balance_after_daily_expense == Decimal("9880.0000")
 
-        # Finance Contract: 手動校正只改帳戶快照，不建立收入或支出。
+        # Finance Contract: 手動校正留下 Adjustment，但不建立收入或支出。
         transaction_count_before_adjustment = connection.execute(
             select(func.count()).select_from(transactions_table)
         ).scalar_one()
@@ -453,6 +463,48 @@ def test_mvp_schema_can_create_core_records():
             select(func.count()).select_from(transactions_table)
         ).scalar_one()
         assert transaction_count_after_adjustment == transaction_count_before_adjustment
+        adjustment_rows = connection.execute(
+            select(account_adjustments_table)
+            .where(account_adjustments_table.c.account_id == source_account_id)
+            .order_by(account_adjustments_table.c.adjusted_at)
+        ).all()
+        assert len(adjustment_rows) == 2
+        assert adjustment_rows[0].amount_delta == Decimal("500.0000")
+        assert adjustment_rows[0].balance_before == Decimal("9880.0000")
+        assert adjustment_rows[0].balance_after == Decimal("10380.0000")
+        assert adjustment_rows[1].amount_delta == Decimal("-500.0000")
+
+        adjustment_request_id = uuid.uuid4()
+        first_adjustment = asset_manager.create_balance_adjustment(
+            user_id,
+            source_account_id,
+            Decimal("9900"),
+            reason="statement_reconciliation",
+            note="依帳單核對",
+            client_request_id=adjustment_request_id,
+        )
+        replayed_adjustment = asset_manager.create_balance_adjustment(
+            user_id,
+            source_account_id,
+            Decimal("12000"),
+            reason="statement_reconciliation",
+            client_request_id=adjustment_request_id,
+        )
+        assert first_adjustment["replayed"] is False
+        assert replayed_adjustment["replayed"] is True
+        assert replayed_adjustment["id"] == first_adjustment["id"]
+        assert connection.execute(
+            select(accounts_table.c.balance).where(accounts_table.c.id == source_account_id)
+        ).scalar_one() == Decimal("9900.0000")
+        asset_manager.update_balance(user_id, source_account_id, Decimal("9880"))
+        adjustment_activity = asset_manager.get_account_activity(
+            user_id,
+            source_account_id,
+            activity_filter="adjustment",
+        )
+        assert adjustment_activity["items"][0]["type"] == "adjustment"
+        assert adjustment_activity["items"][0]["balance_after"] == 9880
+        assert adjustment_activity["pagination"]["filter"] == "adjustment"
 
         # Finance Contract: 信用卡還款是帳戶互轉，不是第二筆支出。
         success, message = asset_manager.add_account(

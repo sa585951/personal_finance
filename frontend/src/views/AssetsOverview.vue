@@ -91,7 +91,7 @@
         @delete-account="deleteAccount"
         @request-account-activity="fetchAccountActivity"
         @update-account="updateAccount"
-        @update-balance="updateBalance"
+        @adjust-balance="adjustBalance"
         @edit-transfer="startTransferEdit"
         @delete-transfer="deleteTransfer"
         @edit-transaction="openTransactionEdit"
@@ -423,18 +423,31 @@ export default {
         console.error("刪除失敗", err);
       }
     },
-    async updateBalance(accountId, newBalance) {
-      if (newBalance === null || newBalance === undefined) {
+    async adjustBalance(accountId, adjustment) {
+      if (!adjustment || adjustment.new_balance === null || adjustment.new_balance === undefined) {
         return;
       }
 
       try {
-        await apiClient.put(`/api/assets/${accountId}`, {
-          new_balance: newBalance,
-        });
+        const activityRequest = this.accountActivityRequests[accountId] || {
+          page: 1,
+          filter: "all",
+        };
+        await apiClient.post(`/api/assets/${accountId}/adjustments`, adjustment);
         await this.fetchAssets();
+        await this.fetchAccountActivity(
+          accountId,
+          activityRequest.page || 1,
+          activityRequest.filter || "all"
+        );
+        this.$swal.fire("校正完成", "帳戶餘額已更新，且不會列入收入或支出。", "success");
       } catch (err) {
-        console.error("更新失敗", err);
+        console.error("校正失敗", err);
+        this.$swal.fire(
+          "校正失敗",
+          err.response?.data?.message || "請稍後再試。",
+          "error"
+        );
       }
     },
     async updateAccount(accountId, payload) {
@@ -443,7 +456,6 @@ export default {
           bank_name: payload.bank_name,
           account_type: payload.account_type,
           currency: payload.currency,
-          balance: payload.balance,
         });
         await this.fetchAssets();
       } catch (err) {

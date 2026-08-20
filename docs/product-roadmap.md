@@ -4,8 +4,8 @@
 
 - Roadmap 版本：M0 至 M9
 - 生效日期：2026-08-17
-- 目前 Milestone：M2 PWA Alpha
-- 下一個工作批次：M2 Alpha 驗收腳本與小規模使用者測試
+- 目前 Milestone：M3 Ledger Correctness（M2 PWA Alpha 外部實測並行等待）
+- 下一個工作批次：M3C Settlement Account Entry
 
 舊有 Phase 1 至 Phase 7、Phase App 與 Allocation 文件保留為歷史開發紀錄。新工作一律使用本文件的 Milestone 命名，避免同時維護兩套進度語言。
 
@@ -107,18 +107,25 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 ## M2 PWA Alpha
 
+狀態：測試計畫與驗收門檻已就緒（2026-08-20），等待 5 至 10 位非開發者實測。
+
 - 以 5 至 10 位非開發者驗證登入、第一帳戶、第一交易、旅行、邀請、shared expense、share、group settlement 與個人月報。
 - 此時 Settlement 仍為 group-only；UI 不得暗示會自動異動私人帳戶。
 - Alpha 後只修高頻阻塞，不立即擴充功能。
+- 第一輪採主持人觀察與匿名回饋表，不接第三方 analytics SDK；詳細流程與通過門檻見 `docs/m2-pwa-alpha-plan.md`。
+- M2 通過代表核心操作可供 Alpha 使用，不代表財務 reconciliation、留存或市場驗證完成。
 
 ## M3 Ledger Correctness
 
-- M3A：`account_balance_anchors`。
-- M3B：`account_adjustments`，手動校正不算收入支出。
+狀態：M3A／M3B 第一版完成（2026-08-20）；M3C 至 M3E 尚未開始。
+
+- M3A：`account_balance_anchors`。已為新帳戶建立初始 anchor，migration 也會以既有快照回填 legacy anchor，不猜測 anchor 前的歷史 movement。
+- M3B：`account_adjustments`。帳戶餘額校正會保存調整前後金額、delta、原因與時間，並與 `accounts.balance` 在同一 DB transaction 更新；Adjustment 不算收入支出。
 - M3C：`settlement_account_entries`，群組結算與私人帳戶 posting 分離並具冪等性。
 - M3D：CLI reconciliation tool，比對 Expected Balance 與 stored balance。
 - M3E：legacy goals 與舊 schema 使用情況收斂。
 - 月報不得把 Settlement、Transfer、Adjustment 算成收入支出。
+- M3A／M3B 不等於完整 reconciliation；交易與轉帳 movement 尚未統一成可完整重播的 ledger，現階段不得宣稱可由全歷史可靠重算所有帳戶。
 
 ## M4 Travel Product
 

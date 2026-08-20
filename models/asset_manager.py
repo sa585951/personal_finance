@@ -1,12 +1,14 @@
 import re
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
 from sqlalchemy import desc, insert, or_, select, update
 
 from config import DEFAULT_CURRENCY
 from .schema import (
+    account_adjustments_table,
+    account_balance_anchors_table,
     accounts_table,
     categories_table,
     holding_cost_entries_table,
@@ -61,6 +63,12 @@ GENERIC_ACCOUNT_WORDS = [
     "券商",
     "卡",
 ]
+ADJUSTMENT_REASONS = {
+    "balance_correction",
+    "statement_reconciliation",
+    "opening_balance",
+    "other",
+}
 
 
 class AssetManager:
@@ -81,6 +89,15 @@ class AssetManager:
             raise ValueError("不支援的帳戶幣別")
         return normalized_currency
 
+    def _normalize_balance_value(self, value):
+        try:
+            parsed_value = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError("餘額格式不正確") from exc
+        if not parsed_value.is_finite():
+            raise ValueError("餘額格式不正確")
+        return parsed_value
+
     def _allows_negative_balance(self, account_or_type):
         account_type = account_or_type.get("type") if isinstance(account_or_type, dict) else account_or_type
         return account_type == "credit_card"
@@ -94,12 +111,14 @@ class AssetManager:
     def _parse_user_id(self, user_id):
         return self._parse_uuid(user_id, "user_id")
 
-    def _get_account(self, user_id, account_id):
+    def _get_account(self, user_id, account_id, for_update=False):
         stmt = select(accounts_table).where(
             accounts_table.c.user_id == self._parse_user_id(user_id),
             accounts_table.c.id == self._parse_uuid(account_id),
             accounts_table.c.deleted_at.is_(None),
         )
+        if for_update:
+            stmt = stmt.with_for_update()
         row = self.db_session.execute(stmt).first()
         return dict(row._mapping) if row else None
 
@@ -231,19 +250,30 @@ class AssetManager:
     def add_account(self, user_id, bank_name, account_type, balance, currency=None):
         """新增帳戶。"""
         normalized_type = self._normalize_account_type(account_type)
-        account_balance = Decimal(str(balance))
+        account_balance = self._normalize_balance_value(balance)
         if account_balance < 0 and not self._allows_negative_balance(normalized_type):
             return False, "餘額不能為負數"
 
+        parsed_user_id = self._parse_user_id(user_id)
+        normalized_currency = self._normalize_currency(currency)
         stmt = insert(accounts_table).values(
-            user_id=self._parse_user_id(user_id),
+            user_id=parsed_user_id,
             name=bank_name,
             type=normalized_type,
-            currency=self._normalize_currency(currency),
+            currency=normalized_currency,
             track_balance=True,
             balance=account_balance,
+        ).returning(accounts_table.c.id)
+        account_id = self.db_session.execute(stmt).scalar_one()
+        self.db_session.execute(
+            insert(account_balance_anchors_table).values(
+                user_id=parsed_user_id,
+                account_id=account_id,
+                balance=account_balance,
+                currency=normalized_currency,
+                source="account_created",
+            )
         )
-        self.db_session.execute(stmt)
         return True, "成功新增帳戶"
 
     def adjust_asset_balance(self, user_id, account_key, amount_change):
@@ -258,31 +288,182 @@ class AssetManager:
         if new_balance < 0 and not self._allows_negative_balance(account):
             raise ValueError("餘額不能為負數")
 
-        self.db_session.execute(
-            update(accounts_table)
-            .where(accounts_table.c.id == account["id"])
-            .values(balance=new_balance, updated_at=datetime.now(timezone.utc))
+        self.create_balance_adjustment(
+            user_id,
+            account_key,
+            new_balance,
+            reason="balance_correction",
         )
         return True, "餘額調整成功"
 
     def update_balance(self, user_id, account_key, new_balance):
-        """更新指定帳戶餘額。"""
-        account = self._get_account(user_id, account_key)
+        """相容舊入口；手動更新現在一律留下 Adjustment。"""
+        try:
+            self.create_balance_adjustment(
+                user_id,
+                account_key,
+                new_balance,
+                reason="balance_correction",
+            )
+        except ValueError as exc:
+            if str(exc) == "餘額不能為負數":
+                return False, str(exc)
+            raise
+        return True, "餘額更新成功"
+
+    def create_balance_adjustment(
+        self,
+        user_id,
+        account_key,
+        new_balance,
+        reason,
+        note=None,
+        client_request_id=None,
+    ):
+        """以 append-only Adjustment 校正帳戶餘額快照。"""
+        parsed_user_id = self._parse_user_id(user_id)
+        parsed_account_id = self._parse_uuid(account_key)
+        parsed_client_request_id = (
+            self._parse_uuid(client_request_id, "client_request_id")
+            if client_request_id
+            else None
+        )
+        normalized_reason = str(reason or "").strip()
+        if normalized_reason not in ADJUSTMENT_REASONS:
+            raise ValueError("餘額校正原因不正確")
+        normalized_note = self._normalize_adjustment_note(note)
+
+        if parsed_client_request_id:
+            replayed = self._get_adjustment_by_request_id(parsed_user_id, parsed_client_request_id)
+            if replayed:
+                if replayed["account_id"] != str(parsed_account_id):
+                    raise ValueError("client_request_id 已用於其他帳戶")
+                replayed["replayed"] = True
+                return replayed
+
+        account = self._get_account(parsed_user_id, account_key, for_update=True)
         if not account:
             raise ValueError("找不到此帳戶或權限不足")
         if not account["track_balance"]:
             raise ValueError("此帳戶未啟用餘額追蹤")
 
-        parsed_balance = Decimal(str(new_balance))
-        if parsed_balance < 0 and not self._allows_negative_balance(account):
-            return False, "餘額不能為負數"
+        if parsed_client_request_id:
+            replayed = self._get_adjustment_by_request_id(parsed_user_id, parsed_client_request_id)
+            if replayed:
+                if replayed["account_id"] != str(parsed_account_id):
+                    raise ValueError("client_request_id 已用於其他帳戶")
+                replayed["replayed"] = True
+                return replayed
 
+        balance_before = Decimal(str(account["balance"] or 0))
+        balance_after = self._normalize_balance_value(new_balance)
+        if balance_after < 0 and not self._allows_negative_balance(account):
+            raise ValueError("餘額不能為負數")
+        amount_delta = balance_after - balance_before
+        if amount_delta == 0:
+            raise ValueError("新餘額與目前相同，無需校正")
+
+        now = datetime.now(timezone.utc)
+        self._ensure_balance_anchor(account, anchored_at=now)
+        adjustment_id = self.db_session.execute(
+            insert(account_adjustments_table)
+            .values(
+                user_id=parsed_user_id,
+                account_id=account["id"],
+                client_request_id=parsed_client_request_id,
+                amount_delta=amount_delta,
+                balance_before=balance_before,
+                balance_after=balance_after,
+                reason=normalized_reason,
+                note=normalized_note,
+                adjusted_at=now,
+            )
+            .returning(account_adjustments_table.c.id)
+        ).scalar_one()
         self.db_session.execute(
             update(accounts_table)
             .where(accounts_table.c.id == account["id"])
-            .values(balance=parsed_balance, updated_at=datetime.now(timezone.utc))
+            .values(balance=balance_after, updated_at=now)
         )
-        return True, "餘額更新成功"
+        adjustment = self._get_adjustment(parsed_user_id, adjustment_id)
+        adjustment["replayed"] = False
+        return adjustment
+
+    def get_account_adjustments(self, user_id, account_key, limit=10):
+        account = self._get_account(user_id, account_key)
+        if not account:
+            raise ValueError("找不到此帳戶或權限不足")
+        parsed_limit = self._normalize_limit(limit)
+        stmt = (
+            select(account_adjustments_table)
+            .where(
+                account_adjustments_table.c.user_id == self._parse_user_id(user_id),
+                account_adjustments_table.c.account_id == account["id"],
+            )
+            .order_by(
+                desc(account_adjustments_table.c.adjusted_at),
+                desc(account_adjustments_table.c.created_at),
+            )
+            .limit(parsed_limit)
+        )
+        return [self._serialize_adjustment(dict(row._mapping)) for row in self.db_session.execute(stmt)]
+
+    def _ensure_balance_anchor(self, account, anchored_at):
+        existing_anchor = self.db_session.execute(
+            select(account_balance_anchors_table.c.id)
+            .where(account_balance_anchors_table.c.account_id == account["id"])
+            .limit(1)
+        ).first()
+        if existing_anchor:
+            return
+        self.db_session.execute(
+            insert(account_balance_anchors_table).values(
+                user_id=account["user_id"],
+                account_id=account["id"],
+                balance=Decimal(str(account["balance"] or 0)),
+                currency=account["currency"],
+                source="user_confirmed",
+                anchored_at=anchored_at,
+            )
+        )
+
+    def _get_adjustment(self, user_id, adjustment_id):
+        row = self.db_session.execute(
+            select(account_adjustments_table).where(
+                account_adjustments_table.c.user_id == user_id,
+                account_adjustments_table.c.id == adjustment_id,
+            )
+        ).first()
+        if not row:
+            raise ValueError("找不到餘額校正紀錄")
+        return self._serialize_adjustment(dict(row._mapping))
+
+    def _get_adjustment_by_request_id(self, user_id, client_request_id):
+        row = self.db_session.execute(
+            select(account_adjustments_table).where(
+                account_adjustments_table.c.user_id == user_id,
+                account_adjustments_table.c.client_request_id == client_request_id,
+            )
+        ).first()
+        return self._serialize_adjustment(dict(row._mapping)) if row else None
+
+    def _serialize_adjustment(self, adjustment):
+        return {
+            "id": str(adjustment["id"]),
+            "account_id": str(adjustment["account_id"]),
+            "amount_delta": float(adjustment["amount_delta"]),
+            "balance_before": float(adjustment["balance_before"]),
+            "balance_after": float(adjustment["balance_after"]),
+            "reason": adjustment["reason"],
+            "note": adjustment["note"],
+            "adjusted_at": adjustment["adjusted_at"].isoformat(),
+        }
+
+    def _normalize_adjustment_note(self, note):
+        normalized = str(note or "").strip()
+        if not normalized:
+            return None
+        return normalized[:500]
 
     def update_account(self, user_id, account_key, **changes):
         """更新帳戶基本資料。"""
@@ -305,25 +486,26 @@ class AssetManager:
         if "currency" in changes:
             values["currency"] = self._normalize_currency(changes.get("currency"))
 
+        balance_was_provided = "balance" in changes or "new_balance" in changes
         balance_value = changes.get("balance", changes.get("new_balance"))
-        if "balance" in changes or "new_balance" in changes:
-            if not account["track_balance"]:
-                raise ValueError("此帳戶未啟用餘額追蹤")
-            parsed_balance = Decimal(str(balance_value))
-            effective_type = values.get("type", account["type"])
-            if parsed_balance < 0 and not self._allows_negative_balance(effective_type):
-                return False, "餘額不能為負數"
-            values["balance"] = parsed_balance
 
-        if not values:
+        if not values and not balance_was_provided:
             return False, "沒有可更新的欄位"
 
-        values["updated_at"] = datetime.now(timezone.utc)
-        self.db_session.execute(
-            update(accounts_table)
-            .where(accounts_table.c.id == account["id"])
-            .values(**values)
-        )
+        if values:
+            values["updated_at"] = datetime.now(timezone.utc)
+            self.db_session.execute(
+                update(accounts_table)
+                .where(accounts_table.c.id == account["id"])
+                .values(**values)
+            )
+        if balance_was_provided and self._normalize_balance_value(balance_value) != Decimal(str(account["balance"] or 0)):
+            self.create_balance_adjustment(
+                user_id,
+                account_key,
+                balance_value,
+                reason="balance_correction",
+            )
         return True, "帳戶更新成功"
 
     def delete_account(self, user_id, account_key):
@@ -569,9 +751,9 @@ class AssetManager:
         return transfers
 
     def get_account_activity(self, user_id, account_key, limit=10, page=1, activity_filter="all"):
-        """取得單一帳戶近期收支與轉帳活動。"""
+        """取得單一帳戶近期收支、轉帳與餘額校正活動。"""
         normalized_filter = (activity_filter or "all").strip().lower()
-        if normalized_filter not in {"all", "income", "expense", "transfer"}:
+        if normalized_filter not in {"all", "income", "expense", "transfer", "adjustment"}:
             raise ValueError("無效的活動篩選條件")
 
         account = self._get_account(user_id, account_key)
@@ -646,9 +828,21 @@ class AssetManager:
             .order_by(desc(transfers_table.c.transfer_date), desc(transfers_table.c.created_at))
             .limit(fetch_limit)
         )
+        adjustment_stmt = (
+            select(account_adjustments_table)
+            .where(
+                account_adjustments_table.c.user_id == parsed_user_id,
+                account_adjustments_table.c.account_id == account_id,
+            )
+            .order_by(
+                desc(account_adjustments_table.c.adjusted_at),
+                desc(account_adjustments_table.c.created_at),
+            )
+            .limit(fetch_limit)
+        )
 
         activities = []
-        if normalized_filter != "transfer":
+        if normalized_filter not in {"transfer", "adjustment"}:
             for row in self.db_session.execute(transaction_stmt):
                 transaction = dict(row._mapping)
                 can_manage = False
@@ -671,7 +865,7 @@ class AssetManager:
                     "can_delete": can_manage,
                 })
 
-        if normalized_filter not in {"income", "expense"}:
+        if normalized_filter in {"all", "transfer"}:
             for row in self.db_session.execute(transfer_stmt):
                 transfer = dict(row._mapping)
                 direction = "out" if transfer["source_account_id"] == account_id else "in"
@@ -694,6 +888,23 @@ class AssetManager:
                     "date": transfer["activity_date"].isoformat(),
                     "created_at": transfer["created_at"].isoformat() if transfer["created_at"] else None,
                     "note": transfer["note"],
+                })
+
+        if normalized_filter in {"all", "adjustment"}:
+            for row in self.db_session.execute(adjustment_stmt):
+                adjustment = dict(row._mapping)
+                activities.append({
+                    "id": str(adjustment["id"]),
+                    "type": "adjustment",
+                    "amount": float(adjustment["amount_delta"]),
+                    "amount_delta": float(adjustment["amount_delta"]),
+                    "balance_before": float(adjustment["balance_before"]),
+                    "balance_after": float(adjustment["balance_after"]),
+                    "currency": account["currency"],
+                    "reason": adjustment["reason"],
+                    "note": adjustment["note"],
+                    "date": adjustment["adjusted_at"].date().isoformat(),
+                    "created_at": adjustment["created_at"].isoformat(),
                 })
 
         sorted_activities = sorted(

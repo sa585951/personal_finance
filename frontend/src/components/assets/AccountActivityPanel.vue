@@ -2,7 +2,7 @@
   <section class="account-activity">
     <div class="activity-heading">
       <strong>近期活動</strong>
-      <small>核對支出、收入與帳戶互轉</small>
+      <small>核對收支、轉帳與餘額校正</small>
     </div>
     <div class="activity-filters" aria-label="帳戶活動篩選">
       <button
@@ -132,6 +132,7 @@ export default {
         { value: "income", label: "收入" },
         { value: "expense", label: "支出" },
         { value: "transfer", label: "轉帳" },
+        { value: "adjustment", label: "校正" },
       ];
     },
     emptyMessage() {
@@ -139,6 +140,7 @@ export default {
         income: "這個帳戶目前沒有收入紀錄，可用來核對薪資、退款或入帳。",
         expense: "這個帳戶目前沒有支出紀錄，可用來核對信用卡或付款帳戶。",
         transfer: "這個帳戶目前沒有轉帳紀錄，可用來核對儲蓄、投資或帳戶間資金流向。",
+        adjustment: "這個帳戶目前沒有餘額校正紀錄。",
       };
       return messageMap[this.activeFilter] || "這個帳戶目前沒有近期活動。";
     },
@@ -181,11 +183,25 @@ export default {
           ? `轉出至 ${activity.target_name}`
           : `由 ${activity.source_name} 轉入`;
       }
+      if (activity.type === "adjustment") {
+        return "餘額校正";
+      }
       return activity.title || activity.budget_category || "未命名交易";
     },
     activitySubtitle(activity) {
       if (activity.type === "transfer") {
         return activity.note || "帳戶互轉";
+      }
+      if (activity.type === "adjustment") {
+        const reasonMap = {
+          statement_reconciliation: "與帳單或實際餘額核對",
+          balance_correction: "修正先前輸入",
+          opening_balance: "補登期初餘額",
+          other: "其他校正",
+        };
+        const reason = reasonMap[activity.reason] || "手動校正";
+        const balanceChange = `${this.formatMoney(activity.balance_before, activity.currency)} → ${this.formatMoney(activity.balance_after, activity.currency)}`;
+        return [reason, balanceChange, activity.note].filter(Boolean).join(" · ");
       }
       return activity.merchant || activity.description || activity.budget_category || "一般收支";
     },
@@ -193,17 +209,23 @@ export default {
       if (activity.type === "transfer") {
         return activity.direction === "out" ? "轉出" : "轉入";
       }
+      if (activity.type === "adjustment") {
+        return "不計入收支";
+      }
       return activity.transaction_type === "income" ? "收入" : "支出";
     },
     activityAmountClass(activity) {
       if (activity.type === "transfer") {
         return activity.direction === "out" ? "negative" : "positive";
       }
+      if (activity.type === "adjustment") {
+        return Number(activity.amount_delta || 0) >= 0 ? "positive" : "negative";
+      }
       return activity.transaction_type === "income" ? "positive" : "negative";
     },
     activityAmountText(activity) {
       const sign = this.activityAmountClass(activity) === "positive" ? "+" : "-";
-      return `${sign}${this.formatMoney(activity.amount, activity.currency)}`;
+      return `${sign}${this.formatMoney(Math.abs(activity.amount), activity.currency)}`;
     },
     formatMoney(amount, currency = "TWD") {
       const minorUnit = ["TWD", "JPY", "KRW"].includes(currency) ? 0 : 2;
@@ -240,7 +262,7 @@ export default {
 
 .activity-filters {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
   background: #f1f5f9;

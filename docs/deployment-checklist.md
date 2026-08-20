@@ -1,16 +1,16 @@
 # Deployment Checklist
 
-此文件整理 Phase 5 staging / friend test 部署前需要設定的環境變數、資料庫重建方向與部署後檢查項目。
+此文件整理 M2 PWA Alpha / friend test 部署前需要設定的環境變數、資料庫 migration 方向與部署後檢查項目。
 
 ## Deployment Goal
 
 目前建議先做：
 
-> Phase 5 staging deployment / friend test
+> M2 PWA Alpha deployment / friend test
 
-也就是部署給自己與少數朋友測真實 LINE Login、邀請連結、多人旅行帳本與分帳流程。
+也就是部署給自己與 5 至 10 位非開發者測真實 LINE Login、日常記帳、邀請連結、多人旅行帳本與分帳流程。
 
-目前不建議直接視為正式 production release。
+目前不建議直接視為正式 production release。實際測試流程與通過門檻見 `docs/m2-pwa-alpha-plan.md`。
 
 ## URL Rules
 
@@ -203,6 +203,14 @@ PostgreSQL connection string
 ```bash
 DATABASE_URL="你的 Supabase connection string" .venv/bin/alembic upgrade head
 ```
+
+M3A／M3B 部署包含 migration `20260820_0011`。部署順序必須是：
+
+1. 備份資料庫並執行 Alembic migration。
+2. 部署 backend，確認 Balance Anchor／Adjustment API 可用。
+3. 部署 frontend，才開放「校正餘額」入口。
+
+此 migration 只為既有追蹤餘額帳戶建立當前快照 Anchor，不會改寫帳戶餘額，也不會猜測或重播 Anchor 前的歷史交易。
 
 因為目前 schema 已大改，且舊 production 資料你已表示可刪，建議策略是：
 

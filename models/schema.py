@@ -115,6 +115,50 @@ accounts_table = Table(
 )
 
 
+account_balance_anchors_table = Table(
+    "account_balance_anchors",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False),
+    Column("account_id", UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=False),
+    Column("balance", AMOUNT, nullable=False),
+    Column("currency", String(3), ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False),
+    Column("source", String(30), nullable=False),
+    Column("anchored_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    CheckConstraint(
+        "source in ('account_created', 'migration', 'user_confirmed')",
+        name="ck_account_balance_anchors_source",
+    ),
+)
+
+
+account_adjustments_table = Table(
+    "account_adjustments",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False),
+    Column("account_id", UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=False),
+    Column("client_request_id", UUID(as_uuid=True)),
+    Column("amount_delta", AMOUNT, nullable=False),
+    Column("balance_before", AMOUNT, nullable=False),
+    Column("balance_after", AMOUNT, nullable=False),
+    Column("reason", String(40), nullable=False),
+    Column("note", Text),
+    Column("adjusted_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    CheckConstraint("amount_delta <> 0", name="ck_account_adjustments_non_zero"),
+    CheckConstraint(
+        "balance_after = balance_before + amount_delta",
+        name="ck_account_adjustments_balance_math",
+    ),
+    CheckConstraint(
+        "reason in ('balance_correction', 'statement_reconciliation', 'opening_balance', 'other')",
+        name="ck_account_adjustments_reason",
+    ),
+)
+
+
 categories_table = Table(
     "categories",
     metadata,
@@ -498,6 +542,23 @@ attachments_table = Table(
 
 Index("ix_user_identities_user_id", user_identities_table.c.user_id)
 Index("ix_accounts_user_id", accounts_table.c.user_id)
+Index(
+    "ix_account_balance_anchors_account_date",
+    account_balance_anchors_table.c.account_id,
+    account_balance_anchors_table.c.anchored_at,
+)
+Index(
+    "ix_account_adjustments_account_date",
+    account_adjustments_table.c.account_id,
+    account_adjustments_table.c.adjusted_at,
+)
+Index(
+    "uq_account_adjustments_user_client_request_id",
+    account_adjustments_table.c.user_id,
+    account_adjustments_table.c.client_request_id,
+    unique=True,
+    postgresql_where=account_adjustments_table.c.client_request_id.isnot(None),
+)
 Index("ix_categories_user_parent_kind_scope_code", categories_table.c.user_id, categories_table.c.parent_id, categories_table.c.kind, categories_table.c.scope, categories_table.c.code)
 Index("ix_trips_owner_status", trips_table.c.owner_user_id, trips_table.c.status)
 Index("ix_trip_members_trip_status", trip_members_table.c.trip_id, trip_members_table.c.status)

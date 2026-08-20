@@ -26,7 +26,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 
 ## 目前進度
 
-目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract 與 **M1 Minimum Product UX** 第一輪。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；M1A 已完成主要頁面的 390、430、768px overflow audit，M1B 已拆分旅行列表與詳情，M1C 已建立 Universal Add 與交易歷史分批載入，M1D 已完成首頁瘦身與 `/analysis` 分析整合。下一階段進入 M2 PWA Alpha 驗收準備。核心流程已可在本地與部署環境操作：
+目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract 與 **M1 Minimum Product UX** 第一輪。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；M1A 已完成主要頁面的 390、430、768px overflow audit，M1B 已拆分旅行列表與詳情，M1C 已建立 Universal Add 與交易歷史分批載入，M1D 已完成首頁瘦身與 `/analysis` 分析整合。M2 PWA Alpha 的測試流程與驗收門檻已建立，外部實測仍待執行；M3A／M3B 已完成 Balance Anchor 與 Adjustment 第一版，下一個工程批次為 M3C Settlement Account Entry。核心流程已可在本地與部署環境操作：
 
 - 日常收入 / 支出可記錄，並可連動帳戶餘額。
 - Web 日常收支新增已統一由 `/add` 處理，支援 AI Preview、缺少欄位補完、手動收入 / 支出與防重複送出。
@@ -35,6 +35,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - 底部導覽已收斂為首頁、紀錄、旅行、分析、帳戶；日常新增由首頁與紀錄頁標題列的「記一筆」進入 `/add`，不在其他頁面顯示浮動按鈕。
 - 帳戶可依銀行、現金、信用卡、電子錢包、預付卡、投資、外部帳戶與其他類型管理，帳戶列表與交易帳戶選擇已依類型分組。
 - 帳戶互轉已支援同幣別與跨幣別轉帳；信用卡帳戶允許負數累積，其他帳戶仍保守限制不可為負數。
+- 帳戶餘額改以「校正餘額」處理；每次校正保留調整前後金額、delta、原因與時間，並顯示於帳戶活動，但不計入收入或支出。
 - 投資類型目前用於資金分配與投入成本紀錄；Asset Allocation 已提供 Portfolio、Holding、投入成本、手動 Snapshot 與新增投入試算，仍不串接券商或即時行情。
 - 旅行帳本可建立、切換、封存、軟刪除、復原，並支援每位登入成員自行決定是否納入個人月報。
 - 旅行支出可指定付款人、幣別、匯率與是否連動自己的帳戶。
@@ -53,7 +54,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - iOS 正式登入、Keychain session lifecycle、核心 CRUD 與 TestFlight；目前只有 read-only prototype。
 - 旅行分類預算與進階旅行報表。
 
-新的執行 Roadmap 見 `docs/product-roadmap.md`。舊 Phase 文件保留作為歷史紀錄，不再作為新工作的階段判定來源。
+新的執行 Roadmap 見 `docs/product-roadmap.md`，M2 實測方式見 `docs/m2-pwa-alpha-plan.md`。舊 Phase 文件保留作為歷史紀錄，不再作為新工作的階段判定來源。
 
 ## 為什麼要調整方向
 
@@ -153,7 +154,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - 查詢資產
 - 新增收入/支出流程
 - 新增帳戶流程
-- 更新餘額流程
+- 校正餘額流程
 - 轉帳流程
 - 設定預算流程
 
@@ -504,6 +505,8 @@ Allocation 0：Asset Allocation Domain 定案。
 | 產品定位收斂 | 完成 | 對外定位為整合記帳、帳戶、旅行與資產配置的個人財務工具；Personal Finance OS 作為長期內部願景 |
 | README 與方向文件 | 完成 | 已補目前進度、核心資料流與測試方式 |
 | M0 Finance Contract | 第一版完成 | 已固定 Payment、Expense、Settlement、Transfer、Adjustment、Balance 與 ownership 語意，建立安全的 Product Event Taxonomy；後端 102 tests 與前端 build 通過 |
+| M2 PWA Alpha | 準備完成 | 已建立 5 至 10 位非開發者的分段測試流程、成功門檻、問題分級與隱私邊界，等待實測 |
+| M3A / M3B Ledger Correctness | 第一版完成 | 已建立 Balance Anchor、Adjustment ledger、餘額校正 API / UI 與活動紀錄；完整 reconciliation 與 Settlement Account Entry 尚未完成 |
 | 新版 schema / Alembic | 完成 | 本地 migration 與 smoke test 可跑 |
 | Asset Allocation 1A | 完成 | 已建立 Portfolio、Holding、Recorded Cost 與 Snapshot schema / migration |
 | Asset Allocation 1B | 完成 | 已建立共用 Manager / API、ownership 與幣別驗證、轉帳成本分配、完整 Snapshot 與新增投入試算 |
@@ -693,6 +696,7 @@ Smoke test 會重建測試資料庫內的 schema，因此必須使用 `TEST_DATA
 - 新增旅行支出，並驗證只有自己付款時才可連動自己的帳戶。
 - 平均分攤與自訂分攤。
 - 日常支出、收入與刪除收入後的帳戶餘額回復。
+- 新帳戶與既有追蹤帳戶的 Balance Anchor，以及餘額校正 Adjustment 不重複套用且不產生收入／支出。
 - 預算已花費會依個人月報口徑計算。
 - 首頁與收支統計可包含「納入個人月報」的旅行分攤金額。
 - 建議結算、確認結算與撤銷結算。
