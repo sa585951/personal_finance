@@ -26,11 +26,13 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 
 ## 目前進度
 
-目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract、M1A Mobile UX Bug 第一輪、M1B Trip Route 拆分第一版與 **M1C Universal Add V1**。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；下一批進入 M1D Home 與 Analysis V1。M1A 已完成六個主要頁面的 390、430、768px overflow audit；M1B 已將旅行列表 `/trips` 與旅行詳情 `/trips/:tripId` 分開；M1C 已建立 `/add` 統一新增入口與交易歷史分批載入。核心流程已可在本地與部署環境操作：
+目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract 與 **M1 Minimum Product UX** 第一輪。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；M1A 已完成主要頁面的 390、430、768px overflow audit，M1B 已拆分旅行列表與詳情，M1C 已建立 Universal Add 與交易歷史分批載入，M1D 已完成首頁瘦身與 `/analysis` 分析整合。下一階段進入 M2 PWA Alpha 驗收準備。核心流程已可在本地與部署環境操作：
 
 - 日常收入 / 支出可記錄，並可連動帳戶餘額。
 - Web 日常收支新增已統一由 `/add` 處理，支援 AI Preview、缺少欄位補完、手動收入 / 支出與防重複送出。
 - 收支紀錄預設讀取最近 10 筆，可每次再載入 10 筆或依月份查找；月份摘要與付款來源分析仍取得完整月份資料。
+- 首頁只保留本月狀態與跨模組 Insights；紀錄頁專注查找、編輯與刪除，分類、趨勢、資金來源、預算與旅行摘要集中到 `/analysis`。
+- 底部導覽已收斂為首頁、紀錄、旅行、分析、帳戶；日常新增由首頁與紀錄頁標題列的「記一筆」進入 `/add`，不在其他頁面顯示浮動按鈕。
 - 帳戶可依銀行、現金、信用卡、電子錢包、預付卡、投資、外部帳戶與其他類型管理，帳戶列表與交易帳戶選擇已依類型分組。
 - 帳戶互轉已支援同幣別與跨幣別轉帳；信用卡帳戶允許負數累積，其他帳戶仍保守限制不可為負數。
 - 投資類型目前用於資金分配與投入成本紀錄；Asset Allocation 已提供 Portfolio、Holding、投入成本、手動 Snapshot 與新增投入試算，仍不串接券商或即時行情。

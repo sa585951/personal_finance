@@ -3,7 +3,7 @@
     <div class="card-header">
       <div>
         <h3 class="card-title">分類比例</h3>
-        <p>{{ currentMonth }} 支出類別分布</p>
+        <p>{{ effectiveMonth }} 支出類別分布</p>
       </div>
     </div>
     <div class="card-body">
@@ -36,9 +36,18 @@ export default {
   components: {
     Doughnut,
   },
+  props: {
+    month: {
+      type: String,
+      default: "",
+    },
+    transactions: {
+      type: Array,
+      default: null,
+    },
+  },
   data() {
     return {
-      currentMonth: new Date().toISOString().slice(0, 7),
       chartData: {
         labels: [],
         datasets: []
@@ -69,14 +78,52 @@ export default {
     };
   },
   computed: {
+    effectiveMonth() {
+      return this.month || new Date().toISOString().slice(0, 7);
+    },
     hasData() {
       return this.chartData.labels && this.chartData.labels.length > 0;
     }
   },
+  watch: {
+    effectiveMonth() {
+      this.fetchChartData();
+    },
+    transactions: {
+      deep: true,
+      handler() {
+        this.fetchChartData();
+      },
+    },
+  },
   methods: {
     async fetchChartData() {
+      if (Array.isArray(this.transactions)) {
+        const totals = this.transactions
+          .filter((transaction) => (
+            transaction.type === "expense"
+            && String(transaction.date || "").startsWith(this.effectiveMonth)
+          ))
+          .reduce((result, transaction) => {
+            const category = transaction.budget_category || "未分類";
+            result[category] = (result[category] || 0) + Number(
+              transaction.converted_amount ?? transaction.amount ?? 0
+            );
+            return result;
+          }, {});
+        const rows = Object.entries(totals).sort((left, right) => right[1] - left[1]);
+        const colors = ["#0f766e", "#2563eb", "#f59e0b", "#7c3aed", "#dc2626", "#64748b"];
+        this.chartData = {
+          labels: rows.map(([label]) => label),
+          datasets: [{
+            backgroundColor: rows.map((_, index) => colors[index % colors.length]),
+            data: rows.map(([, amount]) => amount),
+          }],
+        };
+        return;
+      }
       try {
-        const response = await apiClient.get(`/api/reports/monthly_expenses?month=${this.currentMonth}`);
+        const response = await apiClient.get(`/api/reports/monthly_expenses?month=${this.effectiveMonth}`);
         this.chartData = response.data.data;
       } catch (error) {
         console.error("無法載入圖表資料", error);

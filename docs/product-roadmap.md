@@ -4,8 +4,8 @@
 
 - Roadmap 版本：M0 至 M9
 - 生效日期：2026-08-17
-- 目前 Milestone：M1 Minimum Product UX
-- 下一個程式實作批次：M1D Home 與 Analysis V1
+- 目前 Milestone：M2 PWA Alpha
+- 下一個工作批次：M2 Alpha 驗收腳本與小規模使用者測試
 
 舊有 Phase 1 至 Phase 7、Phase App 與 Allocation 文件保留為歷史開發紀錄。新工作一律使用本文件的 Milestone 命名，避免同時維護兩套進度語言。
 
@@ -93,9 +93,17 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 ### M1D Home 與 Analysis V1
 
+狀態：第一版完成（2026-08-20）。
+
 - Home 只回答本月狀態、待處理事項與下一個動作。
 - `/analysis` 搬移既有 summary、category、trend、payment source、budget 與 basic trip summary。
 - Bottom Navigation：首頁、紀錄、旅行、分析、帳戶。
+- 首頁保留本月月報與 Nomica Insights；今日／本週摘要、旅行狀態與近期紀錄不再重複佔用首頁。
+- `/transactions` 只保留收入／支出紀錄、月份查找、分批載入、編輯與刪除。
+- `/analysis` 提供總覽、支出與資金來源三個檢視，月份與「含旅行／日常」口徑同步影響摘要、分類與預算狀態。
+- 預算與旅行在 Analysis 僅提供摘要與專頁入口，不取代原本管理頁。
+- 日常新增入口改放在首頁與紀錄頁標題列，移除會遮擋內容與帳號選單的全域浮動按鈕；旅行支出仍留在旅行詳情。
+- 本批只調整 frontend 資訊架構，沒有 migration 或後端財務計算異動。
 
 ## M2 PWA Alpha
 

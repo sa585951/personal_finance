@@ -1,8 +1,14 @@
 <template>
   <div class="home-screen">
     <header class="home-header">
-      <p class="eyebrow">Nomica</p>
-      <h1>今天的財務狀態</h1>
+      <div>
+        <p class="eyebrow">Nomica</p>
+        <h1>今天的財務狀態</h1>
+      </div>
+      <button type="button" class="page-add-button" @click="openUniversalAdd">
+        <Plus />
+        <span>記一筆</span>
+      </button>
     </header>
 
     <section class="monthly-overview-card" aria-label="本月月報">
@@ -101,93 +107,18 @@
       </div>
     </section>
 
-    <section class="daily-summary-panel" aria-label="今日與本週摘要">
-      <div class="section-heading">
-        <h2>今日 / 本週摘要</h2>
-        <span>{{ includeTripsInHome ? "含旅行" : "日常" }}</span>
-      </div>
-      <div class="daily-summary-grid">
-        <div class="summary-card today">
-          <span>今日支出</span>
-          <strong>{{ formatDisplayMoney(todayExpense) }}</strong>
-          <p>{{ todayExpense > 0 ? "今天已記錄的支出" : "今天還沒有支出紀錄" }}</p>
-        </div>
-        <div class="summary-card week">
-          <span>本週支出</span>
-          <strong>{{ formatDisplayMoney(weekExpense) }}</strong>
-          <p>{{ weekExpense > 0 ? "本週累計支出" : "本週還沒有支出紀錄" }}</p>
-        </div>
-      </div>
-      <router-link
-        v-if="!latestTransaction"
-        class="summary-empty-action"
-        to="/transactions?type=expense"
-      >
-        今天還沒有紀錄，先記一筆支出
-      </router-link>
-      <div v-else class="latest-summary">
-        <span>最近一筆</span>
-        <strong>
-          {{ latestTransaction.category || latestTransaction.budget_category || "未命名紀錄" }}
-          <small v-if="latestTransaction.trip_id">旅行</small>
-        </strong>
-        <p>
-          {{ formatShortDate(latestTransaction.date) }} ·
-          {{ latestTransaction.type === "income" ? "收入" : "支出" }}
-          {{ latestTransaction.type === "income" ? "+" : "-" }}{{ formatMoney(monthlyReportAmount(latestTransaction), latestTransaction.base_currency || "TWD") }}
-        </p>
-      </div>
-    </section>
-
-    <section class="status-panel">
-      <div class="section-heading">
-        <h2>旅行狀態</h2>
-        <router-link to="/trips">查看</router-link>
-      </div>
-      <div class="trip-status">
-        <span>進行中或已建立</span>
-        <strong>{{ activeTrips.length }} 個旅行帳本</strong>
-      </div>
-    </section>
-
-    <section class="recent-panel">
-      <div class="section-heading">
-        <h2>近期紀錄</h2>
-        <router-link to="/transactions">全部</router-link>
-      </div>
-      <div v-if="recentTransactions.length === 0" class="empty-state">尚無月報交易紀錄</div>
-      <div v-else class="recent-list">
-        <div
-          v-for="transaction in recentTransactions"
-          :key="transaction.id"
-          class="recent-row"
-        >
-          <div>
-            <strong>
-              {{ transaction.category }}
-              <span v-if="transaction.trip_id" class="scope-badge">旅行</span>
-            </strong>
-            <span>
-              {{ formatShortDate(transaction.date) }} · {{ transaction.budget_category }}
-              <template v-if="transaction.trip_id && transaction.currency !== transaction.base_currency">
-                · {{ formatMoney(transaction.amount, transaction.currency) }}
-              </template>
-            </span>
-          </div>
-          <strong :class="transaction.type === 'income' ? 'income' : 'expense'">
-            {{ transaction.type === "income" ? "+" : "-" }}{{ formatMoney(monthlyReportAmount(transaction), transaction.base_currency || "TWD") }}
-          </strong>
-        </div>
-      </div>
-    </section>
   </div>
 </template>
 
 <script>
 import apiClient from "@/api";
+import { Plus } from "@element-plus/icons-vue";
 
 export default {
   name: "HomeView",
+  components: {
+    Plus,
+  },
   data() {
     return {
       transactions: [],
@@ -277,36 +208,6 @@ export default {
     },
     activeTrips() {
       return this.trips.filter((trip) => trip.status === "active");
-    },
-    recentTransactions() {
-      return this.dashboardTransactions.slice(0, 5);
-    },
-    todayExpense() {
-      return this.dashboardTransactions
-        .filter((transaction) => (
-          transaction.type === "expense"
-          && this.transactionDateKey(transaction) === this.todayKey()
-        ))
-        .reduce((sum, transaction) => sum + this.monthlyReportAmount(transaction), 0);
-    },
-    weekExpense() {
-      const weekStart = this.weekStartKey();
-      const today = this.todayKey();
-      return this.dashboardTransactions
-        .filter((transaction) => {
-          const dateKey = this.transactionDateKey(transaction);
-          return transaction.type === "expense" && dateKey >= weekStart && dateKey <= today;
-        })
-        .reduce((sum, transaction) => sum + this.monthlyReportAmount(transaction), 0);
-    },
-    latestTransaction() {
-      return [...this.dashboardTransactions].sort((a, b) => {
-        const aCreated = a.created_at || "";
-        const bCreated = b.created_at || "";
-        const dateCompare = this.transactionDateKey(b).localeCompare(this.transactionDateKey(a));
-        if (dateCompare !== 0) return dateCompare;
-        return bCreated.localeCompare(aCreated);
-      })[0] || null;
     },
     totalOverspending() {
       return this.overspendingWarnings.reduce(
@@ -460,6 +361,12 @@ export default {
     },
   },
   methods: {
+    openUniversalAdd() {
+      this.$router.push({
+        name: "UniversalAdd",
+        state: { returnTo: this.$route.fullPath },
+      });
+    },
     async fetchDashboardData() {
       try {
         const response = await apiClient.get("/api/dashboard/overview");
@@ -525,23 +432,6 @@ export default {
     monthlyReportAmount(transaction) {
       return Number(transaction.converted_amount ?? transaction.amount ?? 0);
     },
-    dateKey(date) {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      return `${year}-${month}-${day}`;
-    },
-    todayKey() {
-      return this.dateKey(new Date());
-    },
-    weekStartKey() {
-      const today = new Date();
-      const day = today.getDay();
-      const diffToMonday = day === 0 ? -6 : 1 - day;
-      const monday = new Date(today);
-      monday.setDate(today.getDate() + diffToMonday);
-      return this.dateKey(monday);
-    },
     transactionDateKey(transaction) {
       return String(transaction?.date || "").slice(0, 10);
     },
@@ -550,11 +440,6 @@ export default {
         (member) => member.id === trip.current_member_id
       );
       return currentMember?.monthly_report_preference || null;
-    },
-    formatShortDate(dateString) {
-      if (!dateString) return "";
-      const date = new Date(dateString);
-      return `${date.getMonth() + 1}月${date.getDate()}日`;
     },
   },
   created() {
@@ -576,7 +461,43 @@ export default {
 }
 
 .home-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 1rem;
+}
+
+.home-header > div {
+  min-width: 0;
+}
+
+.page-add-button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 96px;
+  min-height: 44px;
+  padding: 0 14px;
+  color: #ffffff;
+  background: #0f766e;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.page-add-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.page-add-button:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .eyebrow {
@@ -598,98 +519,12 @@ h1 {
   font-size: 1.85rem;
 }
 
-.daily-summary-panel,
-.insights-panel,
-.status-panel,
-.recent-panel {
+.insights-panel {
   padding: 16px;
   margin-top: 1rem;
   background: #ffffff;
   border: 1px solid #dbe4ee;
   border-radius: 10px;
-}
-
-.daily-summary-panel {
-  display: grid;
-  gap: 12px;
-}
-
-.daily-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.summary-card {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-  padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.summary-card span,
-.latest-summary span {
-  color: #64748b;
-  font-size: 0.76rem;
-  font-weight: 900;
-}
-
-.summary-card strong {
-  color: #1f2933;
-  font-size: 1.1rem;
-  font-weight: 900;
-  overflow-wrap: anywhere;
-}
-
-.summary-card p,
-.latest-summary p {
-  margin: 0;
-  color: #64748b;
-  font-size: 0.8rem;
-  line-height: 1.4;
-}
-
-.latest-summary,
-.summary-empty-action {
-  display: grid;
-  gap: 5px;
-  padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.latest-summary strong {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  color: #1f2933;
-  font-size: 0.98rem;
-}
-
-.latest-summary small {
-  display: inline-flex;
-  align-items: center;
-  min-height: 20px;
-  padding: 0 7px;
-  color: #0369a1;
-  background: #e0f2fe;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 900;
-}
-
-.summary-empty-action {
-  color: #0f766e;
-  font-size: 0.9rem;
-  font-weight: 900;
-  text-align: center;
-  text-decoration: none;
 }
 
 .insights-panel {
@@ -1019,91 +854,6 @@ h1 {
   text-decoration: none;
 }
 
-.trip-status {
-  display: grid;
-  gap: 4px;
-  min-height: 68px;
-  padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.trip-status span {
-  color: #64748b;
-  font-size: 0.86rem;
-  font-weight: 700;
-}
-
-.trip-status strong {
-  color: #1f2933;
-}
-
-.recent-list {
-  display: grid;
-  gap: 8px;
-}
-
-.recent-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 58px;
-  padding: 10px 0;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.recent-row:last-child {
-  border-bottom: 0;
-}
-
-.recent-row div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.recent-row div > strong {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.recent-row span {
-  color: #64748b;
-  font-size: 0.86rem;
-}
-
-.scope-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 20px;
-  padding: 0 7px;
-  color: #0369a1;
-  background: #e0f2fe;
-  border-radius: 999px;
-  font-size: 0.76rem;
-  font-weight: 800;
-}
-
-.recent-row .income {
-  color: #0f766e;
-}
-
-.recent-row .expense {
-  color: #dc2626;
-}
-
-.empty-state {
-  padding: 1rem;
-  color: #64748b;
-  text-align: center;
-  background: #f8fafc;
-  border-radius: 8px;
-}
-
 @media (min-width: 900px) {
   .home-screen {
     padding-top: 36px;
@@ -1111,16 +861,20 @@ h1 {
 }
 
 @media (max-width: 420px) {
+  .home-header {
+    align-items: flex-start;
+  }
+
+  .home-header h1 {
+    font-size: 1.65rem;
+  }
+
   .monthly-overview-card {
     padding: 20px;
   }
 
   .overview-balance {
     font-size: 2.4rem;
-  }
-
-  .daily-summary-grid {
-    grid-template-columns: 1fr;
   }
 
   .insight-card {

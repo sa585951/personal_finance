@@ -16,6 +16,7 @@ const AccountSettings = () => import("../views/AccountSettings.vue");
 const AllocationOverview = () => import("../views/AllocationOverview.vue");
 const AllocationDetail = () => import("../views/AllocationDetail.vue");
 const UniversalAddView = () => import("../views/UniversalAddView.vue");
+const AnalysisView = () => import("../views/AnalysisView.vue");
 
 const routes = [
   {
@@ -57,6 +58,12 @@ const routes = [
     path: "/add",
     name: "UniversalAdd",
     component: UniversalAddView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/analysis",
+    name: "Analysis",
+    component: AnalysisView,
     meta: { requiresAuth: true },
   },
   {

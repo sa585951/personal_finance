@@ -1,14 +1,4 @@
 <template>
-  <button
-    v-if="showQuickAdd"
-    class="quick-add-button"
-    type="button"
-    aria-label="新增收支"
-    title="新增收支"
-    @click="openUniversalAdd"
-  >
-    <Plus />
-  </button>
   <nav class="navbar" aria-label="主要導覽">
     <div class="logo">
       <router-link to="/">Nomica</router-link>
@@ -51,7 +41,7 @@
 <script>
 import apiClient from "@/api";
 import { jwtDecode } from 'jwt-decode';
-import { HomeFilled, Money, PieChart, Plus, Suitcase, Wallet } from '@element-plus/icons-vue';
+import { HomeFilled, Money, PieChart, Suitcase, Wallet } from '@element-plus/icons-vue';
 
 export default {
   name: 'Navbar',
@@ -61,7 +51,6 @@ export default {
     PieChart,
     Suitcase,
     Wallet,
-    Plus,
   },
   data() {
     return {
@@ -78,9 +67,9 @@ export default {
       ],
       navItems: [
         { to: "/", label: "首頁", icon: "HomeFilled" },
-        { to: "/transactions", label: "收支", icon: "Money" },
+        { to: "/transactions", label: "紀錄", icon: "Money" },
         { to: "/trips", label: "旅行", icon: "Suitcase" },
-        { to: "/budgets", label: "預算", icon: "PieChart" },
+        { to: "/analysis", label: "分析", icon: "PieChart" },
         { to: "/assets", label: "帳戶", icon: "Wallet" },
       ],
     };
@@ -88,20 +77,7 @@ export default {
   mounted() {
     this.checkLoginStatus();
   },
-  computed: {
-    showQuickAdd() {
-      return !["Login", "AuthCallback", "TripInviteAccept", "UniversalAdd"].includes(
-        this.$route.name
-      );
-    },
-  },
   methods: {
-    openUniversalAdd() {
-      this.$router.push({
-        name: "UniversalAdd",
-        state: { returnTo: this.$route.fullPath },
-      });
-    },
     async checkLoginStatus() {
       if (this.devAuthBypass) {
         this.isLoggedIn = false;
@@ -166,29 +142,6 @@ export default {
 </script>
 
 <style scoped>
-.quick-add-button {
-  position: fixed;
-  right: max(18px, calc((100vw - 520px) / 2 + 18px));
-  bottom: calc(var(--app-bottom-nav-height) + 14px + env(safe-area-inset-bottom));
-  z-index: 21;
-  width: 54px;
-  height: 54px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: #ffffff;
-  background: #0f766e;
-  border: 0;
-  border-radius: 50%;
-  box-shadow: 0 12px 26px rgba(15, 118, 110, 0.3);
-}
-
-.quick-add-button svg {
-  width: 24px;
-  height: 24px;
-}
-
 .navbar {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(14px);
