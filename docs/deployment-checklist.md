@@ -212,6 +212,14 @@ M3A／M3B 部署包含 migration `20260820_0011`。部署順序必須是：
 
 此 migration 只為既有追蹤餘額帳戶建立當前快照 Anchor，不會改寫帳戶餘額，也不會猜測或重播 Anchor 前的歷史交易。
 
+M3D 部署另包含 migration `20260821_0013`。它會新增 append-only `account_movements`，並為既有追蹤帳戶建立 `reconciliation_baseline`；同樣不會改寫帳戶餘額。部署順序必須是：
+
+1. 備份資料庫並執行 `alembic upgrade head`。
+2. 立即部署新版 backend，讓後續 Transaction／Transfer movement 都能寫入 ledger。
+3. 執行一次 `python -m scripts.reconcile_accounts --fail-on-issues` 核對結果。
+
+Migration 與 backend 部署之間應避免使用者寫入交易或轉帳；舊 backend 不會寫入 `account_movements`，若在此窗口發生寫入，CLI 會回報差異，但不會自行修正。
+
 因為目前 schema 已大改，且舊 production 資料你已表示可刪，建議策略是：
 
 1. 先備份 Supabase 舊資料。

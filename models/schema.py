@@ -127,7 +127,7 @@ account_balance_anchors_table = Table(
     Column("anchored_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
     CheckConstraint(
-        "source in ('account_created', 'migration', 'user_confirmed')",
+        "source in ('account_created', 'migration', 'user_confirmed', 'reconciliation_baseline')",
         name="ck_account_balance_anchors_source",
     ),
 )
@@ -155,6 +155,37 @@ account_adjustments_table = Table(
     CheckConstraint(
         "reason in ('balance_correction', 'statement_reconciliation', 'opening_balance', 'other')",
         name="ck_account_adjustments_reason",
+    ),
+)
+
+
+account_movements_table = Table(
+    "account_movements",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False),
+    Column("account_id", UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=False),
+    Column("source_type", String(20), nullable=False),
+    Column("source_id", UUID(as_uuid=True), nullable=False),
+    Column("operation", String(30), nullable=False),
+    Column("amount_delta", AMOUNT, nullable=False),
+    Column("currency", String(3), ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False),
+    Column("balance_before", AMOUNT, nullable=False),
+    Column("balance_after", AMOUNT, nullable=False),
+    Column("occurred_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    CheckConstraint(
+        "source_type in ('transaction', 'transfer')",
+        name="ck_account_movements_source_type",
+    ),
+    CheckConstraint(
+        "operation in ('create', 'update_reversal', 'update_apply', 'delete_reversal')",
+        name="ck_account_movements_operation",
+    ),
+    CheckConstraint("amount_delta <> 0", name="ck_account_movements_non_zero"),
+    CheckConstraint(
+        "balance_after = balance_before + amount_delta",
+        name="ck_account_movements_balance_math",
     ),
 )
 
@@ -605,6 +636,16 @@ Index(
     account_adjustments_table.c.client_request_id,
     unique=True,
     postgresql_where=account_adjustments_table.c.client_request_id.isnot(None),
+)
+Index(
+    "ix_account_movements_account_date",
+    account_movements_table.c.account_id,
+    account_movements_table.c.occurred_at,
+)
+Index(
+    "ix_account_movements_source",
+    account_movements_table.c.source_type,
+    account_movements_table.c.source_id,
 )
 Index("ix_categories_user_parent_kind_scope_code", categories_table.c.user_id, categories_table.c.parent_id, categories_table.c.kind, categories_table.c.scope, categories_table.c.code)
 Index("ix_trips_owner_status", trips_table.c.owner_user_id, trips_table.c.status)

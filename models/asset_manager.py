@@ -1,11 +1,12 @@
 import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import desc, insert, or_, select, update
 
 from config import DEFAULT_CURRENCY
+from .account_movement import record_account_movement
 from .schema import (
     account_adjustments_table,
     account_balance_anchors_table,
@@ -554,18 +555,24 @@ class AssetManager:
             raise ValueError("來源帳戶餘額不足")
 
         now = datetime.now(timezone.utc)
-        self.db_session.execute(
-            update(accounts_table)
-            .where(accounts_table.c.id == source_account["id"])
-            .values(balance=source_balance - transfer_amount, updated_at=now)
+        transfer_id = uuid4()
+        self._update_account_with_transfer_movement(
+            source_account,
+            -transfer_amount,
+            transfer_id,
+            "create",
+            now,
         )
-        self.db_session.execute(
-            update(accounts_table)
-            .where(accounts_table.c.id == target_account["id"])
-            .values(balance=target_balance + transfer_amount, updated_at=now)
+        self._update_account_with_transfer_movement(
+            target_account,
+            transfer_amount,
+            transfer_id,
+            "create",
+            now,
         )
         self.db_session.execute(
             insert(transfers_table).values(
+                id=transfer_id,
                 user_id=self._parse_user_id(user_id),
                 source_account_id=source_account["id"],
                 target_account_id=target_account["id"],
@@ -606,11 +613,23 @@ class AssetManager:
             raise ValueError("目前前端轉帳只支援同幣別帳戶")
 
         now = datetime.now(timezone.utc)
-        self._reverse_transfer_effect(user_id, transfer, now)
+        self._reverse_transfer_effect(
+            user_id,
+            transfer,
+            now,
+            operation="update_reversal",
+        )
 
         refreshed_source = self._get_account(user_id, source_key)
         refreshed_target = self._get_account(user_id, dest_key)
-        self._apply_transfer_effect(refreshed_source, refreshed_target, transfer_amount, now)
+        self._apply_transfer_effect(
+            refreshed_source,
+            refreshed_target,
+            transfer_amount,
+            now,
+            transfer_id=transfer["id"],
+            operation="update_apply",
+        )
 
         self.db_session.execute(
             update(transfers_table)
@@ -638,7 +657,12 @@ class AssetManager:
             raise ValueError("此轉帳已分配到投資標的，請先刪除相關投入成本紀錄")
 
         now = datetime.now(timezone.utc)
-        self._reverse_transfer_effect(user_id, transfer, now)
+        self._reverse_transfer_effect(
+            user_id,
+            transfer,
+            now,
+            operation="delete_reversal",
+        )
         self.db_session.execute(
             update(transfers_table)
             .where(transfers_table.c.id == transfer["id"])
@@ -669,7 +693,7 @@ class AssetManager:
         row = self.db_session.execute(stmt).first()
         return dict(row._mapping) if row else None
 
-    def _reverse_transfer_effect(self, user_id, transfer, now):
+    def _reverse_transfer_effect(self, user_id, transfer, now, *, operation):
         source_account = self._get_account(user_id, transfer["source_account_id"])
         target_account = self._get_account(user_id, transfer["target_account_id"])
         if not source_account or not target_account:
@@ -683,32 +707,76 @@ class AssetManager:
         if restored_target_balance < 0 and not self._allows_negative_balance(target_account):
             raise ValueError("轉入帳戶餘額不足，無法回復此轉帳")
 
-        self.db_session.execute(
-            update(accounts_table)
-            .where(accounts_table.c.id == source_account["id"])
-            .values(balance=source_balance + old_source_amount, updated_at=now)
+        self._update_account_with_transfer_movement(
+            source_account,
+            old_source_amount,
+            transfer["id"],
+            operation,
+            now,
         )
-        self.db_session.execute(
-            update(accounts_table)
-            .where(accounts_table.c.id == target_account["id"])
-            .values(balance=restored_target_balance, updated_at=now)
+        self._update_account_with_transfer_movement(
+            target_account,
+            -old_target_amount,
+            transfer["id"],
+            operation,
+            now,
         )
 
-    def _apply_transfer_effect(self, source_account, target_account, transfer_amount, now):
+    def _apply_transfer_effect(
+        self,
+        source_account,
+        target_account,
+        transfer_amount,
+        now,
+        *,
+        transfer_id,
+        operation,
+    ):
         source_balance = Decimal(str(source_account["balance"]))
         target_balance = Decimal(str(target_account["balance"]))
         if source_balance < transfer_amount and not self._allows_negative_balance(source_account):
             raise ValueError("來源帳戶餘額不足")
 
-        self.db_session.execute(
-            update(accounts_table)
-            .where(accounts_table.c.id == source_account["id"])
-            .values(balance=source_balance - transfer_amount, updated_at=now)
+        self._update_account_with_transfer_movement(
+            source_account,
+            -transfer_amount,
+            transfer_id,
+            operation,
+            now,
         )
+        self._update_account_with_transfer_movement(
+            target_account,
+            transfer_amount,
+            transfer_id,
+            operation,
+            now,
+        )
+
+    def _update_account_with_transfer_movement(
+        self,
+        account,
+        amount_delta,
+        transfer_id,
+        operation,
+        occurred_at,
+    ):
+        balance_before = Decimal(str(account["balance"]))
+        balance_after = balance_before + Decimal(str(amount_delta))
         self.db_session.execute(
             update(accounts_table)
-            .where(accounts_table.c.id == target_account["id"])
-            .values(balance=target_balance + transfer_amount, updated_at=now)
+            .where(accounts_table.c.id == account["id"])
+            .values(balance=balance_after, updated_at=occurred_at)
+        )
+        record_account_movement(
+            self.db_session,
+            account=account,
+            source_type="transfer",
+            source_id=transfer_id,
+            operation=operation,
+            amount_delta=amount_delta,
+            balance_before=balance_before,
+            balance_after=balance_after,
+            occurred_at=occurred_at,
         )
 
     def get_recent_transfers(self, user_id, limit=10):

@@ -26,7 +26,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 
 ## 目前進度
 
-目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract 與 **M1 Minimum Product UX** 第一輪。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；M1A 已完成主要頁面的 390、430、768px overflow audit，M1B 已拆分旅行列表與詳情，M1C 已建立 Universal Add 與交易歷史分批載入，M1D 已完成首頁瘦身與 `/analysis` 分析整合。M2 PWA Alpha 的測試流程與驗收門檻已建立，外部實測仍待執行；M3A 至 M3C 已完成 Balance Anchor、Adjustment 與 Settlement Account Entry 第一版，下一個工程批次為 M3D Reconciliation CLI。核心流程已可在本地與部署環境操作：
+目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract 與 **M1 Minimum Product UX** 第一輪。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；M1A 已完成主要頁面的 390、430、768px overflow audit，M1B 已拆分旅行列表與詳情，M1C 已建立 Universal Add 與交易歷史分批載入，M1D 已完成首頁瘦身與 `/analysis` 分析整合。M2 PWA Alpha 的測試流程與驗收門檻已建立，外部實測仍待執行；M3A 至 M3D 已完成 Balance Anchor、Adjustment、Settlement Account Entry、Transaction／Transfer movement ledger 與 read-only reconciliation CLI 第一版，下一個工程批次為 M3E legacy schema 收斂。核心流程已可在本地與部署環境操作：
 
 - 日常收入 / 支出可記錄，並可連動帳戶餘額。
 - Web 日常收支新增已統一由 `/add` 處理，支援 AI Preview、缺少欄位補完、手動收入 / 支出與防重複送出。
@@ -507,7 +507,7 @@ Allocation 0：Asset Allocation Domain 定案。
 | README 與方向文件 | 完成 | 已補目前進度、核心資料流與測試方式 |
 | M0 Finance Contract | 第一版完成 | 已固定 Payment、Expense、Settlement、Transfer、Adjustment、Balance 與 ownership 語意，建立安全的 Product Event Taxonomy；後端 102 tests 與前端 build 通過 |
 | M2 PWA Alpha | 準備完成 | 已建立 5 至 10 位非開發者的分段測試流程、成功門檻、問題分級與隱私邊界，等待實測 |
-| M3A 至 M3C Ledger Correctness | 第一版完成 | 已建立 Balance Anchor、Adjustment ledger、Settlement 私人帳戶 posting / reversal 與帳戶活動紀錄；完整 reconciliation CLI 尚未完成 |
+| M3A 至 M3D Ledger Correctness | 第一版完成 | 已建立 Balance Anchor、Adjustment、Settlement 私人帳戶 posting / reversal、Transaction／Transfer append-only movement 與 read-only reconciliation CLI |
 | 新版 schema / Alembic | 完成 | 本地 migration 與 smoke test 可跑 |
 | Asset Allocation 1A | 完成 | 已建立 Portfolio、Holding、Recorded Cost 與 Snapshot schema / migration |
 | Asset Allocation 1B | 完成 | 已建立共用 Manager / API、ownership 與幣別驗證、轉帳成本分配、完整 Snapshot 與新增投入試算 |
@@ -698,10 +698,24 @@ Smoke test 會重建測試資料庫內的 schema，因此必須使用 `TEST_DATA
 - 平均分攤與自訂分攤。
 - 日常支出、收入與刪除收入後的帳戶餘額回復。
 - 新帳戶與既有追蹤帳戶的 Balance Anchor，以及餘額校正 Adjustment 不重複套用且不產生收入／支出。
+- Transaction／Transfer 新增、編輯與刪除會留下 append-only account movement，Expected Balance 可從最新 reconciliation baseline 重播核對。
 - 預算已花費會依個人月報口徑計算。
 - 首頁與收支統計可包含「納入個人月報」的旅行分攤金額。
 - 建議結算、確認結算與撤銷結算。
-- 結算紀錄不異動帳戶餘額。
+- Group Settlement 本身不異動帳戶餘額；只有使用者明確選擇自己的帳戶後，私人 Settlement posting 才會異動。
+
+Read-only 帳戶 reconciliation：
+
+```bash
+DATABASE_URL="你的 PostgreSQL connection string" \
+  .venv/bin/python -m scripts.reconcile_accounts
+
+# CI / 維運檢查：發現 mismatch 或 missing anchor 時回傳 exit code 1
+DATABASE_URL="你的 PostgreSQL connection string" \
+  .venv/bin/python -m scripts.reconcile_accounts --fail-on-issues
+```
+
+CLI 顯示的 `difference` 固定為 `Expected Balance - Stored Balance`，不會自動覆寫帳戶餘額。
 
 一般測試與前端 build：
 

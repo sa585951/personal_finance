@@ -10,6 +10,7 @@ from sqlalchemy import and_, delete, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from config import DEFAULT_CURRENCY
+from .account_movement import record_account_movement
 from .schema import (
     accounts_table,
     budgets_table,
@@ -163,18 +164,38 @@ class BudgetManager:
             return converted_amount
         raise ValueError("付款帳戶幣別必須與交易原幣或換算本幣相同")
 
-    def _apply_account_balance_delta(self, account, delta):
+    def _apply_account_balance_delta(
+        self,
+        account,
+        delta,
+        *,
+        source_id,
+        operation,
+        occurred_at,
+    ):
         if not account or not account["track_balance"]:
             return
 
-        new_balance = Decimal(str(account["balance"] or 0)) + Decimal(str(delta))
+        balance_before = Decimal(str(account["balance"] or 0))
+        new_balance = balance_before + Decimal(str(delta))
         if new_balance < 0 and not self._account_allows_negative_balance(account):
             raise ValueError("帳戶餘額不足")
 
         self.db_session.execute(
             update(accounts_table)
             .where(accounts_table.c.id == account["id"])
-            .values(balance=new_balance, updated_at=datetime.now(timezone.utc))
+            .values(balance=new_balance, updated_at=occurred_at)
+        )
+        record_account_movement(
+            self.db_session,
+            account=account,
+            source_type="transaction",
+            source_id=source_id,
+            operation=operation,
+            amount_delta=delta,
+            balance_before=balance_before,
+            balance_after=new_balance,
+            occurred_at=occurred_at,
         )
 
     def _account_allows_negative_balance(self, account):
@@ -759,6 +780,7 @@ class BudgetManager:
                 raise ValueError("只有自己付款時才可連動自己的帳戶")
 
         transaction_id = uuid4()
+        movement_at = datetime.now(timezone.utc)
 
         try:
             with self.db_session.begin_nested():
@@ -775,6 +797,9 @@ class BudgetManager:
                     self._apply_account_balance_delta(
                         account,
                         self._balance_delta_for_transaction(transaction_type, account_amount),
+                        source_id=transaction_id,
+                        operation="create",
+                        occurred_at=movement_at,
                     )
 
                 stmt = insert(transactions_table).values(
@@ -910,6 +935,7 @@ class BudgetManager:
         if parsed_exchange_rate <= 0:
             raise ValueError("exchange_rate 必須大於0")
         converted_amount = parsed_amount * parsed_exchange_rate
+        movement_at = datetime.now(timezone.utc)
 
         if parsed_trip_id and account_id:
             payer = next(
@@ -932,6 +958,9 @@ class BudgetManager:
                 self._apply_account_balance_delta(
                     old_account,
                     -self._balance_delta_for_transaction(existing["type"], old_account_amount),
+                    source_id=parsed_transaction_id,
+                    operation="update_reversal",
+                    occurred_at=movement_at,
                 )
 
             new_account = self._get_account_for_balance_update(parsed_user_id, account_id)
@@ -947,6 +976,9 @@ class BudgetManager:
                 self._apply_account_balance_delta(
                     new_account,
                     self._balance_delta_for_transaction(transaction_type, account_amount),
+                    source_id=parsed_transaction_id,
+                    operation="update_apply",
+                    occurred_at=movement_at,
                 )
 
             self.db_session.execute(
@@ -969,7 +1001,7 @@ class BudgetManager:
                     converted_amount=converted_amount,
                     base_currency=base_currency,
                     review_status=review_status,
-                    updated_at=datetime.now(timezone.utc),
+                    updated_at=movement_at,
                 )
             )
 
@@ -1551,6 +1583,7 @@ class BudgetManager:
         if not self._can_manage_transaction(parsed_user_id, transaction_data):
             raise ValueError("目前角色不可刪除此交易")
 
+        movement_at = datetime.now(timezone.utc)
         account = self._get_account_for_balance_update(parsed_user_id, transaction_data["account_id"])
         if account:
             account_amount = self._resolve_account_delta_amount(
@@ -1563,9 +1596,11 @@ class BudgetManager:
             self._apply_account_balance_delta(
                 account,
                 -self._balance_delta_for_transaction(transaction_data["type"], account_amount),
+                source_id=parsed_transaction_id,
+                operation="delete_reversal",
+                occurred_at=movement_at,
             )
 
-        now = datetime.now(timezone.utc)
         stmt = (
             update(transactions_table)
             .where(
@@ -1574,9 +1609,9 @@ class BudgetManager:
             )
             .values(
                 deleted_by_user_id=parsed_user_id,
-                deleted_at=now,
-                purge_after=now + timedelta(days=30),
-                updated_at=now,
+                deleted_at=movement_at,
+                purge_after=movement_at + timedelta(days=30),
+                updated_at=movement_at,
             )
         )
         result = self.db_session.execute(stmt)

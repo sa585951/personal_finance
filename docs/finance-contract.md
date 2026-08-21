@@ -7,7 +7,7 @@
 - 適用端：Web、LINE、未來 iOS 與後端 API
 - 目的：固定 Nomica 的財務語意、統計口徑與帳戶 ownership 邊界
 
-本文件同時描述「現行已實作行為」與「M3 Ledger Correctness 目標」。M3A／M3B 已完成第一版；Settlement Account Entry 與完整 reconciliation 仍是後續目標。
+本文件同時描述「現行已實作行為」與「M3 Ledger Correctness 目標」。M3A 至 M3D 已完成第一版；legacy schema 收斂仍是後續目標。
 
 ## 核心不變條件
 
@@ -109,7 +109,7 @@ Account Movement 與月報分類是兩套不同維度。
 某一時間點經確認的帳戶餘額基準。
 
 - M3A 現況：新帳戶會建立初始 Anchor；既有追蹤餘額帳戶由 migration 以當前快照建立 `migration` Anchor。
-- Anchor 前的歷史 movement 不回推；Settlement movement 已於 M3C 補齊，完整 Expected Balance 計算仍待 M3D reconciliation。
+- M3D migration `20260821_0013` 會為既有追蹤帳戶建立新的 `reconciliation_baseline`，不改寫餘額；CLI 只重播此 baseline 後留下的 movement。
 
 ## 帳戶 movement 符號
 
@@ -155,13 +155,13 @@ Daily Expense = type=expense、trip_id IS NULL 的 converted_amount
 
 ## Balance Contract
 
-### M3A／M3B 現況
+### M3D 現況
 
-`accounts.balance` 仍是可直接讀取的目前快照。交易與 Transfer 在同一應用層操作中同步更新此欄位；Group Settlement 不更新帳戶。
+`accounts.balance` 仍是可直接讀取的目前快照。交易與 Transfer 在同一應用層操作中同步更新此欄位與 append-only `account_movements`；Group Settlement 本身不更新帳戶。
 
-使用者校正餘額時必須建立 Adjustment，且新帳戶與既有追蹤帳戶已有 Anchor。現階段仍不能只靠完整歷史資料可靠重算所有帳戶，因為交易、Transfer 與 Settlement 尚未全部收斂為可統一重播的 movement ledger。
+使用者校正餘額時必須建立 Adjustment；私人 Settlement posting／reversal 保存在 `settlement_account_entries`。Reconciliation 從最新 Anchor 開始加總 Transaction／Transfer movement、Settlement account entry 與 Adjustment，不猜測 Anchor 前的 legacy 歷史。
 
-### 完整 M3 目標
+### Expected Balance 公式
 
 ```text
 Expected Balance
@@ -179,6 +179,8 @@ Expected Balance
 - Reconciliation 只回報 `Expected Balance - Stored Balance`，不得自動覆寫。
 - 使用者透過 Adjustment 處理差異。
 - 同一業務操作的 ledger record 與 `accounts.balance` 更新必須在同一 DB transaction。
+- `account_movements` 只記錄 Transaction 與 Transfer 的帳戶效果；Settlement 與 Adjustment 保留各自的 append-only domain table，避免混淆業務語意。
+- CLI 是 read-only 工具；`--fail-on-issues` 只改變 exit code，不會寫入任何帳戶資料。
 
 ## Settlement Ownership Contract
 
@@ -229,4 +231,4 @@ Expected Balance
 
 ## 實作邊界
 
-M0 已建立共同語言與 characterization tests；M3A 至 M3C 已新增 Anchor、Adjustment、Settlement Account Entry、API 與對應 UI。Expected Balance CLI、完整 reconciliation 與 legacy schema 收斂仍留在 M3D 至 M3E。
+M0 已建立共同語言與 characterization tests；M3A 至 M3D 已新增 Anchor、Adjustment、Settlement Account Entry、Transaction／Transfer movement ledger 與 read-only Expected Balance CLI。M3E 保留 legacy goals 與舊 schema 使用情況收斂。
