@@ -465,6 +465,53 @@ settlements_table = Table(
 )
 
 
+settlement_account_entries_table = Table(
+    "settlement_account_entries",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("settlement_id", UUID(as_uuid=True), ForeignKey("settlements.id", ondelete="RESTRICT"), nullable=False),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False),
+    Column("trip_member_id", UUID(as_uuid=True), ForeignKey("trip_members.id", ondelete="RESTRICT"), nullable=False),
+    Column("account_id", UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=False),
+    Column("direction", String(20), nullable=False),
+    Column("amount", AMOUNT, nullable=False),
+    Column("currency", String(3), ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False),
+    Column("status", String(20), nullable=False, server_default=text("'posted'")),
+    Column("balance_before", AMOUNT, nullable=False),
+    Column("balance_after", AMOUNT, nullable=False),
+    Column("posted_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("reversal_balance_before", AMOUNT),
+    Column("reversal_balance_after", AMOUNT),
+    Column("reversed_at", DateTime(timezone=True)),
+    Column("reversed_by_user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT")),
+    Column("reversal_reason", Text),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    UniqueConstraint("settlement_id", "user_id", name="uq_settlement_account_entries_user"),
+    CheckConstraint("direction in ('incoming', 'outgoing')", name="ck_settlement_account_entries_direction"),
+    CheckConstraint("amount > 0", name="ck_settlement_account_entries_amount_positive"),
+    CheckConstraint("status in ('posted', 'reversed')", name="ck_settlement_account_entries_status"),
+    CheckConstraint(
+        "(direction = 'incoming' AND balance_after = balance_before + amount) OR "
+        "(direction = 'outgoing' AND balance_after = balance_before - amount)",
+        name="ck_settlement_account_entries_posting_math",
+    ),
+    CheckConstraint(
+        "(status = 'posted' AND reversal_balance_before IS NULL AND reversal_balance_after IS NULL "
+        "AND reversed_at IS NULL AND reversed_by_user_id IS NULL) OR "
+        "(status = 'reversed' AND reversal_balance_before IS NOT NULL AND reversal_balance_after IS NOT NULL "
+        "AND reversed_at IS NOT NULL AND reversed_by_user_id IS NOT NULL)",
+        name="ck_settlement_account_entries_reversal_state",
+    ),
+    CheckConstraint(
+        "status <> 'reversed' OR "
+        "(direction = 'incoming' AND reversal_balance_after = reversal_balance_before - amount) OR "
+        "(direction = 'outgoing' AND reversal_balance_after = reversal_balance_before + amount)",
+        name="ck_settlement_account_entries_reversal_math",
+    ),
+)
+
+
 budgets_table = Table(
     "budgets",
     metadata,
@@ -600,6 +647,16 @@ Index("ix_portfolio_snapshot_items_snapshot", portfolio_snapshot_items_table.c.s
 Index("ix_settlements_trip_status", settlements_table.c.trip_id, settlements_table.c.status)
 Index("ix_settlements_from_member", settlements_table.c.from_member_id)
 Index("ix_settlements_to_member", settlements_table.c.to_member_id)
+Index(
+    "ix_settlement_account_entries_account_date",
+    settlement_account_entries_table.c.account_id,
+    settlement_account_entries_table.c.posted_at,
+)
+Index(
+    "ix_settlement_account_entries_user_status",
+    settlement_account_entries_table.c.user_id,
+    settlement_account_entries_table.c.status,
+)
 Index("ix_budgets_user_scope_period", budgets_table.c.user_id, budgets_table.c.scope, budgets_table.c.period_start, budgets_table.c.period_end)
 Index("ix_budgets_trip_scope", budgets_table.c.trip_id, budgets_table.c.scope)
 Index("ix_ai_parse_events_user_created", ai_parse_events_table.c.user_id, ai_parse_events_table.c.created_at)

@@ -137,6 +137,25 @@ class FakeBudgetManager:
             }
         return [{"id": "transaction-1"}]
 
+    def add_trip_settlement(
+        self,
+        user_id,
+        trip_id,
+        from_member_id,
+        to_member_id,
+        amount,
+        note=None,
+    ):
+        self.last_settlement_payload = {
+            "user_id": user_id,
+            "trip_id": trip_id,
+            "from_member_id": from_member_id,
+            "to_member_id": to_member_id,
+            "amount": amount,
+            "note": note,
+        }
+        return True, "結算已確認", "settlement-1"
+
 
 class FakeAssetManager:
     def find_asset_by_name(self, user_id, name, currency=None, context_text=None):
@@ -247,6 +266,42 @@ class FakeAssetManager:
             "limit": limit,
         }
         return [{"id": "adjustment-1", "balance_after": 1500}]
+
+
+class FakeSettlementAccountEntryManager:
+    def __init__(self):
+        self.create_payload = None
+        self.reverse_payload = None
+        self.create_replayed = False
+        self.reverse_replayed = False
+
+    def create_entry(self, user_id, trip_id, settlement_id, account_id):
+        self.create_payload = {
+            "user_id": user_id,
+            "trip_id": trip_id,
+            "settlement_id": settlement_id,
+            "account_id": account_id,
+        }
+        return {
+            "id": "entry-1",
+            "account_id": account_id,
+            "direction": "outgoing",
+            "status": "posted",
+            "replayed": self.create_replayed,
+        }
+
+    def reverse_entry(self, user_id, trip_id, settlement_id, reason=None):
+        self.reverse_payload = {
+            "user_id": user_id,
+            "trip_id": trip_id,
+            "settlement_id": settlement_id,
+            "reason": reason,
+        }
+        return {
+            "id": "entry-1",
+            "status": "reversed",
+            "replayed": self.reverse_replayed,
+        }
 
 
 class FakeAuthSessionManager:
@@ -833,6 +888,101 @@ def test_get_asset_adjustments_api_is_scoped_to_account(monkeypatch):
         "account_key": "account-1",
         "limit": "5",
     }
+
+
+def test_create_settlement_account_entry_api_commits_private_posting(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_manager = FakeSettlementAccountEntryManager()
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "settlement_account_entry_manager", fake_manager)
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().post(
+        "/api/trips/trip-1/settlements/settlement-1/account-entry",
+        json={"account_id": "account-1"},
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 201
+    assert response.get_json()["data"]["status"] == "posted"
+    assert fake_manager.create_payload == {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "trip_id": "trip-1",
+        "settlement_id": "settlement-1",
+        "account_id": "account-1",
+    }
+    assert fake_db_session.commits == 1
+
+
+def test_create_trip_settlement_api_returns_settlement_id(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_budget_manager = FakeBudgetManager()
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "budget_manager", fake_budget_manager)
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().post(
+        "/api/trips/trip-1/settlements",
+        json={
+            "from_member_id": "member-1",
+            "to_member_id": "member-2",
+            "amount": 200,
+            "note": "現金還款",
+        },
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 201
+    assert response.get_json()["data"]["settlement_id"] == "settlement-1"
+    assert fake_budget_manager.last_settlement_payload == {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "trip_id": "trip-1",
+        "from_member_id": "member-1",
+        "to_member_id": "member-2",
+        "amount": 200,
+        "note": "現金還款",
+    }
+    assert fake_db_session.commits == 1
+
+
+def test_create_settlement_account_entry_api_requires_account_id(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().post(
+        "/api/trips/trip-1/settlements/settlement-1/account-entry",
+        json={},
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["message"] == "缺少 account_id"
+    assert fake_db_session.commits == 0
+
+
+def test_reverse_settlement_account_entry_api_commits_reversal(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_manager = FakeSettlementAccountEntryManager()
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "settlement_account_entry_manager", fake_manager)
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().delete(
+        "/api/trips/trip-1/settlements/settlement-1/account-entry",
+        json={"reason": "測試取消"},
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["data"]["status"] == "reversed"
+    assert fake_manager.reverse_payload == {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "trip_id": "trip-1",
+        "settlement_id": "settlement-1",
+        "reason": "測試取消",
+    }
+    assert fake_db_session.commits == 1
 
 
 def test_transfer_api_passes_allocation_note(monkeypatch):

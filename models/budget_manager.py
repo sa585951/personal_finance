@@ -14,6 +14,7 @@ from .schema import (
     accounts_table,
     budgets_table,
     categories_table,
+    settlement_account_entries_table,
     settlements_table,
     transaction_splits_table,
     transactions_table,
@@ -1344,8 +1345,52 @@ class BudgetManager:
             )
         }
 
+        settlement_ids = [row.id for row in rows]
+        current_user_entries = {}
+        active_entry_settlement_ids = set()
+        if settlement_ids:
+            account_entry_rows = self.db_session.execute(
+                select(
+                    settlement_account_entries_table,
+                    accounts_table.c.name.label("account_name"),
+                )
+                .join(accounts_table, settlement_account_entries_table.c.account_id == accounts_table.c.id)
+                .where(
+                    settlement_account_entries_table.c.settlement_id.in_(settlement_ids),
+                    settlement_account_entries_table.c.user_id == parsed_user_id,
+                )
+            )
+            for entry_row in account_entry_rows:
+                entry = dict(entry_row._mapping)
+                current_user_entries[entry["settlement_id"]] = {
+                    "id": str(entry["id"]),
+                    "account_id": str(entry["account_id"]),
+                    "account_name": entry["account_name"],
+                    "direction": entry["direction"],
+                    "amount": float(entry["amount"]),
+                    "currency": entry["currency"],
+                    "status": entry["status"],
+                    "posted_at": entry["posted_at"].isoformat() if entry["posted_at"] else None,
+                    "reversed_at": entry["reversed_at"].isoformat() if entry["reversed_at"] else None,
+                }
+
+            active_entry_settlement_ids = set(
+                self.db_session.execute(
+                    select(settlement_account_entries_table.c.settlement_id).where(
+                        settlement_account_entries_table.c.settlement_id.in_(settlement_ids),
+                        settlement_account_entries_table.c.status == "posted",
+                    )
+                ).scalars()
+            )
+
         settlements = []
         for row in rows:
+            account_entry = current_user_entries.get(row.id)
+            is_current_user_side = bool(
+                current_member
+                and current_member["id"] in {str(row.from_member_id), str(row.to_member_id)}
+            )
+            has_active_account_entries = row.id in active_entry_settlement_ids
             settlements.append(
                 {
                     "id": str(row.id),
@@ -1357,8 +1402,13 @@ class BudgetManager:
                     "currency": row.currency,
                     "note": row.note,
                     "settled_at": row.settled_at.isoformat() if row.settled_at else None,
+                    "account_entry": account_entry,
+                    "can_post_account": bool(is_current_user_side and account_entry is None),
+                    "can_reverse_account": bool(account_entry and account_entry["status"] == "posted"),
+                    "has_active_account_entries": has_active_account_entries,
                     "can_void": bool(
                         current_member
+                        and not has_active_account_entries
                         and (
                             current_member["role"] == "owner"
                             or row.recorded_by_user_id == parsed_user_id
@@ -1404,7 +1454,7 @@ class BudgetManager:
         if settlement_amount > Decimal(str(current_suggestion["amount"])):
             raise ValueError("結算金額不可超過目前建議金額")
 
-        self.db_session.execute(
+        settlement_id = self.db_session.execute(
             insert(settlements_table).values(
                 trip_id=parsed_trip_id,
                 from_member_id=parsed_from_member_id,
@@ -1415,9 +1465,9 @@ class BudgetManager:
                 status="confirmed",
                 note=note,
                 settled_at=datetime.now(timezone.utc),
-            )
-        )
-        return True, "結算已確認"
+            ).returning(settlements_table.c.id)
+        ).scalar_one()
+        return True, "結算已確認", str(settlement_id)
 
     def delete_trip_settlement(self, user_id, trip_id, settlement_id):
         """撤銷一筆旅行結算紀錄。"""
@@ -1442,6 +1492,17 @@ class BudgetManager:
         )
         if not can_void:
             raise ValueError("只有旅行 owner 或結算記錄者可以撤銷這筆結算")
+
+        has_active_account_entry = self.db_session.execute(
+            select(settlement_account_entries_table.c.id)
+            .where(
+                settlement_account_entries_table.c.settlement_id == parsed_settlement_id,
+                settlement_account_entries_table.c.status == "posted",
+            )
+            .limit(1)
+        ).first()
+        if has_active_account_entry:
+            raise ValueError("請先由相關成員取消私人帳戶入帳，再撤銷群組結算")
 
         now = datetime.now(timezone.utc)
         result = self.db_session.execute(

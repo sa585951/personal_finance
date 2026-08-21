@@ -5,7 +5,7 @@
 - Roadmap 版本：M0 至 M9
 - 生效日期：2026-08-17
 - 目前 Milestone：M3 Ledger Correctness（M2 PWA Alpha 外部實測並行等待）
-- 下一個工作批次：M3C Settlement Account Entry
+- 下一個工作批次：M3D Reconciliation CLI
 
 舊有 Phase 1 至 Phase 7、Phase App 與 Allocation 文件保留為歷史開發紀錄。新工作一律使用本文件的 Milestone 命名，避免同時維護兩套進度語言。
 
@@ -117,11 +117,11 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 ## M3 Ledger Correctness
 
-狀態：M3A／M3B 第一版完成（2026-08-20）；M3C 至 M3E 尚未開始。
+狀態：M3A／M3B 第一版完成（2026-08-20）；M3C 第一版完成（2026-08-21）；M3D 至 M3E 尚未開始。
 
 - M3A：`account_balance_anchors`。已為新帳戶建立初始 anchor，migration 也會以既有快照回填 legacy anchor，不猜測 anchor 前的歷史 movement。
 - M3B：`account_adjustments`。帳戶餘額校正會保存調整前後金額、delta、原因與時間，並與 `accounts.balance` 在同一 DB transaction 更新；Adjustment 不算收入支出。
-- M3C：`settlement_account_entries`，群組結算與私人帳戶 posting 分離並具冪等性。
+- M3C：`settlement_account_entries` 已完成第一版。群組結算與私人帳戶 posting 分離；付款方與收款方只能操作自己的同幣別帳戶，重送不重複異動，反轉只執行一次。有 active 私人 posting 時禁止 owner 直接撤銷群組結算。
 - M3D：CLI reconciliation tool，比對 Expected Balance 與 stored balance。
 - M3E：legacy goals 與舊 schema 使用情況收斂。
 - 月報不得把 Settlement、Transfer、Adjustment 算成收入支出。

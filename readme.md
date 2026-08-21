@@ -26,7 +26,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 
 ## 目前進度
 
-目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract 與 **M1 Minimum Product UX** 第一輪。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；M1A 已完成主要頁面的 390、430、768px overflow audit，M1B 已拆分旅行列表與詳情，M1C 已建立 Universal Add 與交易歷史分批載入，M1D 已完成首頁瘦身與 `/analysis` 分析整合。M2 PWA Alpha 的測試流程與驗收門檻已建立，外部實測仍待執行；M3A／M3B 已完成 Balance Anchor 與 Adjustment 第一版，下一個工程批次為 M3C Settlement Account Entry。核心流程已可在本地與部署環境操作：
+目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract 與 **M1 Minimum Product UX** 第一輪。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；M1A 已完成主要頁面的 390、430、768px overflow audit，M1B 已拆分旅行列表與詳情，M1C 已建立 Universal Add 與交易歷史分批載入，M1D 已完成首頁瘦身與 `/analysis` 分析整合。M2 PWA Alpha 的測試流程與驗收門檻已建立，外部實測仍待執行；M3A 至 M3C 已完成 Balance Anchor、Adjustment 與 Settlement Account Entry 第一版，下一個工程批次為 M3D Reconciliation CLI。核心流程已可在本地與部署環境操作：
 
 - 日常收入 / 支出可記錄，並可連動帳戶餘額。
 - Web 日常收支新增已統一由 `/add` 處理，支援 AI Preview、缺少欄位補完、手動收入 / 支出與防重複送出。
@@ -36,6 +36,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - 帳戶可依銀行、現金、信用卡、電子錢包、預付卡、投資、外部帳戶與其他類型管理，帳戶列表與交易帳戶選擇已依類型分組。
 - 帳戶互轉已支援同幣別與跨幣別轉帳；信用卡帳戶允許負數累積，其他帳戶仍保守限制不可為負數。
 - 帳戶餘額改以「校正餘額」處理；每次校正保留調整前後金額、delta、原因與時間，並顯示於帳戶活動，但不計入收入或支出。
+- 旅行群組結算可選擇只更新分帳狀態，或由付款方／收款方各自記入自己的同幣別帳戶；私人入帳與反轉會保留 movement 紀錄，且不計入收入或支出。
 - 投資類型目前用於資金分配與投入成本紀錄；Asset Allocation 已提供 Portfolio、Holding、投入成本、手動 Snapshot 與新增投入試算，仍不串接券商或即時行情。
 - 旅行帳本可建立、切換、封存、軟刪除、復原，並支援每位登入成員自行決定是否納入個人月報。
 - 旅行支出可指定付款人、幣別、匯率與是否連動自己的帳戶。
@@ -506,7 +507,7 @@ Allocation 0：Asset Allocation Domain 定案。
 | README 與方向文件 | 完成 | 已補目前進度、核心資料流與測試方式 |
 | M0 Finance Contract | 第一版完成 | 已固定 Payment、Expense、Settlement、Transfer、Adjustment、Balance 與 ownership 語意，建立安全的 Product Event Taxonomy；後端 102 tests 與前端 build 通過 |
 | M2 PWA Alpha | 準備完成 | 已建立 5 至 10 位非開發者的分段測試流程、成功門檻、問題分級與隱私邊界，等待實測 |
-| M3A / M3B Ledger Correctness | 第一版完成 | 已建立 Balance Anchor、Adjustment ledger、餘額校正 API / UI 與活動紀錄；完整 reconciliation 與 Settlement Account Entry 尚未完成 |
+| M3A 至 M3C Ledger Correctness | 第一版完成 | 已建立 Balance Anchor、Adjustment ledger、Settlement 私人帳戶 posting / reversal 與帳戶活動紀錄；完整 reconciliation CLI 尚未完成 |
 | 新版 schema / Alembic | 完成 | 本地 migration 與 smoke test 可跑 |
 | Asset Allocation 1A | 完成 | 已建立 Portfolio、Holding、Recorded Cost 與 Snapshot schema / migration |
 | Asset Allocation 1B | 完成 | 已建立共用 Manager / API、ownership 與幣別驗證、轉帳成本分配、完整 Snapshot 與新增投入試算 |

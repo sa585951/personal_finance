@@ -23,6 +23,7 @@ from models.linebot.manager import LineBotManager
 from models.app_state import AppStateManager
 from models.database import db_session 
 from models.schema import transactions_table, trips_table
+from models.settlement_account_entry_manager import SettlementAccountEntryManager
 from models.transaction_service import TransactionService
 from models.trip_manager import TripManager
 from models.user_manager import UserManager
@@ -82,6 +83,7 @@ asset_manager = AssetManager(db_session)
 asset_allocation_manager = AssetAllocationManager(db_session)
 auth_session_manager = AuthSessionManager(db_session)
 budget_manager = BudgetManager(db_session)
+settlement_account_entry_manager = SettlementAccountEntryManager(db_session)
 goal_manager = GoalManager(db_session)
 trip_manager = TripManager(db_session)
 user_manager = UserManager(db_session)
@@ -1213,7 +1215,7 @@ def add_trip_settlement(current_user_id, trip_id):
         return jsonify({"success": False, "message": "缺少必要欄位"}), 400
 
     try:
-        success, message = budget_manager.add_trip_settlement(
+        success, message, settlement_id = budget_manager.add_trip_settlement(
             current_user_id,
             trip_id,
             data["from_member_id"],
@@ -1222,26 +1224,76 @@ def add_trip_settlement(current_user_id, trip_id):
             note=data.get("note"),
         )
         if success:
-            created_transaction_id = getattr(budget_manager, "last_created_transaction_id", None)
-            parse_event_id = data.get("parse_event_id")
-            if parse_event_id and created_transaction_id:
-                linebot_manager.ai_parse_event_manager.confirm_event(
-                    current_user_id,
-                    parse_event_id,
-                    data["type"],
-                    created_transaction_id,
-                )
             db_session.commit()
         return jsonify({
             "success": success,
             "message": message,
             "data": {
-                "transaction_id": str(getattr(budget_manager, "last_created_transaction_id", "")) or None,
+                "settlement_id": settlement_id,
             },
         }), 201
     except Exception as e:
         db_session.rollback()
         app.logger.error(f"Error in add_trip_settlement: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+
+@app.route(
+    "/api/trips/<string:trip_id>/settlements/<string:settlement_id>/account-entry",
+    methods=["POST"],
+)
+@token_required
+def create_settlement_account_entry(current_user_id, trip_id, settlement_id):
+    data = request.get_json() or {}
+    if not data.get("account_id"):
+        return jsonify({"success": False, "message": "缺少 account_id"}), 400
+
+    try:
+        entry = settlement_account_entry_manager.create_entry(
+            current_user_id,
+            trip_id,
+            settlement_id,
+            data["account_id"],
+        )
+        replayed = entry.pop("replayed", False)
+        db_session.commit()
+        return jsonify({
+            "success": True,
+            "message": "這筆結算已記入你的帳戶" if not replayed else "這筆結算先前已完成入帳",
+            "data": entry,
+            "replayed": replayed,
+        }), 200 if replayed else 201
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in create_settlement_account_entry: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+
+@app.route(
+    "/api/trips/<string:trip_id>/settlements/<string:settlement_id>/account-entry",
+    methods=["DELETE"],
+)
+@token_required
+def reverse_settlement_account_entry(current_user_id, trip_id, settlement_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        entry = settlement_account_entry_manager.reverse_entry(
+            current_user_id,
+            trip_id,
+            settlement_id,
+            reason=data.get("reason"),
+        )
+        replayed = entry.pop("replayed", False)
+        db_session.commit()
+        return jsonify({
+            "success": True,
+            "message": "私人帳戶入帳已取消" if not replayed else "私人帳戶入帳先前已取消",
+            "data": entry,
+            "replayed": replayed,
+        }), 200
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in reverse_settlement_account_entry: {e}")
         return jsonify({"success": False, "message": str(e)}), 400
 
 @app.route("/api/trips/<string:trip_id>/settlements/<string:settlement_id>", methods=["DELETE"])

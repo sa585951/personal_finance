@@ -2,7 +2,7 @@
   <section class="account-activity">
     <div class="activity-heading">
       <strong>近期活動</strong>
-      <small>核對收支、轉帳與餘額校正</small>
+      <small>核對收支、轉帳、旅行結算與餘額校正</small>
     </div>
     <div class="activity-filters" aria-label="帳戶活動篩選">
       <button
@@ -132,6 +132,7 @@ export default {
         { value: "income", label: "收入" },
         { value: "expense", label: "支出" },
         { value: "transfer", label: "轉帳" },
+        { value: "settlement", label: "結算" },
         { value: "adjustment", label: "校正" },
       ];
     },
@@ -140,6 +141,7 @@ export default {
         income: "這個帳戶目前沒有收入紀錄，可用來核對薪資、退款或入帳。",
         expense: "這個帳戶目前沒有支出紀錄，可用來核對信用卡或付款帳戶。",
         transfer: "這個帳戶目前沒有轉帳紀錄，可用來核對儲蓄、投資或帳戶間資金流向。",
+        settlement: "這個帳戶目前沒有旅行結算入帳紀錄。",
         adjustment: "這個帳戶目前沒有餘額校正紀錄。",
       };
       return messageMap[this.activeFilter] || "這個帳戶目前沒有近期活動。";
@@ -186,6 +188,12 @@ export default {
       if (activity.type === "adjustment") {
         return "餘額校正";
       }
+      if (activity.type === "settlement") {
+        if (activity.is_reversal) return "取消旅行結算入帳";
+        return activity.direction === "incoming"
+          ? `收到 ${activity.counterparty} 還款`
+          : `付給 ${activity.counterparty}`;
+      }
       return activity.title || activity.budget_category || "未命名交易";
     },
     activitySubtitle(activity) {
@@ -203,6 +211,9 @@ export default {
         const balanceChange = `${this.formatMoney(activity.balance_before, activity.currency)} → ${this.formatMoney(activity.balance_after, activity.currency)}`;
         return [reason, balanceChange, activity.note].filter(Boolean).join(" · ");
       }
+      if (activity.type === "settlement") {
+        return `${activity.trip_name || "旅行帳本"} · 不計入收入支出`;
+      }
       return activity.merchant || activity.description || activity.budget_category || "一般收支";
     },
     activityBadge(activity) {
@@ -212,6 +223,9 @@ export default {
       if (activity.type === "adjustment") {
         return "不計入收支";
       }
+      if (activity.type === "settlement") {
+        return activity.is_reversal ? "入帳已反轉" : "旅行結算";
+      }
       return activity.transaction_type === "income" ? "收入" : "支出";
     },
     activityAmountClass(activity) {
@@ -220,6 +234,9 @@ export default {
       }
       if (activity.type === "adjustment") {
         return Number(activity.amount_delta || 0) >= 0 ? "positive" : "negative";
+      }
+      if (activity.type === "settlement") {
+        return Number(activity.amount || 0) >= 0 ? "positive" : "negative";
       }
       return activity.transaction_type === "income" ? "positive" : "negative";
     },
@@ -262,7 +279,7 @@ export default {
 
 .activity-filters {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
   background: #f1f5f9;

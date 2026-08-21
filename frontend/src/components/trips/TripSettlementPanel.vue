@@ -47,7 +47,7 @@
             type="button"
             @click="$emit('confirm', suggestion)"
           >
-            已付款
+            確認已付款
           </button>
         </div>
       </div>
@@ -92,9 +92,34 @@
     <div v-if="records.length === 0" class="empty-state">尚無已確認結算</div>
     <div v-else class="settlement-list">
       <div v-for="settlement in records" :key="settlement.id" class="settlement-row settled">
-        <span>{{ settlement.from_display_name }} 已付給 {{ settlement.to_display_name }}</span>
+        <div class="settlement-record-copy">
+          <span>{{ settlement.from_display_name }} 已付給 {{ settlement.to_display_name }}</span>
+          <small v-if="settlement.account_entry?.status === 'posted'">
+            {{ settlement.account_entry.account_name }} ·
+            {{ settlement.account_entry.direction === "incoming" ? "已入帳" : "已扣款" }}
+          </small>
+          <small v-else-if="settlement.account_entry?.status === 'reversed'">
+            {{ settlement.account_entry.account_name }} · 私人帳戶入帳已取消
+          </small>
+        </div>
         <div class="settlement-actions">
           <strong>{{ formatMoney(settlement.amount, settlement.currency) }}</strong>
+          <button
+            v-if="settlement.can_post_account"
+            class="quiet-mini-button"
+            type="button"
+            @click="$emit('post-account', settlement)"
+          >
+            記入我的帳戶
+          </button>
+          <button
+            v-if="settlement.can_reverse_account"
+            class="quiet-mini-button"
+            type="button"
+            @click="$emit('reverse-account', settlement)"
+          >
+            取消帳戶入帳
+          </button>
           <button
             v-if="settlement.can_void !== false"
             class="quiet-mini-button"
@@ -123,7 +148,14 @@ export default {
     records: { type: Array, default: () => [] },
     showDetails: { type: Boolean, default: false },
   },
-  emits: ["confirm", "copy-summary", "toggle-details", "void"],
+  emits: [
+    "confirm",
+    "copy-summary",
+    "post-account",
+    "reverse-account",
+    "toggle-details",
+    "void",
+  ],
   methods: {
     formatMoney(amount, currency) {
       const minorUnit = ["TWD", "JPY", "KRW"].includes(currency) ? 0 : 2;
@@ -461,6 +493,22 @@ export default {
 .settlement-row.settled > span,
 .settlement-row.settled strong {
   color: #0f766e;
+}
+
+.settlement-record-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.settlement-record-copy span {
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.settlement-record-copy small {
+  color: #64748b;
+  font-size: 0.78rem;
 }
 
 .settlement-actions {

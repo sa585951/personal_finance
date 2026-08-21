@@ -109,7 +109,7 @@ Account Movement 與月報分類是兩套不同維度。
 某一時間點經確認的帳戶餘額基準。
 
 - M3A 現況：新帳戶會建立初始 Anchor；既有追蹤餘額帳戶由 migration 以當前快照建立 `migration` Anchor。
-- Anchor 前的歷史 movement 不回推；完整 Expected Balance 計算仍待 M3C／M3D 補齊 movement 與 reconciliation。
+- Anchor 前的歷史 movement 不回推；Settlement movement 已於 M3C 補齊，完整 Expected Balance 計算仍待 M3D reconciliation。
 
 ## 帳戶 movement 符號
 
@@ -199,6 +199,15 @@ Expected Balance
 - `(settlement_id, user_id)` 必須唯一，重複 request 不可二次異動餘額。
 - Reversal 只能執行一次，且只能反轉原 entry 的 movement。
 
+### M3C 實作狀態
+
+- `settlement_account_entries` 保存每位使用者自己的 incoming／outgoing movement、posting 前後餘額及一次性 reversal 前後餘額。
+- 確認 Group Settlement 時可不選帳戶；付款方與收款方也可在已確認結算中，分別補記自己的私人帳戶。
+- 帳戶必須屬於目前使用者、啟用餘額追蹤且幣別與 Settlement 相同。
+- `(settlement_id, user_id)` 唯一；相同帳戶重送視為 replay，不重複異動餘額。
+- 有尚未反轉的私人 posting 時，Group Settlement 不可撤銷，避免 Trip Owner 間接異動其他成員的私人帳戶。
+- Settlement posting 與 reversal 會顯示於帳戶活動，但不建立 Transaction，也不進 Income／Expense、預算或月報。
+
 ## 標準案例
 
 | 情境 | 帳戶變化 | 個人月報變化 | 實作狀態 |
@@ -220,4 +229,4 @@ Expected Balance
 
 ## 實作邊界
 
-M0 已建立共同語言與 characterization tests；M3A／M3B 已新增 Anchor、Adjustment、API 與帳戶校正 UI。Settlement Account Entry、Expected Balance CLI、完整 reconciliation 與 legacy schema 收斂仍留在 M3C 至 M3E。
+M0 已建立共同語言與 characterization tests；M3A 至 M3C 已新增 Anchor、Adjustment、Settlement Account Entry、API 與對應 UI。Expected Balance CLI、完整 reconciliation 與 legacy schema 收斂仍留在 M3D 至 M3E。

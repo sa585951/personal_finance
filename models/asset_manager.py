@@ -12,8 +12,12 @@ from .schema import (
     accounts_table,
     categories_table,
     holding_cost_entries_table,
+    settlement_account_entries_table,
+    settlements_table,
     transactions_table,
     transfers_table,
+    trip_members_table,
+    trips_table,
 )
 
 
@@ -753,7 +757,7 @@ class AssetManager:
     def get_account_activity(self, user_id, account_key, limit=10, page=1, activity_filter="all"):
         """取得單一帳戶近期收支、轉帳與餘額校正活動。"""
         normalized_filter = (activity_filter or "all").strip().lower()
-        if normalized_filter not in {"all", "income", "expense", "transfer", "adjustment"}:
+        if normalized_filter not in {"all", "income", "expense", "transfer", "settlement", "adjustment"}:
             raise ValueError("無效的活動篩選條件")
 
         account = self._get_account(user_id, account_key)
@@ -840,9 +844,36 @@ class AssetManager:
             )
             .limit(fetch_limit)
         )
+        settlement_from_member = trip_members_table.alias("activity_settlement_from")
+        settlement_to_member = trip_members_table.alias("activity_settlement_to")
+        settlement_stmt = (
+            select(
+                settlement_account_entries_table,
+                settlements_table.c.trip_id,
+                trips_table.c.name.label("trip_name"),
+                settlement_from_member.c.display_name.label("from_display_name"),
+                settlement_to_member.c.display_name.label("to_display_name"),
+            )
+            .join(
+                settlements_table,
+                settlement_account_entries_table.c.settlement_id == settlements_table.c.id,
+            )
+            .join(trips_table, settlements_table.c.trip_id == trips_table.c.id)
+            .join(settlement_from_member, settlements_table.c.from_member_id == settlement_from_member.c.id)
+            .join(settlement_to_member, settlements_table.c.to_member_id == settlement_to_member.c.id)
+            .where(
+                settlement_account_entries_table.c.user_id == parsed_user_id,
+                settlement_account_entries_table.c.account_id == account_id,
+            )
+            .order_by(
+                desc(settlement_account_entries_table.c.posted_at),
+                desc(settlement_account_entries_table.c.created_at),
+            )
+            .limit(fetch_limit)
+        )
 
         activities = []
-        if normalized_filter not in {"transfer", "adjustment"}:
+        if normalized_filter not in {"transfer", "settlement", "adjustment"}:
             for row in self.db_session.execute(transaction_stmt):
                 transaction = dict(row._mapping)
                 can_manage = False
@@ -906,6 +937,46 @@ class AssetManager:
                     "date": adjustment["adjusted_at"].date().isoformat(),
                     "created_at": adjustment["created_at"].isoformat(),
                 })
+
+        if normalized_filter in {"all", "settlement"}:
+            for row in self.db_session.execute(settlement_stmt):
+                entry = dict(row._mapping)
+                direction = entry["direction"]
+                counterparty = (
+                    entry["from_display_name"]
+                    if direction == "incoming"
+                    else entry["to_display_name"]
+                )
+                signed_amount = entry["amount"] if direction == "incoming" else -entry["amount"]
+                activities.append({
+                    "id": str(entry["id"]),
+                    "type": "settlement",
+                    "direction": direction,
+                    "amount": float(signed_amount),
+                    "currency": entry["currency"],
+                    "status": entry["status"],
+                    "counterparty": counterparty,
+                    "trip_id": str(entry["trip_id"]),
+                    "trip_name": entry["trip_name"],
+                    "date": entry["posted_at"].date().isoformat(),
+                    "created_at": entry["posted_at"].isoformat(),
+                    "is_reversal": False,
+                })
+                if entry["status"] == "reversed" and entry["reversed_at"]:
+                    activities.append({
+                        "id": f"{entry['id']}-reversal",
+                        "type": "settlement",
+                        "direction": "outgoing" if direction == "incoming" else "incoming",
+                        "amount": float(-signed_amount),
+                        "currency": entry["currency"],
+                        "status": "reversed",
+                        "counterparty": counterparty,
+                        "trip_id": str(entry["trip_id"]),
+                        "trip_name": entry["trip_name"],
+                        "date": entry["reversed_at"].date().isoformat(),
+                        "created_at": entry["reversed_at"].isoformat(),
+                        "is_reversal": True,
+                    })
 
         sorted_activities = sorted(
             activities,

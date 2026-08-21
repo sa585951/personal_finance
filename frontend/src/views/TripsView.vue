@@ -195,6 +195,8 @@
           :show-details="showSplitDetails"
           @copy-summary="copySettlementSummary"
           @confirm="confirmSettlement"
+          @post-account="postSettlementAccountEntry"
+          @reverse-account="reverseSettlementAccountEntry"
           @toggle-details="showSplitDetails = !showSplitDetails"
           @void="deleteSettlement"
         />
@@ -1437,14 +1439,19 @@ export default {
       }
     },
     async confirmSettlement(suggestion) {
+      const isCurrentUserSide = this.selectedTrip?.current_member_id
+        && [suggestion.from_member_id, suggestion.to_member_id].includes(this.selectedTrip.current_member_id);
+      const accountOptions = isCurrentUserSide
+        ? this.settlementAccountOptions(suggestion.currency, { allowSkip: true })
+        : null;
       const result = await this.$swal.fire({
         title: "標記為已付款？",
-        html: `
-          <p>${suggestion.from_display_name} 付給 ${suggestion.to_display_name}</p>
-          <strong>${this.formatMoney(suggestion.amount, suggestion.currency)}</strong>
-          <p style="margin-top: 8px; color: #64748b; font-size: 0.9rem;">只更新分帳狀態，不會異動任何帳戶餘額。</p>
-        `,
+        text: `${suggestion.from_display_name} 付給 ${suggestion.to_display_name} ${this.formatMoney(suggestion.amount, suggestion.currency)}。群組結算不算收入或支出，你可以選擇是否同步更新自己的帳戶。`,
         icon: "question",
+        input: accountOptions ? "select" : undefined,
+        inputOptions: accountOptions || undefined,
+        inputValue: accountOptions ? "__none__" : undefined,
+        inputLabel: accountOptions ? "同步我的帳戶（選填）" : undefined,
         showCancelButton: true,
         confirmButtonText: "標記已付款",
         cancelButtonText: "取消",
@@ -1452,14 +1459,108 @@ export default {
       if (!result.isConfirmed) return;
 
       try {
-        await apiClient.post(`/api/trips/${this.selectedTrip.id}/settlements`, {
+        const response = await apiClient.post(`/api/trips/${this.selectedTrip.id}/settlements`, {
           from_member_id: suggestion.from_member_id,
           to_member_id: suggestion.to_member_id,
           amount: suggestion.amount,
         });
-        await this.fetchSplitState();
+        const settlementId = response.data.data?.settlement_id;
+        if (result.value && result.value !== "__none__" && settlementId) {
+          try {
+            await apiClient.post(
+              `/api/trips/${this.selectedTrip.id}/settlements/${settlementId}/account-entry`,
+              { account_id: result.value }
+            );
+          } catch (postingError) {
+            await Promise.all([this.fetchSplitState(), this.fetchAssets()]);
+            await this.$swal.fire(
+              "分帳已確認，但帳戶未更新",
+              postingError.response?.data?.message || "可在已確認結算中重新選擇帳戶。",
+              "warning"
+            );
+            return;
+          }
+        }
+        await Promise.all([this.fetchSplitState(), this.fetchAssets()]);
       } catch (error) {
         this.$swal.fire("確認失敗", error.response?.data?.message || "請稍後再試", "error");
+      }
+    },
+    settlementAccountOptions(currency, { allowSkip = false } = {}) {
+      const options = {};
+      if (allowSkip) {
+        options.__none__ = "只更新分帳狀態，不異動帳戶";
+      }
+      Object.values(this.assets || {})
+        .filter((asset) => (
+          asset.currency === currency
+          && asset.track_balance !== false
+          && asset.is_active !== false
+        ))
+        .sort((left, right) => (left.bank_name || "").localeCompare(right.bank_name || "", "zh-TW"))
+        .forEach((asset) => {
+          options[asset.id] = `${asset.bank_name} · ${asset.currency} ${Number(asset.balance || 0).toLocaleString("zh-TW")}`;
+        });
+      const realOptionCount = Object.keys(options).length - (allowSkip ? 1 : 0);
+      if (realOptionCount === 0) return null;
+      return options;
+    },
+    async postSettlementAccountEntry(settlement) {
+      const accountOptions = this.settlementAccountOptions(settlement.currency);
+      if (!accountOptions) {
+        this.$swal.fire(
+          "沒有可用帳戶",
+          `請先建立並啟用一個 ${settlement.currency} 餘額追蹤帳戶。`,
+          "info"
+        );
+        return;
+      }
+
+      const direction = this.selectedTrip?.current_member_id === settlement.from_member_id
+        ? "扣除付款"
+        : "加入收款";
+      const result = await this.$swal.fire({
+        title: `${direction}帳戶`,
+        text: `${settlement.from_display_name} → ${settlement.to_display_name} ${this.formatMoney(settlement.amount, settlement.currency)}`,
+        input: "select",
+        inputOptions: accountOptions,
+        inputPlaceholder: "選擇你的帳戶",
+        inputValidator: (value) => (!value ? "請選擇帳戶" : undefined),
+        showCancelButton: true,
+        confirmButtonText: "記入帳戶",
+        cancelButtonText: "取消",
+      });
+      if (!result.isConfirmed) return;
+
+      try {
+        await apiClient.post(
+          `/api/trips/${this.selectedTrip.id}/settlements/${settlement.id}/account-entry`,
+          { account_id: result.value }
+        );
+        await Promise.all([this.fetchSplitState(), this.fetchAssets()]);
+      } catch (error) {
+        this.$swal.fire("入帳失敗", error.response?.data?.message || "請稍後再試", "error");
+      }
+    },
+    async reverseSettlementAccountEntry(settlement) {
+      const result = await this.$swal.fire({
+        title: "取消私人帳戶入帳？",
+        text: "只會反轉你自己的帳戶餘額，不會撤銷群組結算。",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "取消入帳",
+        cancelButtonText: "保留",
+      });
+      if (!result.isConfirmed) return;
+
+      try {
+        await apiClient.delete(
+          `/api/trips/${this.selectedTrip.id}/settlements/${settlement.id}/account-entry`,
+          { data: { reason: "使用者從旅行結算頁取消入帳" } }
+        );
+        await Promise.all([this.fetchSplitState(), this.fetchAssets()]);
+      } catch (error) {
+        this.$swal.fire("取消失敗", error.response?.data?.message || "請稍後再試", "error");
       }
     },
     async deleteSettlement(settlement) {
