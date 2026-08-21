@@ -49,7 +49,7 @@
           <div><dt>金額</dt><dd>{{ draft.amount || "待補" }}</dd></div>
           <div><dt>類別</dt><dd>{{ draft.budget_category || "待補" }}</dd></div>
           <div><dt>日期</dt><dd>{{ draft.date || "今天" }}</dd></div>
-          <div><dt>帳戶</dt><dd>{{ draft.account_hint || "不連動帳戶" }}</dd></div>
+          <div><dt>帳戶</dt><dd>{{ draft.account_name || draft.account_hint || "不連動帳戶" }}</dd></div>
           <div><dt>備註</dt><dd>{{ draft.description || "無" }}</dd></div>
         </dl>
         <p v-if="missingFieldLabels.length" class="missing-fields">

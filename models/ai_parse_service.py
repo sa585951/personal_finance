@@ -38,6 +38,7 @@ class AIParseService:
         raw_text = (message or "").strip()
         legacy_result, parser_source = self._parse_legacy(raw_text)
         legacy_result = self._apply_standard_field_split(legacy_result, raw_text)
+        legacy_result = self._apply_account_metadata(legacy_result, raw_text)
         legacy_result = self._apply_transaction_date(legacy_result, raw_text)
         legacy_result = self._redirect_investment_allocation(legacy_result, raw_text)
 
@@ -138,6 +139,48 @@ class AIParseService:
         refined["date"] = parsed_date
         return refined
 
+    def _apply_account_metadata(self, legacy_result, raw_text):
+        """讓帳戶提示與備註各自維持單一職責。"""
+        if legacy_result.get("type") not in TRANSACTION_TYPES:
+            return legacy_result
+
+        refined = deepcopy(legacy_result)
+        parsed_hint = str(refined.get("target_asset") or "").strip()
+        detected_hint = self._detect_account_hint(raw_text)
+        description_hint = self._extract_account_only_description(refined.get("description"))
+        account_candidates = [
+            hint for hint in (detected_hint, parsed_hint, description_hint) if hint
+        ]
+        account_hint = max(
+            account_candidates,
+            key=lambda hint: (self._account_hint_specificity(hint), len(hint)),
+            default=None,
+        )
+        refined["target_asset"] = account_hint
+        refined["description"] = self._remove_account_from_description(
+            refined.get("description"),
+            account_hint,
+        )
+        return refined
+
+    def _extract_account_only_description(self, description):
+        normalized = str(description or "").strip()
+        if re.fullmatch(
+            r"[^\s,，。；;\d]*(?:信用卡|現金|銀行|帳戶|活存|定存|錢包|Pay|pay|郵局|悠遊卡)",
+            normalized,
+            flags=re.IGNORECASE,
+        ):
+            return normalized
+        return None
+
+    def _account_hint_specificity(self, hint):
+        normalized = str(hint or "").strip().lower()
+        generic_hints = {
+            "信用卡", "現金", "銀行", "帳戶", "活存", "定存",
+            "錢包", "line pay", "街口", "郵局", "悠遊卡", "卡",
+        }
+        return 1 if normalized in generic_hints else 2
+
     def _redirect_investment_allocation(self, legacy_result, raw_text):
         if legacy_result.get("type") != "expense":
             return legacy_result
@@ -207,6 +250,10 @@ class AIParseService:
         if explicit_hint:
             return explicit_hint
 
+        trailing_hint = self._extract_trailing_account_hint(message)
+        if trailing_hint:
+            return trailing_hint
+
         account_keywords = ["現金", "信用卡", "刷卡", "銀行", "郵局", "LINE Pay", "街口", "悠遊卡"]
         for keyword in account_keywords:
             if keyword.lower() in message.lower():
@@ -215,7 +262,7 @@ class AIParseService:
 
     def _extract_explicit_account_hint(self, message):
         account_pattern = re.compile(
-            r"(?:用|使用|以|刷|存入|匯入|轉入)\s*"
+            r"(?<!信)(?:使用|用|以|刷(?!卡)|存入|匯入|轉入)\s*"
             r"([^,，。；;\s\d]*(?:信用卡|現金|銀行|帳戶|活存|錢包|Pay|pay|卡|郵局))",
             re.IGNORECASE,
         )
@@ -223,6 +270,54 @@ class AIParseService:
         if match:
             return match.group(1).strip()
         return None
+
+    def _extract_trailing_account_hint(self, message):
+        """辨識沒有「用」前綴、但獨立放在句尾的具名帳戶。"""
+        account_suffix = re.compile(
+            r"(?:信用卡|現金|銀行|帳戶|活存|定存|錢包|Pay|pay|郵局|悠遊卡)$",
+            re.IGNORECASE,
+        )
+        ignored_prefixes = ("繳", "還", "查", "新增", "刪除", "更新", "調整")
+        tokens = [
+            token.strip()
+            for token in re.split(r"[\s,，。；;]+", str(message or "").strip())
+            if token.strip()
+        ]
+        for token in reversed(tokens):
+            if any(char.isdigit() for char in token):
+                continue
+            normalized = re.sub(r"^(?:用|使用|以|刷|存入|匯入|轉入)", "", token, flags=re.IGNORECASE)
+            if normalized.startswith(ignored_prefixes):
+                continue
+            if account_suffix.search(normalized):
+                return normalized
+            break
+        return None
+
+    def _remove_account_from_description(self, description, account_hint):
+        normalized = str(description or "").strip()
+        if not normalized:
+            return ""
+
+        if account_hint:
+            normalized = re.sub(
+                re.escape(str(account_hint).strip()),
+                "",
+                normalized,
+                flags=re.IGNORECASE,
+            )
+        normalized = self._remove_account_phrase(normalized)
+        normalized = re.sub(r"^(?:用|使用|以|刷|存入|匯入|轉入|由|從|付款|付)", "", normalized)
+        normalized = re.sub(r"(?:付款|扣款|入帳)$", "", normalized)
+        normalized = re.sub(r"[，,。．\s]+", " ", normalized).strip()
+
+        if re.fullmatch(
+            r"[^\s,，。；;\d]*(?:信用卡|現金|銀行|帳戶|活存|定存|錢包|Pay|pay|郵局|悠遊卡)",
+            normalized,
+            flags=re.IGNORECASE,
+        ):
+            return ""
+        return normalized
 
     def _detect_currency(self, message):
         currency_keywords = [
@@ -318,7 +413,7 @@ class AIParseService:
 
     def _remove_account_phrase(self, message):
         return re.sub(
-            r"(?:用|使用|以|刷|存入|匯入|轉入)\s*"
+            r"(?<!信)(?:使用|用|以|刷(?!卡)|存入|匯入|轉入)\s*"
             r"[^,，。；;\s\d]*(?:信用卡|現金|銀行|帳戶|活存|錢包|Pay|pay|卡|郵局)",
             "",
             message,

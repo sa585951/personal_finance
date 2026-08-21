@@ -293,6 +293,60 @@ def test_standard_account_expense_keeps_account_hint_and_empty_note():
     assert result["transaction"]["account_hint"] == "國泰信用卡"
 
 
+def test_trailing_named_account_overrides_generic_hint_and_is_removed_from_note():
+    fake_model = FakeGeminiModel(
+        """
+        {
+          "type": "expense",
+          "budget_category": "伙食",
+          "category": "牛奶",
+          "description": "國泰信用卡",
+          "amount": 99,
+          "target_asset": "信用卡"
+        }
+        """
+    )
+    service = AIParseService(
+        gemini_model=fake_model,
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("牛奶 99 國泰信用卡")
+
+    assert result["legacy"]["target_asset"] == "國泰信用卡"
+    assert result["legacy"]["description"] == ""
+    assert result["transaction"]["account_hint"] == "國泰信用卡"
+    assert result["transaction"]["description"] == ""
+
+
+def test_plain_card_payment_is_normalized_as_generic_credit_card_hint():
+    service = AIParseService(
+        gemini_model=FakeGeminiModel(
+            '{"type":"expense","budget_category":"伙食","category":"午餐","description":"","amount":120,"target_asset":"信用卡"}'
+        ),
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("午餐 120 刷卡")
+
+    assert result["transaction"]["account_hint"] == "信用卡"
+    assert result["transaction"]["description"] == ""
+
+
+def test_account_only_description_can_restore_specific_account_hint():
+    service = AIParseService(
+        gemini_model=FakeGeminiModel(
+            '{"type":"expense","budget_category":"伙食","category":"牛奶","description":"國泰信用卡","amount":99,"target_asset":"信用卡"}'
+        ),
+        prompt_template="訊息：{message}",
+    )
+
+    result = service.parse("牛奶99國泰信用卡")
+
+    assert result["transaction"]["account_hint"] == "國泰信用卡"
+    assert result["transaction"]["description"] == ""
+
+
 def test_relative_date_phrase_is_parsed_and_removed_from_note():
     fake_model = FakeGeminiModel(
         """

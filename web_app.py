@@ -342,6 +342,16 @@ def parse_ai_input(current_user_id):
 
     try:
         parse_result = linebot_manager.message_parser.parse_shared(text)
+        transaction = parse_result.get("transaction")
+        if transaction and transaction.get("account_hint"):
+            matched_account = asset_manager.find_asset_by_name(
+                current_user_id,
+                transaction["account_hint"],
+                currency=transaction.get("currency"),
+                context_text=text,
+            )
+            transaction["account_id"] = matched_account["account_key"] if matched_account else None
+            transaction["account_name"] = matched_account["bank_name"] if matched_account else None
         parse_event = linebot_manager.ai_parse_event_manager.record_from_parse_result(
             current_user_id,
             "web",

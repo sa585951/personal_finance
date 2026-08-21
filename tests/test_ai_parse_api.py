@@ -139,7 +139,18 @@ class FakeBudgetManager:
 
 
 class FakeAssetManager:
+    def find_asset_by_name(self, user_id, name, currency=None, context_text=None):
+        self.account_match_request = {
+            "user_id": user_id,
+            "name": name,
+            "currency": currency,
+            "context_text": context_text,
+        }
+        return self.account_match
+
     def __init__(self):
+        self.account_match = None
+        self.account_match_request = None
         self.transfer_payload = None
         self.recent_request = None
         self.update_payload = None
@@ -547,6 +558,53 @@ def test_ai_parse_api_returns_parse_result_and_records_event(monkeypatch):
     assert fake_linebot_manager.ai_parse_event_manager.last_user_id == "22222222-2222-2222-2222-222222222222"
     assert fake_linebot_manager.ai_parse_event_manager.last_source == "web"
     assert fake_db_session.commits == 1
+
+
+def test_ai_parse_api_resolves_specific_account_id_on_backend(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_linebot_manager = FakeLineBotManager()
+    fake_linebot_manager.message_parser.parse_shared = lambda text: {
+        "intent": "create_transaction",
+        "source": "gemini",
+        "raw_text": text,
+        "legacy": {"type": "expense", "target_asset": "國泰信用卡"},
+        "transaction": {
+            "type": "expense",
+            "title": "牛奶",
+            "budget_category": "伙食",
+            "amount": "99",
+            "description": "",
+            "account_hint": "國泰信用卡",
+            "currency": "TWD",
+            "date": None,
+            "merchant": None,
+        },
+        "flow": None,
+        "missing_fields": [],
+        "errors": [],
+    }
+    fake_asset_manager = FakeAssetManager()
+    fake_asset_manager.account_match = {
+        "account_key": "33333333-3333-3333-3333-333333333333",
+        "bank_name": "國泰信用卡",
+    }
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "linebot_manager", fake_linebot_manager)
+    monkeypatch.setattr(web_app, "asset_manager", fake_asset_manager)
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().post(
+        "/api/ai/parse",
+        json={"text": "牛奶 99 國泰信用卡"},
+        headers=_auth_headers(),
+    )
+    transaction = response.get_json()["data"]["parse_result"]["transaction"]
+
+    assert response.status_code == 200
+    assert transaction["account_id"] == "33333333-3333-3333-3333-333333333333"
+    assert transaction["account_name"] == "國泰信用卡"
+    assert fake_asset_manager.account_match_request["name"] == "國泰信用卡"
+    assert fake_asset_manager.account_match_request["context_text"] == "牛奶 99 國泰信用卡"
 
 
 def test_add_transaction_confirms_parse_event_when_present(monkeypatch):

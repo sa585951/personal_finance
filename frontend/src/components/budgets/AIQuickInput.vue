@@ -71,7 +71,7 @@
         </div>
         <div>
           <span>帳戶提示</span>
-          <strong>{{ transaction.account_hint || "無" }}</strong>
+          <strong>{{ transaction.account_name || transaction.account_hint || "無" }}</strong>
         </div>
       </div>
 

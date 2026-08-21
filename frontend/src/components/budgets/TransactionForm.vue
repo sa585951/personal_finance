@@ -117,7 +117,7 @@
           <span>幣別：{{ aiReview.currency || "預設" }}</span>
         </div>
         <p v-if="aiReview.accountHint && aiReview.accountMatched" class="ai-review-note">
-          已依「{{ aiReview.accountHint }}」帶入帳戶。
+          已帶入帳戶「{{ aiReview.accountName }}」。
         </p>
         <p v-else-if="aiReview.accountHint" class="ai-review-note warning">
           找不到「{{ aiReview.accountHint }}」對應帳戶，請手動選擇帳戶。
@@ -138,6 +138,7 @@
 
 <script>
 import apiClient from "@/api";
+import { findAccountByHint } from "@/utils/accountMatcher";
 import { format } from "date-fns";
 
 export default {
@@ -371,7 +372,15 @@ export default {
       const amount = draft.amount === null || draft.amount === undefined
         ? null
         : Number(draft.amount);
-      const matchedAccountId = this.findAccountIdByHint(draft.account_hint, draft.currency);
+      const backendMatchedAccount = Object.values(this.assets || {}).find(
+        (asset) => asset.id === draft.account_id
+      );
+      const matchedAccount = backendMatchedAccount || findAccountByHint(
+        this.assets,
+        draft.account_hint,
+        draft.currency
+      );
+      const matchedAccountId = matchedAccount?.id || "";
 
       this.newTransaction = {
         ...this.newTransaction,
@@ -382,7 +391,7 @@ export default {
         budget_category: draft.budget_category || this.newTransaction.budget_category,
         description: draft.description || "",
         original_currency: draft.currency || this.newTransaction.original_currency,
-        account_id: matchedAccountId || this.newTransaction.account_id,
+        account_id: matchedAccountId,
         parse_event_id: draft.parse_event_id || "",
       };
       this.aiReview = {
@@ -393,6 +402,7 @@ export default {
         currency: draft.currency || "",
         accountHint: draft.account_hint || "",
         accountMatched: Boolean(draft.account_hint && matchedAccountId),
+        accountName: matchedAccount?.bank_name || draft.account_name || "",
         switchedType: Boolean(draft.switchedType),
       };
       if (this.mode === "preview" && this.missingFields.includes("budget_category")) {
@@ -506,22 +516,6 @@ export default {
           ? {}
           : { client_request_id: this.clientRequestId }),
       };
-    },
-    findAccountIdByHint(accountHint, currencyHint = null) {
-      if (!accountHint) return "";
-      const normalizedHint = String(accountHint).trim().toLowerCase();
-      const normalizedCurrency = currencyHint ? String(currencyHint).trim().toUpperCase() : "";
-      const candidates = Object.values(this.assets || {}).filter((asset) => {
-        const bankName = String(asset.bank_name || "").toLowerCase();
-        const accountType = this.translateAccountType(asset.account_type).toLowerCase();
-        return (
-          normalizedHint.includes(bankName)
-          || bankName.includes(normalizedHint)
-          || normalizedHint.includes(accountType)
-        );
-      });
-      const matchedAccount = candidates.find((asset) => asset.currency === normalizedCurrency) || candidates[0];
-      return matchedAccount?.id || "";
     },
     formatMoney(amount, currency = "TWD") {
       const minorUnit = ["TWD", "JPY", "KRW"].includes(currency) ? 0 : 2;

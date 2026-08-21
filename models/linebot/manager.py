@@ -80,7 +80,7 @@ class LineBotManager:
         - `description`: 店家、品牌或使用者明確提供的補充備註，例如「麥當勞」、「跟朋友聚餐」、「公司報銷」。如果沒有店家或明確備註，請回傳空字串 "" 或 null，不要把原始訊息整段放入。
         - `amount`: 金額 (數字)。
         - `currency`: 訊息中的幣別代碼，例如 TWD、JPY、USD、EUR、KRW。若未提到幣別，此欄位為 null。
-        - `target_asset`: 支付的資產/帳戶，例如「現金」、「信用卡」、「銀行轉帳」。如果訊息中沒有提到，此欄位為 null。
+        - `target_asset`: 支付的資產/帳戶。若使用者有寫具名帳戶，例如「國泰信用卡」，必須保留完整名稱，不可只回傳「信用卡」。如果訊息中沒有提到，此欄位為 null。
 
         **規則：**
         1. **支出記錄**: 必須包含 `type`, `budget_category`, `category`, `amount`。
@@ -90,9 +90,9 @@ class LineBotManager:
         3. **欄位提取邏輯**: 
            - `budget_category`: 將消費目的歸類到「類別限制」中的一個。
            - `category`: 從訊息中提取最適合作為列表顯示與使用者回查的項目名稱；例如「午餐麥當勞 150」的 category 是「午餐」。
-           - `description`: 放店家、品牌或額外補充備註；例如「午餐麥當勞 150」的 description 是「麥當勞」。若沒有店家或明確備註，留空，不要填入 category，也不要填入原始訊息。
+           - `description`: 放店家、品牌或額外補充備註；例如「午餐麥當勞 150」的 description 是「麥當勞」。帳戶名稱只放在 `target_asset`，不可重複放入 description。若沒有店家或明確備註，留空，不要填入 category，也不要填入原始訊息。
            - `currency`: 若訊息提到「日幣、日圓、JPY」回傳 JPY；「台幣、TWD、NTD」回傳 TWD；「美金、美元、USD」回傳 USD；未提到則回傳 null。
-           - `target_asset`: 從訊息中提取支付方式，如「用現金」、「刷卡」、「從郵局轉帳」。
+           - `target_asset`: 從訊息中提取支付方式或完整帳戶名稱，如「用現金」、「國泰信用卡」、「從郵局轉帳」。
         4. **其他請求**: 根據訊息類型回傳對應的 JSON 結構。
         5. **投資投入 / 定期定額**: 例如「定期定額 5000」、「買 ETF 10000」屬於帳戶間資金流向，不要解析成 expense；請回傳 {{ "type": "other", "error": "investment_allocation_requires_transfer" }}。
 
