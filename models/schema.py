@@ -801,10 +801,9 @@ Index(
 )
 
 
-# Legacy table definitions kept outside the Alembic target metadata so the
-# current API/manager layer can still import during the schema migration phase.
-# These tables are not created by the new migration and should be removed once
-# the API layer is migrated to the new MVP schema.
+# Quarantined legacy definitions. They are outside Alembic target metadata,
+# are not created by current migrations, and must not be used by active API
+# paths. Keep them only until legacy data export/removal is explicitly decided.
 assets_table = Table(
     "assets",
     legacy_metadata,

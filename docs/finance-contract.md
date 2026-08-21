@@ -231,4 +231,4 @@ Expected Balance
 
 ## 實作邊界
 
-M0 已建立共同語言與 characterization tests；M3A 至 M3D 已新增 Anchor、Adjustment、Settlement Account Entry、Transaction／Transfer movement ledger 與 read-only Expected Balance CLI。M3E 保留 legacy goals 與舊 schema 使用情況收斂。
+M0 已建立共同語言與 characterization tests；M3A 至 M3D 已新增 Anchor、Adjustment、Settlement Account Entry、Transaction／Transfer movement ledger 與 read-only Expected Balance CLI。M3E 已關閉 legacy Goals 執行入口並完成舊 schema 第一輪盤點；保留資料但不再允許產品流程讀寫，詳見 `docs/legacy-schema-inventory.md`。

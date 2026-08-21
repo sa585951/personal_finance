@@ -429,6 +429,35 @@ def test_auth_me_rejects_missing_token(monkeypatch):
     assert response.get_json() == {"message": "Token is missing!"}
 
 
+def test_retired_goals_api_returns_gone(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    client = web_app.app.test_client()
+
+    for method, path in (
+        (client.get, "/api/goals"),
+        (client.post, "/api/goals"),
+        (client.put, "/api/goals/1"),
+        (client.delete, "/api/goals/1"),
+        (client.get, "/api/reports/goal_summary"),
+    ):
+        response = method(path, headers=_auth_headers())
+
+        assert response.status_code == 410
+        assert response.get_json() == {
+            "success": False,
+            "code": "GOALS_RETIRED",
+            "message": web_app.GOALS_RETIRED_MESSAGE,
+        }
+
+
+def test_retired_goals_api_still_requires_authentication(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+
+    response = web_app.app.test_client().get("/api/goals")
+
+    assert response.status_code == 401
+
+
 def test_auth_me_rejects_expired_cookie_token(monkeypatch):
     web_app = _load_web_app(monkeypatch)
     client = web_app.app.test_client()

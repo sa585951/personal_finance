@@ -7,7 +7,6 @@ const LoginView = () => import("../views/LoginView.vue");
 const AssetsOverview = () => import("../views/AssetsOverview.vue");
 const TransactionRecord = () => import("../views/TransactionRecord.vue");
 const BudgetPlanner = () => import("@/views/BudgetPlanner.vue");
-const Goals = () => import("../views/FinancialGoals.vue");
 const TripListView = () => import("../views/TripListView.vue");
 const TripsView = () => import("../views/TripsView.vue");
 const TripInviteAccept = () => import("../views/TripInviteAccept.vue");
@@ -92,9 +91,7 @@ const routes = [
   },
   {
     path: "/goals",
-    name: "Goals",
-    component: Goals,
-    meta: { requiresAuth: true },
+    redirect: "/analysis",
   },
   {
     path: "/account",

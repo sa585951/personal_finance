@@ -25,7 +25,7 @@ def create_rich_menu():
             "height": 1686
         },
         "selected": True,
-        "name": "Personal Finance Menu",
+        "name": "Nomica Menu",
         "chatBarText": "開啟選單",
         "areas": [
             {
@@ -46,7 +46,7 @@ def create_rich_menu():
             },
             {
                 "bounds": {"x": 833, "y": 843, "width": 834, "height": 843},
-                "action": {"type": "message", "label": "財務目標", "text": "我的財務目標"}
+                "action": {"type": "message", "label": "帳戶轉帳", "text": "我要轉帳"}
             },
             {
                 "bounds": {"x": 1667, "y": 843, "width": 833, "height": 843},

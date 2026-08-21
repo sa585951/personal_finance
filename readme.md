@@ -26,7 +26,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 
 ## 目前進度
 
-目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract 與 **M1 Minimum Product UX** 第一輪。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；M1A 已完成主要頁面的 390、430、768px overflow audit，M1B 已拆分旅行列表與詳情，M1C 已建立 Universal Add 與交易歷史分批載入，M1D 已完成首頁瘦身與 `/analysis` 分析整合。M2 PWA Alpha 的測試流程與驗收門檻已建立，外部實測仍待執行；M3A 至 M3D 已完成 Balance Anchor、Adjustment、Settlement Account Entry、Transaction／Transfer movement ledger 與 read-only reconciliation CLI 第一版，下一個工程批次為 M3E legacy schema 收斂。核心流程已可在本地與部署環境操作：
+目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract、**M1 Minimum Product UX** 與 **M3 Ledger Correctness** 第一輪。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；M1A 已完成主要頁面的 390、430、768px overflow audit，M1B 已拆分旅行列表與詳情，M1C 已建立 Universal Add 與交易歷史分批載入，M1D 已完成首頁瘦身與 `/analysis` 分析整合。M2 PWA Alpha 的測試流程與驗收門檻已建立，外部實測仍待執行；M3A 至 M3E 已完成 Balance Anchor、Adjustment、Settlement Account Entry、Transaction／Transfer movement ledger、read-only reconciliation CLI 與 legacy Goals 執行入口收斂。核心流程已可在本地與部署環境操作：
 
 - 日常收入 / 支出可記錄，並可連動帳戶餘額。
 - Web 日常收支新增已統一由 `/add` 處理，支援 AI Preview、缺少欄位補完、手動收入 / 支出與防重複送出。
@@ -130,7 +130,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - 帳戶互轉與跨幣別轉帳
 - 收入/支出交易管理
 - 預算設定與超支檢查
-- 財務目標管理
+- 已退役 Goals API 的明確 `410 Gone` 相容回應（不再讀寫 legacy 資料）
 - 報表 API
 - LINE Bot webhook
 - Gemini 自然語言解析
@@ -143,7 +143,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - 帳戶類型分組、收合與資金分配比例
 - 交易紀錄
 - 預算規劃
-- 財務目標
+- 舊 `/goals` 書籤導回 Analysis，不再載入退役頁面與元件
 - 儀表板圖表
 - Vue Router 權限檢查
 - Axios API client
@@ -225,7 +225,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - 旅行支出可指定付款人，且只有目前使用者付款時才可連動自己的帳戶。
 - 支援平均分攤、自訂分攤、建議結算、確認結算與撤銷結算。
 - 支援旅行封存、軟刪除、復原與永久刪除。
-- Goals 暫時改為尚未開啟狀態。
+- Goals 已從產品執行入口退役；舊資料暫時保留，不做破壞性 migration。
 - 補上核心 schema smoke test 與資料流文件。
 
 ### Phase 2: 手機優先體驗與 PWA 雛形
@@ -638,7 +638,7 @@ Allocation 0：Asset Allocation Domain 定案。
 │   ├── database.py            # DB engine / session
 │   ├── asset_manager.py       # 資產帳戶管理
 │   ├── budget_manager.py      # 交易與預算管理
-│   ├── goal_manager.py        # 財務目標管理
+│   ├── goal_manager.py        # 隔離中的 legacy Goals 存取（產品流程不再載入）
 │   ├── user_manager.py        # 使用者管理
 │   └── linebot/               # LINE Bot parsing / flows / responses
 ├── reports/                   # 報表格式化邏輯

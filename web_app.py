@@ -18,7 +18,6 @@ from models.asset_manager import AssetManager
 from models.asset_allocation_manager import AllocationNotFoundError, AssetAllocationManager
 from models.auth_session_manager import AuthSessionManager
 from models.budget_manager import BudgetManager
-from models.goal_manager import GoalManager
 from models.linebot.manager import LineBotManager
 from models.app_state import AppStateManager
 from models.database import db_session 
@@ -84,7 +83,6 @@ asset_allocation_manager = AssetAllocationManager(db_session)
 auth_session_manager = AuthSessionManager(db_session)
 budget_manager = BudgetManager(db_session)
 settlement_account_entry_manager = SettlementAccountEntryManager(db_session)
-goal_manager = GoalManager(db_session)
 trip_manager = TripManager(db_session)
 user_manager = UserManager(db_session)
 
@@ -1541,65 +1539,21 @@ def get_monthly_summary(current_user_id, month):
         app.logger.error(f"Error in get_monthly_summary: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
 
-# --- API - 財務目標管理 ---
+# --- API - 已退役的財務目標相容入口 ---
 
-@app.route("/api/goals", methods=["GET"])
+GOALS_RETIRED_MESSAGE = "財務目標功能已暫停，請使用帳戶、預算或資產配置功能。"
+
+
+@app.route("/api/goals", methods=["GET", "POST"])
+@app.route("/api/goals/<int:goal_id>", methods=["PUT", "DELETE"])
 @token_required
-def get_all_goals(current_user_id):
-    try:
-        goals_data = goal_manager.get_all_goals(current_user_id)
-        return jsonify({"success": True, "data": goals_data})
-    except Exception as e:
-        app.logger.error(f"Error in get_all_goals: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
-
-@app.route("/api/goals", methods=["POST"])
-@token_required
-def add_goal(current_user_id):
-    data = request.get_json()
-    required_fields = ["title", "type", "target_amount", "target_date"]
-    if not data or not all(k in data for k in required_fields):
-        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
-
-    try:
-        success, result = goal_manager.add_goal(
-            current_user_id, data["title"], data["type"], data["target_amount"], 
-            data["target_date"], data.get("description", "")
-        )
-        if success:
-            db_session.commit()
-        return jsonify({"success": success, "message": "目標新增成功", "data": result}), 201
-    except Exception as e:
-        app.logger.error(f"Error in add_goal: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
-
-@app.route("/api/goals/<int:goal_id>", methods=["PUT"])
-@token_required
-def update_goal(current_user_id, goal_id):
-    data = request.get_json()
-    if not data:
-        return jsonify({"success": False, "message": "缺少要更新的資料"}), 400
-
-    try:
-        success, message = goal_manager.update_goal(current_user_id, goal_id, **data)
-        if success:
-            db_session.commit()
-        return jsonify({"success": success, "message": message}), 200
-    except Exception as e:
-        app.logger.error(f"Error in update_goal: {e}")
-        return jsonify({"success": False, "message": str(e)}), 404
-
-@app.route("/api/goals/<int:goal_id>", methods=["DELETE"])
-@token_required
-def delete_goal(current_user_id, goal_id):
-    try:
-        success, message = goal_manager.delete_goal(current_user_id, goal_id)
-        if success:
-            db_session.commit()
-        return jsonify({"success": success, "message": message}), 200
-    except Exception as e:
-        app.logger.error(f"Error in delete_goal: {e}")
-        return jsonify({"success": False, "message": str(e)}), 404
+def retired_goals(current_user_id, goal_id=None):
+    # 保留舊路徑回應，避免舊客戶端誤把功能退役解讀成暫時性伺服器錯誤。
+    return jsonify({
+        "success": False,
+        "code": "GOALS_RETIRED",
+        "message": GOALS_RETIRED_MESSAGE,
+    }), 410
 
 # --- API - 報告 ---
 
@@ -1694,13 +1648,12 @@ def get_overspending_warnings(current_user_id):
 
 @app.route("/api/reports/goal_summary", methods=["GET"])
 @token_required
-def get_goal_summary(current_user_id):
-    try:
-        summary = goal_manager.calculate_goal_summary(current_user_id)
-        return jsonify({"success": True, "data": summary})
-    except Exception as e:
-        app.logger.error(f"Error in get_goal_summary: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+def retired_goal_summary(current_user_id):
+    return jsonify({
+        "success": False,
+        "code": "GOALS_RETIRED",
+        "message": GOALS_RETIRED_MESSAGE,
+    }), 410
 
 @app.route("/line-webhook", methods=["POST"])
 def line_webhook():
