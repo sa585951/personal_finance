@@ -82,6 +82,24 @@
         </div>
       </section>
 
+      <section v-if="lastTransferResult?.impact" class="transfer-result-panel">
+        <div class="transfer-result-heading">
+          <div>
+            <p>Movement completed</p>
+            <h2>{{ lastTransferResult.isEditing ? "轉帳已更新" : "轉帳完成" }}</h2>
+          </div>
+          <button type="button" aria-label="關閉轉帳結果" @click="lastTransferResult = null">關閉</button>
+        </div>
+        <AccountImpactCard
+          kind="transfer"
+          :amount="lastTransferResult.impact.amount"
+          :source-account="lastTransferResult.impact.sourceAccount"
+          :target-account="lastTransferResult.impact.targetAccount"
+          :currency="lastTransferResult.impact.currency"
+          confirmed
+        />
+      </section>
+
       <AssetsTable
         :assets="assets"
         :account-activities="accountActivities"
@@ -111,6 +129,7 @@
 <script>
 import apiClient from "../api";
 import AccountForm from "../components/assets/AccountForm.vue";
+import AccountImpactCard from "../components/shared/AccountImpactCard.vue";
 import AssetsTable from "../components/assets/AssetsTable.vue";
 import TotalCards from "../components/assets/TotalCards.vue";
 import TransferForm from "../components/assets/TransferForm.vue";
@@ -121,6 +140,7 @@ export default {
   name: "AssetsOverview",
   components: {
     AccountForm,
+    AccountImpactCard,
     AssetsTable,
     TotalCards,
     TransferForm,
@@ -137,6 +157,7 @@ export default {
       recentTransfers: [],
       activeAction: null,
       editingTransfer: null,
+      lastTransferResult: null,
       accountActivities: {},
       accountActivityLoading: {},
       accountActivityErrors: {},
@@ -244,6 +265,9 @@ export default {
   methods: {
     toggleAction(action) {
       this.activeAction = this.activeAction === action ? null : action;
+      if (this.activeAction === "transfer") {
+        this.lastTransferResult = null;
+      }
       if (this.activeAction !== "transfer") {
         this.editingTransfer = null;
       }
@@ -252,12 +276,19 @@ export default {
       await this.fetchAssets();
       this.activeAction = null;
     },
-    async handleTransferSuccess() {
+    async handleTransferSuccess(result) {
       await this.fetchAssets();
       await this.fetchRecentTransfers();
       await this.refreshLoadedAccountActivities();
+      this.lastTransferResult = result || null;
       this.activeAction = null;
       this.editingTransfer = null;
+      this.$nextTick(() => {
+        document.querySelector(".transfer-result-panel")?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      });
     },
     async fetchAssets() {
       try {
@@ -464,6 +495,7 @@ export default {
     },
     startTransferEdit(transfer) {
       this.editingTransfer = transfer;
+      this.lastTransferResult = null;
       this.activeAction = "transfer";
       this.$nextTick(() => {
         document.querySelector(".inline-action")?.scrollIntoView({
@@ -745,6 +777,51 @@ h1 {
   border: 1px solid #dbe4ee;
   border-radius: 10px;
   background: #ffffff;
+}
+
+.transfer-result-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #99f6e4;
+  border-radius: 10px;
+  background: #f0fdfa;
+}
+
+.transfer-result-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.transfer-result-heading p,
+.transfer-result-heading h2 {
+  margin: 0;
+}
+
+.transfer-result-heading p {
+  color: #0f766e;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.transfer-result-heading h2 {
+  margin-top: 2px;
+  font-size: 1.08rem;
+  letter-spacing: 0;
+}
+
+.transfer-result-heading button {
+  min-height: 36px;
+  padding: 0 11px;
+  color: #0f766e;
+  background: #ffffff;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  box-shadow: none;
+  font-weight: 800;
 }
 
 .action-tabs {

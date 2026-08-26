@@ -100,10 +100,14 @@
         />
       </label>
 
-      <div v-if="transactionPreview" class="transaction-preview full-row">
-        <span>{{ type === "income" ? "入帳提示" : "扣款提示" }}</span>
-        <strong>{{ transactionPreview }}</strong>
-      </div>
+      <AccountImpactCard
+        v-if="transactionImpact"
+        class="full-row"
+        :kind="transactionImpact.kind"
+        :amount="transactionImpact.amount"
+        :account="transactionImpact.account"
+        :currency="transactionImpact.currency"
+      />
 
       <div v-if="aiReview && mode === 'full'" class="ai-review full-row">
         <div class="ai-review-heading">
@@ -138,11 +142,13 @@
 
 <script>
 import apiClient from "@/api";
+import AccountImpactCard from "@/components/shared/AccountImpactCard.vue";
 import { findAccountByHint } from "@/utils/accountMatcher";
 import { format } from "date-fns";
 
 export default {
   name: "TransactionForm",
+  components: { AccountImpactCard },
   props: {
     type: {
       type: String,
@@ -268,17 +274,15 @@ export default {
         (asset) => asset.id === this.newTransaction.account_id
       ) || null;
     },
-    transactionPreview() {
-      const account = this.selectedAccount;
+    transactionImpact() {
       const amount = Number(this.newTransaction.amount || 0);
-      if (!amount) {
-        return "";
-      }
-      if (!account) {
-        return "不異動帳戶餘額";
-      }
-      const action = this.type === "income" ? "將入帳" : "將扣款";
-      return `${action}：${account.bank_name} ${this.formatMoney(amount, account.currency)}`;
+      if (amount <= 0) return null;
+      return {
+        kind: this.newTransaction.type === "income" ? "income" : "expense",
+        amount,
+        account: this.selectedAccount,
+        currency: this.selectedAccount?.currency || this.newTransaction.original_currency || "TWD",
+      };
     },
   },
   watch: {
@@ -436,6 +440,14 @@ export default {
       if (this.isSubmitting) return;
       this.isSubmitting = true;
       this.submitMessage = "";
+      const submittedImpact = this.transactionImpact
+        ? {
+            ...this.transactionImpact,
+            account: this.transactionImpact.account
+              ? { ...this.transactionImpact.account }
+              : null,
+          }
+        : null;
       try {
         if (this.isEditing) {
           await apiClient.put(
@@ -453,9 +465,10 @@ export default {
 
         await this.fetchAssets();
         this.$emit("transaction-added", {
-          type: this.type,
+          type: this.newTransaction.type,
           transactionId: response.data?.data?.transaction_id || null,
           replayed: response.data?.replayed === true,
+          impact: submittedImpact,
         });
         this.resetForm();
       } catch (error) {
@@ -615,27 +628,6 @@ export default {
 
 .full-row {
   grid-column: 1 / -1;
-}
-
-.transaction-preview {
-  display: grid;
-  gap: 4px;
-  min-height: 60px;
-  padding: 12px;
-  color: #134e4a;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
-  border-radius: 8px;
-}
-
-.transaction-preview span {
-  color: #0f766e;
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.transaction-preview strong {
-  line-height: 1.35;
 }
 
 .ai-review {

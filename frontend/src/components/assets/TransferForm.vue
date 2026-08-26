@@ -90,10 +90,22 @@
           </div>
         </div>
       </div>
+      <AccountImpactCard
+        v-if="transferImpact"
+        class="transfer-impact-preview"
+        kind="transfer"
+        :amount="transferImpact.amount"
+        :source-account="transferImpact.sourceAccount"
+        :target-account="transferImpact.targetAccount"
+        :currency="transferImpact.currency"
+      />
+      <p v-if="hasCurrencyMismatch" class="currency-warning">
+        目前帳戶互轉只支援同幣別，請改選相同幣別的帳戶。
+      </p>
       <button
         type="submit"
         class="confirm-btn"
-        :disabled="accountOptions.length < 2"
+        :disabled="accountOptions.length < 2 || hasCurrencyMismatch"
       >
         {{ isEditing ? "更新轉帳" : "確認轉帳" }}
       </button>
@@ -111,9 +123,11 @@
 
 <script>
 import apiClient from "../../api";
+import AccountImpactCard from "@/components/shared/AccountImpactCard.vue";
 
 export default {
   name: "TransferForm",
+  components: { AccountImpactCard },
   props: {
     assets: {
       type: Object,
@@ -183,6 +197,31 @@ export default {
       }
       return groups;
     },
+    selectedSourceAccount() {
+      return this.findAsset(this.transferData.source_id);
+    },
+    selectedTargetAccount() {
+      return this.findAsset(this.transferData.dest_id);
+    },
+    hasCurrencyMismatch() {
+      return Boolean(
+        this.selectedSourceAccount
+        && this.selectedTargetAccount
+        && this.selectedSourceAccount.currency !== this.selectedTargetAccount.currency
+      );
+    },
+    transferImpact() {
+      const amount = Number(this.transferData.amount || 0);
+      if (amount <= 0 || !this.selectedSourceAccount || !this.selectedTargetAccount) {
+        return null;
+      }
+      return {
+        amount,
+        sourceAccount: this.selectedSourceAccount,
+        targetAccount: this.selectedTargetAccount,
+        currency: this.selectedSourceAccount.currency || "TWD",
+      };
+    },
   },
   watch: {
     editingTransfer: {
@@ -199,6 +238,12 @@ export default {
     },
   },
   methods: {
+    findAsset(accountId) {
+      if (!accountId) return null;
+      return this.assets?.[accountId]
+        || Object.values(this.assets || {}).find((asset) => asset.id === accountId)
+        || null;
+    },
     accountTypeOrder(type) {
       const order = ["bank", "cash", "credit_card", "e_wallet", "prepaid_card", "investment", "external", "other"];
       const index = order.indexOf(type);
@@ -213,8 +258,19 @@ export default {
         this.$swal.fire("金額錯誤", "轉帳金額必須大於 0。", "warning");
         return;
       }
+      if (this.hasCurrencyMismatch) {
+        this.$swal.fire("幣別不同", "目前帳戶互轉只支援相同幣別。", "warning");
+        return;
+      }
 
       try {
+        const submittedImpact = this.transferImpact
+          ? {
+              ...this.transferImpact,
+              sourceAccount: { ...this.transferImpact.sourceAccount },
+              targetAccount: { ...this.transferImpact.targetAccount },
+            }
+          : null;
         const payload = {
           source_id: this.transferData.source_id,
           dest_id: this.transferData.dest_id,
@@ -225,8 +281,11 @@ export default {
           ? await apiClient.put(`/api/transfers/${this.editingTransfer.id}`, payload)
           : await apiClient.post(`/api/transfer`, payload);
 
-        this.$swal.fire("完成", response.data.message, "success");
-        this.$emit("transfer-success");
+        this.$emit("transfer-success", {
+          message: response.data.message,
+          impact: submittedImpact,
+          isEditing: this.isEditing,
+        });
         this.resetTransferForm();
       } catch (error) {
         this.$swal.fire(
@@ -323,6 +382,21 @@ export default {
   min-height: 46px;
   margin-top: 16px;
   background-color: #0f766e;
+}
+
+.transfer-impact-preview {
+  margin-top: 16px;
+}
+
+.currency-warning {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 800;
 }
 
 .confirm-btn:disabled {

@@ -76,7 +76,7 @@
       />
     </template>
 
-    <template v-else>
+    <template v-else-if="stage === 'manual'">
       <section class="manual-heading">
         <div>
           <p>Manual Entry</p>
@@ -91,16 +91,61 @@
         @transaction-added="handleAdded"
       />
     </template>
+
+    <template v-else>
+      <section class="success-panel">
+        <div
+          class="success-visual"
+          :class="successKind"
+          :aria-label="successKind === 'income' ? '收入已存入帳戶' : '支出已由帳戶扣除'"
+          role="img"
+        >
+          <div class="success-account">
+            <span></span>
+            <component :is="successKind === 'income' ? 'BottomLeft' : 'TopRight'" />
+          </div>
+          <CircleCheckFilled class="success-check" aria-hidden="true" />
+        </div>
+        <p>Entry completed</p>
+        <h2>{{ successResult?.replayed ? "這筆紀錄先前已建立" : "記帳完成" }}</h2>
+        <span class="success-copy">
+          {{ successResult?.replayed ? "系統沒有重複建立或扣款。" : "交易已加入紀錄，以下是實際採用的帳務影響。" }}
+        </span>
+      </section>
+
+      <AccountImpactCard
+        v-if="successResult?.impact"
+        :kind="successResult.impact.kind"
+        :amount="successResult.impact.amount"
+        :account="successResult.impact.account"
+        :currency="successResult.impact.currency"
+        confirmed
+      />
+
+      <div class="success-actions">
+        <button type="button" class="secondary-action" @click="resetDraft">再記一筆</button>
+        <button type="button" class="primary-action" @click="finishAdded">完成並返回</button>
+      </div>
+    </template>
   </div>
 </template>
 
 <script>
 import AIQuickInput from "@/components/budgets/AIQuickInput.vue";
 import TransactionForm from "@/components/budgets/TransactionForm.vue";
+import AccountImpactCard from "@/components/shared/AccountImpactCard.vue";
+import { BottomLeft, CircleCheckFilled, TopRight } from "@element-plus/icons-vue";
 
 export default {
   name: "UniversalAddView",
-  components: { AIQuickInput, TransactionForm },
+  components: {
+    AIQuickInput,
+    TransactionForm,
+    AccountImpactCard,
+    BottomLeft,
+    CircleCheckFilled,
+    TopRight,
+  },
   data() {
     return {
       stage: "input",
@@ -110,11 +155,15 @@ export default {
       missingFields: [],
       expanded: false,
       parseFailure: "",
+      successResult: null,
       clientRequestId: this.createRequestId(),
       returnTo: this.safeReturnPath(window.history.state?.returnTo),
     };
   },
   computed: {
+    successKind() {
+      return this.successResult?.type === "income" ? "income" : "expense";
+    },
     missingFieldLabels() {
       const labels = {
         amount: "金額",
@@ -140,6 +189,7 @@ export default {
       this.missingFields = Array.isArray(draft.missing_fields) ? draft.missing_fields : [];
       this.expanded = false;
       this.parseFailure = "";
+      this.successResult = null;
       this.clientRequestId = this.createRequestId();
       this.stage = "preview";
     },
@@ -149,6 +199,7 @@ export default {
       this.missingFields = [];
       this.expanded = true;
       this.parseFailure = "";
+      this.successResult = null;
       this.clientRequestId = this.createRequestId();
       this.stage = "manual";
     },
@@ -158,17 +209,16 @@ export default {
       this.missingFields = [];
       this.expanded = false;
       this.parseFailure = "";
+      this.successResult = null;
       this.clientRequestId = this.createRequestId();
     },
-    async handleAdded(result) {
-      const fallback = `/transactions?type=${result?.type === "income" ? "income" : "expense"}`;
-      await this.$swal.fire({
-        title: result?.replayed ? "已完成" : "新增成功",
-        text: result?.replayed ? "這筆紀錄先前已經建立。" : "交易已加入紀錄。",
-        icon: "success",
-        timer: 1000,
-        showConfirmButton: false,
-      });
+    handleAdded(result) {
+      this.successResult = result || {};
+      this.stage = "success";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    finishAdded() {
+      const fallback = `/transactions?type=${this.successResult?.type === "income" ? "income" : "expense"}`;
       this.$router.replace(this.returnTo || fallback);
     },
     leaveAdd() {
@@ -244,12 +294,159 @@ export default {
 
 .manual-options,
 .preview-card,
-.manual-heading {
+.manual-heading,
+.success-panel {
   margin-bottom: 14px;
   padding: 16px;
   background: #ffffff;
   border: 1px solid #dbe4ee;
   border-radius: 10px;
+}
+
+.success-panel {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.success-visual {
+  position: relative;
+  width: 92px;
+  height: 76px;
+  margin-bottom: 10px;
+  animation: success-arrive 320ms ease-out both;
+}
+
+.success-account {
+  position: absolute;
+  inset: 8px 10px 4px 4px;
+  display: grid;
+  place-items: center;
+  color: #0f766e;
+  background: #ecfdf5;
+  border: 1px solid #99f6e4;
+  border-radius: 12px;
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.12);
+}
+
+.success-account::before,
+.success-account::after,
+.success-account span {
+  position: absolute;
+  left: 12px;
+  width: 22px;
+  height: 3px;
+  content: "";
+  background: currentColor;
+  border-radius: 999px;
+  opacity: 0.35;
+}
+
+.success-account::before {
+  top: 18px;
+}
+
+.success-account span {
+  top: 27px;
+}
+
+.success-account::after {
+  top: 36px;
+  width: 15px;
+}
+
+.success-account > svg {
+  width: 28px;
+  height: 28px;
+  margin-left: 34px;
+  stroke-width: 2.2;
+}
+
+.success-visual.expense .success-account {
+  color: #b45309;
+  background: #fffbeb;
+  border-color: #fde68a;
+  box-shadow: 0 8px 18px rgba(180, 83, 9, 0.12);
+}
+
+.success-check {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 25px;
+  height: 25px;
+  color: #0f766e;
+  background: #ffffff;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+}
+
+@keyframes success-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .success-visual {
+    animation: none;
+  }
+}
+
+.success-panel p,
+.success-panel h2,
+.success-copy {
+  margin: 0;
+}
+
+.success-panel p {
+  color: #0f766e;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.success-panel h2 {
+  margin-top: 3px;
+  letter-spacing: 0;
+}
+
+.success-copy {
+  margin-top: 7px;
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.success-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.success-actions button {
+  min-height: 46px;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.success-actions .secondary-action {
+  color: #0f766e;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+}
+
+.success-actions .primary-action {
+  color: #ffffff;
+  background: #0f766e;
+  border: 1px solid #0f766e;
 }
 
 .manual-buttons {
@@ -339,7 +536,8 @@ export default {
 
 @media (max-width: 430px) {
   .manual-buttons,
-  .preview-card dl {
+  .preview-card dl,
+  .success-actions {
     grid-template-columns: 1fr;
   }
 }
