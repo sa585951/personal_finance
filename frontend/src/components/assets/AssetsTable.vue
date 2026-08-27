@@ -72,9 +72,16 @@
               @click="toggleAccountActivity(account.key)"
             >
               <div class="account-main">
-                <div>
-                  <h3>{{ account.asset.bank_name }}</h3>
-                  <p>{{ translateAccountType(account.asset.account_type) }}</p>
+                <div class="account-identity">
+                  <AccountIcon
+                    :icon-key="account.asset.icon_key"
+                    :color-key="account.asset.color_key"
+                    :label="`${account.asset.bank_name}圖示`"
+                  />
+                  <div>
+                    <h3>{{ account.asset.bank_name }}</h3>
+                    <p>{{ translateAccountType(account.asset.account_type) }}</p>
+                  </div>
                 </div>
                 <strong>{{ formatMoney(account.asset.balance, account.asset.currency) }}</strong>
               </div>
@@ -149,6 +156,13 @@
                   </select>
                 </div>
               </div>
+              <AccountAppearancePicker
+                v-model:icon-key="editDraft.icon_key"
+                v-model:color-key="editDraft.color_key"
+              />
+              <button class="appearance-reset" type="button" @click="resetEditAppearance">
+                使用此類型的預設外觀
+              </button>
               <p class="edit-hint">餘額請使用「校正餘額」，系統會保留校正紀錄。</p>
               <div class="edit-actions">
                 <button class="update-btn" type="submit">儲存</button>
@@ -186,11 +200,16 @@
 
 <script>
 import AccountActivityPanel from "./AccountActivityPanel.vue";
+import AccountAppearancePicker from "./AccountAppearancePicker.vue";
+import AccountIcon from "./AccountIcon.vue";
+import { defaultAccountAppearance } from "@/constants/accountAppearance";
 
 export default {
   name: "AssetsTable",
   components: {
     AccountActivityPanel,
+    AccountAppearancePicker,
+    AccountIcon,
   },
   props: {
     assets: {
@@ -237,6 +256,8 @@ export default {
         bank_name: "",
         account_type: "bank",
         currency: "TWD",
+        icon_key: "bank",
+        color_key: "blue",
       },
       currencies: ["TWD", "JPY", "KRW", "USD", "EUR"],
       accountTypes: [
@@ -369,7 +390,14 @@ export default {
         bank_name: account.asset.bank_name || "",
         account_type: account.asset.account_type || "bank",
         currency: account.asset.currency || "TWD",
+        icon_key: account.asset.icon_key || defaultAccountAppearance(account.asset.account_type).iconKey,
+        color_key: account.asset.color_key || defaultAccountAppearance(account.asset.account_type).colorKey,
       };
+    },
+    resetEditAppearance() {
+      const appearance = defaultAccountAppearance(this.editDraft.account_type);
+      this.editDraft.icon_key = appearance.iconKey;
+      this.editDraft.color_key = appearance.colorKey;
     },
     cancelEdit() {
       this.editingAccountId = "";
@@ -685,6 +713,17 @@ export default {
   gap: 12px;
 }
 
+.account-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.account-identity > div {
+  min-width: 0;
+}
+
 .account-main h3 {
   margin: 0 0 2px;
   color: #1f2933;
@@ -809,6 +848,19 @@ export default {
   background: #f1f5f9;
   color: #475569;
   font-size: 0.86rem;
+}
+
+.appearance-reset {
+  align-self: flex-start;
+  min-height: 36px;
+  padding: 6px 10px;
+  color: #0f766e;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 0.8rem;
+  font-weight: 800;
 }
 
 :global(.balance-adjustment-fields) {

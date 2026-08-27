@@ -74,6 +74,28 @@ ADJUSTMENT_REASONS = {
     "opening_balance",
     "other",
 }
+ACCOUNT_ICON_KEYS = {
+    "bank",
+    "wallet",
+    "card",
+    "investment",
+    "savings",
+    "deposit",
+    "digital",
+    "external",
+    "other",
+}
+ACCOUNT_COLOR_KEYS = {"teal", "blue", "green", "amber", "rose", "purple", "slate"}
+DEFAULT_ACCOUNT_APPEARANCE = {
+    "bank": ("bank", "blue"),
+    "cash": ("wallet", "green"),
+    "credit_card": ("card", "rose"),
+    "e_wallet": ("digital", "purple"),
+    "prepaid_card": ("card", "amber"),
+    "external": ("external", "slate"),
+    "investment": ("investment", "teal"),
+    "other": ("other", "slate"),
+}
 
 
 class AssetManager:
@@ -102,6 +124,20 @@ class AssetManager:
         if not parsed_value.is_finite():
             raise ValueError("餘額格式不正確")
         return parsed_value
+
+    def _normalize_icon_key(self, icon_key, account_type):
+        default_icon = DEFAULT_ACCOUNT_APPEARANCE[account_type][0]
+        normalized = str(icon_key or default_icon).strip().lower()
+        if normalized not in ACCOUNT_ICON_KEYS:
+            raise ValueError("不支援的帳戶圖示")
+        return normalized
+
+    def _normalize_color_key(self, color_key, account_type):
+        default_color = DEFAULT_ACCOUNT_APPEARANCE[account_type][1]
+        normalized = str(color_key or default_color).strip().lower()
+        if normalized not in ACCOUNT_COLOR_KEYS:
+            raise ValueError("不支援的帳戶顏色")
+        return normalized
 
     def _allows_negative_balance(self, account_or_type):
         account_type = account_or_type.get("type") if isinstance(account_or_type, dict) else account_or_type
@@ -136,6 +172,8 @@ class AssetManager:
             "account_key": account_id,
             "bank_name": account["name"],
             "account_type": account["type"],
+            "icon_key": account["icon_key"],
+            "color_key": account["color_key"],
             "balance": float(balance) if balance is not None else 0,
             "currency": account["currency"],
             "track_balance": account["track_balance"],
@@ -252,7 +290,16 @@ class AssetManager:
             return "credit_card"
         return None
 
-    def add_account(self, user_id, bank_name, account_type, balance, currency=None):
+    def add_account(
+        self,
+        user_id,
+        bank_name,
+        account_type,
+        balance,
+        currency=None,
+        icon_key=None,
+        color_key=None,
+    ):
         """新增帳戶。"""
         normalized_type = self._normalize_account_type(account_type)
         account_balance = self._normalize_balance_value(balance)
@@ -261,11 +308,15 @@ class AssetManager:
 
         parsed_user_id = self._parse_user_id(user_id)
         normalized_currency = self._normalize_currency(currency)
+        normalized_icon = self._normalize_icon_key(icon_key, normalized_type)
+        normalized_color = self._normalize_color_key(color_key, normalized_type)
         stmt = insert(accounts_table).values(
             user_id=parsed_user_id,
             name=bank_name,
             type=normalized_type,
             currency=normalized_currency,
+            icon_key=normalized_icon,
+            color_key=normalized_color,
             track_balance=True,
             balance=account_balance,
         ).returning(accounts_table.c.id)
@@ -490,6 +541,13 @@ class AssetManager:
 
         if "currency" in changes:
             values["currency"] = self._normalize_currency(changes.get("currency"))
+
+        appearance_type = values.get("type", account["type"])
+        if "icon_key" in changes:
+            values["icon_key"] = self._normalize_icon_key(changes.get("icon_key"), appearance_type)
+
+        if "color_key" in changes:
+            values["color_key"] = self._normalize_color_key(changes.get("color_key"), appearance_type)
 
         balance_was_provided = "balance" in changes or "new_balance" in changes
         balance_value = changes.get("balance", changes.get("new_balance"))

@@ -827,6 +827,8 @@ def test_update_asset_api_accepts_account_profile_changes(monkeypatch):
             "bank_name": "台新定存",
             "account_type": "bank",
             "currency": "TWD",
+            "icon_key": "deposit",
+            "color_key": "amber",
             "balance": 30000,
         },
         headers=_auth_headers(),
@@ -840,6 +842,8 @@ def test_update_asset_api_accepts_account_profile_changes(monkeypatch):
         "bank_name": "台新定存",
         "account_type": "bank",
         "currency": "TWD",
+        "icon_key": "deposit",
+        "color_key": "amber",
         "balance": 30000,
     }
     assert fake_db_session.commits == 1

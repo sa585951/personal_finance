@@ -428,6 +428,8 @@ def add_asset(current_user_id):
             data["account_type"],
             data["balance"],
             currency=data.get("currency"),
+            icon_key=data.get("icon_key"),
+            color_key=data.get("color_key"),
         )
         if success:
             parse_event_id = data.get("parse_event_id")
@@ -455,7 +457,15 @@ def add_asset(current_user_id):
 @token_required
 def update_asset_balance(current_user_id, account_key):
     data = request.get_json()
-    allowed_fields = {"bank_name", "account_type", "currency", "balance", "new_balance"}
+    allowed_fields = {
+        "bank_name",
+        "account_type",
+        "currency",
+        "icon_key",
+        "color_key",
+        "balance",
+        "new_balance",
+    }
     if not data or not any(field in data for field in allowed_fields):
         return jsonify({"success": False, "message": "缺少可更新欄位"}), 400
 

@@ -1,4 +1,5 @@
 from models.asset_manager import AssetManager
+import pytest
 
 
 def test_investment_account_type_aliases_are_supported():
@@ -7,6 +8,23 @@ def test_investment_account_type_aliases_are_supported():
     assert manager._normalize_account_type("investment") == "investment"
     assert manager._normalize_account_type("投資") == "investment"
     assert manager._normalize_account_type("券商") == "investment"
+
+
+def test_account_appearance_uses_type_defaults_and_validates_keys():
+    manager = AssetManager(db_session=None)
+
+    assert manager._normalize_icon_key(None, "bank") == "bank"
+    assert manager._normalize_color_key(None, "bank") == "blue"
+    assert manager._normalize_icon_key(None, "credit_card") == "card"
+    assert manager._normalize_color_key(None, "credit_card") == "rose"
+    assert manager._normalize_icon_key("savings", "bank") == "savings"
+    assert manager._normalize_color_key("amber", "bank") == "amber"
+
+    with pytest.raises(ValueError, match="不支援的帳戶圖示"):
+        manager._normalize_icon_key("sf-symbol-name", "bank")
+
+    with pytest.raises(ValueError, match="不支援的帳戶顏色"):
+        manager._normalize_color_key("#123456", "bank")
 
 
 def test_transfer_note_and_limit_are_normalized():

@@ -14,7 +14,12 @@
 
       <div class="form-group">
         <label for="accountType">帳戶類型</label>
-        <select id="accountType" v-model="newAccount.account_type" required>
+        <select
+          id="accountType"
+          v-model="newAccount.account_type"
+          required
+          @change="applyTypeAppearanceDefaults"
+        >
           <option
             v-for="type in accountTypes"
             :key="type.value"
@@ -51,6 +56,11 @@
         </select>
       </div>
 
+      <AccountAppearancePicker
+        v-model:icon-key="newAccount.icon_key"
+        v-model:color-key="newAccount.color_key"
+      />
+
       <button type="submit">新增</button>
     </form>
     <div v-if="submitMessage" class="message">{{ submitMessage }}</div>
@@ -59,16 +69,22 @@
 
 <script>
 import apiClient from "../../api";
+import AccountAppearancePicker from "./AccountAppearancePicker.vue";
+import { defaultAccountAppearance } from "@/constants/accountAppearance";
 
 export default {
   name: "AccountForm",
+  components: { AccountAppearancePicker },
   data() {
+    const defaultAppearance = defaultAccountAppearance("bank");
     return {
       newAccount: {
         bank_name: "",
         account_type: "bank",
         balance: null,
         currency: "TWD",
+        icon_key: defaultAppearance.iconKey,
+        color_key: defaultAppearance.colorKey,
       },
       currencies: ["TWD", "JPY", "KRW", "USD", "EUR"],
       accountTypes: [
@@ -92,6 +108,8 @@ export default {
           account_type: this.newAccount.account_type,
           balance: this.newAccount.balance,
           currency: this.newAccount.currency,
+          icon_key: this.newAccount.icon_key,
+          color_key: this.newAccount.color_key,
         };
 
         const response = await apiClient.post(`/api/assets`, payload);
@@ -103,6 +121,7 @@ export default {
         this.newAccount.account_type = "bank";
         this.newAccount.balance = null;
         this.newAccount.currency = "TWD";
+        this.applyTypeAppearanceDefaults();
       } catch (err) {
         if (err.response) {
           this.submitMessage = `新增失敗：${err.response.data.message}`;
@@ -110,6 +129,11 @@ export default {
           this.submitMessage = "無法連接到後端伺服器。";
         }
       }
+    },
+    applyTypeAppearanceDefaults() {
+      const appearance = defaultAccountAppearance(this.newAccount.account_type);
+      this.newAccount.icon_key = appearance.iconKey;
+      this.newAccount.color_key = appearance.colorKey;
     },
   },
 };

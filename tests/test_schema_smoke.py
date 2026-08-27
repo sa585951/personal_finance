@@ -120,6 +120,19 @@ def test_mvp_schema_can_create_core_records():
         created_jpy_account = asset_manager.find_asset_by_name(user_id, "日幣旅費")
         assert created_jpy_account["currency"] == "JPY"
         assert created_jpy_account["balance"] == 30000
+        assert created_jpy_account["icon_key"] == "wallet"
+        assert created_jpy_account["color_key"] == "green"
+        success, message = asset_manager.update_account(
+            user_id,
+            created_jpy_account["id"],
+            icon_key="savings",
+            color_key="amber",
+        )
+        assert success is True
+        assert message == "帳戶更新成功"
+        customized_account = asset_manager.find_asset_by_name(user_id, "日幣旅費")
+        assert customized_account["icon_key"] == "savings"
+        assert customized_account["color_key"] == "amber"
         created_anchor = connection.execute(
             select(account_balance_anchors_table).where(
                 account_balance_anchors_table.c.account_id == uuid.UUID(created_jpy_account["id"])

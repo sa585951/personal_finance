@@ -10,20 +10,46 @@
 
     <div v-if="kind === 'transfer'" class="transfer-flow">
       <div class="flow-account outgoing">
-        <small>轉出</small>
-        <strong>{{ accountName(sourceAccount) }}</strong>
+        <div class="flow-account-heading">
+          <AccountIcon
+            :icon-key="accountIconKey(sourceAccount)"
+            :color-key="accountColorKey(sourceAccount)"
+            :label="`${accountName(sourceAccount)}圖示`"
+            size="small"
+          />
+          <div>
+            <small>轉出</small>
+            <strong>{{ accountName(sourceAccount) }}</strong>
+          </div>
+        </div>
         <b>-{{ formatMoney(amount, accountCurrency(sourceAccount)) }}</b>
       </div>
       <ArrowRight class="flow-arrow" aria-hidden="true" />
       <div class="flow-account incoming">
-        <small>轉入</small>
-        <strong>{{ accountName(targetAccount) }}</strong>
+        <div class="flow-account-heading">
+          <AccountIcon
+            :icon-key="accountIconKey(targetAccount)"
+            :color-key="accountColorKey(targetAccount)"
+            :label="`${accountName(targetAccount)}圖示`"
+            size="small"
+          />
+          <div>
+            <small>轉入</small>
+            <strong>{{ accountName(targetAccount) }}</strong>
+          </div>
+        </div>
         <b>+{{ formatMoney(amount, accountCurrency(targetAccount)) }}</b>
       </div>
     </div>
 
     <div v-else class="transaction-impact">
-      <div class="direction-mark" :class="kind" aria-hidden="true">
+      <AccountIcon
+        v-if="account"
+        :icon-key="accountIconKey(account)"
+        :color-key="accountColorKey(account)"
+        :label="`${accountName(account)}圖示`"
+      />
+      <div v-else class="direction-mark" :class="kind" aria-hidden="true">
         {{ kind === "income" ? "+" : "−" }}
       </div>
       <div>
@@ -55,10 +81,12 @@
 
 <script>
 import { ArrowRight } from "@element-plus/icons-vue";
+import AccountIcon from "@/components/assets/AccountIcon.vue";
+import { defaultAccountAppearance } from "@/constants/accountAppearance";
 
 export default {
   name: "AccountImpactCard",
-  components: { ArrowRight },
+  components: { AccountIcon, ArrowRight },
   props: {
     kind: {
       type: String,
@@ -101,6 +129,12 @@ export default {
     },
     accountCurrency(account) {
       return account?.currency || this.currency || "TWD";
+    },
+    accountIconKey(account) {
+      return account?.icon_key || defaultAccountAppearance(account?.account_type).iconKey;
+    },
+    accountColorKey(account) {
+      return account?.color_key || defaultAccountAppearance(account?.account_type).colorKey;
     },
     formatMoney(amount, currency = "TWD") {
       const minorUnit = ["TWD", "JPY", "KRW"].includes(currency) ? 0 : 2;
@@ -245,6 +279,18 @@ export default {
   padding: 10px;
   background: #ffffff;
   border-left: 3px solid #cbd5e1;
+}
+
+.flow-account-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.flow-account-heading > div {
+  display: grid;
+  min-width: 0;
 }
 
 .flow-account.outgoing {

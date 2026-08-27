@@ -100,6 +100,8 @@ accounts_table = Table(
     Column("name", String(100), nullable=False),
     Column("type", String(50), nullable=False),
     Column("currency", String(3), ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False),
+    Column("icon_key", String(30), nullable=False, server_default=text("'other'")),
+    Column("color_key", String(20), nullable=False, server_default=text("'slate'")),
     Column("track_balance", Boolean, nullable=False, server_default=text("true")),
     Column("balance", AMOUNT),
     Column("is_active", Boolean, nullable=False, server_default=text("true")),
@@ -111,6 +113,14 @@ accounts_table = Table(
     CheckConstraint(
         "type in ('cash', 'bank', 'credit_card', 'e_wallet', 'prepaid_card', 'external', 'investment', 'other')",
         name="ck_accounts_type",
+    ),
+    CheckConstraint(
+        "icon_key in ('bank', 'wallet', 'card', 'investment', 'savings', 'deposit', 'digital', 'external', 'other')",
+        name="ck_accounts_icon_key",
+    ),
+    CheckConstraint(
+        "color_key in ('teal', 'blue', 'green', 'amber', 'rose', 'purple', 'slate')",
+        name="ck_accounts_color_key",
     ),
 )
 
