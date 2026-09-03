@@ -160,9 +160,6 @@
                 v-model:icon-key="editDraft.icon_key"
                 v-model:color-key="editDraft.color_key"
               />
-              <button class="appearance-reset" type="button" @click="resetEditAppearance">
-                使用此類型的預設外觀
-              </button>
               <p class="edit-hint">餘額請使用「校正餘額」，系統會保留校正紀錄。</p>
               <div class="edit-actions">
                 <button class="update-btn" type="submit">儲存</button>
@@ -393,11 +390,6 @@ export default {
         icon_key: account.asset.icon_key || defaultAccountAppearance(account.asset.account_type).iconKey,
         color_key: account.asset.color_key || defaultAccountAppearance(account.asset.account_type).colorKey,
       };
-    },
-    resetEditAppearance() {
-      const appearance = defaultAccountAppearance(this.editDraft.account_type);
-      this.editDraft.icon_key = appearance.iconKey;
-      this.editDraft.color_key = appearance.colorKey;
     },
     cancelEdit() {
       this.editingAccountId = "";
@@ -848,19 +840,6 @@ export default {
   background: #f1f5f9;
   color: #475569;
   font-size: 0.86rem;
-}
-
-.appearance-reset {
-  align-self: flex-start;
-  min-height: 36px;
-  padding: 6px 10px;
-  color: #0f766e;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
-  border-radius: 8px;
-  box-shadow: none;
-  font-size: 0.8rem;
-  font-weight: 800;
 }
 
 :global(.balance-adjustment-fields) {

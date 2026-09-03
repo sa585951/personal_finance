@@ -1,13 +1,13 @@
 export const ACCOUNT_ICON_OPTIONS = [
-  { value: "bank", label: "銀行" },
+  { value: "bank", label: "建築" },
   { value: "wallet", label: "錢包" },
   { value: "card", label: "卡片" },
-  { value: "investment", label: "投資" },
-  { value: "savings", label: "儲蓄" },
-  { value: "deposit", label: "定存" },
-  { value: "digital", label: "數位帳戶" },
-  { value: "external", label: "外部帳戶" },
-  { value: "other", label: "其他" },
+  { value: "investment", label: "折線" },
+  { value: "savings", label: "硬幣" },
+  { value: "deposit", label: "收藏冊" },
+  { value: "digital", label: "手機" },
+  { value: "external", label: "連結" },
+  { value: "other", label: "收納盒" },
 ];
 
 export const ACCOUNT_COLOR_OPTIONS = [

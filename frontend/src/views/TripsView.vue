@@ -148,8 +148,7 @@
           :quick-currencies="quickCurrencies"
           :expense-categories="expenseCategories"
           :members="selectedTrip.members"
-          :account-search-text="tripAccountSearchText"
-          :grouped-accounts="groupedTripAccounts"
+          :accounts="compatibleTripAccounts"
           :is-current-user-payer="isCurrentUserPayer"
           :expense-preview="expensePreview"
           :split-member-summary="splitMemberSummary"
@@ -161,7 +160,6 @@
           :submitting="submittingExpense"
           :message="expenseMessage"
           @update-expense="newExpense = { ...newExpense, ...$event }"
-          @update-account-search="tripAccountSearchText = $event"
           @set-split-mode="setSplitMode"
           @toggle-member-options="showSplitMemberOptions = !showSplitMemberOptions"
           @toggle-advanced="showExpenseAdvanced = !showExpenseAdvanced"
@@ -311,7 +309,6 @@ export default {
       memberMessage: "",
       expenseMessage: "",
       inviteMessage: "",
-      tripAccountSearchText: "",
     };
   },
   computed: {
@@ -531,34 +528,12 @@ export default {
       ]);
       return Object.values(this.assets || {})
         .filter((asset) => compatibleCurrencies.has(asset.currency))
-        .map((asset) => ({
-          id: asset.id,
-          type: asset.account_type || "other",
-          bankName: asset.bank_name || "",
-          currency: asset.currency || "TWD",
-          label: `${asset.bank_name} - ${this.translateAccountType(asset.account_type)} (${asset.currency} ${Number(asset.balance || 0).toLocaleString()})`,
-        }))
+        .map((asset) => ({ ...asset }))
         .sort((a, b) => {
-          const typeOrder = this.accountTypeOrder(a.type) - this.accountTypeOrder(b.type);
+          const typeOrder = this.accountTypeOrder(a.account_type) - this.accountTypeOrder(b.account_type);
           if (typeOrder !== 0) return typeOrder;
-          return a.bankName.localeCompare(b.bankName, "zh-TW");
+          return (a.bank_name || "").localeCompare(b.bank_name || "", "zh-TW");
         });
-    },
-    filteredTripAccounts() {
-      const keyword = this.tripAccountSearchText.toLowerCase();
-      if (!keyword) return this.compatibleTripAccounts;
-      return this.compatibleTripAccounts.filter((account) => {
-        const searchableText = [
-          account.bankName,
-          account.type,
-          this.translateAccountType(account.type),
-          account.currency,
-        ].join(" ").toLowerCase();
-        return searchableText.includes(keyword);
-      });
-    },
-    groupedTripAccounts() {
-      return this.groupAccountsByType(this.filteredTripAccounts);
     },
     archivedManagedTrips() {
       return this.managedTrips.filter((trip) => !trip.deleted_at && trip.status === "archived");
@@ -677,22 +652,6 @@ export default {
       const order = ["bank", "cash", "credit_card", "e_wallet", "prepaid_card", "investment", "external", "other"];
       const index = order.indexOf(type);
       return index === -1 ? order.length : index;
-    },
-    groupAccountsByType(accounts) {
-      const groups = [];
-      for (const account of accounts) {
-        let group = groups.find((item) => item.type === account.type);
-        if (!group) {
-          group = {
-            type: account.type,
-            label: this.translateAccountType(account.type),
-            accounts: [],
-          };
-          groups.push(group);
-        }
-        group.accounts.push(account);
-      }
-      return groups;
     },
     setSplitMode(mode) {
       this.newExpense.split_mode = mode;
@@ -1876,19 +1835,6 @@ export default {
           },
         });
       }
-    },
-    translateAccountType(type) {
-      const typeMap = {
-        bank: "銀行",
-        cash: "現金",
-        credit_card: "信用卡",
-        e_wallet: "電子錢包",
-        prepaid_card: "預付卡",
-        external: "外部帳戶",
-        investment: "投資",
-        other: "其他",
-      };
-      return typeMap[type] || type || "其他";
     },
     formatMoney(amount, currency) {
       const minorUnit = ["TWD", "JPY", "KRW"].includes(currency) ? 0 : 2;

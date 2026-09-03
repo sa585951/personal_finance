@@ -61,35 +61,13 @@
         />
       </label>
 
-      <label v-if="shouldShowField('account_id')" for="transactionAccountSearch">
-        搜尋帳戶
-        <input
-          type="search"
-          id="transactionAccountSearch"
-          v-model.trim="accountSearchText"
-          placeholder="輸入銀行、信用卡、現金或帳戶名稱"
-        />
-      </label>
-
-      <label v-if="shouldShowField('account_id')" for="transactionAccount">
-        帳戶
-        <select id="transactionAccount" v-model="newTransaction.account_id">
-          <option value="">不連動帳戶</option>
-          <optgroup
-            v-for="group in groupedAccountOptions"
-            :key="group.type"
-            :label="group.label"
-          >
-            <option
-              v-for="account in group.accounts"
-              :key="account.id"
-              :value="account.id"
-            >
-              {{ account.label }}
-            </option>
-          </optgroup>
-        </select>
-      </label>
+      <AccountPicker
+        v-if="shouldShowField('account_id')"
+        v-model="newTransaction.account_id"
+        class="full-row"
+        :accounts="accountOptions"
+        :label="type === 'income' ? '存入帳戶' : '付款帳戶'"
+      />
 
       <label v-if="shouldShowField('description')" for="transactionDescription" class="full-row">
         備註
@@ -143,12 +121,13 @@
 <script>
 import apiClient from "@/api";
 import AccountImpactCard from "@/components/shared/AccountImpactCard.vue";
+import AccountPicker from "@/components/shared/AccountPicker.vue";
 import { findAccountByHint } from "@/utils/accountMatcher";
 import { format } from "date-fns";
 
 export default {
   name: "TransactionForm",
-  components: { AccountImpactCard },
+  components: { AccountImpactCard, AccountPicker },
   props: {
     type: {
       type: String,
@@ -204,7 +183,6 @@ export default {
       budgetCategoriesLoaded: false,
       assetsLoaded: false,
       submitMessage: "",
-      accountSearchText: "",
       aiReview: null,
       isSubmitting: false,
     };
@@ -238,35 +216,7 @@ export default {
       );
     },
     accountOptions() {
-      return Object.values(this.assets || {})
-        .map((asset) => ({
-          id: asset.id,
-          type: asset.account_type || "other",
-          bankName: asset.bank_name || "",
-          currency: asset.currency || "TWD",
-          label: `${asset.bank_name} - ${this.translateAccountType(asset.account_type)} (${asset.currency} ${Number(asset.balance || 0).toLocaleString()})`,
-        }))
-        .sort((a, b) => {
-          const typeOrder = this.accountTypeOrder(a.type) - this.accountTypeOrder(b.type);
-          if (typeOrder !== 0) return typeOrder;
-          return a.bankName.localeCompare(b.bankName, "zh-TW");
-        });
-    },
-    filteredAccountOptions() {
-      const keyword = this.accountSearchText.toLowerCase();
-      if (!keyword) return this.accountOptions;
-      return this.accountOptions.filter((account) => {
-        const searchableText = [
-          account.bankName,
-          account.type,
-          this.translateAccountType(account.type),
-          account.currency,
-        ].join(" ").toLowerCase();
-        return searchableText.includes(keyword);
-      });
-    },
-    groupedAccountOptions() {
-      return this.groupAccountsByType(this.filteredAccountOptions);
+      return Object.values(this.assets || {});
     },
     selectedAccount() {
       if (!this.newTransaction.account_id) return null;
@@ -323,27 +273,6 @@ export default {
     shouldShowField(field) {
       if (this.isEditing || this.mode === "full" || this.expanded) return true;
       return this.missingFields.includes(field);
-    },
-    accountTypeOrder(type) {
-      const order = ["bank", "cash", "credit_card", "e_wallet", "prepaid_card", "investment", "external", "other"];
-      const index = order.indexOf(type);
-      return index === -1 ? order.length : index;
-    },
-    groupAccountsByType(accounts) {
-      const groups = [];
-      for (const account of accounts) {
-        let group = groups.find((item) => item.type === account.type);
-        if (!group) {
-          group = {
-            type: account.type,
-            label: this.translateAccountType(account.type),
-            accounts: [],
-          };
-          groups.push(group);
-        }
-        group.accounts.push(account);
-      }
-      return groups;
     },
     ensureCategoryMatchesType() {
       if (
@@ -506,19 +435,6 @@ export default {
         this.assetsLoaded = true;
         this.applyIncomingState();
       }
-    },
-    translateAccountType(type) {
-      const typeMap = {
-        bank: "銀行",
-        cash: "現金",
-        credit_card: "信用卡",
-        e_wallet: "電子錢包",
-        prepaid_card: "預付卡",
-        external: "外部帳戶",
-        investment: "投資",
-        other: "其他",
-      };
-      return typeMap[type] || type || "其他";
     },
     transactionPayload() {
       const accountCurrency = this.selectedAccount?.currency;

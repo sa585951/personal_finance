@@ -18,7 +18,6 @@
           id="accountType"
           v-model="newAccount.account_type"
           required
-          @change="applyTypeAppearanceDefaults"
         >
           <option
             v-for="type in accountTypes"
@@ -121,7 +120,7 @@ export default {
         this.newAccount.account_type = "bank";
         this.newAccount.balance = null;
         this.newAccount.currency = "TWD";
-        this.applyTypeAppearanceDefaults();
+        this.resetAppearance();
       } catch (err) {
         if (err.response) {
           this.submitMessage = `新增失敗：${err.response.data.message}`;
@@ -130,8 +129,8 @@ export default {
         }
       }
     },
-    applyTypeAppearanceDefaults() {
-      const appearance = defaultAccountAppearance(this.newAccount.account_type);
+    resetAppearance() {
+      const appearance = defaultAccountAppearance("bank");
       this.newAccount.icon_key = appearance.iconKey;
       this.newAccount.color_key = appearance.colorKey;
     },

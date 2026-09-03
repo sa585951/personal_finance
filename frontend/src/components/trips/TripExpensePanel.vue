@@ -63,31 +63,14 @@
         </select>
       </label>
 
-      <label class="full-row">
-        搜尋付款帳戶
-        <input
-          :value="accountSearchText"
-          type="search"
-          placeholder="輸入銀行、信用卡、現金或帳戶名稱"
-          :disabled="!isCurrentUserPayer"
-          @input="$emit('update-account-search', $event.target.value.trimStart())"
-        />
-      </label>
-      <label class="full-row">
-        付款帳戶
-        <select
-          :value="expense.account_id"
-          :disabled="!isCurrentUserPayer"
-          @change="updateExpense({ account_id: $event.target.value })"
-        >
-          <option value="">不連動帳戶</option>
-          <optgroup v-for="group in groupedAccounts" :key="group.type" :label="group.label">
-            <option v-for="account in group.accounts" :key="account.id" :value="account.id">
-              {{ account.label }}
-            </option>
-          </optgroup>
-        </select>
-      </label>
+      <AccountPicker
+        class="full-row"
+        :model-value="expense.account_id"
+        :accounts="accounts"
+        label="付款帳戶"
+        :disabled="!isCurrentUserPayer"
+        @update:model-value="updateExpense({ account_id: $event })"
+      />
       <p v-if="!isCurrentUserPayer" class="account-link-hint full-row">
         只有自己付款時才會連動帳戶。其他旅伴墊款會進入分帳結算，不會異動你的帳戶餘額。
       </p>
@@ -237,17 +220,17 @@
 
 <script>
 import { Money, Plus } from "@element-plus/icons-vue";
+import AccountPicker from "@/components/shared/AccountPicker.vue";
 
 export default {
   name: "TripExpensePanel",
-  components: { Money, Plus },
+  components: { AccountPicker, Money, Plus },
   props: {
     expense: { type: Object, required: true },
     quickCurrencies: { type: Array, default: () => [] },
     expenseCategories: { type: Array, default: () => [] },
     members: { type: Array, default: () => [] },
-    accountSearchText: { type: String, default: "" },
-    groupedAccounts: { type: Array, default: () => [] },
+    accounts: { type: Array, default: () => [] },
     isCurrentUserPayer: { type: Boolean, default: false },
     expensePreview: { type: Object, default: null },
     splitMemberSummary: { type: String, default: "" },
@@ -265,7 +248,6 @@ export default {
     "submit",
     "toggle-advanced",
     "toggle-member-options",
-    "update-account-search",
     "update-expense",
   ],
   methods: {

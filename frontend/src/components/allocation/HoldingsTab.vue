@@ -15,15 +15,15 @@
     </button>
 
     <form v-if="showForm" class="entry-form" @submit.prevent="saveHolding">
-      <label class="wide-field">
-        <span>投資帳戶</span>
-        <select v-model="form.account_id" required :disabled="Boolean(editingHolding?.hasHistory)">
-          <option disabled value="">請選擇 {{ portfolio.base_currency }} 投資帳戶</option>
-          <option v-for="account in investmentAccounts" :key="account.id" :value="account.id">
-            {{ account.bank_name }} · {{ account.currency }}
-          </option>
-        </select>
-      </label>
+      <AccountPicker
+        v-model="form.account_id"
+        class="wide-field"
+        :accounts="investmentAccounts"
+        label="投資帳戶"
+        :placeholder="`請選擇 ${portfolio.base_currency} 投資帳戶`"
+        :allow-none="false"
+        :disabled="Boolean(editingHolding?.hasHistory)"
+      />
       <label>
         <span>標的名稱</span>
         <input v-model.trim="form.name" maxlength="100" placeholder="例如：元大台灣 50" required />
@@ -78,11 +78,12 @@
 
 <script>
 import apiClient from "@/api";
+import AccountPicker from "@/components/shared/AccountPicker.vue";
 import { Close, Delete, EditPen, Plus } from "@element-plus/icons-vue";
 
 export default {
   name: "HoldingsTab",
-  components: { Close, Delete, EditPen, Plus },
+  components: { AccountPicker, Close, Delete, EditPen, Plus },
   props: {
     portfolio: { type: Object, required: true },
     accounts: { type: Array, default: () => [] },
@@ -133,6 +134,10 @@ export default {
       this.$nextTick(() => document.querySelector(".entry-form")?.scrollIntoView({ behavior: "smooth", block: "start" }));
     },
     async saveHolding() {
+      if (!this.form.account_id) {
+        this.$swal.fire("欄位未完整", "請選擇投資帳戶。", "warning");
+        return;
+      }
       this.saving = true;
       const payload = {
         account_id: this.form.account_id,
