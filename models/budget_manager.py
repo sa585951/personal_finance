@@ -349,6 +349,8 @@ class BudgetManager:
                 accounts_table.c.name.label("account_name"),
                 accounts_table.c.type.label("account_type"),
                 accounts_table.c.currency.label("account_currency"),
+                accounts_table.c.icon_key.label("account_icon_key"),
+                accounts_table.c.color_key.label("account_color_key"),
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
             .join(creator_users, transactions_table.c.created_by_user_id == creator_users.c.id)
@@ -567,6 +569,8 @@ class BudgetManager:
                 accounts_table.c.name.label("account_name"),
                 accounts_table.c.type.label("account_type"),
                 accounts_table.c.currency.label("account_currency"),
+                accounts_table.c.icon_key.label("account_icon_key"),
+                accounts_table.c.color_key.label("account_color_key"),
                 transactions_table.c.paid_by_member_id,
                 transactions_table.c.transaction_date,
                 transactions_table.c.transaction_time,
@@ -663,6 +667,8 @@ class BudgetManager:
             "account_name": transaction["account_name"],
             "account_type": transaction["account_type"],
             "account_currency": transaction["account_currency"],
+            "account_icon_key": transaction["account_icon_key"],
+            "account_color_key": transaction["account_color_key"],
             "paid_by_member_id": str(transaction["paid_by_member_id"]) if transaction["paid_by_member_id"] else None,
             "paid_by_member": paid_by_member,
             "date": transaction["transaction_date"].strftime("%Y-%m-%d"),

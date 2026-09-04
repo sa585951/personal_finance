@@ -52,17 +52,35 @@
         查找月份
         <input v-model="recordMonth" type="month" />
       </label>
-      <p v-if="recordError" class="record-error">{{ recordError }}</p>
-      <p v-if="isRecordLoading && recordTransactions.length === 0" class="record-loading">
-        讀取紀錄中
-      </p>
+      <AppStatePanel
+        v-if="recordError && recordTransactions.length === 0"
+        title="收支紀錄暫時無法載入"
+        :message="recordError"
+        action-label="重新整理"
+        tone="error"
+        @action="fetchRecordTransactions"
+      />
+      <AppStatePanel
+        v-else-if="isRecordLoading && recordTransactions.length === 0"
+        title="正在載入收支紀錄"
+        :message="recordMode === 'month' ? `查找 ${recordMonth} 的資料。` : '整理最近的交易資料。'"
+        loading
+      />
+      <AppStatePanel
+        v-else-if="recordTransactions.length === 0"
+        :title="activeType === 'income' ? '目前沒有收入紀錄' : '目前沒有支出紀錄'"
+        :message="recordMode === 'month' ? '這個月份沒有符合條件的紀錄。' : '記下第一筆後，這裡會依時間顯示最近紀錄。'"
+        :action-label="recordMode === 'recent' ? '記第一筆' : ''"
+        tone="empty"
+        @action="openUniversalAdd"
+      />
       <TransactionTable
         v-else
         :transactions="recordTransactions"
         @transaction-edit="startEditingTransaction"
         @transaction-deleted="fetchTransactions"
       />
-      <div class="record-list-actions">
+      <div v-if="recordTransactions.length > 0" class="record-list-actions">
         <span>
           已顯示 {{ recordTransactions.length }} / 共 {{ recordPagination.total_count }} 筆
         </span>
@@ -82,6 +100,7 @@
 
 <script>
 import apiClient from "@/api";
+import AppStatePanel from "@/components/shared/AppStatePanel.vue";
 import { Plus } from "@element-plus/icons-vue";
 import TransactionForm from "../components/budgets/TransactionForm.vue";
 import TransactionTable from "../components/budgets/TransactionTable.vue";
@@ -89,6 +108,7 @@ import TransactionTable from "../components/budgets/TransactionTable.vue";
 export default {
   name: "TransactionRecord",
   components: {
+    AppStatePanel,
     TransactionForm,
     TransactionTable,
     Plus,

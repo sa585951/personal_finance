@@ -11,6 +11,59 @@
       </button>
     </header>
 
+    <AppStatePanel
+      v-if="isLoading"
+      title="正在整理你的財務狀態"
+      message="讀取本月收支、帳戶與提醒。"
+      loading
+    />
+    <AppStatePanel
+      v-else-if="loadError"
+      title="首頁暫時無法載入"
+      :message="loadError"
+      action-label="重新整理"
+      tone="error"
+      @action="loadHomeData"
+    />
+
+    <template v-else>
+    <section v-if="showGettingStarted" class="getting-started-panel" aria-label="開始使用 Nomica">
+      <div class="getting-started-heading">
+        <div>
+          <span>GETTING STARTED</span>
+          <h2>完成兩步就能開始掌握資金</h2>
+        </div>
+        <strong>{{ completedSetupSteps }}/2</strong>
+      </div>
+      <div class="setup-steps">
+        <button
+          type="button"
+          class="setup-step"
+          :class="{ complete: hasAccounts }"
+          @click="openAccountSetup"
+        >
+          <span>{{ hasAccounts ? "完成" : "1" }}</span>
+          <span>
+            <strong>{{ hasAccounts ? "已建立帳戶" : "建立第一個帳戶" }}</strong>
+            <small>設定現金、銀行或信用卡，讓收支能對上資金位置。</small>
+          </span>
+        </button>
+        <button
+          type="button"
+          class="setup-step"
+          :class="{ complete: hasTransactions, disabled: !hasAccounts }"
+          :disabled="!hasAccounts"
+          @click="openUniversalAdd"
+        >
+          <span>{{ hasTransactions ? "完成" : "2" }}</span>
+          <span>
+            <strong>{{ hasTransactions ? "已完成第一筆紀錄" : "記錄第一筆收支" }}</strong>
+            <small>{{ hasAccounts ? "可用一句話解析，確認後再正式新增。" : "先建立帳戶後即可開始記帳。" }}</small>
+          </span>
+        </button>
+      </div>
+    </section>
+
     <section class="monthly-overview-card" aria-label="本月月報">
       <div class="overview-card-header">
         <span>{{ monthlyNet >= 0 ? "本月結餘" : "本月超支" }}</span>
@@ -106,17 +159,20 @@
         </router-link>
       </div>
     </section>
+    </template>
 
   </div>
 </template>
 
 <script>
 import apiClient from "@/api";
+import AppStatePanel from "@/components/shared/AppStatePanel.vue";
 import { Plus } from "@element-plus/icons-vue";
 
 export default {
   name: "HomeView",
   components: {
+    AppStatePanel,
     Plus,
   },
   data() {
@@ -128,11 +184,26 @@ export default {
       assets: {},
       budgetSummary: [],
       includeTripsInHome: true,
+      isLoading: true,
+      loadError: "",
+      assetsLoaded: false,
     };
   },
   computed: {
     currentMonth() {
       return new Date().toISOString().slice(0, 7);
+    },
+    hasAccounts() {
+      return Object.keys(this.assets || {}).length > 0;
+    },
+    hasTransactions() {
+      return this.transactions.length > 0 || this.monthlyReportTransactions.length > 0;
+    },
+    showGettingStarted() {
+      return this.assetsLoaded && (!this.hasAccounts || !this.hasTransactions);
+    },
+    completedSetupSteps() {
+      return Number(this.hasAccounts) + Number(this.hasTransactions);
     },
     dashboardTransactions() {
       if (this.includeTripsInHome) {
@@ -367,6 +438,26 @@ export default {
         state: { returnTo: this.$route.fullPath },
       });
     },
+    openAccountSetup() {
+      this.$router.push({
+        name: "AssetsOverview",
+        query: { action: "account" },
+      });
+    },
+    async loadHomeData() {
+      this.isLoading = true;
+      this.loadError = "";
+      const results = await Promise.all([
+        this.fetchDashboardData(),
+        this.fetchOverspendingWarnings(),
+        this.fetchAssets(),
+        this.fetchBudgetSummary(),
+      ]);
+      if (!results[0]) {
+        this.loadError = "無法取得本月收支資料，請確認網路後再試一次。";
+      }
+      this.isLoading = false;
+    },
     async fetchDashboardData() {
       try {
         const response = await apiClient.get("/api/dashboard/overview");
@@ -374,38 +465,48 @@ export default {
         this.transactions = overview.transactions || [];
         this.monthlyReportTransactions = overview.monthly_report_transactions || [];
         this.trips = overview.trips || [];
+        return true;
       } catch (error) {
         console.error("無法載入首頁資料", error);
         this.transactions = [];
         this.monthlyReportTransactions = [];
         this.trips = [];
+        return false;
       }
     },
     async fetchOverspendingWarnings() {
       try {
         const response = await apiClient.get(`/api/reports/overspending_warnings?month=${this.currentMonth}`);
         this.overspendingWarnings = response.data.data || [];
+        return true;
       } catch (error) {
         console.error("無法載入首頁超支提醒", error);
         this.overspendingWarnings = [];
+        return false;
       }
     },
     async fetchAssets() {
       try {
         const response = await apiClient.get("/api/assets");
         this.assets = response.data.data || {};
+        this.assetsLoaded = true;
+        return true;
       } catch (error) {
         console.error("無法載入首頁帳戶提醒", error);
         this.assets = {};
+        this.assetsLoaded = false;
+        return false;
       }
     },
     async fetchBudgetSummary() {
       try {
         const response = await apiClient.get(`/api/budgets/summary/${this.currentMonth}`);
         this.budgetSummary = response.data.data || [];
+        return true;
       } catch (error) {
         console.error("無法載入首頁預算摘要", error);
         this.budgetSummary = [];
+        return false;
       }
     },
     formatMoney(amount, currency = "TWD") {
@@ -443,10 +544,7 @@ export default {
     },
   },
   created() {
-    this.fetchDashboardData();
-    this.fetchOverspendingWarnings();
-    this.fetchAssets();
-    this.fetchBudgetSummary();
+    this.loadHomeData();
   },
 };
 </script>
@@ -517,6 +615,103 @@ h2 {
 
 h1 {
   font-size: 1.85rem;
+}
+
+.getting-started-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  margin-bottom: 1rem;
+  background: #ffffff;
+  border: 1px solid #99f6e4;
+  border-radius: 10px;
+}
+
+.getting-started-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.getting-started-heading > div {
+  min-width: 0;
+}
+
+.getting-started-heading span {
+  color: #0f766e;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.getting-started-heading h2 {
+  margin-top: 3px;
+  font-size: 1.05rem;
+}
+
+.getting-started-heading > strong {
+  display: grid;
+  flex: 0 0 42px;
+  height: 42px;
+  place-items: center;
+  color: #0f766e;
+  background: #ccfbf1;
+  border-radius: 8px;
+}
+
+.setup-steps {
+  display: grid;
+  gap: 8px;
+}
+
+.setup-step {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px;
+  color: #1f2933;
+  background: #f8fafc;
+  border: 1px solid #dbe4ee;
+  border-radius: 8px;
+  box-shadow: none;
+  text-align: left;
+}
+
+.setup-step > span:first-child {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: #ffffff;
+  background: #0f766e;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.setup-step > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.setup-step small {
+  color: #64748b;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.setup-step.complete > span:first-child {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.setup-step.disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .insights-panel {

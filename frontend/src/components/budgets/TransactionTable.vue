@@ -14,7 +14,13 @@
             <strong>{{ transaction.category }}</strong>
             <span>{{ formatDate(transaction.date) }} · {{ transaction.budget_category }}</span>
             <span v-if="transaction.account_name" class="account-line">
-              帳戶 {{ transaction.account_name }}
+              <AccountIcon
+                :icon-key="transaction.account_icon_key"
+                :color-key="transaction.account_color_key"
+                :label="`${transaction.account_name}圖示`"
+                size="small"
+              />
+              <span>帳戶 {{ transaction.account_name }}</span>
             </span>
           </div>
         </div>
@@ -50,9 +56,11 @@
 
 <script>
 import apiClient from '@/api';
+import AccountIcon from "@/components/assets/AccountIcon.vue";
 
 export default {
   name: "TransactionTable",
+  components: { AccountIcon },
   props: {
     transactions: {
       type: Array,
@@ -155,8 +163,15 @@ export default {
 }
 
 .account-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: #0f766e;
   font-weight: 700;
+}
+
+.account-line :deep(.account-icon) {
+  flex: 0 0 auto;
 }
 
 .transaction-side {

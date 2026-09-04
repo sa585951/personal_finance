@@ -26,7 +26,7 @@
       <ArrowDown class="trigger-arrow" aria-hidden="true" />
     </button>
 
-    <div v-if="isOpen" class="picker-panel">
+    <div v-if="isOpen" class="picker-panel" :class="{ 'drop-up': opensUpward }">
       <label class="search-field">
         <span class="sr-only">搜尋{{ label }}</span>
         <Search aria-hidden="true" />
@@ -125,6 +125,7 @@ export default {
     return {
       isOpen: false,
       searchText: "",
+      opensUpward: false,
     };
   },
   computed: {
@@ -205,6 +206,10 @@ export default {
       this.isOpen ? this.closePicker() : this.openPicker();
     },
     openPicker() {
+      const pickerRect = this.$refs.picker?.getBoundingClientRect();
+      const spaceBelow = pickerRect ? window.innerHeight - pickerRect.bottom : window.innerHeight;
+      const spaceAbove = pickerRect?.top || 0;
+      this.opensUpward = spaceBelow < 320 && spaceAbove > spaceBelow;
       this.isOpen = true;
       this.$nextTick(() => this.$refs.searchInput?.focus());
     },
@@ -324,6 +329,7 @@ export default {
   top: calc(100% + 6px);
   left: 0;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   width: 100%;
   max-height: min(420px, 58vh);
   gap: 8px;
@@ -333,6 +339,11 @@ export default {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.16);
+}
+
+.picker-panel.drop-up {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 
 .search-field {
@@ -365,9 +376,12 @@ export default {
 
 .account-options {
   display: grid;
+  min-height: 0;
   gap: 8px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .account-group {

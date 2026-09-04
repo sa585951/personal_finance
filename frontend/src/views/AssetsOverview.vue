@@ -5,8 +5,20 @@
       <h1>帳戶總覽</h1>
     </header>
 
-    <div v-if="loading" class="state-card">載入中...</div>
-    <div v-else-if="error" class="state-card error-state">{{ error }}</div>
+    <AppStatePanel
+      v-if="loading"
+      title="正在載入帳戶"
+      message="整理帳戶餘額與近期活動。"
+      loading
+    />
+    <AppStatePanel
+      v-else-if="error"
+      title="帳戶資料暫時無法載入"
+      :message="error"
+      action-label="重新整理"
+      tone="error"
+      @action="fetchAssets"
+    />
     <div v-else class="assets-content">
       <TotalCards :totals="totals" />
 
@@ -130,6 +142,7 @@
 import apiClient from "../api";
 import AccountForm from "../components/assets/AccountForm.vue";
 import AccountImpactCard from "../components/shared/AccountImpactCard.vue";
+import AppStatePanel from "../components/shared/AppStatePanel.vue";
 import AssetsTable from "../components/assets/AssetsTable.vue";
 import TotalCards from "../components/assets/TotalCards.vue";
 import TransferForm from "../components/assets/TransferForm.vue";
@@ -141,6 +154,7 @@ export default {
   components: {
     AccountForm,
     AccountImpactCard,
+    AppStatePanel,
     AssetsTable,
     TotalCards,
     TransferForm,
@@ -155,7 +169,7 @@ export default {
       assets: {},
       totals: null,
       recentTransfers: [],
-      activeAction: null,
+      activeAction: this.$route.query.action === "account" ? "account" : null,
       editingTransfer: null,
       lastTransferResult: null,
       accountActivities: {},
@@ -291,6 +305,8 @@ export default {
       });
     },
     async fetchAssets() {
+      this.loading = true;
+      this.error = null;
       try {
         const response = await apiClient.get(`/api/assets`);
         this.assets = response.data.data;
@@ -662,20 +678,6 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-}
-
-.state-card {
-  padding: 18px;
-  border: 1px solid #dbe4ee;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #475569;
-}
-
-.error-state {
-  border-color: #fecaca;
-  color: #b91c1c;
-  background: #fef2f2;
 }
 
 .account-health-panel {
