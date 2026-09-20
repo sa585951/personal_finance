@@ -645,7 +645,7 @@ def test_trip_member_roles_control_transaction_mutations():
         assert deleted_by == owner_id
 
 
-def test_settlement_confirmation_is_limited_to_owner_or_debtor():
+def test_settlement_confirmation_is_limited_to_owner_or_involved_member():
     engine = create_engine(_get_test_database_url(), future=True)
 
     with engine.begin() as connection:

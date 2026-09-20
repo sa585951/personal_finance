@@ -1230,6 +1230,7 @@ def add_trip_settlement(current_user_id, trip_id):
             data["to_member_id"],
             data["amount"],
             note=data.get("note"),
+            settled_on=data.get("settled_on"),
         )
         if success:
             db_session.commit()
@@ -1243,6 +1244,25 @@ def add_trip_settlement(current_user_id, trip_id):
     except Exception as e:
         db_session.rollback()
         app.logger.error(f"Error in add_trip_settlement: {e}")
+        return jsonify({"success": False, "message": str(e)}), 400
+
+
+@app.route("/api/trips/<string:trip_id>/settlements/<string:settlement_id>", methods=["PATCH"])
+@token_required
+def update_trip_settlement(current_user_id, trip_id, settlement_id):
+    data = request.get_json(silent=True) or {}
+    if "amount" not in data or "settled_on" not in data:
+        return jsonify({"success": False, "message": "缺少結算金額或收款日期"}), 400
+    try:
+        success, message = budget_manager.update_trip_settlement(
+            current_user_id, trip_id, settlement_id, data["amount"], data["settled_on"]
+        )
+        if success:
+            db_session.commit()
+        return jsonify({"success": success, "message": message}), 200
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in update_trip_settlement: {e}")
         return jsonify({"success": False, "message": str(e)}), 400
 
 

@@ -40,18 +40,98 @@
           <strong>{{ suggestion.to_display_name }}</strong>
         </div>
         <div class="settlement-actions">
-          <strong>{{ formatMoney(suggestion.amount, suggestion.currency) }}</strong>
+          <div class="settlement-action-amount">
+            <small v-if="paidForPair(suggestion.from_member_id, suggestion.to_member_id) > 0">
+              已還 {{ formatMoney(paidForPair(suggestion.from_member_id, suggestion.to_member_id), suggestion.currency) }}
+            </small>
+            <strong>剩餘 {{ formatMoney(suggestion.amount, suggestion.currency) }}</strong>
+          </div>
           <button
             v-if="suggestion.can_confirm !== false"
             class="confirm-settlement-button"
             type="button"
-            @click="$emit('confirm', suggestion)"
+            @click="$emit('select-suggestion', suggestion)"
           >
-            確認已付款
+            依此記錄
           </button>
         </div>
       </div>
     </div>
+
+    <form v-if="(debtors.length && creditors.length) || form.id" class="settlement-form" @submit.prevent="$emit('submit')">
+      <strong>{{ form.id ? "修改還款紀錄" : "記錄已收到的還款" }}</strong>
+      <div class="settlement-form-fields">
+        <label>
+          付款旅伴
+          <select
+            :value="form.from_member_id"
+            :disabled="Boolean(form.id) || submitting"
+            required
+            @change="$emit('update-form', { from_member_id: $event.target.value })"
+          >
+            <option value="">請選擇</option>
+            <option v-for="member in debtors" :key="member.member_id" :value="member.member_id">
+              {{ member.display_name }}
+            </option>
+            <option v-if="form.id && !debtors.some((member) => member.member_id === form.from_member_id)" :value="form.from_member_id">
+              {{ memberName(form.from_member_id) }}
+            </option>
+          </select>
+        </label>
+        <label>
+          收款旅伴
+          <select
+            :value="form.to_member_id"
+            :disabled="Boolean(form.id) || submitting"
+            required
+            @change="$emit('update-form', { to_member_id: $event.target.value })"
+          >
+            <option value="">請選擇</option>
+            <option v-for="member in creditors" :key="member.member_id" :value="member.member_id">
+              {{ member.display_name }}
+            </option>
+            <option v-if="form.id && !creditors.some((member) => member.member_id === form.to_member_id)" :value="form.to_member_id">
+              {{ memberName(form.to_member_id) }}
+            </option>
+          </select>
+        </label>
+        <label>
+          本次還款金額
+          <input
+            :value="form.amount"
+            type="number"
+            inputmode="decimal"
+            :min="amountStep"
+            :max="settlementLimit"
+            :step="amountStep"
+            :disabled="submitting"
+            required
+            @input="$emit('update-form', { amount: $event.target.value })"
+          >
+        </label>
+        <label>
+          收款日期
+          <input
+            :value="form.settled_on"
+            type="date"
+            :max="today"
+            :disabled="submitting"
+            required
+            @input="$emit('update-form', { settled_on: $event.target.value })"
+          >
+        </label>
+      </div>
+      <small v-if="form.from_member_id && form.to_member_id">
+        已還 {{ formatMoney(paidForSelectedPair, currency) }} · 目前待還 {{ formatMoney(currentRemaining, currency) }}
+      </small>
+      <small>此處只更新旅行分帳；不會自動異動任何人的帳戶餘額。</small>
+      <div class="settlement-form-actions">
+        <button v-if="form.id" class="quiet-mini-button" type="button" :disabled="submitting" @click="$emit('cancel-edit')">取消修改</button>
+        <button class="confirm-settlement-button" type="submit" :disabled="!canSubmit">
+          {{ submitting ? "儲存中..." : form.id ? "儲存修改" : "記錄還款" }}
+        </button>
+      </div>
+    </form>
 
     <button class="detail-toggle settlement-title" type="button" @click="$emit('toggle-details')">
       <span>
@@ -87,13 +167,14 @@
 
     <div class="section-title settlement-title">
       <TrendCharts />
-      <h3>已確認結算</h3>
+      <h3>還款紀錄</h3>
     </div>
-    <div v-if="records.length === 0" class="empty-state">尚無已確認結算</div>
+    <div v-if="records.length === 0" class="empty-state">尚無還款紀錄</div>
     <div v-else class="settlement-list">
       <div v-for="settlement in records" :key="settlement.id" class="settlement-row settled">
         <div class="settlement-record-copy">
           <span>{{ settlement.from_display_name }} 已付給 {{ settlement.to_display_name }}</span>
+          <small>收款日期：{{ settlement.settled_on || "未記錄" }}</small>
           <small v-if="settlement.account_entry?.status === 'posted'">
             {{ settlement.account_entry.account_name }} ·
             {{ settlement.account_entry.direction === "incoming" ? "已入帳" : "已扣款" }}
@@ -104,6 +185,14 @@
         </div>
         <div class="settlement-actions">
           <strong>{{ formatMoney(settlement.amount, settlement.currency) }}</strong>
+          <button
+            v-if="settlement.can_edit"
+            class="quiet-mini-button"
+            type="button"
+            @click="$emit('edit', settlement)"
+          >
+            修改
+          </button>
           <button
             v-if="settlement.can_post_account"
             class="quiet-mini-button"
@@ -147,21 +236,79 @@ export default {
     summary: { type: Array, default: () => [] },
     records: { type: Array, default: () => [] },
     showDetails: { type: Boolean, default: false },
+    form: { type: Object, required: true },
+    submitting: { type: Boolean, default: false },
+    currentMemberId: { type: String, default: "" },
+    isOwner: { type: Boolean, default: false },
+    tripTimezone: { type: String, default: "Asia/Taipei" },
   },
   emits: [
-    "confirm",
+    "select-suggestion",
+    "update-form",
+    "submit",
+    "edit",
+    "cancel-edit",
     "copy-summary",
     "post-account",
     "reverse-account",
     "toggle-details",
     "void",
   ],
+  computed: {
+    debtors() {
+      return this.summary.filter((member) => Number(member.net_amount) < 0);
+    },
+    creditors() {
+      return this.summary.filter((member) => Number(member.net_amount) > 0);
+    },
+    currency() {
+      return this.summary[0]?.currency || "TWD";
+    },
+    amountStep() {
+      return "0.0001";
+    },
+    today() {
+      return new Date().toLocaleDateString("sv-SE", { timeZone: this.tripTimezone });
+    },
+    paidForSelectedPair() {
+      return this.paidForPair(this.form.from_member_id, this.form.to_member_id);
+    },
+    currentRemaining() {
+      const debtor = this.summary.find((member) => member.member_id === this.form.from_member_id);
+      const creditor = this.summary.find((member) => member.member_id === this.form.to_member_id);
+      return debtor && creditor ? Math.max(0, Math.min(-Number(debtor.net_amount), Number(creditor.net_amount))) : 0;
+    },
+    settlementLimit() {
+      const previous = this.form.id
+        ? Number(this.records.find((record) => record.id === this.form.id)?.amount || 0)
+        : 0;
+      return this.currentRemaining + previous;
+    },
+    canSubmit() {
+      const amount = Number(this.form.amount);
+      const allowed = this.isOwner || [this.form.from_member_id, this.form.to_member_id].includes(this.currentMemberId);
+      return !this.submitting && allowed && Boolean(this.form.from_member_id && this.form.to_member_id)
+        && this.form.from_member_id !== this.form.to_member_id
+        && Number.isFinite(amount) && amount > 0 && amount <= this.settlementLimit
+        && Math.abs(amount / Number(this.amountStep) - Math.round(amount / Number(this.amountStep))) < 1e-8
+        && Boolean(this.form.settled_on) && this.form.settled_on <= this.today;
+    },
+  },
   methods: {
+    paidForPair(fromMemberId, toMemberId) {
+      return this.records
+        .filter((record) => record.from_member_id === fromMemberId && record.to_member_id === toMemberId)
+        .reduce((total, record) => total + Number(record.amount), 0);
+    },
+    memberName(memberId) {
+      return this.summary.find((member) => member.member_id === memberId)?.display_name || "旅伴";
+    },
     formatMoney(amount, currency) {
       const minorUnit = ["TWD", "JPY", "KRW"].includes(currency) ? 0 : 2;
+      const hasExtraPrecision = Math.abs(Number(amount) * (10 ** minorUnit) - Math.round(Number(amount) * (10 ** minorUnit))) > 1e-8;
       return `${currency} ${Number(amount || 0).toLocaleString("zh-TW", {
         minimumFractionDigits: minorUnit,
-        maximumFractionDigits: minorUnit,
+        maximumFractionDigits: hasExtraPrecision ? 4 : minorUnit,
       })}`;
     },
     splitStatusClass(member) {
@@ -181,6 +328,68 @@ export default {
 </script>
 
 <style scoped>
+.settlement-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+}
+
+.settlement-form-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settlement-form-fields label {
+  display: grid;
+  gap: 5px;
+  color: #334155;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.settlement-form-fields input,
+.settlement-form-fields select {
+  min-width: 0;
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+}
+
+.settlement-form small {
+  color: #475569;
+}
+
+.settlement-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.settlement-form-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.settlement-action-amount {
+  display: grid;
+  gap: 2px;
+  text-align: right;
+}
+
+.settlement-action-amount small {
+  color: #475569;
+}
+
 .trip-closeout-panel {
   display: grid;
   gap: 10px;
@@ -540,6 +749,10 @@ export default {
 }
 
 @media (max-width: 820px) {
+  .settlement-form-fields {
+    grid-template-columns: 1fr;
+  }
+
   .closeout-list {
     grid-template-columns: 1fr;
   }

@@ -145,6 +145,15 @@ def test_settlement_account_entries_post_replay_reverse_and_protect_group_truth(
         assert settlements_for_payer[0]["account_entry"]["account_name"] == "付款帳戶"
         assert settlements_for_payer[0]["can_reverse_account"] is True
         assert settlements_for_payer[0]["can_void"] is False
+        assert settlements_for_payer[0]["can_edit"] is False
+
+        try:
+            BudgetManager(connection).update_trip_settlement(
+                payer_id, trip["id"], settlement_id, Decimal("100"), "2026-08-01"
+            )
+            assert False, "尚有私人帳戶入帳時不可修改群組結算"
+        except ValueError as exc:
+            assert "取消私人帳戶入帳" in str(exc)
 
         try:
             BudgetManager(connection).delete_trip_settlement(payer_id, trip["id"], settlement_id)

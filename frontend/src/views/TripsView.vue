@@ -123,6 +123,7 @@
           :members="selectedTrip.members"
           :current-member-id="selectedTrip.current_member_id || ''"
           :is-owner="isTripOwner"
+          :trip-timezone="selectedTrip.timezone"
           :current-member="currentTripMember"
           :active-invite="activeInvite"
           :latest-invite-url="latestInviteUrl"
@@ -191,8 +192,16 @@
           :summary="splitSummary"
           :records="settlementRecords"
           :show-details="showSplitDetails"
+          :form="settlementForm"
+          :submitting="submittingSettlement"
+          :current-member-id="selectedTrip.current_member_id || ''"
+          :is-owner="isTripOwner"
           @copy-summary="copySettlementSummary"
-          @confirm="confirmSettlement"
+          @select-suggestion="selectSettlementSuggestion"
+          @update-form="settlementForm = { ...settlementForm, ...$event }"
+          @submit="saveSettlement"
+          @edit="editSettlement"
+          @cancel-edit="resetSettlementForm"
           @post-account="postSettlementAccountEntry"
           @reverse-account="reverseSettlementAccountEntry"
           @toggle-details="showSplitDetails = !showSplitDetails"
@@ -274,6 +283,14 @@ export default {
       splitSummary: [],
       settlementSuggestions: [],
       settlementRecords: [],
+      submittingSettlement: false,
+      settlementForm: {
+        id: null,
+        from_member_id: "",
+        to_member_id: "",
+        amount: "",
+        settled_on: new Date().toLocaleDateString("sv-SE"),
+      },
       tripLoadError: "",
       splitDetailsLoaded: false,
       inviteStatusLoaded: false,
@@ -786,6 +803,7 @@ export default {
       this.splitSummary = overview.split_summary || [];
       this.settlementSuggestions = overview.settlement_suggestions || [];
       this.settlementRecords = overview.settlements || [];
+      this.resetSettlementForm();
       this.splitDetailsLoaded = false;
       this.inviteStatusLoaded = false;
       this.activeInvite = overview.invite || null;
@@ -1397,52 +1415,72 @@ export default {
         this.$swal.fire("刪除失敗", error.response?.data?.message || "請稍後再試", "error");
       }
     },
-    async confirmSettlement(suggestion) {
-      const isCurrentUserSide = this.selectedTrip?.current_member_id
-        && [suggestion.from_member_id, suggestion.to_member_id].includes(this.selectedTrip.current_member_id);
-      const accountOptions = isCurrentUserSide
-        ? this.settlementAccountOptions(suggestion.currency, { allowSkip: true })
-        : null;
-      const result = await this.$swal.fire({
-        title: "標記為已付款？",
-        text: `${suggestion.from_display_name} 付給 ${suggestion.to_display_name} ${this.formatMoney(suggestion.amount, suggestion.currency)}。群組結算不算收入或支出，你可以選擇是否同步更新自己的帳戶。`,
-        icon: "question",
-        input: accountOptions ? "select" : undefined,
-        inputOptions: accountOptions || undefined,
-        inputValue: accountOptions ? "__none__" : undefined,
-        inputLabel: accountOptions ? "同步我的帳戶（選填）" : undefined,
-        showCancelButton: true,
-        confirmButtonText: "標記已付款",
-        cancelButtonText: "取消",
+    resetSettlementForm() {
+      this.settlementForm = {
+        id: null,
+        from_member_id: "",
+        to_member_id: "",
+        amount: "",
+        settled_on: this.tripToday(),
+      };
+    },
+    tripToday() {
+      return new Date().toLocaleDateString("sv-SE", {
+        timeZone: this.selectedTrip?.timezone || "Asia/Taipei",
       });
-      if (!result.isConfirmed) return;
-
+    },
+    selectSettlementSuggestion(suggestion) {
+      this.settlementForm = {
+        id: null,
+        from_member_id: suggestion.from_member_id,
+        to_member_id: suggestion.to_member_id,
+        amount: suggestion.amount,
+        settled_on: this.tripToday(),
+      };
+      this.focusSettlementAmount();
+    },
+    editSettlement(settlement) {
+      this.settlementForm = {
+        id: settlement.id,
+        from_member_id: settlement.from_member_id,
+        to_member_id: settlement.to_member_id,
+        amount: settlement.amount,
+        settled_on: settlement.settled_on || this.tripToday(),
+      };
+      this.focusSettlementAmount();
+    },
+    focusSettlementAmount() {
+      this.$nextTick(() => {
+        const input = this.$el.querySelector(".settlement-form input[type='number']");
+        input?.scrollIntoView({ behavior: "smooth", block: "center" });
+        input?.focus({ preventScroll: true });
+      });
+    },
+    async saveSettlement() {
+      if (this.submittingSettlement || !this.selectedTrip) return;
+      this.submittingSettlement = true;
+      const tripId = this.selectedTrip.id;
       try {
-        const response = await apiClient.post(`/api/trips/${this.selectedTrip.id}/settlements`, {
-          from_member_id: suggestion.from_member_id,
-          to_member_id: suggestion.to_member_id,
-          amount: suggestion.amount,
-        });
-        const settlementId = response.data.data?.settlement_id;
-        if (result.value && result.value !== "__none__" && settlementId) {
-          try {
-            await apiClient.post(
-              `/api/trips/${this.selectedTrip.id}/settlements/${settlementId}/account-entry`,
-              { account_id: result.value }
-            );
-          } catch (postingError) {
-            await Promise.all([this.fetchSplitState(), this.fetchAssets()]);
-            await this.$swal.fire(
-              "分帳已確認，但帳戶未更新",
-              postingError.response?.data?.message || "可在已確認結算中重新選擇帳戶。",
-              "warning"
-            );
-            return;
-          }
+        if (this.settlementForm.id) {
+          await apiClient.patch(`/api/trips/${tripId}/settlements/${this.settlementForm.id}`, {
+            amount: this.settlementForm.amount,
+            settled_on: this.settlementForm.settled_on,
+          });
+        } else {
+          await apiClient.post(`/api/trips/${tripId}/settlements`, {
+            from_member_id: this.settlementForm.from_member_id,
+            to_member_id: this.settlementForm.to_member_id,
+            amount: this.settlementForm.amount,
+            settled_on: this.settlementForm.settled_on,
+          });
         }
-        await Promise.all([this.fetchSplitState(), this.fetchAssets()]);
+        this.resetSettlementForm();
+        await this.fetchSplitState();
       } catch (error) {
-        this.$swal.fire("確認失敗", error.response?.data?.message || "請稍後再試", "error");
+        this.$swal.fire("儲存失敗", error.response?.data?.message || "請稍後再試", "error");
+        await this.fetchSplitState();
+      } finally {
+        this.submittingSettlement = false;
       }
     },
     settlementAccountOptions(currency, { allowSkip = false } = {}) {

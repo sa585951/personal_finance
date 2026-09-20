@@ -145,6 +145,7 @@ class FakeBudgetManager:
         to_member_id,
         amount,
         note=None,
+        settled_on=None,
     ):
         self.last_settlement_payload = {
             "user_id": user_id,
@@ -153,8 +154,13 @@ class FakeBudgetManager:
             "to_member_id": to_member_id,
             "amount": amount,
             "note": note,
+            "settled_on": settled_on,
         }
         return True, "結算已確認", "settlement-1"
+
+    def update_trip_settlement(self, user_id, trip_id, settlement_id, amount, settled_on):
+        self.last_settlement_update = (user_id, trip_id, settlement_id, amount, settled_on)
+        return True, "結算已更新"
 
 
 class FakeAssetManager:
@@ -961,6 +967,7 @@ def test_create_trip_settlement_api_returns_settlement_id(monkeypatch):
             "to_member_id": "member-2",
             "amount": 200,
             "note": "現金還款",
+            "settled_on": "2026-08-15",
         },
         headers=_auth_headers(),
     )
@@ -974,7 +981,28 @@ def test_create_trip_settlement_api_returns_settlement_id(monkeypatch):
         "to_member_id": "member-2",
         "amount": 200,
         "note": "現金還款",
+        "settled_on": "2026-08-15",
     }
+    assert fake_db_session.commits == 1
+
+
+def test_update_trip_settlement_api_accepts_amount_and_date(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_budget_manager = FakeBudgetManager()
+    fake_db_session = FakeDBSession()
+    monkeypatch.setattr(web_app, "budget_manager", fake_budget_manager)
+    monkeypatch.setattr(web_app, "db_session", fake_db_session)
+
+    response = web_app.app.test_client().patch(
+        "/api/trips/trip-1/settlements/settlement-1",
+        json={"amount": 1500, "settled_on": "2026-08-16"},
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert fake_budget_manager.last_settlement_update == (
+        "22222222-2222-2222-2222-222222222222", "trip-1", "settlement-1", 1500, "2026-08-16"
+    )
     assert fake_db_session.commits == 1
 
 

@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import pytest
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func, insert, select
 
 from models.schema import (
     account_adjustments_table,
@@ -18,6 +18,7 @@ from models.schema import (
     categories_table,
     metadata,
     settlements_table,
+    trip_members_table,
     transaction_splits_table,
     transactions_table,
     transfers_table,
@@ -752,12 +753,15 @@ def test_mvp_schema_can_create_core_records():
             to_member_id=owner_member_id,
             amount=Decimal("100"),
             note="朋友先還一部分",
+            settled_on="2026-08-15",
         )
         settlements = budget_manager.get_trip_settlements(user_id, trip_id)
         assert len(settlements) == 1
         assert settlements[0]["from_member_id"] == str(friend_member_id)
         assert settlements[0]["to_member_id"] == str(owner_member_id)
         assert settlements[0]["amount"] == 100
+        assert settlements[0]["settled_on"] == "2026-08-15"
+        assert settlements[0]["can_edit"] is True
 
         source_balance_after_settlement = connection.execute(
             select(accounts_table.c.balance).where(accounts_table.c.id == source_account_id)
@@ -772,9 +776,81 @@ def test_mvp_schema_can_create_core_records():
         assert reduced_suggestions[0]["amount"] == 340.0
 
         settlement_id = connection.execute(select(settlements_table.c.id)).scalar_one()
+        with pytest.raises(ValueError, match="不可超過目前待還金額"):
+            budget_manager.update_trip_settlement(user_id, trip_id, settlement_id, Decimal("500"), "2026-08-16")
+        budget_manager.update_trip_settlement(user_id, trip_id, settlement_id, Decimal("200"), "2026-08-16")
+        edited_settlement = budget_manager.get_trip_settlements(user_id, trip_id)[0]
+        assert edited_settlement["amount"] == 200
+        assert edited_settlement["settled_on"] == "2026-08-16"
+        assert budget_manager.get_trip_settlement_suggestions(user_id, trip_id)[0]["amount"] == 240.0
+        assert connection.execute(select(accounts_table.c.balance).where(accounts_table.c.id == source_account_id)).scalar_one() == source_balance_before_settlement
+        assert connection.execute(select(accounts_table.c.balance).where(accounts_table.c.id == target_account_id)).scalar_one() == target_balance_before_settlement
         budget_manager.delete_trip_settlement(user_id, trip_id, settlement_id)
         restored_suggestions = budget_manager.get_trip_settlement_suggestions(user_id, trip_id)
         assert restored_suggestions[0]["amount"] == 440.0
+
+
+def test_non_owner_recipient_can_record_and_edit_partial_repayment():
+    engine = create_engine(_get_test_database_url(), future=True)
+
+    with engine.begin() as connection:
+        metadata.drop_all(connection)
+        metadata.create_all(connection)
+        seed_reference_data(connection)
+
+        users = UserManager(connection)
+        payer = users.get_or_create_user_for_identity(
+            provider="line", provider_user_id="U-partial-payer", display_name="付款旅伴"
+        )
+        recipient = users.get_or_create_user_for_identity(
+            provider="line", provider_user_id="U-partial-recipient", display_name="收款旅伴"
+        )
+        trip = TripManager(connection).create_trip(
+            user_id=payer["id"], name="部分還款測試", start_date="2026-08-01",
+            end_date="2026-08-02", base_currency="TWD", default_currency="TWD"
+        )
+        payer_member_id = trip["current_member_id"]
+        recipient_member_id = connection.execute(
+            insert(trip_members_table).values(
+                trip_id=uuid.UUID(trip["id"]), user_id=recipient["id"], display_name="收款旅伴",
+                role="editor", status="active", monthly_report_preference="pending"
+            ).returning(trip_members_table.c.id)
+        ).scalar_one()
+        manager = BudgetManager(connection)
+
+        # 兩筆各分攤 2,000，合計欠收款旅伴 4,000；一次收款不綁定特定支出。
+        for item in ("代墊第一筆", "代墊第二筆"):
+            manager.add_transaction(
+                user_id=recipient["id"], date="2026-08-01", item=item,
+                amount=Decimal("4000"), transaction_type="expense", budget_category="伙食",
+                trip_id=trip["id"], paid_by_member_id=recipient_member_id,
+                original_currency="TWD", exchange_rate=Decimal("1"),
+                split_member_ids=[payer_member_id, recipient_member_id],
+            )
+
+        suggestions = manager.get_trip_settlement_suggestions(recipient["id"], trip["id"])
+        assert suggestions[0]["amount"] == 4000
+        assert suggestions[0]["can_confirm"] is True
+        _, _, settlement_id = manager.add_trip_settlement(
+            recipient["id"], trip["id"], payer_member_id, recipient_member_id,
+            Decimal("2000"), settled_on="2026-08-02"
+        )
+        assert manager.get_trip_settlement_suggestions(recipient["id"], trip["id"])[0]["amount"] == 2000
+        record = manager.get_trip_settlements(recipient["id"], trip["id"])[0]
+        assert record["can_edit"] is True
+        assert record["settled_on"] == "2026-08-02"
+        assert connection.execute(select(settlements_table.c.recorded_by_user_id)).scalar_one() == recipient["id"]
+
+        with pytest.raises(ValueError, match="不可超過目前待還金額"):
+            manager.add_trip_settlement(
+                recipient["id"], trip["id"], payer_member_id, recipient_member_id,
+                Decimal("2001"), settled_on="2026-08-02"
+            )
+        manager.update_trip_settlement(
+            recipient["id"], trip["id"], settlement_id, Decimal("1500"), "2026-08-01"
+        )
+        assert manager.get_trip_settlement_suggestions(recipient["id"], trip["id"])[0]["amount"] == 2500
+        assert manager.get_trip_settlements(recipient["id"], trip["id"])[0]["settled_on"] == "2026-08-01"
 
 
 def test_transaction_client_request_id_is_idempotent_per_user():

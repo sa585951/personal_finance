@@ -2,9 +2,10 @@ import base64
 import binascii
 import json
 from calendar import monthrange
-from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
+from datetime import date, datetime, time, timedelta, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, delete, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -1331,6 +1332,7 @@ class BudgetManager:
                             and (
                                 current_member["role"] == "owner"
                                 or current_member["id"] == debtor["member_id"]
+                                or current_member["id"] == creditor["member_id"]
                             )
                         ),
                     }
@@ -1440,10 +1442,19 @@ class BudgetManager:
                     "currency": row.currency,
                     "note": row.note,
                     "settled_at": row.settled_at.isoformat() if row.settled_at else None,
+                    "settled_on": row.settled_at.astimezone(ZoneInfo(trip["timezone"])).date().isoformat() if row.settled_at else None,
                     "account_entry": account_entry,
                     "can_post_account": bool(is_current_user_side and account_entry is None),
                     "can_reverse_account": bool(account_entry and account_entry["status"] == "posted"),
                     "has_active_account_entries": has_active_account_entries,
+                    "can_edit": bool(
+                        current_member
+                        and not has_active_account_entries
+                        and (
+                            current_member["role"] == "owner"
+                            or row.recorded_by_user_id == parsed_user_id
+                        )
+                    ),
                     "can_void": bool(
                         current_member
                         and not has_active_account_entries
@@ -1456,41 +1467,73 @@ class BudgetManager:
             )
         return settlements
 
-    def add_trip_settlement(self, user_id, trip_id, from_member_id, to_member_id, amount, note=None):
+    def _settlement_date(self, value, trip_timezone):
+        if value is None:
+            return datetime.now(timezone.utc)
+        try:
+            parsed = date.fromisoformat(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("收款日期格式必須為 YYYY-MM-DD") from exc
+        if parsed.isoformat() != value:
+            raise ValueError("收款日期格式必須為 YYYY-MM-DD")
+        if parsed > datetime.now(ZoneInfo(trip_timezone)).date():
+            raise ValueError("收款日期不可晚於今天")
+        # 使用旅行時區的中午保存日期，避免跨時區顯示時落到前一天或後一天。
+        return datetime.combine(parsed, time(hour=12), ZoneInfo(trip_timezone)).astimezone(timezone.utc)
+
+    def _settlement_amount(self, value):
+        try:
+            amount = Decimal(str(value))
+        except (TypeError, ValueError, ArithmeticError) as exc:
+            raise ValueError("結算金額格式不正確") from exc
+        if not amount.is_finite() or amount <= 0:
+            raise ValueError("結算金額必須大於0")
+        # 既有旅行分攤可有四位小數；沿用資料表精度，避免換匯後的部分還款被拒絕。
+        rounded_amount = amount.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+        if rounded_amount <= 0:
+            raise ValueError("結算金額必須大於0")
+        return rounded_amount
+
+    def _settlement_limit(self, user_id, trip_id, from_member_id, to_member_id, previous_amount=Decimal("0")):
+        summary = {
+            item["member_id"]: Decimal(str(item["net_amount"]))
+            for item in self.get_trip_split_summary(user_id, trip_id)
+        }
+        from_net = summary.get(str(from_member_id), Decimal("0")) - previous_amount
+        to_net = summary.get(str(to_member_id), Decimal("0")) + previous_amount
+        limit = min(-from_net, to_net)
+        if limit <= 0:
+            raise ValueError("目前這組旅伴沒有待結算款項")
+        return limit
+
+    def add_trip_settlement(self, user_id, trip_id, from_member_id, to_member_id, amount, note=None, settled_on=None):
         """確認一筆旅行分帳還款，不異動任何付款帳戶餘額。"""
         parsed_user_id = self._parse_user_id(user_id)
         parsed_trip_id = self._parse_optional_uuid(trip_id, "trip_id")
         parsed_from_member_id = self._parse_optional_uuid(from_member_id, "from_member_id")
         parsed_to_member_id = self._parse_optional_uuid(to_member_id, "to_member_id")
-        settlement_amount = self._normalize_amount(amount, "結算金額")
-
         if parsed_from_member_id == parsed_to_member_id:
             raise ValueError("付款人與收款人不可相同")
 
         trip = TripManager(self.db_session).get_trip(parsed_user_id, parsed_trip_id)
+        settlement_amount = self._settlement_amount(amount)
         member_ids = {UUID(member["id"]) for member in trip["members"]}
         if parsed_from_member_id not in member_ids or parsed_to_member_id not in member_ids:
             raise ValueError("結算成員不屬於此旅行")
         current_member = next((member for member in trip["members"] if member.get("user_id") == str(parsed_user_id)), None)
         can_confirm = current_member and (
-            current_member["role"] == "owner" or current_member["id"] == str(parsed_from_member_id)
+            current_member["role"] == "owner"
+            or current_member["id"] in {str(parsed_from_member_id), str(parsed_to_member_id)}
         )
         if not can_confirm:
-            raise ValueError("只有旅行 owner 或付款方本人可以確認這筆結算")
+            raise ValueError("只有旅行 owner、付款方本人或收款方本人可以確認這筆結算")
 
-        current_suggestion = next(
-            (
-                suggestion
-                for suggestion in self.get_trip_settlement_suggestions(parsed_user_id, parsed_trip_id)
-                if suggestion["from_member_id"] == str(parsed_from_member_id)
-                and suggestion["to_member_id"] == str(parsed_to_member_id)
-            ),
-            None,
-        )
-        if not current_suggestion:
-            raise ValueError("目前沒有這筆待結算建議")
-        if settlement_amount > Decimal(str(current_suggestion["amount"])):
-            raise ValueError("結算金額不可超過目前建議金額")
+        # 同一趟旅行的還款寫入依序執行，避免同時登記而超過待還額。
+        self.db_session.execute(select(trips_table.c.id).where(trips_table.c.id == parsed_trip_id).with_for_update()).scalar_one()
+        limit = self._settlement_limit(parsed_user_id, parsed_trip_id, parsed_from_member_id, parsed_to_member_id)
+        if settlement_amount > limit:
+            raise ValueError("結算金額不可超過目前待還金額")
+        settled_at = self._settlement_date(settled_on, trip["timezone"])
 
         settlement_id = self.db_session.execute(
             insert(settlements_table).values(
@@ -1502,10 +1545,52 @@ class BudgetManager:
                 currency=trip["base_currency"],
                 status="confirmed",
                 note=note,
-                settled_at=datetime.now(timezone.utc),
+                settled_at=settled_at,
             ).returning(settlements_table.c.id)
         ).scalar_one()
         return True, "結算已確認", str(settlement_id)
+
+    def update_trip_settlement(self, user_id, trip_id, settlement_id, amount, settled_on):
+        """修正一筆未連動私人帳戶的還款紀錄。"""
+        parsed_user_id = self._parse_user_id(user_id)
+        parsed_trip_id = self._parse_optional_uuid(trip_id, "trip_id")
+        parsed_settlement_id = self._parse_optional_uuid(settlement_id, "settlement_id")
+        trip = TripManager(self.db_session).get_trip(parsed_user_id, parsed_trip_id)
+        settlement_amount = self._settlement_amount(amount)
+        current_member = next((member for member in trip["members"] if member.get("user_id") == str(parsed_user_id)), None)
+        self.db_session.execute(select(trips_table.c.id).where(trips_table.c.id == parsed_trip_id).with_for_update()).scalar_one()
+        row = self.db_session.execute(
+            select(settlements_table).where(
+                settlements_table.c.id == parsed_settlement_id,
+                settlements_table.c.trip_id == parsed_trip_id,
+                settlements_table.c.status == "confirmed",
+                settlements_table.c.deleted_at.is_(None),
+            )
+        ).first()
+        if not row:
+            raise ValueError("找不到要修改的結算紀錄")
+        if not current_member or (current_member["role"] != "owner" and row.recorded_by_user_id != parsed_user_id):
+            raise ValueError("只有旅行 owner 或結算記錄者可以修改這筆結算")
+        has_active_account_entry = self.db_session.execute(
+            select(settlement_account_entries_table.c.id).where(
+                settlement_account_entries_table.c.settlement_id == parsed_settlement_id,
+                settlement_account_entries_table.c.status == "posted",
+            ).limit(1)
+        ).first()
+        if has_active_account_entry:
+            raise ValueError("請先由相關成員取消私人帳戶入帳，再修改群組結算")
+        limit = self._settlement_limit(
+            parsed_user_id, parsed_trip_id, row.from_member_id, row.to_member_id, row.amount
+        )
+        if settlement_amount > limit:
+            raise ValueError("結算金額不可超過目前待還金額")
+        settled_at = self._settlement_date(settled_on, trip["timezone"])
+        self.db_session.execute(
+            update(settlements_table)
+            .where(settlements_table.c.id == parsed_settlement_id)
+            .values(amount=settlement_amount, settled_at=settled_at, updated_at=datetime.now(timezone.utc))
+        )
+        return True, "結算已更新"
 
     def delete_trip_settlement(self, user_id, trip_id, settlement_id):
         """撤銷一筆旅行結算紀錄。"""
