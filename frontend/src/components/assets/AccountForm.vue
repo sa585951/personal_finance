@@ -55,6 +55,11 @@
         </select>
       </div>
 
+      <CreditCardBillingFields
+        v-if="newAccount.account_type === 'credit_card'"
+        v-model="newAccount.credit_card_billing"
+      />
+
       <AccountAppearancePicker
         v-model:icon-key="newAccount.icon_key"
         v-model:color-key="newAccount.color_key"
@@ -69,11 +74,12 @@
 <script>
 import apiClient from "../../api";
 import AccountAppearancePicker from "./AccountAppearancePicker.vue";
+import CreditCardBillingFields from "./CreditCardBillingFields.vue";
 import { defaultAccountAppearance } from "@/constants/accountAppearance";
 
 export default {
   name: "AccountForm",
-  components: { AccountAppearancePicker },
+  components: { AccountAppearancePicker, CreditCardBillingFields },
   data() {
     const defaultAppearance = defaultAccountAppearance("bank");
     return {
@@ -84,6 +90,7 @@ export default {
         currency: "TWD",
         icon_key: defaultAppearance.iconKey,
         color_key: defaultAppearance.colorKey,
+        credit_card_billing: null,
       },
       currencies: ["TWD", "JPY", "KRW", "USD", "EUR"],
       accountTypes: [
@@ -110,9 +117,13 @@ export default {
           icon_key: this.newAccount.icon_key,
           color_key: this.newAccount.color_key,
         };
+        if (this.newAccount.account_type === "credit_card") {
+          payload.credit_card_billing = this.newAccount.credit_card_billing;
+        }
 
         const response = await apiClient.post(`/api/assets`, payload);
         this.submitMessage = response.data.message;
+        if (!response.data.success) return;
 
         this.$emit("account-added");
 
@@ -120,6 +131,7 @@ export default {
         this.newAccount.account_type = "bank";
         this.newAccount.balance = null;
         this.newAccount.currency = "TWD";
+        this.newAccount.credit_card_billing = null;
         this.resetAppearance();
       } catch (err) {
         if (err.response) {

@@ -497,16 +497,20 @@ export default {
         );
       }
     },
-    async updateAccount(accountId, payload) {
+    async updateAccount(accountId, payload, onComplete) {
       try {
         await apiClient.put(`/api/assets/${accountId}`, {
           bank_name: payload.bank_name,
           account_type: payload.account_type,
           currency: payload.currency,
+          ...(payload.account_type === "credit_card" ? { credit_card_billing: payload.credit_card_billing } : {}),
         });
         await this.fetchAssets();
+        onComplete?.(true);
       } catch (err) {
         console.error("更新帳戶失敗", err);
+        this.$swal.fire("更新失敗", err.response?.data?.message || "請稍後再試。", "error");
+        onComplete?.(false);
       }
     },
     startTransferEdit(transfer) {

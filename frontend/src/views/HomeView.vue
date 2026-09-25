@@ -299,6 +299,25 @@ export default {
         ))
         .sort((a, b) => Math.abs(Number(b.balance || 0)) - Math.abs(Number(a.balance || 0)));
     },
+    upcomingCreditCardDate() {
+      const dates = [];
+      Object.values(this.assets || {}).forEach((asset) => {
+        const billing = asset.account_type === "credit_card" ? asset.credit_card_billing : null;
+        if (!billing) return;
+        [
+          { kind: "due", date: billing.next_due_date, source: billing.next_due_date_source },
+          { kind: "closing", date: billing.next_closing_date, source: "estimated" },
+        ].forEach((item) => {
+          const days = (Date.parse(`${item.date}T00:00:00Z`) -
+            Date.parse(`${billing.today}T00:00:00Z`)) / 86400000;
+          if (Number.isInteger(days) && days >= 0 && days <= 7) {
+            dates.push({ ...item, days, asset });
+          }
+        });
+      });
+      dates.sort((a, b) => a.days - b.days || (a.kind === "due" ? -1 : 1));
+      return dates[0] || null;
+    },
     nearlyUsedBudgets() {
       return this.budgetSummary
         .filter((item) => {
@@ -364,6 +383,20 @@ export default {
     },
     attentionInsights() {
       const items = [];
+
+      if (this.upcomingCreditCardDate) {
+        const item = this.upcomingCreditCardDate;
+        const isDue = item.kind === "due";
+        items.push({
+          key: `card-date-${item.asset.account_key || item.asset.id}-${item.kind}`,
+          level: "attention",
+          group: "值得注意",
+          title: `${item.asset.bank_name || "信用卡"}${isDue ? "繳款截止日" : "結帳日"}將至`,
+          description: `${item.date}（${isDue && item.source === "user_set" ? "手動設定" : "預計"}）。這是日期提示，不判定是否已繳款；請以銀行帳單為準。`,
+          action: "看帳戶",
+          to: "/assets",
+        });
+      }
 
       if (this.overspendingWarnings.length === 0) {
         this.nearlyUsedBudgets.slice(0, 1).forEach((item) => {

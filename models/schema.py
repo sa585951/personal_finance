@@ -125,6 +125,34 @@ accounts_table = Table(
 )
 
 
+credit_card_billing_profiles_table = Table(
+    "credit_card_billing_profiles",
+    metadata,
+    Column("account_id", UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False),
+    Column("closing_day", Integer, nullable=False),
+    Column("due_day", Integer, nullable=False),
+    Column("due_month_offset", Integer, nullable=False),
+    Column("override_closing_date", Date),
+    Column("override_due_date", Date),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    CheckConstraint("closing_day between 1 and 31", name="ck_credit_card_billing_closing_day"),
+    CheckConstraint("due_day between 1 and 31", name="ck_credit_card_billing_due_day"),
+    CheckConstraint("due_month_offset in (0, 1)", name="ck_credit_card_billing_due_month_offset"),
+    CheckConstraint(
+        "(override_closing_date is null) = (override_due_date is null)",
+        name="ck_credit_card_billing_override_pair",
+    ),
+    CheckConstraint(
+        "override_due_date > override_closing_date or override_due_date is null",
+        name="ck_credit_card_billing_override_after_close",
+    ),
+)
+
+Index("ix_credit_card_billing_profiles_user", credit_card_billing_profiles_table.c.user_id)
+
+
 account_balance_anchors_table = Table(
     "account_balance_anchors",
     metadata,

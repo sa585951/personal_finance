@@ -97,6 +97,17 @@
                 {{ percentage(positiveBalance(account.asset), currencyAllocationTotals[account.asset.currency || "TWD"]) }}%
               </span>
             </div>
+            <div v-if="account.asset.account_type === 'credit_card'" class="billing-summary">
+              <template v-if="account.asset.credit_card_billing">
+                <span>下次預計結帳：{{ account.asset.credit_card_billing.next_closing_date }}</span>
+                <span>
+                  下次{{ account.asset.credit_card_billing.next_due_date_source === 'user_set' ? '手動設定' : '預計' }}繳款截止：
+                  {{ account.asset.credit_card_billing.next_due_date }}
+                </span>
+              </template>
+              <span v-else>尚未設定信用卡帳期，可從「編輯帳戶」設定。</span>
+              <small>日期不代表本期應繳金額或繳清狀態，請以銀行帳單為準。</small>
+            </div>
             <div class="account-ratio">
               <div
                 class="account-ratio-fill"
@@ -156,6 +167,12 @@
                   </select>
                 </div>
               </div>
+              <CreditCardBillingFields
+                v-if="editDraft.account_type === 'credit_card'"
+                v-model="editDraft.credit_card_billing"
+                :allow-override="true"
+                :next-due-closing-date="overrideCycleFor(account.asset)"
+              />
               <AccountAppearancePicker
                 v-model:icon-key="editDraft.icon_key"
                 v-model:color-key="editDraft.color_key"
@@ -198,6 +215,7 @@
 <script>
 import AccountActivityPanel from "./AccountActivityPanel.vue";
 import AccountAppearancePicker from "./AccountAppearancePicker.vue";
+import CreditCardBillingFields from "./CreditCardBillingFields.vue";
 import AccountIcon from "./AccountIcon.vue";
 import { defaultAccountAppearance } from "@/constants/accountAppearance";
 
@@ -206,6 +224,7 @@ export default {
   components: {
     AccountActivityPanel,
     AccountAppearancePicker,
+    CreditCardBillingFields,
     AccountIcon,
   },
   props: {
@@ -255,6 +274,7 @@ export default {
         currency: "TWD",
         icon_key: "bank",
         color_key: "blue",
+        credit_card_billing: null,
       },
       currencies: ["TWD", "JPY", "KRW", "USD", "EUR"],
       accountTypes: [
@@ -336,6 +356,15 @@ export default {
     },
   },
   methods: {
+    overrideCycleFor(asset) {
+      const current = asset.credit_card_billing;
+      const draft = this.editDraft.credit_card_billing;
+      if (!current || !draft ||
+          current.closing_day !== draft.closing_day ||
+          current.due_day !== draft.due_day ||
+          current.due_month_offset !== draft.due_month_offset) return "";
+      return current.next_due_closing_date || "";
+    },
     toggleGroup(type) {
       this.collapsedGroups = {
         ...this.collapsedGroups,
@@ -383,12 +412,21 @@ export default {
     },
     startEdit(account) {
       this.editingAccountId = account.key;
+      const billing = account.asset.credit_card_billing;
+      const activeOverride = billing?.override_closing_date === billing?.next_due_closing_date;
       this.editDraft = {
         bank_name: account.asset.bank_name || "",
         account_type: account.asset.account_type || "bank",
         currency: account.asset.currency || "TWD",
         icon_key: account.asset.icon_key || defaultAccountAppearance(account.asset.account_type).iconKey,
         color_key: account.asset.color_key || defaultAccountAppearance(account.asset.account_type).colorKey,
+        credit_card_billing: billing ? {
+          closing_day: billing.closing_day,
+          due_day: billing.due_day,
+          due_month_offset: billing.due_month_offset,
+          override_closing_date: activeOverride ? billing.override_closing_date : null,
+          override_due_date: activeOverride ? billing.override_due_date : null,
+        } : null,
       };
     },
     cancelEdit() {
@@ -399,8 +437,16 @@ export default {
         this.$swal.fire("欄位未完整", "請輸入帳戶名稱。", "warning");
         return;
       }
-      this.$emit("update-account", accountId, { ...this.editDraft });
-      this.editingAccountId = "";
+      if (this.editDraft.account_type === "credit_card" && this.editDraft.credit_card_billing &&
+          (!this.editDraft.credit_card_billing.closing_day || !this.editDraft.credit_card_billing.due_day)) {
+        this.$swal.fire("欄位未完整", "請選擇結帳日與繳款日。", "warning");
+        return;
+      }
+      const payload = { ...this.editDraft };
+      if (payload.account_type !== "credit_card") delete payload.credit_card_billing;
+      this.$emit("update-account", accountId, payload, (success) => {
+        if (success) this.editingAccountId = "";
+      });
     },
     async promptUpdate(account) {
       const requestId = globalThis.crypto?.randomUUID?.();
@@ -757,6 +803,19 @@ export default {
   font-size: 0.78rem;
   font-weight: 700;
 }
+
+.billing-summary {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #7c2d12;
+  font-size: 0.84rem;
+}
+
+.billing-summary small { color: #9a3412; line-height: 1.45; }
 
 .account-ratio {
   height: 6px;

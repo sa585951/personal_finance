@@ -4,8 +4,9 @@
 
 - Roadmap 版本：M0 至 M9
 - 生效日期：2026-08-17
-- 目前 Milestone：M3 Ledger Correctness 第一輪完成（M2 PWA Alpha 外部實測並行等待）
-- 下一個工作批次：依 M2 實測證據決定 M4 Travel Product；在取得證據前只處理阻塞級修補
+- 目前 Milestone：M3 Ledger Correctness 第一輪完成；M2 PWA Alpha 以有限證據收尾，解除後續 Web 開發關卡
+- 下一個工作批次：信用卡結帳日與繳款截止日的 Web 帳期資訊；M4 Travel Product 仍須有明確需求依據才啟動
+- 帳期批次狀態：本地第一版已實作；正式環境尚須先執行 `20260925_0015` migration，並完成資料庫與手機版操作驗收，不視為已上線
 
 舊有 Phase 1 至 Phase 7、Phase App 與 Allocation 文件保留為歷史開發紀錄。新工作一律使用本文件的 Milestone 命名，避免同時維護兩套進度語言。
 
@@ -107,13 +108,12 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 ## M2 PWA Alpha
 
-狀態：測試計畫與驗收門檻已就緒（2026-08-20），等待 5 至 10 位非開發者實測。
+狀態：有限證據收尾（2026-09-25）。已有試用者提出問題並促成後續修正，但沒有完整的 5 至 10 位非開發者分段測試、完成率與留存紀錄；不宣稱原訂 Alpha 門檻正式通過。使用頻率不固定不再無限期阻擋後續 Web 產品化。
 
-- 以 5 至 10 位非開發者驗證登入、第一帳戶、第一交易、旅行、邀請、shared expense、share、group settlement 與個人月報。
-- 此時 Settlement 仍為 group-only；UI 不得暗示會自動異動私人帳戶。
-- Alpha 後只修高頻阻塞，不立即擴充功能。
-- 第一輪採主持人觀察與匿名回饋表，不接第三方 analytics SDK；詳細流程與通過門檻見 `docs/m2-pwa-alpha-plan.md`。
-- M2 通過代表核心操作可供 Alpha 使用，不代表財務 reconciliation、留存或市場驗證完成。
+- 原訂以 5 至 10 位非開發者驗證登入、第一帳戶、第一交易、旅行、邀請、shared expense、share、group settlement 與個人月報；原目標與未驗證項目見 `docs/m2-pwa-alpha-plan.md`。
+- Group Settlement／部分還款只更新群組分帳狀態，不自動異動私人帳戶；使用者可另外為自己的一側選擇同幣別帳戶入帳或扣款。
+- 後續 Web 工作改以已知使用者問題安排可獨立驗收的小批次；下一批為信用卡帳期資訊，不將帳戶負餘額誤稱為本期應繳。
+- M2 有限證據收尾不代表完成財務 reconciliation、留存或市場驗證；iOS 正式開發仍依後續 Web／PWA 產品與財務語意驗證結果決定。
 
 ## M3 Ledger Correctness
 
@@ -130,7 +130,7 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 ## M4 Travel Product
 
-- 只有 PWA Alpha 資料支持後才做。
+- 只有明確的旅行使用問題或後續驗證資料支持後才做；M2 有限證據收尾不自動啟動 M4。
 - 推導 Upcoming／Ongoing／Ended，並依 Trip timezone 計算。
 - 增加 explicit closeout 與 final personal cost。
 - Active Trip 只做推薦，不直接 commit。
@@ -188,6 +188,8 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 - Goals 復活。
 
 ## 執行順序
+
+以下為原訂 Milestone 順序；實際上 M3 第一輪已先完成，M2 則以有限證據收尾。下一批 Web 帳期資訊為獨立小批次，不代表 M4 已啟動。
 
 ```text
 M0 Finance Contract

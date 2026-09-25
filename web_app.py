@@ -430,6 +430,7 @@ def add_asset(current_user_id):
             currency=data.get("currency"),
             icon_key=data.get("icon_key"),
             color_key=data.get("color_key"),
+            credit_card_billing=data.get("credit_card_billing"),
         )
         if success:
             parse_event_id = data.get("parse_event_id")
@@ -449,7 +450,11 @@ def add_asset(current_user_id):
                 "transaction_id": str(getattr(budget_manager, "last_created_transaction_id", "")) or None,
             },
         }), 201
+    except ValueError as e:
+        db_session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
+        db_session.rollback()
         app.logger.error(f"Error in add_asset: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
 
@@ -465,6 +470,7 @@ def update_asset_balance(current_user_id, account_key):
         "color_key",
         "balance",
         "new_balance",
+        "credit_card_billing",
     }
     if not data or not any(field in data for field in allowed_fields):
         return jsonify({"success": False, "message": "缺少可更新欄位"}), 400
@@ -474,9 +480,14 @@ def update_asset_balance(current_user_id, account_key):
         if success:
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
+    except ValueError as e:
+        db_session.rollback()
+        status_code = 404 if "找不到此帳戶" in str(e) else 400
+        return jsonify({"success": False, "message": str(e)}), status_code
     except Exception as e:
+        db_session.rollback()
         app.logger.error(f"Error in update_asset_balance: {e}")
-        return jsonify({"success": False, "message": str(e)}), 404
+        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
 
 @app.route("/api/assets/<string:account_key>/activity", methods=["GET"])
 @token_required

@@ -2,16 +2,19 @@ import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import desc, insert, or_, select, update
+from sqlalchemy import delete, desc, insert, or_, select, update
 
 from config import DEFAULT_CURRENCY
 from .account_movement import record_account_movement
+from .credit_card_billing import billing_schedule, normalize_billing
 from .schema import (
     account_adjustments_table,
     account_balance_anchors_table,
     accounts_table,
     categories_table,
+    credit_card_billing_profiles_table,
     holding_cost_entries_table,
     settlement_account_entries_table,
     settlements_table,
@@ -19,6 +22,7 @@ from .schema import (
     transfers_table,
     trip_members_table,
     trips_table,
+    users_table,
 )
 
 
@@ -163,11 +167,51 @@ class AssetManager:
         row = self.db_session.execute(stmt).first()
         return dict(row._mapping) if row else None
 
-    def _to_legacy_asset(self, account):
+    def _user_today(self, user_id):
+        timezone_name = self.db_session.execute(
+            select(users_table.c.timezone).where(users_table.c.id == self._parse_user_id(user_id))
+        ).scalar_one_or_none() or "Asia/Taipei"
+        try:
+            user_timezone = ZoneInfo(timezone_name)
+        except ZoneInfoNotFoundError:
+            user_timezone = ZoneInfo("Asia/Taipei")
+        return datetime.now(user_timezone).date()
+
+    def _save_credit_card_billing(self, user_id, account_id, billing):
+        parsed_user_id = self._parse_user_id(user_id)
+        parsed_account_id = self._parse_uuid(account_id)
+        if billing is None:
+            self.db_session.execute(
+                delete(credit_card_billing_profiles_table).where(
+                    credit_card_billing_profiles_table.c.account_id == parsed_account_id,
+                    credit_card_billing_profiles_table.c.user_id == parsed_user_id,
+                )
+            )
+            return
+        existing = self.db_session.execute(
+            select(credit_card_billing_profiles_table.c.account_id).where(
+                credit_card_billing_profiles_table.c.account_id == parsed_account_id,
+                credit_card_billing_profiles_table.c.user_id == parsed_user_id,
+            )
+        ).scalar_one_or_none()
+        if existing:
+            self.db_session.execute(
+                update(credit_card_billing_profiles_table)
+                .where(credit_card_billing_profiles_table.c.account_id == parsed_account_id)
+                .values(**billing, updated_at=datetime.now(timezone.utc))
+            )
+        else:
+            self.db_session.execute(
+                insert(credit_card_billing_profiles_table).values(
+                    account_id=parsed_account_id, user_id=parsed_user_id, **billing
+                )
+            )
+
+    def _to_legacy_asset(self, account, billing=None, today=None):
         """暫時轉成前端既有 assets 格式，等前端改名後可移除。"""
         account_id = str(account["id"])
         balance = account["balance"]
-        return {
+        asset = {
             "id": account_id,
             "account_key": account_id,
             "bank_name": account["name"],
@@ -181,6 +225,20 @@ class AssetManager:
             "last_update": account["updated_at"].isoformat() if account["updated_at"] else None,
             "user_id": str(account["user_id"]),
         }
+        if account["type"] == "credit_card" and billing:
+            asset["credit_card_billing"] = {
+                "closing_day": billing["closing_day"],
+                "due_day": billing["due_day"],
+                "due_month_offset": billing["due_month_offset"],
+                "override_closing_date": billing["override_closing_date"].isoformat()
+                if billing["override_closing_date"] else None,
+                "override_due_date": billing["override_due_date"].isoformat()
+                if billing["override_due_date"] else None,
+                **billing_schedule(billing, today),
+            }
+        else:
+            asset["credit_card_billing"] = None
+        return asset
 
     def get_all_assets(self, user_id):
         """取得指定使用者的所有未刪除帳戶。"""
@@ -192,10 +250,21 @@ class AssetManager:
             )
             .order_by(accounts_table.c.created_at)
         )
-        result = self.db_session.execute(stmt)
+        rows = [dict(row._mapping) for row in self.db_session.execute(stmt)]
+        billing_by_account = {}
+        if any(row["type"] == "credit_card" for row in rows):
+            billing_by_account = {
+                row.account_id: dict(row._mapping)
+                for row in self.db_session.execute(
+                    select(credit_card_billing_profiles_table).where(
+                        credit_card_billing_profiles_table.c.user_id == self._parse_user_id(user_id)
+                    )
+                )
+            }
+        today = self._user_today(user_id) if billing_by_account else None
         assets = {}
-        for row in result:
-            asset = self._to_legacy_asset(dict(row._mapping))
+        for row in rows:
+            asset = self._to_legacy_asset(row, billing_by_account.get(row["id"]), today)
             assets[asset["account_key"]] = asset
         return assets
 
@@ -299,9 +368,16 @@ class AssetManager:
         currency=None,
         icon_key=None,
         color_key=None,
+        credit_card_billing=None,
     ):
         """新增帳戶。"""
         normalized_type = self._normalize_account_type(account_type)
+        if credit_card_billing is not None and normalized_type != "credit_card":
+            raise ValueError("只有信用卡帳戶可以設定帳期")
+        billing = normalize_billing(
+            credit_card_billing,
+            today=self._user_today(user_id) if credit_card_billing is not None else None,
+        )
         account_balance = self._normalize_balance_value(balance)
         if account_balance < 0 and not self._allows_negative_balance(normalized_type):
             return False, "餘額不能為負數"
@@ -321,6 +397,8 @@ class AssetManager:
             balance=account_balance,
         ).returning(accounts_table.c.id)
         account_id = self.db_session.execute(stmt).scalar_one()
+        if billing:
+            self._save_credit_card_billing(user_id, account_id, billing)
         self.db_session.execute(
             insert(account_balance_anchors_table).values(
                 user_id=parsed_user_id,
@@ -539,6 +617,17 @@ class AssetManager:
         if "account_type" in changes:
             values["type"] = self._normalize_account_type(changes.get("account_type"))
 
+        billing_was_provided = "credit_card_billing" in changes
+        if billing_was_provided and changes["credit_card_billing"] is not None and values.get("type", account["type"]) != "credit_card":
+            raise ValueError("只有信用卡帳戶可以設定帳期")
+        billing = (
+            normalize_billing(
+                changes["credit_card_billing"],
+                today=self._user_today(user_id) if changes["credit_card_billing"] is not None else None,
+            )
+            if billing_was_provided else None
+        )
+
         if "currency" in changes:
             values["currency"] = self._normalize_currency(changes.get("currency"))
 
@@ -552,7 +641,7 @@ class AssetManager:
         balance_was_provided = "balance" in changes or "new_balance" in changes
         balance_value = changes.get("balance", changes.get("new_balance"))
 
-        if not values and not balance_was_provided:
+        if not values and not balance_was_provided and not billing_was_provided:
             return False, "沒有可更新的欄位"
 
         if values:
@@ -562,6 +651,8 @@ class AssetManager:
                 .where(accounts_table.c.id == account["id"])
                 .values(**values)
             )
+        if billing_was_provided:
+            self._save_credit_card_billing(user_id, account["id"], billing)
         if balance_was_provided and self._normalize_balance_value(balance_value) != Decimal(str(account["balance"] or 0)):
             self.create_balance_adjustment(
                 user_id,

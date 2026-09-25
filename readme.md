@@ -26,7 +26,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 
 ## 目前進度
 
-目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract、**M1 Minimum Product UX** 與 **M3 Ledger Correctness** 第一輪。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；M1A 已完成主要頁面的 390、430、768px overflow audit，M1B 已拆分旅行列表與詳情，M1C 已建立 Universal Add 與交易歷史分批載入，M1D 已完成首頁瘦身與 `/analysis` 分析整合。M2 PWA Alpha 的測試流程與驗收門檻已建立，外部實測仍待執行；M3A 至 M3E 已完成 Balance Anchor、Adjustment、Settlement Account Entry、Transaction／Transfer movement ledger、read-only reconciliation CLI 與 legacy Goals 執行入口收斂。核心流程已可在本地與部署環境操作：
+目前專案已完成舊 Roadmap 的 Phase 1 至 Phase 7.1、Asset Allocation 1A 至 1C、Phase App 0 的 iOS read-only prototype，以及新 Roadmap 的 M0 Finance Contract、**M1 Minimum Product UX** 與 **M3 Ledger Correctness** 第一輪。自 2026-08-17 起，後續工作改用 M0 至 M9 Milestone；M1A 已完成主要頁面的 390、430、768px overflow audit，M1B 已拆分旅行列表與詳情，M1C 已建立 Universal Add 與交易歷史分批載入，M1D 已完成首頁瘦身與 `/analysis` 分析整合。M2 PWA Alpha 已依試用者質性回饋「有限證據收尾」，解除後續 Web 開發關卡，但原訂分段測試與完成率門檻未正式驗證；M3A 至 M3E 已完成 Balance Anchor、Adjustment、Settlement Account Entry、Transaction／Transfer movement ledger、read-only reconciliation CLI 與 legacy Goals 執行入口收斂。核心流程已可在本地與部署環境操作：
 
 - 日常收入 / 支出可記錄，並可連動帳戶餘額。
 - Web 日常收支新增已統一由 `/add` 處理，支援 AI Preview、缺少欄位補完、手動收入 / 支出與防重複送出。
@@ -35,6 +35,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - 底部導覽已收斂為首頁、紀錄、旅行、分析、帳戶；日常新增由首頁與紀錄頁標題列的「記一筆」進入 `/add`，不在其他頁面顯示浮動按鈕。
 - 帳戶可依銀行、現金、信用卡、電子錢包、預付卡、投資、外部帳戶與其他類型管理，帳戶列表與交易帳戶選擇已依類型分組。
 - 帳戶互轉已支援同幣別與跨幣別轉帳；信用卡帳戶允許負數累積，其他帳戶仍保守限制不可為負數。
+- 信用卡可選填每月結帳日、繳款日與當期實際截止日；帳戶頁與首頁顯示日期提示，不推論本期應繳金額或已繳狀態。此批目前僅完成本地第一版，正式環境須先套用 `20260925_0015` migration 並驗收手機操作。
 - 帳戶餘額改以「校正餘額」處理；每次校正保留調整前後金額、delta、原因與時間，並顯示於帳戶活動，但不計入收入或支出。
 - 旅行群組結算可選擇只更新分帳狀態，或由付款方／收款方各自記入自己的同幣別帳戶；私人入帳與反轉會保留 movement 紀錄，且不計入收入或支出。
 - 投資類型目前用於資金分配與投入成本紀錄；Asset Allocation 已提供 Portfolio、Holding、投入成本、手動 Snapshot 與新增投入試算，仍不串接券商或即時行情。
@@ -43,7 +44,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - 若付款人不是目前登入使用者，交易不會連動自己的帳戶，避免未來多人帳本時誤扣他人操作造成的帳戶餘額。
 - 旅行支出支援平均分攤與自訂分攤。
 - 分帳頁可顯示每位旅伴的已付款、應分攤、待收 / 待付狀態。
-- 建議結算可標記為已付款，也可撤銷；結算只影響分帳淨額，不異動帳戶餘額。
+- 建議結算可記錄部分還款與收款日期，也可依權限編輯或撤銷；群組結算只影響分帳淨額，只有使用者另行選擇自己的帳戶入帳／扣款才會異動私人帳戶餘額。
 - 旅行總覽已區分「我的分攤」、「整團花費」與「待收 / 待付 / 已平衡」狀態。
 - 旅伴可新增與刪除；若旅伴已有付款、分攤或結算紀錄，會保守阻擋刪除以保留帳務完整性。
 - 首頁月統計可切換「含旅行」與「日常」範圍；含旅行時只納入目前使用者選擇 include 的旅行分攤金額。
@@ -55,7 +56,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - iOS 正式登入、Keychain session lifecycle、核心 CRUD 與 TestFlight；目前只有 read-only prototype。
 - 旅行分類預算與進階旅行報表。
 
-新的執行 Roadmap 見 `docs/product-roadmap.md`，M2 實測方式見 `docs/m2-pwa-alpha-plan.md`。舊 Phase 文件保留作為歷史紀錄，不再作為新工作的階段判定來源。
+新的執行 Roadmap 見 `docs/product-roadmap.md`，M2 原測試計畫與有限證據收尾說明見 `docs/m2-pwa-alpha-plan.md`。下一個獨立 Web 功能批次為信用卡結帳日與繳款截止日資訊；M4 旅行擴充須有明確需求依據，iOS 正式開發仍暫緩。舊 Phase 文件保留作為歷史紀錄，不再作為新工作的階段判定來源。
 
 ## 為什麼要調整方向
 
@@ -506,8 +507,8 @@ Allocation 0：Asset Allocation Domain 定案。
 | 產品定位收斂 | 完成 | 對外定位為整合記帳、帳戶、旅行與資產配置的個人財務工具；Personal Finance OS 作為長期內部願景 |
 | README 與方向文件 | 完成 | 已補目前進度、核心資料流與測試方式 |
 | M0 Finance Contract | 第一版完成 | 已固定 Payment、Expense、Settlement、Transfer、Adjustment、Balance 與 ownership 語意，建立安全的 Product Event Taxonomy；後端 102 tests 與前端 build 通過 |
-| M2 PWA Alpha | 準備完成 | 已建立 5 至 10 位非開發者的分段測試流程、成功門檻、問題分級與隱私邊界，等待實測 |
-| M3A 至 M3D Ledger Correctness | 第一版完成 | 已建立 Balance Anchor、Adjustment、Settlement 私人帳戶 posting / reversal、Transaction／Transfer append-only movement 與 read-only reconciliation CLI |
+| M2 PWA Alpha | 有限證據收尾 | 已有試用者質性回饋與功能修正，但缺少原訂 5 至 10 位非開發者的完整分段紀錄、完成率及留存資料；不宣稱正式通過原門檻，亦不再無限期阻擋 Web 開發 |
+| M3A 至 M3E Ledger Correctness | 第一版完成 | 已建立 Balance Anchor、Adjustment、Settlement 私人帳戶 posting / reversal、Transaction／Transfer append-only movement、read-only reconciliation CLI，並收斂 legacy Goals 執行入口 |
 | 新版 schema / Alembic | 完成 | 本地 migration 與 smoke test 可跑 |
 | Asset Allocation 1A | 完成 | 已建立 Portfolio、Holding、Recorded Cost 與 Snapshot schema / migration |
 | Asset Allocation 1B | 完成 | 已建立共用 Manager / API、ownership 與幣別驗證、轉帳成本分配、完整 Snapshot 與新增投入試算 |
@@ -517,7 +518,7 @@ Allocation 0：Asset Allocation Domain 定案。
 | 旅行帳本 | 完成 | 支援建立、切換、封存、軟刪除、復原、永久刪除，並支援每位登入成員自行決定是否納入個人月報 |
 | 多幣別旅行交易 | 完成 | 支援原幣別、匯率、本幣換算 |
 | 分帳 MVP | 完成 | 支援平均分攤、自訂分攤、建議結算 |
-| 結算確認 | 完成 | 可確認 / 撤銷，不連動帳戶餘額 |
+| 結算確認 | 完成第一輪 | 可記錄部分還款、編輯或依權限撤銷；群組結算不自動連動帳戶餘額，私人帳戶入帳／扣款須由本人另外操作 |
 | 日常統計含旅行切換 | 完成 | 首頁與收支統計支援含旅行 / 日常範圍切換；旅行納入時採個人分攤金額 |
 | 預算邏輯收斂 | 完成 | 預算已花費跟隨個人月報口徑，只納入使用者選擇 include 的旅行分攤 |
 | 手機優先 UI | 完成第一輪 | 已整理底部導航、首頁、收支、旅行、帳戶、預算入口、收支列表 10 筆預覽、旅行支出預設自己負擔與首頁比例說明 |
@@ -580,9 +581,9 @@ Allocation 0：Asset Allocation Domain 定案。
 
 1. 分帳摘要由 `transactions`、`transaction_splits` 與 `settlements` 即時計算。
 2. 建議結算會依每位旅伴的淨額產生「誰付給誰多少」。
-3. 標記已付款會新增 `settlements` 紀錄。
-4. 撤銷已付款會軟刪除該 `settlements` 紀錄。
-5. 結算紀錄只調整分帳淨額與建議結算，不會異動任何帳戶餘額。
+3. 記錄全部或部分還款會新增 `settlements` 紀錄，並保存收款日期；符合權限與帳務限制時可編輯。
+4. 撤銷還款會軟刪除該 `settlements` 紀錄，但有尚未反轉的私人帳戶入帳時不可直接撤銷群組結算。
+5. 群組結算紀錄只調整分帳淨額與建議結算，不會自動異動帳戶餘額；使用者另行選擇本人同幣別帳戶入帳／扣款時才更新自己的餘額。
 
 ### 封存與軟刪除
 
