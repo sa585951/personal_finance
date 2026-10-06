@@ -53,7 +53,7 @@ export default {
   margin: 0 auto;
   padding: 16px;
   overflow: auto;
-  background: #ffffff;
+  background: var(--card-bg);
   border-radius: 10px;
 }
 
@@ -73,8 +73,8 @@ export default {
 .quiet-action {
   min-height: 38px;
   padding: 0 12px;
-  color: #334155;
-  background: #e2e8f0;
+  color: var(--text-color);
+  background: var(--border-color);
   border-radius: 8px;
   box-shadow: none;
   font-weight: 800;
@@ -89,18 +89,18 @@ export default {
   width: 100%;
   min-height: 82px;
   padding: 12px;
-  color: #1f2933;
+  color: var(--text-color);
   text-align: left;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-left: 4px solid #94a3b8;
   border-radius: 8px;
   box-shadow: none;
 }
 
 .switcher-row.active {
-  background: #f0fdfa;
-  border-left-color: #0f766e;
+  background: var(--primary-soft);
+  border-left-color: var(--primary-color);
 }
 
 .switcher-row > div {
@@ -110,35 +110,35 @@ export default {
 }
 
 .switcher-row strong {
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1rem;
 }
 
 .switcher-row span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.86rem;
 }
 
 .trip-state-badge {
   width: fit-content;
   padding: 4px 8px;
-  color: #475569;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  color: var(--light-text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 999px;
   font-size: 0.72rem !important;
   font-weight: 800;
 }
 
 .trip-state-badge.included {
-  color: #166534;
-  background: #dcfce7;
-  border-color: #bbf7d0;
+  color: var(--income-color);
+  background: var(--income-soft);
+  border-color: var(--income-color);
 }
 
 .trip-state-badge.pending {
-  color: #92400e;
-  background: #fffbeb;
-  border-color: #fde68a;
+  color: var(--warning-color);
+  background: var(--warning-soft);
+  border-color: var(--warning-color);
 }
 </style>

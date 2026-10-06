@@ -152,15 +152,15 @@ export default {
   display: grid;
   gap: 12px;
   padding: 14px;
-  color: #0f172a;
-  background: #f8fafc;
-  border: 1px solid #dbe4ee;
+  color: var(--text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
 .account-impact.confirmed {
-  background: #f0fdfa;
-  border-color: #99f6e4;
+  background: var(--primary-soft);
+  border-color: var(--brand-border);
 }
 
 .impact-heading,
@@ -182,7 +182,7 @@ export default {
 }
 
 .impact-heading p {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.7rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -197,23 +197,23 @@ export default {
 .impact-heading > span {
   flex: 0 0 auto;
   padding: 4px 8px;
-  color: #475569;
-  background: #e2e8f0;
+  color: var(--light-text-color);
+  background: var(--border-color);
   border-radius: 999px;
   font-size: 0.74rem;
   font-weight: 900;
 }
 
 .confirmed .impact-heading > span {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .transaction-impact {
   min-width: 0;
   padding: 10px 0;
-  border-top: 1px solid #e2e8f0;
-  border-bottom: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .transaction-impact > div:nth-child(2) {
@@ -224,7 +224,7 @@ export default {
 .transaction-impact small,
 .flow-account small,
 .report-impact span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.76rem;
   font-weight: 800;
 }
@@ -241,7 +241,7 @@ export default {
 }
 
 .transaction-impact > b.unchanged {
-  color: #64748b;
+  color: var(--light-text-color);
 }
 
 .direction-mark {
@@ -256,13 +256,13 @@ export default {
 }
 
 .direction-mark.expense {
-  color: #b91c1c;
-  background: #fee2e2;
+  color: var(--expense-color);
+  background: var(--expense-soft);
 }
 
 .direction-mark.income {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--income-color);
+  background: var(--income-soft);
 }
 
 .transfer-flow {
@@ -277,8 +277,8 @@ export default {
   min-width: 0;
   gap: 3px;
   padding: 10px;
-  background: #ffffff;
-  border-left: 3px solid #cbd5e1;
+  background: var(--card-bg);
+  border-left: 3px solid var(--border-color);
 }
 
 .flow-account-heading {
@@ -307,17 +307,17 @@ export default {
 }
 
 .flow-account.outgoing b {
-  color: #b91c1c;
+  color: var(--expense-color);
 }
 
 .flow-account.incoming b {
-  color: #0f766e;
+  color: var(--primary-color);
 }
 
 .flow-arrow {
   width: 20px;
   margin: 0 auto;
-  color: #64748b;
+  color: var(--light-text-color);
 }
 
 .report-impact {
@@ -331,7 +331,7 @@ export default {
 }
 
 .impact-note {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
   line-height: 1.5;
 }

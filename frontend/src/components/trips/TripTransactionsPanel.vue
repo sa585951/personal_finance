@@ -243,7 +243,7 @@ export default {
 
 .section-title {
   margin-bottom: 14px;
-  color: #334155;
+  color: var(--text-color);
 }
 
 .section-title h3 {
@@ -270,8 +270,8 @@ export default {
   flex: 0 0 auto;
   min-height: 34px;
   padding: 0 10px;
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--primary-color);
+  background: var(--primary-soft);
   border: 0;
   border-radius: 8px;
   box-shadow: none;
@@ -304,17 +304,17 @@ export default {
   min-width: 68px;
   min-height: 48px;
   padding: 6px 10px;
-  color: #475569;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  color: var(--light-text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: none;
 }
 
 .transaction-date-tabs button.active {
-  color: #ffffff;
-  background: #0f766e;
-  border-color: #0f766e;
+  color: var(--on-primary);
+  background: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 .transaction-date-tabs span {
@@ -333,9 +333,9 @@ export default {
   gap: 4px;
   padding: 12px;
   margin-bottom: 12px;
-  color: #92400e;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  color: var(--warning-color);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-color);
   border-radius: 8px;
 }
 
@@ -351,7 +351,7 @@ export default {
 
 .empty-state {
   margin: 12px 0 0;
-  color: #475569;
+  color: var(--light-text-color);
 }
 
 .transaction-list {
@@ -366,15 +366,15 @@ export default {
   gap: 14px;
   min-height: 62px;
   padding: 10px 12px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   cursor: pointer;
 }
 
 .transaction-row.selected {
-  background: #f0fdfa;
-  border-color: #0f766e;
+  background: var(--primary-soft);
+  border-color: var(--primary-color);
 }
 
 .transaction-description,
@@ -389,7 +389,7 @@ export default {
 
 .transaction-description span,
 .transaction-amount small {
-  color: #64748b;
+  color: var(--light-text-color);
 }
 
 .transaction-amount {
@@ -398,7 +398,7 @@ export default {
 }
 
 .transaction-amount span {
-  color: #111827;
+  color: var(--text-color);
   font-weight: 800;
 }
 
@@ -414,13 +414,13 @@ export default {
 }
 
 .transaction-delete {
-  color: #dc2626;
-  background: #fee2e2;
+  color: var(--expense-color);
+  background: var(--expense-soft);
 }
 
 .transaction-edit {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .transaction-delete svg,
@@ -441,15 +441,15 @@ export default {
   gap: 2px;
   min-height: 54px;
   padding: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
 .detail-grid span,
 .split-detail-row span,
 .split-detail-row small {
-  color: #64748b;
+  color: var(--light-text-color);
 }
 
 .full-row {
@@ -467,8 +467,8 @@ export default {
   gap: 12px;
   min-height: 48px;
   padding: 10px 12px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 

@@ -1,24 +1,77 @@
 :root {
   color-scheme: light;
-  --primary-color: #116f67;
-  --primary-hover: #0c5b55;
-  --primary-soft: #e2f3ee;
-  --secondary-color: #f8f6f1;
+  --primary-color: #4263eb;
+  --primary-hover: #364fc7;
+  --primary-soft: #e9edff;
+  --brand-border: #c7d2fe;
+  --travel-color: #2f9eaf;
+  --travel-hover: #267f8e;
+  --travel-soft: #e7f5f7;
+  --income-color: #23856d;
+  --income-soft: #e8f5f0;
+  --expense-color: #d95353;
+  --expense-soft: #fff0f0;
+  --warning-soft: #fff6e8;
+  --on-primary: #ffffff;
+  --secondary-color: #f0f2f5;
   --card-bg: #ffffff;
-  --border-color: #e5e9e3;
-  --text-color: #19332f;
-  --light-text-color: #647570;
-  --danger-color: #bb514c;
-  --update-color: #386f9c;
-  --warning-color: #a86b32;
-  --page-bg: #f7f8f4;
+  --border-color: #e2e5e9;
+  --text-color: #171a1f;
+  --light-text-color: #6f7682;
+  --danger-color: var(--expense-color);
+  --update-color: var(--primary-color);
+  --warning-color: #d98e04;
+  --page-bg: #f7f8fa;
+  --hero-bg: #29365f;
+  --chart-1: #6077c8;
+  --chart-2: #5fa9b4;
+  --chart-3: #7f9b90;
+  --chart-4: #a796be;
+  --chart-5: #c3a477;
+  --chart-6: #8d9cb0;
+  --chart-7: #b78e9a;
+  --chart-8: #78a5b1;
   --page-max-width: 960px;
   --compact-page-max-width: 520px;
-  --card-radius: 20px;
+  --card-radius: 16px;
   --app-bottom-nav-height: 88px;
-  --surface-shadow: 0 12px 32px rgba(31, 62, 56, 0.055);
+  --surface-shadow: 0 3px 14px rgba(23, 26, 31, 0.035);
   --motion-fast: 180ms;
   --motion-normal: 280ms;
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --primary-color: #748ffc;
+    --primary-hover: #91a7ff;
+    --primary-soft: #252e4d;
+    --brand-border: #3b4772;
+    --travel-color: #4cc9c0;
+    --travel-hover: #73dbd2;
+    --travel-soft: #17383a;
+    --income-color: #4cc39a;
+    --income-soft: #18382e;
+    --expense-color: #ff7373;
+    --expense-soft: #3d2327;
+    --warning-soft: #3b3020;
+    --on-primary: #101216;
+    --secondary-color: #21252c;
+    --card-bg: #181b21;
+    --border-color: #2d323a;
+    --text-color: #f4f5f7;
+    --light-text-color: #a4aab4;
+    --warning-color: #f5b84b;
+    --page-bg: #101216;
+    --hero-bg: #263354;
+    --chart-1: #8ea2ee;
+    --chart-2: #6cbcc7;
+    --chart-3: #8bbc9f;
+    --chart-4: #bba9d7;
+    --chart-5: #d0b487;
+    --chart-6: #adb9c9;
+    --chart-7: #d5a5af;
+    --chart-8: #88c6cf;
+    --surface-shadow: none;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -29,7 +82,7 @@ body {
   min-height: 100vh;
   margin: 0;
   color: var(--text-color);
-  background: radial-gradient(circle at 50% -140px, #eaf4ed 0, transparent 440px), var(--page-bg);
+  background: var(--page-bg);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Noto Sans TC", "Helvetica Neue", sans-serif;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
@@ -43,7 +96,7 @@ button {
   border: 0;
   border-radius: 12px;
   padding: 10px 18px;
-  color: #fff;
+  color: var(--on-primary);
   background: var(--primary-color);
   font-weight: 700;
   cursor: pointer;
@@ -54,7 +107,7 @@ button {
 
 button:disabled { cursor: not-allowed; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
-  outline: 3px solid #79bcb0;
+  outline: 3px solid var(--primary-color);
   outline-offset: 3px;
 }
 
@@ -89,13 +142,15 @@ button:not(:disabled):active { transform: scale(0.98); }
 
 #app :is(.page-add-button, .primary-action) {
   border-radius: 12px;
+  color: var(--on-primary);
   background: var(--primary-color);
-  box-shadow: 0 6px 14px rgba(17, 111, 103, 0.15);
+  box-shadow: none;
 }
 
-#app :is(.insights-panel, .getting-started-panel, .account-health-panel, .create-panel, .management-panel, .action-panel, .transfer-result-panel, .records-section, .entry-form-section, .summary-card, .status-card, .chart-card, .source-card, .preview-card, .success-panel, .trip-card) {
+#app :is(.insights-panel, .getting-started-panel, .account-health-panel, .create-panel, .management-panel, .action-panel, .transfer-result-panel, .records-section, .entry-form-section, .status-card, .chart-card, .source-card, .preview-card, .success-panel, .trip-card) {
   border-color: var(--border-color);
   border-radius: var(--card-radius);
+  background: var(--card-bg);
   box-shadow: var(--surface-shadow);
 }
 
@@ -108,7 +163,23 @@ button:not(:disabled):active { transform: scale(0.98); }
 #app main :is(input[type="checkbox"], input[type="radio"]) { accent-color: var(--primary-color); }
 #app :is(.trip-card, .allocation-entry) { transition: transform var(--motion-fast) ease, box-shadow var(--motion-fast) ease; }
 @media (hover: hover) and (pointer: fine) {
-  #app :is(.trip-card, .allocation-entry):hover { transform: translateY(-2px); box-shadow: 0 12px 25px rgba(20, 60, 53, 0.1); }
+  #app :is(.trip-card, .allocation-entry):hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(23, 26, 31, 0.07); }
+}
+
+#app :is(.trip-list-view, .trips-page) {
+  --primary-color: var(--travel-color);
+  --primary-hover: var(--travel-hover);
+  --primary-soft: var(--travel-soft);
+  --brand-border: var(--travel-color);
+}
+#app :is(.trip-list-view, .trips-page) .eyebrow { color: var(--travel-color); }
+#app :is(.trip-list-view, .trips-page) :is(.primary-action, .page-add-button) {
+  color: #fff;
+  background: #247e8f;
+}
+:root[data-theme="dark"] #app :is(.trip-list-view, .trips-page) :is(.primary-action, .page-add-button) {
+  color: #101216;
+  background: var(--travel-color);
 }
 
 @media (prefers-reduced-motion: no-preference) {

@@ -124,9 +124,9 @@ export default {
 <style scoped>
 .summary-container {
   padding: 16px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background-color: #ffffff;
+  background-color: var(--card-bg);
 }
 
 .summary-header {
@@ -143,13 +143,13 @@ export default {
 }
 
 .summary-header span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.86rem;
   font-weight: 700;
 }
 
 .summary-header strong {
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1.15rem;
 }
 
@@ -157,7 +157,7 @@ export default {
   min-height: 38px;
   max-width: 142px;
   padding: 0.45rem 0.55rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -173,21 +173,21 @@ export default {
   min-height: 72px;
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   box-shadow: none;
 }
 
 .summary-card.income {
-  background-color: #ecfdf5;
+  background-color: var(--income-soft);
 }
 
 .summary-card.expense {
-  background-color: #fff1f2;
+  background-color: var(--expense-soft);
 }
 
 .summary-card h3 {
   margin: 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.86rem;
 }
 
@@ -195,6 +195,6 @@ export default {
   margin: 0;
   font-size: 1.05rem;
   font-weight: bold;
-  color: #1f2933;
+  color: var(--text-color);
 }
 </style>

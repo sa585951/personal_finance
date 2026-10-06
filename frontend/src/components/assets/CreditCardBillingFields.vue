@@ -91,12 +91,12 @@ export default {
   gap: 12px;
   min-width: 0;
   padding: 14px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
 }
 
-.billing-fields legend { font-weight: 700; color: #334155; }
-.billing-fields label { display: grid; gap: 6px; font-weight: 600; color: #475569; }
+.billing-fields legend { font-weight: 700; color: var(--text-color); }
+.billing-fields label { display: grid; gap: 6px; font-weight: 600; color: var(--light-text-color); }
 .billing-fields .enable-row { display: flex; align-items: center; gap: 8px; }
 .billing-fields .enable-row input { min-height: auto; width: auto; }
 .billing-fields .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -104,9 +104,9 @@ export default {
   min-width: 0;
   min-height: 44px;
   padding: 8px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   background: white;
 }
-.billing-fields small { font-weight: 400; line-height: 1.5; color: #64748b; }
+.billing-fields small { font-weight: 400; line-height: 1.5; color: var(--light-text-color); }
 </style>

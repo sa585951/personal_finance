@@ -350,7 +350,7 @@ export default {
           totals.set(name, current);
         });
       const total = Array.from(totals.values()).reduce((sum, item) => sum + item.amount, 0);
-      const colors = ["#0f766e", "#2563eb", "#f59e0b", "#7c3aed", "#dc2626"];
+      const colors = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
       return Array.from(totals.values())
         .sort((left, right) => right.amount - left.amount)
         .slice(0, 5)
@@ -361,7 +361,7 @@ export default {
         }));
     },
     accountFlowGroups() {
-      const palette = ["#0f766e", "#2563eb", "#f59e0b", "#7c3aed", "#dc2626", "#64748b"];
+      const palette = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--chart-6)"];
       const groups = new Map();
       this.selectedTypeTransactions.forEach((transaction) => {
         const currency = transaction.base_currency || transaction.currency || "TWD";
@@ -513,7 +513,7 @@ export default {
   min-height: calc(100vh - 80px);
   margin: 0 auto;
   padding: 24px 14px calc(var(--app-bottom-nav-height) + 22px);
-  color: #1f2933;
+  color: var(--text-color);
 }
 
 .analysis-header,
@@ -533,7 +533,7 @@ export default {
 
 .eyebrow {
   margin: 0 0 4px;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -550,7 +550,7 @@ h1 {
 }
 
 h2 {
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 1.05rem;
 }
 
@@ -558,9 +558,9 @@ h2 {
   min-height: 40px;
   max-width: 145px;
   padding: 0 9px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .scope-switch,
@@ -570,8 +570,8 @@ h2 {
   display: grid;
   gap: 6px;
   padding: 6px;
-  background: #e2e8f0;
-  border: 1px solid #cbd5e1;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
 }
 
@@ -592,7 +592,7 @@ h2 {
 .flow-type-switch button {
   min-height: 40px;
   padding: 0 8px;
-  color: #475569;
+  color: var(--light-text-color);
   background: transparent;
   border: 0;
   border-radius: 8px;
@@ -604,8 +604,8 @@ h2 {
 .analysis-tabs button.active,
 .chart-switch button.active,
 .flow-type-switch button.active {
-  color: #0f172a;
-  background: #ffffff;
+  color: var(--text-color);
+  background: var(--card-bg);
 }
 
 .summary-card,
@@ -614,15 +614,15 @@ h2 {
 .source-card {
   margin-top: 12px;
   padding: 16px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .summary-card {
   color: #ffffff;
-  background: #123c3b;
-  border-color: #123c3b;
+  background: var(--hero-bg);
+  border-color: var(--hero-bg);
 }
 
 .summary-heading div,
@@ -635,13 +635,13 @@ h2 {
 .section-heading span,
 .status-metrics span,
 .summary-metrics span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.8rem;
   font-weight: 800;
 }
 
 .summary-heading span {
-  color: #b9d9d4;
+  color: #c4cbe3;
 }
 
 .summary-heading strong {
@@ -654,11 +654,11 @@ h2 {
 }
 
 .summary-heading b.positive {
-  color: #d9f99d;
+  color: var(--income-color);
 }
 
 .summary-heading b.negative {
-  color: #fdba74;
+  color: var(--expense-color);
 }
 
 .summary-metrics,
@@ -680,7 +680,7 @@ h2 {
   min-width: 0;
   padding: 11px;
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--secondary-color);
 }
 
 .summary-metrics div {
@@ -688,12 +688,12 @@ h2 {
 }
 
 .summary-metrics span {
-  color: #d8e8e5;
+  color: #c4cbe3;
 }
 
 .summary-metrics strong,
 .status-metrics strong {
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 0.9rem;
   overflow-wrap: anywhere;
 }
@@ -704,14 +704,14 @@ h2 {
 
 .section-heading a {
   flex: 0 0 auto;
-  color: #0f766e;
+  color: var(--primary-color);
   font-size: 0.84rem;
   font-weight: 900;
   text-decoration: none;
 }
 
 .section-heading > strong {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
 }
 
@@ -721,22 +721,22 @@ h2 {
   height: 10px;
   overflow: hidden;
   margin-top: 12px;
-  background: #e2e8f0;
+  background: var(--border-color);
   border-radius: 999px;
 }
 
 .progress-track span {
-  background: #0f766e;
+  background: var(--primary-color);
 }
 
 .progress-track span.danger {
-  background: #dc2626;
+  background: var(--expense-color);
 }
 
 .status-card > p,
 .source-card > p {
   margin: 12px 0 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.84rem;
   font-weight: 700;
   line-height: 1.5;
@@ -758,14 +758,14 @@ h2 {
   gap: 10px;
   min-height: 42px;
   padding: 10px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
 .trip-list span,
 .source-row span {
-  color: #0f172a;
+  color: var(--text-color);
   font-weight: 800;
 }
 
@@ -785,13 +785,13 @@ h2 {
 
 .flow-group {
   padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
 .flow-total span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
   font-weight: 800;
 }
@@ -820,7 +820,7 @@ h2 {
 }
 
 .source-row small {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.76rem;
   font-weight: 800;
 }
@@ -828,17 +828,17 @@ h2 {
 .state-message {
   margin: 12px 0 0;
   padding: 10px 12px;
-  color: #475569;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  color: var(--light-text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-weight: 800;
 }
 
 .state-message.error {
-  color: #b91c1c;
-  background: #fef2f2;
-  border-color: #fecaca;
+  color: var(--expense-color);
+  background: var(--expense-soft);
+  border-color: var(--expense-color);
 }
 
 @media (max-width: 430px) {

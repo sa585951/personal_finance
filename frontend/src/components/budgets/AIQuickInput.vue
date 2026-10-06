@@ -241,7 +241,7 @@ export default {
 .ai-quick-input {
   margin: 0 0 1rem;
   padding: 16px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid var(--brand-border);
   border-radius: 10px;
   background: #f8fbff;
 }
@@ -256,7 +256,7 @@ export default {
 
 .quick-header h2 {
   margin: 0;
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 1.1rem;
 }
 
@@ -274,8 +274,8 @@ export default {
   align-items: center;
   min-height: 26px;
   padding: 0 9px;
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--primary-color);
+  background: var(--primary-soft);
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 800;
@@ -294,7 +294,7 @@ export default {
   flex-direction: column;
   gap: 6px;
   min-width: 0;
-  color: #475569;
+  color: var(--light-text-color);
   font-size: 0.9rem;
   font-weight: 800;
   text-align: left;
@@ -304,9 +304,9 @@ export default {
   width: 100%;
   min-height: 58px;
   padding: 10px 12px;
-  color: #0f172a;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  color: var(--text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font: inherit;
   resize: vertical;
@@ -339,9 +339,9 @@ export default {
 .example-chips button {
   min-height: 32px;
   padding: 0 10px;
-  color: #1e3a8a;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  color: var(--primary-hover);
+  background: var(--primary-soft);
+  border: 1px solid var(--brand-border);
   border-radius: 999px;
   font-size: 0.82rem;
   font-weight: 800;
@@ -355,9 +355,9 @@ export default {
 .parse-result {
   margin-top: 12px;
   padding: 12px;
-  border: 1px solid #dbeafe;
+  border: 1px solid var(--primary-soft);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .result-heading {
@@ -366,12 +366,12 @@ export default {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 10px;
-  color: #0f172a;
+  color: var(--text-color);
   font-weight: 900;
 }
 
 .result-heading small {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
 }
 
@@ -384,13 +384,13 @@ export default {
 .result-grid div {
   min-width: 0;
   padding: 10px;
-  background: #f8fafc;
+  background: var(--secondary-color);
   border-radius: 8px;
 }
 
 .result-grid span {
   display: block;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
   font-weight: 800;
 }
@@ -398,24 +398,24 @@ export default {
 .result-grid strong {
   display: block;
   margin-top: 2px;
-  color: #0f172a;
+  color: var(--text-color);
   overflow-wrap: anywhere;
 }
 
 .hint-line,
 .parse-message {
   margin: 10px 0 0;
-  color: #475569;
+  color: var(--light-text-color);
   font-size: 0.88rem;
   font-weight: 700;
 }
 
 .parse-message.error {
-  color: #b91c1c;
+  color: var(--expense-color);
 }
 
 .parse-message.warning {
-  color: #b45309;
+  color: var(--warning-color);
 }
 
 .apply-button {

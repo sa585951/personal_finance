@@ -42,8 +42,8 @@ export default {
   display: grid;
   gap: 12px;
   padding: 14px;
-  background: #f8fafc;
-  border: 1px solid #dbe4ee;
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
 }
 
@@ -55,7 +55,7 @@ export default {
 }
 
 .trip-status-heading span {
-  color: #0f766e;
+  color: var(--primary-color);
   font-size: 0.76rem;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -64,7 +64,7 @@ export default {
 
 .trip-status-heading h2 {
   margin: 2px 0 0;
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1.02rem;
   letter-spacing: 0;
 }
@@ -72,7 +72,7 @@ export default {
 .trip-status-heading p {
   max-width: 300px;
   margin: 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.45;
@@ -90,35 +90,35 @@ export default {
   gap: 5px;
   min-height: 112px;
   padding: 12px;
-  color: #475569;
+  color: var(--light-text-color);
   text-align: left;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-left: 4px solid #94a3b8;
   border-radius: 8px;
   cursor: pointer;
 }
 
 .trip-status-card:hover {
-  border-color: #99f6e4;
+  border-color: var(--brand-border);
   box-shadow: 0 10px 24px rgba(15, 118, 110, 0.09);
 }
 
 .trip-status-card.success {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  border-left-color: #16a34a;
+  background: var(--income-soft);
+  border-color: var(--income-color);
+  border-left-color: var(--income-color);
 }
 
 .trip-status-card.warning {
-  background: #fffbeb;
-  border-color: #fde68a;
+  background: var(--warning-soft);
+  border-color: var(--warning-color);
   border-left-color: #f59e0b;
 }
 
 .trip-status-card.info {
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  background: var(--primary-soft);
+  border-color: var(--brand-border);
   border-left-color: #2563eb;
 }
 
@@ -128,13 +128,13 @@ export default {
 }
 
 .trip-status-card strong {
-  color: #111827;
+  color: var(--text-color);
   font-size: 1rem;
   line-height: 1.25;
 }
 
 .trip-status-card small {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.76rem;
   font-weight: 700;
   line-height: 1.35;

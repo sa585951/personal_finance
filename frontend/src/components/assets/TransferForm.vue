@@ -256,7 +256,7 @@ export default {
 
 .field label {
   font-weight: bold;
-  color: #475569;
+  color: var(--light-text-color);
 }
 
 .field select,
@@ -264,9 +264,9 @@ export default {
   min-height: 44px;
   width: 100%;
   padding: 0.8rem 1rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
   transition: all 0.3s ease;
 }
 
@@ -279,10 +279,10 @@ export default {
 .preset-chip {
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 999px;
-  background: #f8fafc;
-  color: #334155;
+  background: var(--secondary-color);
+  color: var(--text-color);
   font-size: 0.88rem;
 }
 
@@ -297,7 +297,7 @@ export default {
   width: 100%;
   min-height: 46px;
   margin-top: 16px;
-  background-color: #0f766e;
+  background-color: var(--primary-color);
 }
 
 .transfer-impact-preview {
@@ -307,9 +307,9 @@ export default {
 .currency-warning {
   margin: 10px 0 0;
   padding: 10px 12px;
-  color: #92400e;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  color: var(--warning-color);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-color);
   border-radius: 8px;
   font-size: 0.86rem;
   font-weight: 800;
@@ -324,14 +324,14 @@ export default {
   width: 100%;
   min-height: 42px;
   margin-top: 8px;
-  color: #475569;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
+  color: var(--light-text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   box-shadow: none;
 }
 
 .empty-hint {
   margin: 0 0 12px;
-  color: #64748b;
+  color: var(--light-text-color);
 }
 </style>

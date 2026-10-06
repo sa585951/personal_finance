@@ -74,20 +74,20 @@ export default {
   min-height: calc(100vh - 80px);
   place-items: center;
   padding: 24px 16px calc(var(--app-bottom-nav-height) + 22px);
-  color: #1f2933;
+  color: var(--text-color);
 }
 
 .invite-card {
   width: min(100%, 420px);
   padding: 22px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .eyebrow {
   margin: 0 0 6px;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -102,7 +102,7 @@ h1 {
 
 .invite-message {
   margin: 16px 0;
-  color: #475569;
+  color: var(--light-text-color);
   line-height: 1.6;
 }
 
@@ -117,12 +117,12 @@ h1 {
 }
 
 .primary-action {
-  color: #ffffff;
-  background: #0f766e;
+  color: var(--on-primary);
+  background: var(--primary-color);
 }
 
 .secondary-action {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 </style>

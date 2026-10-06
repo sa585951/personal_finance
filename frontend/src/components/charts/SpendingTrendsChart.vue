@@ -30,6 +30,7 @@
 <script>
 import { Bar } from "vue-chartjs";
 import apiClient from "@/api";
+import { applySeriesPalette, chartThemeColor, observeChartTheme } from "@/constants/chartPalette";
 import {
   Chart as ChartJS,
   Title,
@@ -67,7 +68,7 @@ export default {
             labels: {
               boxWidth: 10,
               boxHeight: 10,
-              color: "#475569",
+              color: chartThemeColor("--light-text-color"),
               padding: 12,
               font: {
                 size: 12,
@@ -87,7 +88,7 @@ export default {
               display: false,
             },
             ticks: {
-              color: "#64748b",
+              color: chartThemeColor("--light-text-color"),
               font: {
                 size: 11,
                 weight: "700",
@@ -98,10 +99,10 @@ export default {
             stacked: false,
             beginAtZero: true,
             grid: {
-              color: "#e2e8f0",
+              color: chartThemeColor("--border-color"),
             },
             ticks: {
-              color: "#64748b",
+              color: chartThemeColor("--light-text-color"),
               font: {
                 size: 11,
                 weight: "700",
@@ -118,15 +119,44 @@ export default {
         const response = await apiClient.get(
           `/api/reports/transactions_by_category_over_time?interval=${this.selectedInterval}`
         );
-        this.chartData = response.data.data;
+        this.chartData = applySeriesPalette(response.data.data);
       } catch (error) {
         console.error("Error fetching spending trends data:", error);
         this.chartData = null;
       }
     },
+    refreshTheme() {
+      if (this.chartData) this.chartData = applySeriesPalette(this.chartData);
+      const options = this.chartOptions;
+      this.chartOptions = {
+        ...options,
+        plugins: {
+          ...options.plugins,
+          legend: {
+            ...options.plugins.legend,
+            labels: { ...options.plugins.legend.labels, color: chartThemeColor("--light-text-color") },
+          },
+        },
+        scales: {
+          ...options.scales,
+          x: { ...options.scales.x, ticks: { ...options.scales.x.ticks, color: chartThemeColor("--light-text-color") } },
+          y: {
+            ...options.scales.y,
+            grid: { ...options.scales.y.grid, color: chartThemeColor("--border-color") },
+            ticks: { ...options.scales.y.ticks, color: chartThemeColor("--light-text-color") },
+          },
+        },
+      };
+    },
   },
   created() {
     this.fetchChartData();
+  },
+  mounted() {
+    this.stopThemeObserver = observeChartTheme(this.refreshTheme);
+  },
+  beforeUnmount() {
+    this.stopThemeObserver?.();
   },
 };
 </script>
@@ -146,14 +176,14 @@ export default {
 
 .card-title {
   margin: 0;
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1rem;
   letter-spacing: 0;
 }
 
 .card-header p {
   margin: 2px 0 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.84rem;
   font-weight: 700;
 }
@@ -166,7 +196,7 @@ export default {
 }
 
 .controls label {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
   font-weight: 800;
 }
@@ -174,10 +204,10 @@ export default {
 .controls select {
   min-height: 36px;
   padding: 0 10px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
-  color: #1f2933;
+  background: var(--card-bg);
+  color: var(--text-color);
   font-weight: 800;
 }
 
@@ -191,7 +221,7 @@ export default {
 
 .no-data-message {
   text-align: center;
-  color: #64748b;
+  color: var(--light-text-color);
   padding: 2rem;
 }
 

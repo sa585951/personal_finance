@@ -18,6 +18,7 @@
 
 <script>
 import { Doughnut } from "vue-chartjs";
+import { chartPalette, chartThemeColor, observeChartTheme } from "@/constants/chartPalette";
 import {
   Chart as ChartJS,
   ArcElement,
@@ -42,6 +43,9 @@ export default {
       default: "TWD",
     },
   },
+  data() {
+    return { themeRevision: 0 };
+  },
   computed: {
     normalizedCategoryTotals() {
       return this.categoryTotals
@@ -65,22 +69,14 @@ export default {
       return `總計 ${this.formatMoney(this.totalAmount)}`;
     },
     chartData() {
+      const colors = chartPalette(this.themeRevision);
       return {
         labels: this.normalizedCategoryTotals.map((item) => item.category),
         datasets: [
           {
             data: this.normalizedCategoryTotals.map((item) => item.amount),
-            backgroundColor: [
-              "#0f766e",
-              "#2563eb",
-              "#ca8a04",
-              "#7c3aed",
-              "#dc2626",
-              "#64748b",
-              "#0891b2",
-              "#16a34a",
-            ],
-            borderColor: "#ffffff",
+            backgroundColor: this.normalizedCategoryTotals.map((_, index) => colors[index % colors.length]),
+            borderColor: chartThemeColor("--card-bg", this.themeRevision),
             borderWidth: 2,
           },
         ],
@@ -97,7 +93,7 @@ export default {
             labels: {
               boxWidth: 10,
               boxHeight: 10,
-              color: "#475569",
+              color: chartThemeColor("--light-text-color", this.themeRevision),
               padding: 12,
               font: {
                 size: 12,
@@ -118,6 +114,12 @@ export default {
       })}`;
     },
   },
+  mounted() {
+    this.stopThemeObserver = observeChartTheme(() => { this.themeRevision += 1; });
+  },
+  beforeUnmount() {
+    this.stopThemeObserver?.();
+  },
 };
 </script>
 
@@ -126,21 +128,21 @@ export default {
   display: grid;
   gap: 12px;
   padding: 14px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .chart-header h3 {
   margin: 0;
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1rem;
   letter-spacing: 0;
 }
 
 .chart-header p {
   margin: 2px 0 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.84rem;
   font-weight: 700;
 }
@@ -155,9 +157,9 @@ export default {
 
 .empty-chart {
   padding: 18px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--border-color);
   border-radius: 8px;
-  color: #64748b;
+  color: var(--light-text-color);
   text-align: center;
 }
 </style>

@@ -238,7 +238,7 @@ export default {
   min-height: calc(100vh - var(--app-bottom-nav-height));
   margin: 0 auto;
   padding: 18px 14px calc(var(--app-bottom-nav-height) + 24px);
-  color: #1f2933;
+  color: var(--text-color);
 }
 
 .add-header,
@@ -263,9 +263,9 @@ export default {
 .manual-heading button {
   min-height: 38px;
   padding: 0 12px;
-  color: #0f766e;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
+  color: var(--primary-color);
+  background: var(--primary-soft);
+  border: 1px solid var(--brand-border);
   border-radius: 8px;
   font-weight: 800;
 }
@@ -275,7 +275,7 @@ export default {
 .manual-heading p,
 .manual-options p {
   margin: 0 0 3px;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.75rem;
   font-weight: 800;
 }
@@ -298,8 +298,8 @@ export default {
 .success-panel {
   margin-bottom: 14px;
   padding: 16px;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
 }
 
@@ -322,9 +322,9 @@ export default {
   inset: 8px 10px 4px 4px;
   display: grid;
   place-items: center;
-  color: #0f766e;
-  background: #ecfdf5;
-  border: 1px solid #99f6e4;
+  color: var(--income-color);
+  background: var(--income-soft);
+  border: 1px solid var(--income-color);
   border-radius: 12px;
   box-shadow: 0 8px 18px rgba(15, 118, 110, 0.12);
 }
@@ -363,9 +363,9 @@ export default {
 }
 
 .success-visual.expense .success-account {
-  color: #b45309;
-  background: #fffbeb;
-  border-color: #fde68a;
+  color: var(--warning-color);
+  background: var(--warning-soft);
+  border-color: var(--warning-color);
   box-shadow: 0 8px 18px rgba(180, 83, 9, 0.12);
 }
 
@@ -375,9 +375,9 @@ export default {
   bottom: 0;
   width: 25px;
   height: 25px;
-  color: #0f766e;
-  background: #ffffff;
-  border: 3px solid #ffffff;
+  color: var(--income-color);
+  background: var(--card-bg);
+  border: 3px solid var(--card-bg);
   border-radius: 50%;
 }
 
@@ -406,7 +406,7 @@ export default {
 }
 
 .success-panel p {
-  color: #0f766e;
+  color: var(--income-color);
   font-size: 0.72rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -419,7 +419,7 @@ export default {
 
 .success-copy {
   margin-top: 7px;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.88rem;
   line-height: 1.5;
 }
@@ -438,15 +438,15 @@ export default {
 }
 
 .success-actions .secondary-action {
-  color: #0f766e;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
+  color: var(--primary-color);
+  background: var(--primary-soft);
+  border: 1px solid var(--brand-border);
 }
 
 .success-actions .primary-action {
-  color: #ffffff;
-  background: #0f766e;
-  border: 1px solid #0f766e;
+  color: var(--on-primary);
+  background: var(--primary-color);
+  border: 1px solid var(--primary-color);
 }
 
 .manual-buttons {
@@ -463,15 +463,15 @@ export default {
 }
 
 .manual-buttons .expense {
-  color: #b91c1c;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  color: var(--expense-color);
+  background: var(--expense-soft);
+  border: 1px solid var(--expense-color);
 }
 
 .manual-buttons .income {
-  color: #0f766e;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
+  color: var(--income-color);
+  background: var(--income-soft);
+  border: 1px solid var(--income-color);
 }
 
 .preview-heading > span {
@@ -482,13 +482,13 @@ export default {
 }
 
 .preview-heading > span.expense {
-  color: #b91c1c;
-  background: #fee2e2;
+  color: var(--expense-color);
+  background: var(--expense-soft);
 }
 
 .preview-heading > span.income {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--income-color);
+  background: var(--income-soft);
 }
 
 .preview-card dl {
@@ -501,19 +501,19 @@ export default {
 .preview-card dl div {
   min-width: 0;
   padding: 10px;
-  background: #f8fafc;
+  background: var(--secondary-color);
   border-radius: 8px;
 }
 
 .preview-card dt {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.76rem;
   font-weight: 800;
 }
 
 .preview-card dd {
   margin: 3px 0 0;
-  color: #0f172a;
+  color: var(--text-color);
   font-weight: 900;
   overflow-wrap: anywhere;
 }
@@ -521,9 +521,9 @@ export default {
 .missing-fields,
 .parse-failure {
   padding: 10px 12px;
-  color: #92400e;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  color: var(--warning-color);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-color);
   border-radius: 8px;
   font-weight: 800;
 }

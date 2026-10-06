@@ -100,11 +100,11 @@ export default {
   height: 48px;
 }
 
-.color-teal { --icon-fg: #0f766e; --icon-bg: #ccfbf1; }
-.color-blue { --icon-fg: #1d4ed8; --icon-bg: #dbeafe; }
-.color-green { --icon-fg: #15803d; --icon-bg: #dcfce7; }
-.color-amber { --icon-fg: #b45309; --icon-bg: #fef3c7; }
-.color-rose { --icon-fg: #be123c; --icon-bg: #ffe4e6; }
+.color-teal { --icon-fg: var(--primary-color); --icon-bg: var(--primary-soft); }
+.color-blue { --icon-fg: var(--primary-color); --icon-bg: var(--primary-soft); }
+.color-green { --icon-fg: var(--income-color); --icon-bg: var(--income-soft); }
+.color-amber { --icon-fg: var(--warning-color); --icon-bg: var(--warning-soft); }
+.color-rose { --icon-fg: var(--expense-color); --icon-bg: #ffe4e6; }
 .color-purple { --icon-fg: #7e22ce; --icon-bg: #f3e8ff; }
-.color-slate { --icon-fg: #475569; --icon-bg: #e2e8f0; }
+.color-slate { --icon-fg: var(--light-text-color); --icon-bg: var(--border-color); }
 </style>

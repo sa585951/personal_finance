@@ -333,8 +333,8 @@ export default {
   gap: 10px;
   margin-top: 14px;
   padding: 14px;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
 }
 
@@ -347,7 +347,7 @@ export default {
 .settlement-form-fields label {
   display: grid;
   gap: 5px;
-  color: #334155;
+  color: var(--text-color);
   font-size: 0.85rem;
   font-weight: 700;
 }
@@ -358,15 +358,15 @@ export default {
   width: 100%;
   min-height: 38px;
   padding: 7px 9px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--card-bg);
+  color: var(--text-color);
   font: inherit;
 }
 
 .settlement-form small {
-  color: #475569;
+  color: var(--light-text-color);
 }
 
 .settlement-form-actions {
@@ -387,7 +387,7 @@ export default {
 }
 
 .settlement-action-amount small {
-  color: #475569;
+  color: var(--light-text-color);
 }
 
 .trip-closeout-panel {
@@ -395,27 +395,27 @@ export default {
   gap: 10px;
   margin-bottom: 14px;
   padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-left: 5px solid #94a3b8;
   border-radius: 8px;
 }
 
 .trip-closeout-panel.success {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  border-left-color: #16a34a;
+  background: var(--income-soft);
+  border-color: var(--income-color);
+  border-left-color: var(--income-color);
 }
 
 .trip-closeout-panel.warning {
-  background: #fffbeb;
-  border-color: #fde68a;
+  background: var(--warning-soft);
+  border-color: var(--warning-color);
   border-left-color: #f59e0b;
 }
 
 .trip-closeout-panel.neutral {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: var(--secondary-color);
+  border-color: var(--border-color);
   border-left-color: #94a3b8;
 }
 
@@ -430,7 +430,7 @@ export default {
 }
 
 .closeout-header span {
-  color: #334155;
+  color: var(--text-color);
   font-weight: 900;
 }
 
@@ -454,54 +454,54 @@ export default {
 .closeout-item {
   min-height: 40px;
   padding: 8px 10px;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-left: 4px solid #94a3b8;
   border-radius: 8px;
 }
 
 .closeout-item span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
   font-weight: 800;
 }
 
 .closeout-item.success {
-  border-color: #bbf7d0;
-  border-left-color: #16a34a;
+  border-color: var(--income-color);
+  border-left-color: var(--income-color);
 }
 
 .closeout-item.warning {
-  background: #fff7ed;
-  border-color: #fed7aa;
+  background: var(--warning-soft);
+  border-color: var(--warning-color);
   border-left-color: #f59e0b;
 }
 
 .closeout-header .success,
 .closeout-item.success strong {
-  color: #15803d;
+  color: var(--income-color);
 }
 
 .closeout-header .success {
-  background: #dcfce7;
+  background: var(--income-soft);
 }
 
 .closeout-header .warning,
 .closeout-item.warning strong {
-  color: #b45309;
+  color: var(--warning-color);
 }
 
 .closeout-header .warning {
-  background: #fef3c7;
+  background: var(--warning-soft);
 }
 
 .closeout-header .neutral,
 .closeout-item.neutral strong {
-  color: #64748b;
+  color: var(--light-text-color);
 }
 
 .closeout-header .neutral {
-  background: #e2e8f0;
+  background: var(--border-color);
 }
 
 .section-title,
@@ -513,7 +513,7 @@ export default {
 
 .section-title {
   margin-bottom: 14px;
-  color: #334155;
+  color: var(--text-color);
 }
 
 .section-title h3 {
@@ -536,8 +536,8 @@ export default {
   flex: 0 0 auto;
   min-height: 34px;
   padding: 0 10px;
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--primary-color);
+  background: var(--primary-soft);
   border: 0;
   border-radius: 8px;
   box-shadow: none;
@@ -547,15 +547,15 @@ export default {
 
 .empty-state {
   margin: 12px 0 0;
-  color: #475569;
+  color: var(--light-text-color);
 }
 
 .split-summary-row,
 .settlement-row {
   min-height: 62px;
   padding: 10px 12px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -565,7 +565,7 @@ export default {
 }
 
 .split-summary-row span {
-  color: #64748b;
+  color: var(--light-text-color);
 }
 
 .split-summary-list,
@@ -575,25 +575,25 @@ export default {
 }
 
 .split-summary-row.receivable {
-  background: #ecfdf5;
-  border-color: #99f6e4;
+  background: var(--income-soft);
+  border-color: var(--brand-border);
 }
 
 .split-summary-row.receivable span {
-  color: #0f766e;
+  color: var(--primary-color);
 }
 
 .split-summary-row.payable {
-  background: #fff1f2;
-  border-color: #fecdd3;
+  background: var(--expense-soft);
+  border-color: var(--expense-color);
 }
 
 .split-summary-row.payable span {
-  color: #be123c;
+  color: var(--expense-color);
 }
 
 .split-summary-row.balanced {
-  background: #f8fafc;
+  background: var(--secondary-color);
 }
 
 .net-amount {
@@ -604,17 +604,17 @@ export default {
 }
 
 .net-amount small {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.76rem;
   font-weight: 800;
 }
 
 .positive-net {
-  color: #0f766e;
+  color: var(--income-color);
 }
 
 .negative-net {
-  color: #dc2626;
+  color: var(--expense-color);
 }
 
 .settlement-title {
@@ -628,9 +628,9 @@ export default {
   width: 100%;
   min-height: 44px;
   padding: 10px 12px;
-  color: #334155;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  color: var(--text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: none;
 }
@@ -646,18 +646,18 @@ export default {
 .detail-toggle svg {
   width: 18px;
   height: 18px;
-  color: #0f766e;
+  color: var(--primary-color);
 }
 
 .detail-toggle strong {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
 }
 
 .settlement-action-row,
 .settlement-row {
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  background: var(--primary-soft);
+  border-color: var(--brand-border);
 }
 
 .settlement-route {
@@ -669,7 +669,7 @@ export default {
 }
 
 .settlement-route strong {
-  color: #1e40af;
+  color: var(--primary-color);
   font-size: 1rem;
 }
 
@@ -683,25 +683,25 @@ export default {
   justify-content: center;
   width: 30px;
   height: 30px;
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--primary-color);
+  background: var(--primary-soft);
   border-radius: 999px;
   font-weight: 900;
 }
 
 .settlement-row.settled {
-  background: #f0fdfa;
-  border-color: #99f6e4;
+  background: var(--primary-soft);
+  border-color: var(--brand-border);
 }
 
 .settlement-row > span {
-  color: #1e40af;
+  color: var(--primary-color);
   font-weight: 700;
 }
 
 .settlement-row.settled > span,
 .settlement-row.settled strong {
-  color: #0f766e;
+  color: var(--primary-color);
 }
 
 .settlement-record-copy {
@@ -711,12 +711,12 @@ export default {
 }
 
 .settlement-record-copy span {
-  color: #0f766e;
+  color: var(--primary-color);
   font-weight: 700;
 }
 
 .settlement-record-copy small {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
 }
 
@@ -744,8 +744,8 @@ export default {
 }
 
 .quiet-mini-button {
-  color: #475569;
-  background: #e2e8f0;
+  color: var(--light-text-color);
+  background: var(--border-color);
 }
 
 @media (max-width: 820px) {

@@ -96,9 +96,9 @@ export default {
 <style scoped>
 .parse-events-panel {
   margin: 0 0 1rem;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--border-color);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .panel-toggle {
@@ -109,7 +109,7 @@ export default {
   width: 100%;
   min-height: 42px;
   padding: 0 12px;
-  color: #475569;
+  color: var(--light-text-color);
   background: transparent;
   border: 0;
   box-shadow: none;
@@ -117,7 +117,7 @@ export default {
 }
 
 .panel-toggle small {
-  color: #64748b;
+  color: var(--light-text-color);
   font-weight: 800;
 }
 
@@ -135,7 +135,7 @@ export default {
 
 .panel-actions p {
   margin: 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
   font-weight: 700;
 }
@@ -143,8 +143,8 @@ export default {
 .panel-actions button {
   min-height: 32px;
   padding: 0 10px;
-  color: #0f172a;
-  background: #e2e8f0;
+  color: var(--text-color);
+  background: var(--border-color);
   border: 0;
   border-radius: 8px;
   box-shadow: none;
@@ -153,13 +153,13 @@ export default {
 
 .panel-message {
   margin: 10px 0 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.86rem;
   font-weight: 700;
 }
 
 .panel-message.error {
-  color: #b91c1c;
+  color: var(--expense-color);
 }
 
 .event-list {
@@ -172,7 +172,7 @@ export default {
 
 .event-list li {
   padding: 10px;
-  background: #f8fafc;
+  background: var(--secondary-color);
   border-radius: 8px;
 }
 
@@ -184,7 +184,7 @@ export default {
 }
 
 .event-main strong {
-  color: #0f172a;
+  color: var(--text-color);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -194,8 +194,8 @@ export default {
   flex: 0 0 auto;
   min-width: 54px;
   padding: 3px 7px;
-  color: #475569;
-  background: #e2e8f0;
+  color: var(--light-text-color);
+  background: var(--border-color);
   border-radius: 999px;
   font-size: 0.74rem;
   font-weight: 900;
@@ -203,18 +203,18 @@ export default {
 }
 
 .status-dot.confirmed {
-  color: #166534;
-  background: #dcfce7;
+  color: var(--income-color);
+  background: var(--income-soft);
 }
 
 .status-dot.success {
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--income-color);
+  background: var(--income-soft);
 }
 
 .status-dot.failed {
-  color: #b91c1c;
-  background: #fee2e2;
+  color: var(--expense-color);
+  background: var(--expense-soft);
 }
 
 .event-meta {
@@ -222,7 +222,7 @@ export default {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 6px;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
   font-weight: 700;
 }

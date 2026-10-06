@@ -84,9 +84,9 @@ export default {
 
 .management-toggle {
   min-height: 42px;
-  color: #334155;
-  background: #f8fafc;
-  border: 1px solid #dbe4ee;
+  color: var(--text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: none;
   font-weight: 800;
@@ -96,8 +96,8 @@ export default {
   display: grid;
   gap: 12px;
   padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #dbe4ee;
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -107,7 +107,7 @@ export default {
 }
 
 .management-panel span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.88rem;
   font-weight: 700;
 }
@@ -138,20 +138,20 @@ export default {
 }
 
 .quiet-action {
-  color: #334155;
-  background: #e2e8f0;
+  color: var(--text-color);
+  background: var(--border-color);
 }
 
 .danger-action {
   color: #ffffff;
-  background: #dc2626;
+  background: var(--expense-color);
 }
 
 .quiet-mini-button {
   min-height: 32px;
   padding: 0 10px;
-  color: #475569;
-  background: #e2e8f0;
+  color: var(--light-text-color);
+  background: var(--border-color);
   font-size: 0.86rem;
 }
 
@@ -159,20 +159,20 @@ export default {
   display: grid;
   gap: 8px;
   padding-top: 10px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-color);
 }
 
 .managed-trip-heading span,
 .managed-trip-row > div span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
 }
 
 .managed-empty {
   padding: 10px 12px;
-  color: #64748b;
-  background: #ffffff;
-  border: 1px dashed #cbd5e1;
+  color: var(--light-text-color);
+  background: var(--card-bg);
+  border: 1px dashed var(--border-color);
   border-radius: 8px;
   font-weight: 700;
 }
@@ -185,14 +185,14 @@ export default {
 .managed-trip-row {
   min-height: 58px;
   padding: 10px 12px;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
 .managed-trip-row.deleted {
-  background: #fff7ed;
-  border-color: #fed7aa;
+  background: var(--warning-soft);
+  border-color: var(--warning-color);
 }
 
 .managed-trip-row > div {

@@ -2086,7 +2086,7 @@ export default {
   margin: 0 auto;
   min-height: calc(100vh - 80px);
   padding: 24px 16px calc(var(--app-bottom-nav-height) + 22px);
-  color: #1f2933;
+  color: var(--text-color);
 }
 
 .trips-header,
@@ -2111,7 +2111,7 @@ export default {
 
 .eyebrow {
   margin: 0 0 4px;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -2145,13 +2145,13 @@ h1 {
 .icon-button {
   width: 44px;
   padding: 0;
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .trip-detail {
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 16px;
 }
@@ -2160,9 +2160,9 @@ h1 {
   width: 100%;
   min-height: 180px;
   padding: 10px 12px;
-  color: #111827;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
+  color: var(--text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font: inherit;
   line-height: 1.5;
@@ -2179,7 +2179,7 @@ h1 {
 
 .primary-action {
   align-self: end;
-  background: #0f766e;
+  background: var(--primary-color);
 }
 
 .secondary-action {
@@ -2187,14 +2187,14 @@ h1 {
 }
 
 .quiet-action {
-  color: #334155;
-  background: #e2e8f0;
+  color: var(--text-color);
+  background: var(--border-color);
 }
 
 .loading-state,
 .empty-state {
   margin: 12px 0 0;
-  color: #475569;
+  color: var(--light-text-color);
 }
 
 .trips-layout {
@@ -2208,15 +2208,15 @@ h1 {
   justify-items: start;
   gap: 8px;
   padding: 18px;
-  color: #475569;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
-  border-left: 4px solid #d97706;
+  color: var(--light-text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--warning-color);
   border-radius: 8px;
 }
 
 .trip-route-state strong {
-  color: #1f2933;
+  color: var(--text-color);
 }
 
 .trip-detail {
@@ -2232,8 +2232,8 @@ h1 {
   gap: 12px;
   min-height: 86px;
   padding: 12px;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -2251,12 +2251,12 @@ h1 {
 }
 
 .current-trip-card strong {
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1rem;
 }
 
 .current-trip-card span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.86rem;
 }
 
@@ -2270,9 +2270,9 @@ h1 {
 .trip-compact-meta span {
   min-height: 24px;
   padding: 3px 8px;
-  color: #334155;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  color: var(--text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 800;
@@ -2282,24 +2282,24 @@ h1 {
   justify-self: start;
   min-height: 26px;
   padding: 4px 8px;
-  color: #475569;
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
+  color: var(--light-text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 800;
 }
 
 .trip-state-badge.included {
-  color: #0f766e;
-  background: #ecfdf5;
-  border-color: #99f6e4;
+  color: var(--primary-color);
+  background: var(--income-soft);
+  border-color: var(--brand-border);
 }
 
 .trip-state-badge.pending {
-  color: #92400e;
-  background: #fffbeb;
-  border-color: #fde68a;
+  color: var(--warning-color);
+  background: var(--warning-soft);
+  border-color: var(--warning-color);
 }
 
 .monthly-preference-panel {
@@ -2307,19 +2307,19 @@ h1 {
   gap: 12px;
   padding: 14px;
   margin-top: 12px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-color);
   border-radius: 8px;
 }
 
 .monthly-preference-panel strong {
-  color: #78350f;
+  color: var(--warning-color);
   font-size: 0.98rem;
 }
 
 .monthly-preference-panel p {
   margin: 4px 0 0;
-  color: #92400e;
+  color: var(--warning-color);
   font-size: 0.84rem;
   line-height: 1.45;
 }
@@ -2335,12 +2335,12 @@ h1 {
   gap: 12px;
   padding: 14px;
   color: #ffffff;
-  background: linear-gradient(135deg, #0f766e, #2563eb);
-  border-radius: 8px;
+  background: #247e8f;
+  border-radius: 16px;
 }
 
 .trip-hero .eyebrow {
-  color: #dbeafe;
+  color: var(--primary-soft);
 }
 
 .trip-hero p {
@@ -2365,9 +2365,9 @@ h1 {
   gap: 8px;
   min-height: 54px;
   padding: 10px;
-  color: #334155;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  color: var(--text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-weight: 700;
 }
@@ -2380,8 +2380,8 @@ h1 {
   grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 6px;
   padding: 6px;
-  background: #e2e8f0;
-  border: 1px solid #cbd5e1;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -2392,7 +2392,7 @@ h1 {
   gap: 6px;
   min-height: 42px;
   padding: 0 8px;
-  color: #475569;
+  color: var(--light-text-color);
   background: transparent;
   border-radius: 6px;
   box-shadow: none;
@@ -2400,8 +2400,8 @@ h1 {
 }
 
 .trip-tabs button.active {
-  color: #0f766e;
-  background: #ffffff;
+  color: var(--primary-color);
+  background: var(--card-bg);
 }
 
 .trip-tabs svg {

@@ -175,48 +175,48 @@ export default {
 <style scoped>
 .allocation-screen { max-width: var(--page-max-width); min-height: calc(100vh - 80px); margin: 0 auto; padding: 28px 18px calc(var(--app-bottom-nav-height) + 28px); color: var(--text-color); }
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
-.eyebrow { margin: 0 0 4px; color: #0f766e; font-size: .78rem; font-weight: 800; text-transform: uppercase; }
+.eyebrow { margin: 0 0 4px; color: var(--primary-color); font-size: .78rem; font-weight: 800; text-transform: uppercase; }
 h1 { margin: 0; font-size: 2rem; letter-spacing: 0; }
-.page-description { max-width: 560px; margin: 8px 0 0; color: #64748b; line-height: 1.55; }
+.page-description { max-width: 560px; margin: 8px 0 0; color: var(--light-text-color); line-height: 1.55; }
 .primary-action, .secondary-action { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border-radius: 8px; }
-.primary-action { color: #fff; background: #0f766e; }
-.secondary-action { color: #334155; background: #fff; border: 1px solid #cbd5e1; }
+.primary-action { color: var(--on-primary); background: var(--primary-color); }
+.secondary-action { color: var(--text-color); background: var(--card-bg); border: 1px solid var(--border-color); }
 .primary-action svg, .secondary-action svg { width: 18px; height: 18px; }
-.form-panel, .state-panel, .empty-panel { padding: 20px; border: 1px solid #dbe4ee; border-radius: 10px; background: #fff; }
+.form-panel, .state-panel, .empty-panel { padding: 20px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); }
 .form-panel { margin-bottom: 20px; }
 .section-heading { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .section-heading h2 { margin: 0; font-size: 1.15rem; }
-.section-heading p { margin: 4px 0 0; color: #64748b; }
+.section-heading p { margin: 4px 0 0; color: var(--light-text-color); }
 .portfolio-form { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 14px; }
-.portfolio-form label { display: grid; gap: 6px; color: #475569; font-weight: 700; }
-.portfolio-form input, .portfolio-form select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font: inherit; }
-.portfolio-form input:focus, .portfolio-form select:focus { outline: 3px solid #ccfbf1; border-color: #0f766e; }
+.portfolio-form label { display: grid; gap: 6px; color: var(--light-text-color); font-weight: 700; }
+.portfolio-form input, .portfolio-form select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); font: inherit; }
+.portfolio-form input:focus, .portfolio-form select:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary-color); }
 .form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
-.state-panel { color: #64748b; }
-.error-state { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
-.portfolio-section { padding: 20px; border: 1px solid #dbe4ee; border-radius: 10px; background: #fff; }
+.state-panel { color: var(--light-text-color); }
+.error-state { color: var(--expense-color); border-color: var(--expense-color); background: var(--expense-soft); }
+.portfolio-section { padding: 20px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); }
 .portfolio-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.portfolio-card { min-width: 0; overflow: hidden; border: 1px solid #dbe4ee; border-radius: 10px; background: #fff; }
-.portfolio-main { min-height: 128px; display: grid; grid-template-columns: 42px minmax(0, 1fr) 20px; align-items: center; gap: 12px; padding: 16px; color: #1f2933; text-decoration: none; background: #f8fafc; }
-.portfolio-main:hover { background: #f0fdfa; }
-.portfolio-symbol, .empty-icon { display: grid; place-items: center; color: #0f766e; background: #ccfbf1; border-radius: 8px; }
+.portfolio-card { min-width: 0; overflow: hidden; border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); }
+.portfolio-main { min-height: 128px; display: grid; grid-template-columns: 42px minmax(0, 1fr) 20px; align-items: center; gap: 12px; padding: 16px; color: var(--text-color); text-decoration: none; background: var(--secondary-color); }
+.portfolio-main:hover { background: var(--primary-soft); }
+.portfolio-symbol, .empty-icon { display: grid; place-items: center; color: var(--primary-color); background: var(--primary-soft); border-radius: 8px; }
 .portfolio-symbol { width: 42px; height: 42px; }
 .portfolio-symbol svg, .portfolio-arrow { width: 20px; height: 20px; }
-.portfolio-main span { color: #0f766e; font-size: .75rem; font-weight: 800; }
+.portfolio-main span { color: var(--primary-color); font-size: .75rem; font-weight: 800; }
 .portfolio-main h3 { margin: 2px 0; font-size: 1.08rem; }
-.portfolio-main p { margin: 0; color: #64748b; font-size: .86rem; line-height: 1.4; }
-.portfolio-arrow { color: #64748b; }
-.portfolio-actions { min-height: 46px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 6px 10px; border-top: 1px solid #e2e8f0; }
-.portfolio-actions button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; color: #475569; background: transparent; border: 1px solid transparent; }
-.portfolio-actions button:hover { border-color: #cbd5e1; background: #f8fafc; }
+.portfolio-main p { margin: 0; color: var(--light-text-color); font-size: .86rem; line-height: 1.4; }
+.portfolio-arrow { color: var(--light-text-color); }
+.portfolio-actions { min-height: 46px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 6px 10px; border-top: 1px solid var(--border-color); }
+.portfolio-actions button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; color: var(--light-text-color); background: transparent; border: 1px solid transparent; }
+.portfolio-actions button:hover { border-color: var(--border-color); background: var(--secondary-color); }
 .portfolio-actions button svg { width: 17px; height: 17px; }
-.portfolio-actions .danger-icon { color: #b91c1c; }
-.status-badge { margin-right: auto; padding: 3px 8px; color: #0f766e; background: #ccfbf1; border-radius: 999px; font-size: .75rem; font-weight: 800; }
-.status-badge.inactive { color: #64748b; background: #e2e8f0; }
+.portfolio-actions .danger-icon { color: var(--expense-color); }
+.status-badge { margin-right: auto; padding: 3px 8px; color: var(--primary-color); background: var(--primary-soft); border-radius: 999px; font-size: .75rem; font-weight: 800; }
+.status-badge.inactive { color: var(--light-text-color); background: var(--border-color); }
 .empty-panel { display: grid; justify-items: center; gap: 8px; padding: 42px 20px; text-align: center; }
 .empty-icon { width: 52px; height: 52px; }
 .empty-icon svg { width: 25px; height: 25px; }
 .empty-panel h2 { margin: 4px 0 0; }
-.empty-panel p { max-width: 440px; margin: 0 0 10px; color: #64748b; }
+.empty-panel p { max-width: 440px; margin: 0 0 10px; color: var(--light-text-color); }
 @media (max-width: 640px) { .allocation-screen { padding: 24px 14px calc(var(--app-bottom-nav-height) + 22px); } .page-header { align-items: stretch; flex-direction: column; } .page-header .primary-action { align-self: flex-start; } .portfolio-form, .portfolio-grid { grid-template-columns: 1fr; } .portfolio-form select { width: 100%; } }
 </style>

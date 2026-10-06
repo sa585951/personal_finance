@@ -80,42 +80,42 @@ export default {
   gap: 4px;
   min-height: 72px;
   padding: 12px;
-  color: #475569;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-left: 4px solid #cbd5e1;
+  color: var(--light-text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--border-color);
   border-radius: 8px;
 }
 
 .summary-card.share {
   color: #0e7490;
-  background: #f8feff;
+  background: var(--travel-soft);
   border-color: #bae6fd;
   border-left-color: #0891b2;
 }
 
 .summary-card.group {
-  color: #334155;
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  border-left-color: #475569;
+  color: var(--text-color);
+  background: var(--secondary-color);
+  border-color: var(--border-color);
+  border-left-color: var(--light-text-color);
 }
 
 .summary-card.positive {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  border-left-color: #16a34a;
+  background: var(--income-soft);
+  border-color: var(--income-color);
+  border-left-color: var(--income-color);
 }
 
 .summary-card.negative {
-  background: #fff1f2;
-  border-color: #fecdd3;
-  border-left-color: #e11d48;
+  background: var(--expense-soft);
+  border-color: var(--expense-color);
+  border-left-color: var(--expense-color);
 }
 
 .summary-card.balanced {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: var(--secondary-color);
+  border-color: var(--border-color);
   border-left-color: #94a3b8;
 }
 
@@ -125,13 +125,13 @@ export default {
 }
 
 .summary-card strong {
-  color: #111827;
+  color: var(--text-color);
   font-size: 1.08rem;
   line-height: 1.25;
 }
 
 .summary-card small {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.76rem;
   font-weight: 700;
 }
@@ -148,11 +148,11 @@ export default {
     gap: 10px;
     min-height: 46px;
     padding: 10px 12px;
-    color: #334155;
+    color: var(--text-color);
     text-align: left;
-    background: #ffffff;
-    border: 1px solid #dbe4ee;
-    border-left: 4px solid #0f766e;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--primary-color);
     border-radius: 8px;
     box-shadow: none;
   }
@@ -168,7 +168,7 @@ export default {
 
   .trip-summary-compact span {
     min-width: 0;
-    color: #475569;
+    color: var(--light-text-color);
     font-weight: 800;
   }
 

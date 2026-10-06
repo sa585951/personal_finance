@@ -28,6 +28,7 @@ import {
   CategoryScale
 } from 'chart.js';
 import apiClient from '../../api';
+import { applyCategoryPalette, chartThemeColor, observeChartTheme } from "@/constants/chartPalette";
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, CategoryScale);
 
@@ -62,7 +63,7 @@ export default {
             labels: {
               boxWidth: 10,
               boxHeight: 10,
-              color: "#475569",
+              color: chartThemeColor("--light-text-color"),
               padding: 12,
               font: {
                 size: 12,
@@ -112,26 +113,44 @@ export default {
             return result;
           }, {});
         const rows = Object.entries(totals).sort((left, right) => right[1] - left[1]);
-        const colors = ["#0f766e", "#2563eb", "#f59e0b", "#7c3aed", "#dc2626", "#64748b"];
-        this.chartData = {
+        this.chartData = applyCategoryPalette({
           labels: rows.map(([label]) => label),
           datasets: [{
-            backgroundColor: rows.map((_, index) => colors[index % colors.length]),
             data: rows.map(([, amount]) => amount),
           }],
-        };
+        });
         return;
       }
       try {
         const response = await apiClient.get(`/api/reports/monthly_expenses?month=${this.effectiveMonth}`);
-        this.chartData = response.data.data;
+        this.chartData = applyCategoryPalette(response.data.data);
       } catch (error) {
         console.error("無法載入圖表資料", error);
       }
-    }
+    },
+    refreshTheme() {
+      this.chartData = applyCategoryPalette(this.chartData);
+      this.chartOptions = {
+        ...this.chartOptions,
+        plugins: {
+          ...this.chartOptions.plugins,
+          legend: {
+            ...this.chartOptions.plugins.legend,
+            labels: {
+              ...this.chartOptions.plugins.legend.labels,
+              color: chartThemeColor("--light-text-color"),
+            },
+          },
+        },
+      };
+    },
   },
   mounted() {
     this.fetchChartData();
+    this.stopThemeObserver = observeChartTheme(this.refreshTheme);
+  },
+  beforeUnmount() {
+    this.stopThemeObserver?.();
   },
 };
 </script>
@@ -147,14 +166,14 @@ export default {
 
 .card-title {
   margin: 0;
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1rem;
   letter-spacing: 0;
 }
 
 .card-header p {
   margin: 2px 0 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.84rem;
   font-weight: 700;
 }
@@ -169,7 +188,7 @@ export default {
 
 .no-data-message {
   text-align: center;
-  color: #64748b;
+  color: var(--light-text-color);
   padding: 2rem;
 }
 </style>

@@ -485,15 +485,15 @@ export default {
 .form-container {
   margin-bottom: 1rem;
   padding: 16px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background-color: #ffffff;
+  background-color: var(--card-bg);
   box-shadow: none;
 }
 
 .form-container h3 {
   margin-top: 0;
-  color: #1f2933;
+  color: var(--text-color);
   margin-bottom: 1rem;
 }
 
@@ -510,7 +510,7 @@ export default {
   gap: 6px;
   min-width: 0;
   font-weight: bold;
-  color: #475569;
+  color: var(--light-text-color);
   text-align: left;
 }
 
@@ -520,11 +520,11 @@ export default {
   min-height: 44px;
   min-width: 0;
   padding: 0.8rem 1rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   transition: all 0.3s ease;
   width: 100%;
-  background-color: #fff;
+  background-color: var(--card-bg);
 }
 
 .form-container input[type="date"] {
@@ -548,9 +548,9 @@ export default {
 
 .ai-review {
   padding: 12px;
-  color: #1e3a8a;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  color: var(--primary-hover);
+  background: var(--primary-soft);
+  border: 1px solid var(--brand-border);
   border-radius: 8px;
 }
 
@@ -565,7 +565,7 @@ export default {
   flex: 0 0 auto;
   padding: 3px 8px;
   border-radius: 999px;
-  background: #dbeafe;
+  background: var(--primary-soft);
   font-size: 0.78rem;
   font-weight: 800;
 }
@@ -575,7 +575,7 @@ export default {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px 10px;
   margin-top: 8px;
-  color: #334155;
+  color: var(--text-color);
   font-size: 0.86rem;
   font-weight: 700;
 }
@@ -587,21 +587,21 @@ export default {
 
 .ai-review-note {
   margin: 8px 0 0;
-  color: #1d4ed8;
+  color: var(--primary-color);
   font-size: 0.86rem;
   font-weight: 800;
 }
 
 .ai-review-note.warning {
-  color: #b45309;
+  color: var(--warning-color);
 }
 
 .form-message {
   margin: 0;
   padding: 10px 12px;
-  color: #475569;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  color: var(--light-text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-weight: 700;
 }
@@ -615,7 +615,7 @@ export default {
 
 .form-container form > button[type="submit"] {
   min-height: 46px;
-  background-color: #0f766e;
+  background-color: var(--primary-color);
   grid-column: 1 / -1;
   width: auto;
   justify-self: stretch;
@@ -623,7 +623,7 @@ export default {
   padding: 10px 20px;
   border: none;
   border-radius: 8px;
-  color: white;
+  color: var(--on-primary);
   font-weight: bold;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -650,9 +650,9 @@ export default {
 .cancel-edit-btn {
   min-height: 34px;
   padding: 0 10px;
-  color: #475569;
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
+  color: var(--light-text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: none;
   font-weight: 800;

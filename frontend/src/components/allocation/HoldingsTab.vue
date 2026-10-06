@@ -172,21 +172,21 @@ export default {
 
 <style scoped>
 .tab-panel { display: grid; gap: 14px; }
-.target-summary { padding: 16px; border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; }
+.target-summary { padding: 16px; border: 1px solid var(--brand-border); border-radius: 10px; background: var(--primary-soft); }
 .target-summary > div:first-child { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.target-summary span { color: #475569; font-weight: 700; }
-.target-summary strong { color: #b45309; font-size: 1.35rem; }.target-summary strong.complete { color: #0f766e; }
-.target-summary p { margin: 6px 0 10px; color: #64748b; font-size: .86rem; }
-.target-track { height: 8px; overflow: hidden; background: #dbe4ee; border-radius: 999px; }.target-track div { height: 100%; background: #0f766e; }
-.panel-toggle { justify-self: start; min-height: 40px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; color: #0f766e; background: #fff; border: 1px solid #99f6e4; }.panel-toggle svg { width: 17px; height: 17px; }
-.entry-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px; border: 1px solid #dbe4ee; border-radius: 10px; background: #f8fafc; }
-.entry-form label { display: grid; gap: 6px; color: #475569; font-weight: 700; }.wide-field { grid-column: 1 / -1; }
-.entry-form input, .entry-form select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font: inherit; }.entry-form input:focus, .entry-form select:focus { outline: 3px solid #ccfbf1; border-color: #0f766e; }
-.form-actions, .card-actions { display: flex; justify-content: flex-end; gap: 8px; }.primary-action, .secondary-action, .card-actions button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; border-radius: 8px; }.primary-action { color: #fff; background: #0f766e; }.secondary-action, .card-actions button { color: #334155; background: #fff; border: 1px solid #cbd5e1; }.card-actions svg { width: 16px; height: 16px; }.card-actions .danger-action { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
-.form-hint { margin: 0; color: #b45309; font-size: .86rem; }
-.holding-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.holding-card { padding: 16px; border: 1px solid #dbe4ee; border-radius: 10px; background: #fff; }.holding-card.inactive { opacity: .65; }
-.holding-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.holding-top span { color: #0f766e; font-size: .75rem; font-weight: 800; }.holding-top h3 { margin: 2px 0; }.holding-top p { margin: 0; color: #64748b; font-size: .86rem; }.holding-top > strong { color: #0f766e; font-size: 1.2rem; }
-.holding-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 14px 0; padding: 10px 0; color: #64748b; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; font-size: .82rem; }
-.empty-state { padding: 28px 16px; color: #64748b; text-align: center; border: 1px dashed #cbd5e1; border-radius: 10px; background: #f8fafc; }
+.target-summary span { color: var(--light-text-color); font-weight: 700; }
+.target-summary strong { color: var(--warning-color); font-size: 1.35rem; }.target-summary strong.complete { color: var(--income-color); }
+.target-summary p { margin: 6px 0 10px; color: var(--light-text-color); font-size: .86rem; }
+.target-track { height: 8px; overflow: hidden; background: var(--border-color); border-radius: 999px; }.target-track div { height: 100%; background: var(--primary-color); }
+.panel-toggle { justify-self: start; min-height: 40px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; color: var(--primary-color); background: var(--card-bg); border: 1px solid var(--brand-border); }.panel-toggle svg { width: 17px; height: 17px; }
+.entry-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--secondary-color); }
+.entry-form label { display: grid; gap: 6px; color: var(--light-text-color); font-weight: 700; }.wide-field { grid-column: 1 / -1; }
+.entry-form input, .entry-form select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); font: inherit; }.entry-form input:focus, .entry-form select:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary-color); }
+.form-actions, .card-actions { display: flex; justify-content: flex-end; gap: 8px; }.primary-action, .secondary-action, .card-actions button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; border-radius: 8px; }.primary-action { color: var(--on-primary); background: var(--primary-color); }.secondary-action, .card-actions button { color: var(--text-color); background: var(--card-bg); border: 1px solid var(--border-color); }.card-actions svg { width: 16px; height: 16px; }.card-actions .danger-action { color: var(--expense-color); border-color: var(--expense-color); background: var(--expense-soft); }
+.form-hint { margin: 0; color: var(--warning-color); font-size: .86rem; }
+.holding-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.holding-card { padding: 16px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); }.holding-card.inactive { opacity: .65; }
+.holding-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.holding-top span { color: var(--primary-color); font-size: .75rem; font-weight: 800; }.holding-top h3 { margin: 2px 0; }.holding-top p { margin: 0; color: var(--light-text-color); font-size: .86rem; }.holding-top > strong { color: var(--primary-color); font-size: 1.2rem; }
+.holding-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 14px 0; padding: 10px 0; color: var(--light-text-color); border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); font-size: .82rem; }
+.empty-state { padding: 28px 16px; color: var(--light-text-color); text-align: center; border: 1px dashed var(--border-color); border-radius: 10px; background: var(--secondary-color); }
 @media (max-width: 640px) { .entry-form, .holding-list { grid-template-columns: 1fr; }.entry-form label, .wide-field { grid-column: 1; } }
 </style>

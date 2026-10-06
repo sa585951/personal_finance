@@ -12,6 +12,7 @@
       </li>
     </ul>
     <div class="auth-section">
+      <ThemeToggle />
       <template v-if="devAuthBypass">
         <label class="dev-user-switcher">
           <span>測試使用者</span>
@@ -41,6 +42,7 @@
 
 <script>
 import apiClient from "@/api";
+import ThemeToggle from "@/components/shared/ThemeToggle.vue";
 import { jwtDecode } from 'jwt-decode';
 import { HomeFilled, Money, PieChart, Suitcase, Wallet } from '@element-plus/icons-vue';
 
@@ -52,6 +54,7 @@ export default {
     PieChart,
     Suitcase,
     Wallet,
+    ThemeToggle,
   },
   data() {
     return {
@@ -148,7 +151,7 @@ export default {
   backdrop-filter: blur(14px);
   min-height: var(--app-bottom-nav-height);
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-color);
   box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
   display: flex;
   justify-content: center;
@@ -187,7 +190,7 @@ export default {
 }
 
 .nav-links a {
-  color: #64748b;
+  color: var(--light-text-color);
   text-decoration: none;
   font-weight: 500;
   transition: color 0.3s ease;
@@ -211,15 +214,15 @@ export default {
 .nav-links a:hover,
 .nav-links a.router-link-active,
 .nav-links a.router-link-exact-active {
-  color: #0f766e;
-  background: #f0fdfa;
+  color: var(--primary-color);
+  background: var(--primary-soft);
   border-bottom: 0;
   transform: none;
 }
 
 .nav-links a.router-link-active svg,
 .nav-links a.router-link-exact-active svg {
-  color: #0f766e;
+  color: var(--primary-color);
 }
 
 .nav-links a span {
@@ -228,7 +231,9 @@ export default {
 
 @media (min-width: 1px) {
   .auth-section {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 4px;
     position: relative;
     flex: 0 0 auto;
     z-index: 1;
@@ -238,9 +243,9 @@ export default {
     display: inline-flex;
     align-items: center;
     padding: 4px;
-    color: #334155;
-    background: #f8fafc;
-    border: 1px solid #dbe4ee;
+    color: var(--text-color);
+    background: var(--secondary-color);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     font-size: 0.75rem;
     font-weight: 700;
@@ -261,9 +266,9 @@ export default {
   .dev-user-switcher select {
     width: 74px;
     min-height: 28px;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--border-color);
     border-radius: 6px;
-    background: #ffffff;
+    background: var(--card-bg);
     font-size: 0.78rem;
   }
 
@@ -271,9 +276,9 @@ export default {
     min-height: 34px;
     max-width: 78px;
     padding: 6px 8px;
-    color: #334155;
+    color: var(--text-color);
     background: rgba(255, 255, 255, 0.94);
-    border: 1px solid #dbe4ee;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     font-size: 0.78rem;
     font-weight: 800;
@@ -290,9 +295,9 @@ export default {
     padding: 10px;
     display: grid;
     gap: 8px;
-    color: #334155;
-    background: #ffffff;
-    border: 1px solid #dbe4ee;
+    color: var(--text-color);
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
     border-radius: 10px;
     box-shadow: 0 14px 28px rgba(15, 23, 42, 0.18);
   }
@@ -314,15 +319,15 @@ export default {
   }
 
   .account-menu-link {
-    color: #0f766e;
-    background: #ccfbf1;
-    border: 1px solid #99f6e4;
+    color: var(--primary-color);
+    background: var(--primary-soft);
+    border: 1px solid var(--brand-border);
   }
 
 .logout-button {
-  color: #b91c1c;
-  background: #fee2e2;
-  border: 1px solid #fecaca;
+  color: var(--expense-color);
+  background: var(--expense-soft);
+  border: 1px solid var(--expense-color);
 }
 }
 
@@ -333,17 +338,16 @@ export default {
   bottom: max(8px, env(safe-area-inset-bottom));
   min-height: 68px;
   padding: 6px;
-  border: 1px solid rgba(201, 218, 210, 0.82);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 12px 36px rgba(17, 57, 51, 0.14);
-  backdrop-filter: blur(18px);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--card-bg);
+  box-shadow: 0 4px 16px rgba(23, 26, 31, 0.08);
 }
 .nav-links { max-width: 540px; gap: 2px; }
 .nav-links a {
   min-height: 54px;
   border-radius: 15px;
-  color: #70817c;
+  color: var(--light-text-color);
   font-size: 0.72rem;
   font-weight: 700;
   transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
@@ -352,11 +356,15 @@ export default {
 .nav-links a:hover,
 .nav-links a.router-link-active,
 .nav-links a.router-link-exact-active {
-  color: #0c675e;
-  background: #e6f3ee;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 .nav-links a.router-link-active svg,
-.nav-links a.router-link-exact-active svg { color: #0c675e; }
+.nav-links a.router-link-exact-active svg { color: var(--primary-color); }
+.nav-links a[href="/trips"].router-link-active,
+.nav-links a[href="/trips"].router-link-exact-active { color: var(--travel-color); background: var(--travel-soft); }
+.nav-links a[href="/trips"].router-link-active svg,
+.nav-links a[href="/trips"].router-link-exact-active svg { color: var(--travel-color); }
 .account-button {
   display: grid;
   place-items: center;
@@ -364,17 +372,18 @@ export default {
   min-width: 38px;
   height: 38px;
   padding: 0;
-  border: 1px solid #c9e2d8;
+  border: 1px solid var(--brand-border);
   border-radius: 50%;
-  color: #0c675e;
-  background: #e6f3ee;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 .account-initial { font-size: 0.9rem; font-weight: 800; }
 .account-name { display: none; }
-.account-menu { border-radius: 16px; border-color: var(--border-color); }
-.account-menu-link { color: var(--primary-color); background: var(--primary-soft); border-color: #c9e2d8; }
-.dev-user-switcher { border-radius: 12px; border-color: var(--border-color); background: #f5f8f5; }
+.account-menu { border-radius: 16px; border-color: var(--border-color); background: var(--card-bg); }
+.account-menu-link { color: var(--primary-color); background: var(--primary-soft); border-color: var(--brand-border); }
+.dev-user-switcher { border-radius: 12px; border-color: var(--border-color); background: var(--secondary-color); }
 .dev-user-switcher select { width: 58px; border: 0; background: transparent; color: var(--text-color); }
+.auth-section :deep(.theme-toggle) { width: 42px; min-width: 42px; min-height: 42px; padding: 0; border-radius: 13px; }
 @media (max-width: 380px) {
   .navbar { left: 6px; right: 6px; }
   .nav-links a { font-size: 0.68rem; }
@@ -393,7 +402,7 @@ export default {
     border: 0;
     border-bottom: 1px solid var(--border-color);
     border-radius: 0;
-    box-shadow: 0 6px 22px rgba(17, 57, 51, 0.055);
+    box-shadow: 0 2px 10px rgba(23, 26, 31, 0.04);
   }
   .logo { display: block; flex: 0 0 auto; }
   .logo a {
@@ -411,7 +420,7 @@ export default {
   .nav-links a { flex-direction: row; gap: 7px; min-height: 42px; font-size: 0.84rem; }
   .nav-links svg { width: 18px; height: 18px; }
   .account-button { display: inline-flex; width: auto; max-width: 150px; padding: 0 12px 0 4px; gap: 8px; border-radius: 999px; }
-  .account-initial { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: #d6ece3; }
+  .account-initial { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: var(--primary-soft); }
   .account-name { display: block; overflow: hidden; text-overflow: ellipsis; }
   .account-menu { top: calc(100% + 10px); bottom: auto; }
 }

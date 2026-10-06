@@ -149,7 +149,7 @@ export default {
   align-items: center;
   gap: 8px;
   margin-bottom: 14px;
-  color: #334155;
+  color: var(--text-color);
 }
 
 .section-title h3 {
@@ -176,8 +176,8 @@ export default {
   gap: 12px;
   min-height: 44px;
   padding: 10px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -189,12 +189,12 @@ export default {
 }
 
 .member-row span {
-  color: #1f2933;
+  color: var(--text-color);
   font-weight: 800;
 }
 
 .member-row small {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -204,8 +204,8 @@ export default {
   width: 34px;
   min-height: 34px;
   padding: 0;
-  color: #dc2626;
-  background: #fee2e2;
+  color: var(--expense-color);
+  background: var(--expense-soft);
   border: 0;
   border-radius: 8px;
   box-shadow: none;
@@ -220,8 +220,8 @@ export default {
   flex: 0 0 96px;
   min-height: 34px;
   padding: 0 8px;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 0.85rem;
 }
@@ -231,8 +231,8 @@ export default {
   gap: 10px;
   margin: 0 0 12px;
   padding: 12px;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
+  background: var(--primary-soft);
+  border: 1px solid var(--brand-border);
   border-radius: 8px;
 }
 
@@ -242,11 +242,11 @@ export default {
 }
 
 .invite-panel strong {
-  color: #134e4a;
+  color: var(--primary-hover);
 }
 
 .invite-panel span {
-  color: #475569;
+  color: var(--light-text-color);
   font-size: 0.86rem;
   line-height: 1.45;
 }
@@ -275,9 +275,9 @@ select {
   min-height: 42px;
   min-width: 0;
   padding: 8px 10px;
-  color: #111827;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  color: var(--text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 1rem;
 }
@@ -309,14 +309,14 @@ select {
 }
 
 .danger-action {
-  background: #dc2626;
+  background: var(--expense-color);
 }
 
 .quiet-mini-button {
   min-height: 32px;
   padding: 0 10px;
-  color: #475569;
-  background: #e2e8f0;
+  color: var(--light-text-color);
+  background: var(--border-color);
   font-size: 0.86rem;
 }
 
@@ -326,7 +326,7 @@ select {
 
 .status-message {
   margin: 12px 0 0;
-  color: #475569;
+  color: var(--light-text-color);
 }
 
 @media (max-width: 820px) {

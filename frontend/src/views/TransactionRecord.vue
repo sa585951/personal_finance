@@ -401,7 +401,7 @@ export default {
   min-height: calc(100vh - 80px);
   margin: 0 auto;
   padding: 24px 14px calc(var(--app-bottom-nav-height) + 22px);
-  color: #1f2933;
+  color: var(--text-color);
 }
 
 .page-header {
@@ -425,8 +425,8 @@ export default {
   min-width: 96px;
   min-height: 44px;
   padding: 0 14px;
-  color: #ffffff;
-  background: #0f766e;
+  color: var(--on-primary);
+  background: var(--primary-color);
   border: 0;
   border-radius: 8px;
   box-shadow: none;
@@ -446,7 +446,7 @@ export default {
 
 .eyebrow {
   margin: 0 0 4px;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -470,8 +470,8 @@ h1 {
   width: 100%;
   padding: 6px;
   margin: 1rem 0;
-  background: #e2e8f0;
-  border: 1px solid #cbd5e1;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
 }
 
@@ -481,7 +481,7 @@ h1 {
   justify-content: center;
   min-height: 44px;
   padding: 0 12px;
-  color: #475569;
+  color: var(--light-text-color);
   background: transparent;
   border: 0;
   border-radius: 8px;
@@ -491,21 +491,21 @@ h1 {
 }
 
 .mode-switch button.expense {
-  color: #dc2626;
+  color: var(--expense-color);
 }
 
 .mode-switch button.income {
-  color: #0f766e;
+  color: var(--income-color);
 }
 
 .mode-switch button.expense.active {
   color: #ffffff;
-  background: #dc2626;
+  background: #a43d3d;
 }
 
 .mode-switch button.income.active {
   color: #ffffff;
-  background: #0f766e;
+  background: #176f59;
 }
 
 .mode-switch span {
@@ -527,15 +527,15 @@ h1 {
   gap: 6px;
   margin-bottom: 12px;
   padding: 6px;
-  background: #e2e8f0;
-  border: 1px solid #cbd5e1;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
 }
 
 .record-mode-switch button {
   min-height: 40px;
   padding: 0 10px;
-  color: #475569;
+  color: var(--light-text-color);
   background: transparent;
   border: 0;
   border-radius: 8px;
@@ -545,8 +545,8 @@ h1 {
 }
 
 .record-mode-switch button.active {
-  color: #0f172a;
-  background: #ffffff;
+  color: var(--text-color);
+  background: var(--card-bg);
 }
 
 .record-month-picker {
@@ -555,7 +555,7 @@ h1 {
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
-  color: #475569;
+  color: var(--light-text-color);
   font-size: 0.86rem;
   font-weight: 900;
 }
@@ -564,8 +564,8 @@ h1 {
   width: 100%;
   min-height: 42px;
   padding: 0 10px;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -578,15 +578,15 @@ h1 {
 }
 
 .record-error {
-  color: #b91c1c;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  color: var(--expense-color);
+  background: var(--expense-soft);
+  border: 1px solid var(--expense-color);
 }
 
 .record-loading {
-  color: #475569;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  color: var(--light-text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
 }
 
 .section-heading {
@@ -599,12 +599,12 @@ h1 {
 
 .section-heading h2 {
   margin: 0;
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1.08rem;
 }
 
 .section-heading span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.86rem;
   font-weight: 700;
 }

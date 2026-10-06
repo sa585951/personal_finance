@@ -236,7 +236,7 @@ export default {
   display: grid;
   gap: 6px;
   min-width: 0;
-  color: #475569;
+  color: var(--light-text-color);
   font-weight: 700;
 }
 
@@ -249,10 +249,10 @@ export default {
   display: flex;
   align-items: center;
   width: 100%;
-  color: #0f172a;
+  color: var(--text-color);
   text-align: left;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: none;
 }
@@ -265,8 +265,8 @@ export default {
 
 .picker-trigger:hover,
 .picker-trigger[aria-expanded="true"] {
-  border-color: #0f766e;
-  background: #f0fdfa;
+  border-color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .account-picker.disabled {
@@ -292,7 +292,7 @@ export default {
 .trigger-copy small,
 .account-option small {
   overflow: hidden;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.72rem;
   font-weight: 500;
   text-overflow: ellipsis;
@@ -305,9 +305,9 @@ export default {
   width: 30px;
   height: 30px;
   place-items: center;
-  color: #64748b;
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
+  color: var(--light-text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -315,7 +315,7 @@ export default {
   flex: 0 0 auto;
   width: 17px;
   height: 17px;
-  color: #64748b;
+  color: var(--light-text-color);
   transition: transform 0.2s ease;
 }
 
@@ -335,8 +335,8 @@ export default {
   gap: 8px;
   padding: 10px;
   overflow: hidden;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.16);
 }
@@ -352,15 +352,15 @@ export default {
   min-height: 42px;
   gap: 8px;
   padding: 0 10px;
-  background: #f8fafc;
-  border: 1px solid #dbe4ee;
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
 .search-field svg {
   width: 17px;
   height: 17px;
-  color: #64748b;
+  color: var(--light-text-color);
 }
 
 .search-field input {
@@ -391,7 +391,7 @@ export default {
 
 .account-group h4 {
   margin: 4px 4px 1px;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.72rem;
   letter-spacing: 0;
 }
@@ -405,20 +405,20 @@ export default {
 .account-option:hover,
 .account-option.selected {
   border-color: #5eead4;
-  background: #f0fdfa;
+  background: var(--primary-soft);
 }
 
 .account-option > svg {
   flex: 0 0 auto;
   width: 18px;
   height: 18px;
-  color: #0f766e;
+  color: var(--primary-color);
 }
 
 .empty-state {
   margin: 0;
   padding: 18px 8px;
-  color: #64748b;
+  color: var(--light-text-color);
   text-align: center;
   font-size: 0.84rem;
   font-weight: 500;

@@ -97,7 +97,7 @@ export default {
 .account-page {
   min-height: 100vh;
   padding: 72px 16px 104px;
-  background: #f8fafc;
+  background: var(--secondary-color);
   color: #1f2937;
 }
 
@@ -107,15 +107,15 @@ export default {
   width: min(880px, 100%);
   margin: 0 auto 16px;
   padding: 18px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
 
 .eyebrow {
   margin: 0 0 6px;
-  color: #0f766e;
+  color: var(--primary-color);
   font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -136,7 +136,7 @@ p {
 .account-hero p,
 .account-note p,
 .provider-item p {
-  color: #64748b;
+  color: var(--light-text-color);
   line-height: 1.55;
 }
 
@@ -154,7 +154,7 @@ p {
 }
 
 .section-heading span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
   font-weight: 700;
 }
@@ -169,14 +169,14 @@ p {
   justify-content: space-between;
   gap: 14px;
   padding: 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--secondary-color);
 }
 
 .provider-item.connected {
-  border-color: #99f6e4;
-  background: #f0fdfa;
+  border-color: var(--brand-border);
+  background: var(--primary-soft);
 }
 
 .provider-item h3 {
@@ -188,16 +188,16 @@ p {
   align-self: flex-start;
   white-space: nowrap;
   padding: 5px 8px;
-  color: #334155;
-  background: #e2e8f0;
+  color: var(--text-color);
+  background: var(--border-color);
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 800;
 }
 
 .provider-item.connected .status-pill {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .state-message {
@@ -208,7 +208,7 @@ p {
 
 .state-message.error {
   color: #991b1b;
-  background: #fee2e2;
+  background: var(--expense-soft);
 }
 
 @media (max-width: 520px) {

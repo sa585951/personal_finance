@@ -370,8 +370,8 @@ export default {
   justify-content: space-between;
   gap: 12px;
   padding: 16px;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
 }
 
@@ -387,12 +387,12 @@ export default {
 }
 
 .summary-header h2 {
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1.08rem;
 }
 
 .summary-header span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.86rem;
   font-weight: 700;
 }
@@ -401,9 +401,9 @@ select {
   min-height: 40px;
   max-width: 150px;
   padding: 0.5rem 0.7rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background-color: #fff;
+  background-color: var(--card-bg);
 }
 
 .budget-list {
@@ -415,9 +415,9 @@ select {
   display: grid;
   gap: 12px;
   padding: 16px;
-  color: #134e4a;
-  background: #ecfdf5;
-  border: 1px solid #99f6e4;
+  color: var(--primary-hover);
+  background: var(--income-soft);
+  border: 1px solid var(--brand-border);
   border-radius: 10px;
 }
 
@@ -455,12 +455,12 @@ select {
 
 .summary-progress-fill {
   height: 100%;
-  background: #0f766e;
+  background: var(--primary-color);
   transition: width 0.3s ease-in-out;
 }
 
 .summary-progress-fill.overbudget {
-  background: #dc2626;
+  background: var(--expense-color);
 }
 
 .budget-metrics {
@@ -480,22 +480,22 @@ select {
 }
 
 .budget-metrics span {
-  color: #0f766e;
+  color: var(--primary-color);
   font-size: 0.8rem;
 }
 
 .budget-metrics strong {
-  color: #134e4a;
+  color: var(--primary-hover);
   font-size: 1rem;
 }
 
 .budget-metrics .negative {
-  color: #dc2626;
+  color: var(--expense-color);
 }
 
 .monthly-budget-card p {
   margin: 0;
-  color: #0f766e;
+  color: var(--primary-color);
   font-size: 0.86rem;
   line-height: 1.45;
 }
@@ -514,30 +514,30 @@ select {
 
 .alert-card.danger {
   color: #991b1b;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-left: 4px solid #dc2626;
+  background: var(--expense-soft);
+  border: 1px solid var(--expense-color);
+  border-left: 4px solid var(--expense-color);
 }
 
 .alert-card.warning {
-  color: #92400e;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  color: var(--warning-color);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-color);
   border-left: 4px solid #f59e0b;
 }
 
 .alert-card.neutral {
-  color: #1e3a8a;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  color: var(--primary-hover);
+  background: var(--primary-soft);
+  border: 1px solid var(--brand-border);
   border-left: 4px solid #2563eb;
 }
 
 .alert-card.clear {
-  color: #166534;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-left: 4px solid #16a34a;
+  color: var(--income-color);
+  background: var(--income-soft);
+  border: 1px solid var(--income-color);
+  border-left: 4px solid var(--income-color);
 }
 
 .alert-card p {
@@ -572,8 +572,8 @@ select {
   display: grid;
   gap: 12px;
   padding: 14px;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
 }
 
@@ -591,22 +591,22 @@ select {
 }
 
 .card-top h3 {
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1rem;
 }
 
 .card-top span {
-  color: #0f766e;
+  color: var(--primary-color);
   font-size: 0.86rem;
   font-weight: 700;
 }
 
 .card-top .overspend {
-  color: #dc2626;
+  color: var(--expense-color);
 }
 
 .card-top .warning {
-  color: #d97706;
+  color: var(--warning-color);
 }
 
 .card-top .unset {
@@ -614,7 +614,7 @@ select {
 }
 
 .card-top > strong {
-  color: #1f2933;
+  color: var(--text-color);
   text-align: right;
 }
 
@@ -629,13 +629,13 @@ select {
   gap: 3px;
   min-height: 58px;
   padding: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
 .budget-values span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
   font-weight: 700;
 }
@@ -643,24 +643,24 @@ select {
 .progress-bar-container {
   width: 100%;
   height: 10px;
-  background-color: #e2e8f0;
+  background-color: var(--border-color);
   border-radius: 999px;
   overflow: hidden;
 }
 
 .progress-bar {
   height: 100%;
-  background-color: #0f766e;
+  background-color: var(--primary-color);
   transition: width 0.3s ease-in-out;
 }
 
 .progress-bar.overbudget {
-  background-color: #dc2626;
+  background-color: var(--expense-color);
 }
 
 .notes {
   margin: 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.9rem;
 }
 
@@ -679,8 +679,8 @@ select {
 }
 
 .delete-btn {
-  color: #dc2626;
-  background-color: #fee2e2;
+  color: var(--expense-color);
+  background-color: var(--expense-soft);
 }
 
 .update-btn {
@@ -691,9 +691,9 @@ select {
 .no-data {
   text-align: center;
   padding: 2rem;
-  color: #64748b;
-  background-color: #ffffff;
-  border: 1px solid #dbe4ee;
+  color: var(--light-text-color);
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 </style>

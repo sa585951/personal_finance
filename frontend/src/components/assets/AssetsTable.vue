@@ -556,9 +556,9 @@ export default {
 <style scoped>
 .accounts-list {
   padding: 16px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .section-heading {
@@ -571,13 +571,13 @@ export default {
 
 .section-heading h2 {
   margin: 0;
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1.15rem;
   letter-spacing: 0;
 }
 
 .section-heading span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.9rem;
 }
 
@@ -589,9 +589,9 @@ export default {
   min-height: 42px;
   width: 100%;
   padding: 0.7rem 0.8rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .account-groups {
@@ -613,10 +613,10 @@ export default {
   gap: 8px;
   min-height: 42px;
   padding: 8px 10px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #f1f5f9;
-  color: #1f2933;
+  background: var(--secondary-color);
+  color: var(--text-color);
   box-shadow: none;
 }
 
@@ -648,7 +648,7 @@ export default {
 
 .group-header small,
 .group-totals small {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
   white-space: nowrap;
 }
@@ -656,8 +656,8 @@ export default {
 .group-totals small {
   padding: 3px 7px;
   border-radius: 999px;
-  background: #e0f2fe;
-  color: #075985;
+  background: var(--travel-soft);
+  color: var(--travel-color);
   font-weight: 800;
 }
 
@@ -671,9 +671,9 @@ export default {
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .group-allocation-row {
@@ -691,13 +691,13 @@ export default {
 }
 
 .group-allocation-row strong {
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 0.9rem;
 }
 
 .group-allocation-row span,
 .group-allocation-row small {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
 }
 
@@ -706,26 +706,26 @@ export default {
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e2e8f0;
+  background: var(--border-color);
 }
 
 .allocation-fill {
   height: 100%;
   border-radius: 999px;
-  background: #14b8a6;
+  background: var(--chart-2);
   transition: width 0.25s ease;
 }
 
 .account-card {
   padding: 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #f8fafc;
+  background: var(--secondary-color);
 }
 
 .account-card.expanded {
   border-color: #94a3b8;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .account-summary-button {
@@ -764,26 +764,26 @@ export default {
 
 .account-main h3 {
   margin: 0 0 2px;
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1rem;
   letter-spacing: 0;
 }
 
 .account-main p {
   margin: 0;
-  color: #64748b;
+  color: var(--light-text-color);
 }
 
 .account-main strong {
   flex-shrink: 0;
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 1.2rem;
 }
 
 .activity-hint {
   display: inline-flex;
   margin-top: 8px;
-  color: #475569;
+  color: var(--light-text-color);
   font-size: 0.82rem;
   font-weight: 800;
 }
@@ -798,8 +798,8 @@ export default {
 .account-meta span {
   padding: 4px 8px;
   border-radius: 999px;
-  background: #e0f2fe;
-  color: #075985;
+  background: var(--travel-soft);
+  color: var(--travel-color);
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -810,25 +810,25 @@ export default {
   margin-top: 10px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #fff7ed;
+  background: var(--warning-soft);
   color: #7c2d12;
   font-size: 0.84rem;
 }
 
-.billing-summary small { color: #9a3412; line-height: 1.45; }
+.billing-summary small { color: var(--warning-color); line-height: 1.45; }
 
 .account-ratio {
   height: 6px;
   margin-top: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e2e8f0;
+  background: var(--border-color);
 }
 
 .account-ratio-fill {
   height: 100%;
   border-radius: 999px;
-  background: #0f766e;
+  background: var(--primary-color);
   transition: width 0.25s ease;
 }
 
@@ -857,7 +857,7 @@ export default {
   gap: 12px;
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-color);
 }
 
 .field,
@@ -871,7 +871,7 @@ export default {
 }
 
 .field label {
-  color: #475569;
+  color: var(--light-text-color);
   font-size: 0.86rem;
   font-weight: 700;
 }
@@ -881,9 +881,9 @@ export default {
   min-height: 42px;
   width: 100%;
   padding: 0.7rem 0.8rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .edit-actions {
@@ -896,8 +896,8 @@ export default {
   margin: 0;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--secondary-color);
+  color: var(--light-text-color);
   font-size: 0.86rem;
 }
 
@@ -909,7 +909,7 @@ export default {
 }
 
 :global(.balance-adjustment-fields label) {
-  color: #475569;
+  color: var(--light-text-color);
   font-size: 0.86rem;
   font-weight: 700;
 }
@@ -922,23 +922,23 @@ export default {
 
 :global(.balance-adjustment-hint) {
   margin: 2px 0 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
 }
 
 .edit-btn {
-  background-color: #0f766e;
+  background-color: var(--primary-color);
 }
 
 .cancel-btn {
-  background-color: #64748b;
+  background-color: var(--light-text-color);
 }
 
 .no-data {
   padding: 18px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--border-color);
   border-radius: 10px;
-  color: #64748b;
+  color: var(--light-text-color);
   text-align: center;
 }
 

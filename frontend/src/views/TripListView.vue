@@ -353,7 +353,7 @@ export default {
   min-height: calc(100vh - 80px);
   margin: 0 auto;
   padding: 24px 16px calc(var(--app-bottom-nav-height) + 22px);
-  color: #1f2933;
+  color: var(--text-color);
 }
 
 .page-header,
@@ -391,7 +391,7 @@ export default {
 .section-heading span,
 .list-heading span {
   margin: 0 0 2px;
-  color: #0f766e;
+  color: var(--primary-color);
   font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0;
@@ -432,17 +432,17 @@ h2 {
 }
 
 .primary-action {
-  color: #ffffff;
-  background: #0f766e;
-  border: 1px solid #0f766e;
+  color: var(--on-primary);
+  background: var(--primary-color);
+  border: 1px solid var(--primary-color);
 }
 
 .secondary-action,
 .quiet-action,
 .icon-button {
-  color: #334155;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  color: var(--text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
 }
 
 .icon-button {
@@ -460,8 +460,8 @@ h2 {
 .page-state,
 .empty-state {
   padding: 16px;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -480,7 +480,7 @@ h2 {
 
 .section-heading p {
   max-width: 360px;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
   text-align: right;
 }
@@ -495,7 +495,7 @@ h2 {
   display: grid;
   gap: 6px;
   min-width: 0;
-  color: #475569;
+  color: var(--light-text-color);
   font-size: 0.82rem;
   font-weight: 800;
 }
@@ -506,9 +506,9 @@ h2 {
   min-width: 0;
   min-height: 42px;
   padding: 0 10px;
-  color: #1f2933;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  color: var(--text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 7px;
 }
 
@@ -530,7 +530,7 @@ h2 {
 .page-state,
 .empty-state,
 .managed-empty {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.85rem;
 }
 
@@ -543,7 +543,7 @@ h2 {
 }
 
 .page-state.error {
-  border-left: 4px solid #d97706;
+  border-left: 4px solid var(--warning-color);
 }
 
 .list-heading {
@@ -573,7 +573,7 @@ h2 {
 
 .trip-group + .trip-group {
   padding-top: 14px;
-  border-top: 1px solid #dbe4ee;
+  border-top: 1px solid var(--border-color);
 }
 
 .trip-group-heading {
@@ -589,13 +589,13 @@ h2 {
 }
 
 .trip-group-heading span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.75rem;
   font-weight: 800;
 }
 
 .trip-group-heading > div > span {
-  color: #0f766e;
+  color: var(--primary-color);
 }
 
 .trip-card {
@@ -604,17 +604,17 @@ h2 {
   min-width: 0;
   min-height: 154px;
   padding: 14px;
-  color: #475569;
+  color: var(--light-text-color);
   text-align: left;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
-  border-left: 4px solid #0f766e;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--primary-color);
   border-radius: 8px;
   box-shadow: none;
 }
 
 .trip-card:hover {
-  background: #f8fafc;
+  background: var(--secondary-color);
   border-color: #99c9c2;
 }
 
@@ -627,13 +627,13 @@ h2 {
 }
 
 .trip-card > strong {
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1.05rem;
 }
 
 .card-topline > span:last-child,
 .card-meta {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -647,21 +647,21 @@ h2 {
 .report-badge {
   width: fit-content;
   padding: 3px 7px;
-  color: #475569;
-  background: #f1f5f9;
+  color: var(--light-text-color);
+  background: var(--secondary-color);
   border-radius: 6px;
   font-size: 0.72rem;
   font-weight: 800;
 }
 
 .report-badge.include {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .report-badge.pending {
-  color: #9a3412;
-  background: #ffedd5;
+  color: var(--warning-color);
+  background: var(--warning-soft);
 }
 
 .managed-group,
@@ -677,15 +677,15 @@ h2 {
 
 .managed-heading span,
 .managed-row span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.8rem;
 }
 
 .managed-row {
   gap: 12px;
   padding: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 7px;
 }
 
@@ -696,7 +696,7 @@ h2 {
 }
 
 .managed-row.deleted {
-  border-left: 3px solid #d97706;
+  border-left: 3px solid var(--warning-color);
 }
 
 @media (max-width: 820px) {

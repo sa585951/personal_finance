@@ -86,12 +86,12 @@ export default {
     return {
       collapsedAllocations: {},
       typeColors: {
-        銀行: "#0f766e",
-        現金: "#2563eb",
-        信用卡: "#dc2626",
-        電子錢包: "#7c3aed",
-        投資: "#ca8a04",
-        其他: "#64748b",
+        銀行: "var(--primary-color)",
+        現金: "var(--travel-color)",
+        信用卡: "var(--expense-color)",
+        電子錢包: "var(--chart-4)",
+        投資: "var(--chart-5)",
+        其他: "var(--chart-6)",
       },
     };
   },
@@ -139,9 +139,9 @@ export default {
 <style scoped>
 .totals-section {
   padding: 16px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .section-heading {
@@ -154,13 +154,13 @@ export default {
 
 .section-heading h2 {
   margin: 0;
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1.15rem;
   letter-spacing: 0;
 }
 
 .section-heading span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.9rem;
 }
 
@@ -177,7 +177,7 @@ export default {
 
 .currency-card + .currency-card {
   padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-color);
 }
 
 .total-primary {
@@ -185,8 +185,8 @@ export default {
   padding: 18px;
   border: 0;
   border-radius: 10px;
-  background: #0f766e;
-  color: #ffffff;
+  background: var(--primary-color);
+  color: var(--on-primary);
   box-shadow: none;
   text-align: left;
 }
@@ -197,7 +197,7 @@ export default {
 }
 
 .total-primary:focus-visible {
-  outline: 3px solid #99f6e4;
+  outline: 3px solid var(--brand-border);
   outline-offset: 2px;
 }
 
@@ -225,9 +225,9 @@ export default {
   display: grid;
   gap: 12px;
   padding: 16px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .stacked-bar {
@@ -236,7 +236,7 @@ export default {
   height: 12px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e2e8f0;
+  background: var(--border-color);
 }
 
 .stacked-segment {
@@ -266,7 +266,7 @@ export default {
 
 .legend-name {
   overflow: hidden;
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 0.88rem;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -274,14 +274,14 @@ export default {
 }
 
 .legend-percent {
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 0.86rem;
   font-weight: 900;
 }
 
 .legend-item small {
   grid-column: 2 / -1;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.8rem;
   text-align: right;
   word-break: break-word;
@@ -290,9 +290,9 @@ export default {
 .empty-total,
 .empty-allocation {
   padding: 18px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--border-color);
   border-radius: 10px;
-  color: #64748b;
+  color: var(--light-text-color);
   text-align: center;
 }
 

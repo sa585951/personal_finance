@@ -30,23 +30,26 @@ func renderIcon(size: Int, name: String) throws {
     context.cgContext.scaleBy(x: CGFloat(size) / 1024, y: CGFloat(size) / 1024)
 
     let background = NSBezierPath(rect: NSRect(x: 0, y: 0, width: 1024, height: 1024))
-    color(18, 73, 64).setFill()
+    color(66, 99, 235).setFill()
     background.fill()
 
-    let letter = NSBezierPath()
-    letter.move(to: NSPoint(x: 262, y: 286))
-    letter.line(to: NSPoint(x: 262, y: 738))
-    letter.line(to: NSPoint(x: 762, y: 286))
-    letter.line(to: NSPoint(x: 762, y: 738))
-    letter.lineWidth = 102
-    letter.lineCapStyle = .round
-    letter.lineJoinStyle = .round
-    color(247, 248, 244).setStroke()
-    letter.stroke()
+    let connector = NSBezierPath()
+    connector.move(to: NSPoint(x: 286, y: 734))
+    connector.line(to: NSPoint(x: 738, y: 290))
+    connector.lineWidth = 90
+    connector.lineCapStyle = .round
+    color(76, 201, 192).setStroke()
+    connector.stroke()
 
-    let accent = NSBezierPath(ovalIn: NSRect(x: 704, y: 680, width: 116, height: 116))
-    color(216, 164, 109).setFill()
-    accent.fill()
+    let letter = NSBezierPath()
+    letter.move(to: NSPoint(x: 286, y: 290))
+    letter.line(to: NSPoint(x: 286, y: 734))
+    letter.move(to: NSPoint(x: 738, y: 290))
+    letter.line(to: NSPoint(x: 738, y: 734))
+    letter.lineWidth = 100
+    letter.lineCapStyle = .round
+    color(255, 255, 255).setStroke()
+    letter.stroke()
 
     context.flushGraphics()
     NSGraphicsContext.restoreGraphicsState()
@@ -60,3 +63,15 @@ try renderIcon(size: 512, name: "app-icon-512.png")
 try renderIcon(size: 192, name: "app-icon-192.png")
 try renderIcon(size: 180, name: "apple-touch-icon.png")
 try renderIcon(size: 32, name: "favicon.png")
+try renderIcon(size: 640, name: "nomica-line-profile-640.png")
+
+// ICO embeds the same 32px PNG so the browser fallback keeps the current mark.
+let favicon = try Data(contentsOf: outputDirectory.appendingPathComponent("favicon.png"))
+var ico = Data([0, 0, 1, 0, 1, 0, 32, 32, 0, 0, 1, 0, 32, 0])
+for value in [UInt32(favicon.count), UInt32(22)] {
+    for shift in stride(from: 0, through: 24, by: 8) {
+        ico.append(UInt8((value >> shift) & 0xff))
+    }
+}
+ico.append(favicon)
+try ico.write(to: outputDirectory.appendingPathComponent("favicon.ico"))

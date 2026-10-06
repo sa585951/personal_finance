@@ -32,20 +32,20 @@ export default {
   gap: 12px;
   min-height: 88px;
   padding: 16px;
-  color: #334155;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  color: var(--text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
 }
 
 .app-state-panel.error {
-  color: #991b1b;
-  background: #fef2f2;
-  border-color: #fecaca;
+  color: var(--expense-color);
+  background: var(--expense-soft);
+  border-color: var(--expense-color);
 }
 
 .app-state-panel.empty {
-  background: #f8fafc;
+  background: var(--secondary-color);
   border-style: dashed;
 }
 
@@ -63,22 +63,22 @@ export default {
 
 .state-copy p {
   margin: 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.84rem;
   line-height: 1.45;
 }
 
 .app-state-panel.error .state-copy p {
-  color: #b91c1c;
+  color: var(--expense-color);
 }
 
 .app-state-panel button {
   flex: 0 0 auto;
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 12px;
-  color: #0f766e;
-  background: #ffffff;
-  border: 1px solid #99f6e4;
+  color: var(--primary-color);
+  background: var(--card-bg);
+  border: 1px solid var(--brand-border);
   border-radius: 8px;
   box-shadow: none;
   font-weight: 800;
@@ -87,8 +87,8 @@ export default {
 .state-spinner {
   width: 22px;
   height: 22px;
-  border: 3px solid #ccfbf1;
-  border-top-color: #0f766e;
+  border: 3px solid var(--primary-soft);
+  border-top-color: var(--primary-color);
   border-radius: 50%;
   animation: state-spin 0.8s linear infinite;
 }

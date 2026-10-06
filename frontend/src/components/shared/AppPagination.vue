@@ -64,7 +64,7 @@ export default {
   justify-items: center;
   gap: 8px;
   margin-top: 14px;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
 }
 
@@ -74,7 +74,7 @@ export default {
 }
 
 .pagination-error {
-  color: #b91c1c;
+  color: var(--expense-color);
   text-align: center;
 }
 
@@ -93,8 +93,8 @@ export default {
   min-width: 88px;
   min-height: 44px;
   padding: 0 16px;
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--primary-color);
+  background: var(--primary-soft);
   border: 0;
   border-radius: 8px;
   box-shadow: none;

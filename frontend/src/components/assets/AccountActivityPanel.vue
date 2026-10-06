@@ -259,7 +259,7 @@ export default {
   gap: 10px;
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-color);
 }
 
 .activity-heading,
@@ -276,14 +276,14 @@ export default {
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
-  background: #f1f5f9;
+  background: var(--secondary-color);
   border-radius: 8px;
 }
 
 .activity-filters button {
   min-height: 34px;
   padding: 0 8px;
-  color: #475569;
+  color: var(--light-text-color);
   background: transparent;
   border: 0;
   border-radius: 6px;
@@ -293,8 +293,8 @@ export default {
 }
 
 .activity-filters button.active {
-  color: #0f766e;
-  background: #ffffff;
+  color: var(--primary-color);
+  background: var(--card-bg);
 }
 
 .activity-filters button:hover {
@@ -308,14 +308,14 @@ export default {
 }
 
 .activity-heading strong {
-  color: #1f2933;
+  color: var(--text-color);
 }
 
 .activity-heading small,
 .activity-state,
 .activity-main span,
 .activity-meta {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.84rem;
 }
 
@@ -324,7 +324,7 @@ export default {
 }
 
 .activity-state.error {
-  color: #b91c1c;
+  color: var(--expense-color);
 }
 
 .activity-list {
@@ -334,9 +334,9 @@ export default {
 
 .activity-item {
   padding: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--secondary-color);
 }
 
 .activity-main div {
@@ -353,11 +353,11 @@ export default {
 }
 
 .activity-main .positive {
-  color: #0f766e;
+  color: var(--income-color);
 }
 
 .activity-main .negative {
-  color: #dc2626;
+  color: var(--expense-color);
 }
 
 .activity-meta {
@@ -369,8 +369,8 @@ export default {
 .activity-meta span {
   padding: 3px 7px;
   border-radius: 999px;
-  background: #e2e8f0;
-  color: #475569;
+  background: var(--border-color);
+  color: var(--light-text-color);
   font-size: 0.76rem;
   font-weight: 800;
 }
@@ -385,9 +385,9 @@ export default {
 .activity-actions button {
   min-height: 32px;
   padding: 0 10px;
-  color: #334155;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  color: var(--text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: none;
   font-size: 0.82rem;
@@ -395,9 +395,9 @@ export default {
 }
 
 .activity-actions .danger {
-  color: #b91c1c;
-  border-color: #fecaca;
-  background: #fef2f2;
+  color: var(--expense-color);
+  border-color: var(--expense-color);
+  background: var(--expense-soft);
 }
 
 </style>

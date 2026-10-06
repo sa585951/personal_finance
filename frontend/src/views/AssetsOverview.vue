@@ -606,7 +606,7 @@ export default {
   min-height: calc(100vh - 80px);
   margin: 0 auto;
   padding: 24px 14px calc(var(--app-bottom-nav-height) + 22px);
-  color: #1f2933;
+  color: var(--text-color);
 }
 
 .allocation-entry {
@@ -616,11 +616,11 @@ export default {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  color: #1f2933;
+  color: var(--text-color);
   text-decoration: none;
-  border: 1px solid #99f6e4;
+  border: 1px solid var(--brand-border);
   border-radius: 10px;
-  background: #f0fdfa;
+  background: var(--primary-soft);
 }
 
 .allocation-entry-icon {
@@ -628,8 +628,8 @@ export default {
   height: 42px;
   display: grid;
   place-items: center;
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--primary-color);
+  background: var(--primary-soft);
   border-radius: 8px;
 }
 
@@ -646,16 +646,16 @@ export default {
 }
 
 .allocation-entry-copy strong {
-  color: #134e4a;
+  color: var(--primary-hover);
 }
 
 .allocation-entry-copy small {
-  color: #475569;
+  color: var(--light-text-color);
   line-height: 1.45;
 }
 
 .allocation-entry-arrow {
-  color: #0f766e;
+  color: var(--primary-color);
 }
 
 .assets-header {
@@ -664,7 +664,7 @@ export default {
 
 .eyebrow {
   margin: 0 0 4px;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -686,9 +686,9 @@ h1 {
 
 .account-health-panel {
   padding: 16px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .section-heading {
@@ -701,13 +701,13 @@ h1 {
 
 .section-heading h2 {
   margin: 0;
-  color: #1f2933;
+  color: var(--text-color);
   font-size: 1.15rem;
   letter-spacing: 0;
 }
 
 .section-heading span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.9rem;
 }
 
@@ -721,34 +721,34 @@ h1 {
   gap: 8px;
   min-height: 92px;
   padding: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-left: 4px solid #94a3b8;
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--secondary-color);
 }
 
 .health-card.warning {
-  background: #fffbeb;
-  border-color: #fde68a;
+  background: var(--warning-soft);
+  border-color: var(--warning-color);
   border-left-color: #f59e0b;
 }
 
 .health-card.danger {
-  background: #fef2f2;
-  border-color: #fecaca;
-  border-left-color: #dc2626;
+  background: var(--expense-soft);
+  border-color: var(--expense-color);
+  border-left-color: var(--expense-color);
 }
 
 .health-card.info {
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  background: var(--primary-soft);
+  border-color: var(--brand-border);
   border-left-color: #2563eb;
 }
 
 .health-card.success {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  border-left-color: #16a34a;
+  background: var(--income-soft);
+  border-color: var(--income-color);
+  border-left-color: var(--income-color);
 }
 
 .health-card div {
@@ -759,20 +759,20 @@ h1 {
 }
 
 .health-card span {
-  color: #475569;
+  color: var(--light-text-color);
   font-size: 0.84rem;
   font-weight: 900;
 }
 
 .health-card strong {
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 1rem;
   text-align: right;
 }
 
 .health-card p {
   margin: 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.45;
@@ -780,18 +780,18 @@ h1 {
 
 .action-panel {
   padding: 16px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .transfer-result-panel {
   display: grid;
   gap: 12px;
   padding: 16px;
-  border: 1px solid #99f6e4;
+  border: 1px solid var(--brand-border);
   border-radius: 10px;
-  background: #f0fdfa;
+  background: var(--primary-soft);
 }
 
 .transfer-result-heading {
@@ -807,7 +807,7 @@ h1 {
 }
 
 .transfer-result-heading p {
-  color: #0f766e;
+  color: var(--primary-color);
   font-size: 0.72rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -822,9 +822,9 @@ h1 {
 .transfer-result-heading button {
   min-height: 36px;
   padding: 0 11px;
-  color: #0f766e;
-  background: #ffffff;
-  border: 1px solid #99f6e4;
+  color: var(--primary-color);
+  background: var(--card-bg);
+  border: 1px solid var(--brand-border);
   border-radius: 8px;
   box-shadow: none;
   font-weight: 800;
@@ -839,10 +839,10 @@ h1 {
 .action-tab {
   min-height: 72px;
   padding: 12px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #f8fafc;
-  color: #334155;
+  background: var(--secondary-color);
+  color: var(--text-color);
   box-shadow: none;
   font-size: 1rem;
 }
@@ -853,8 +853,8 @@ h1 {
 }
 
 .action-tab.active {
-  border-color: #0f766e;
-  background: #ccfbf1;
+  border-color: var(--primary-color);
+  background: var(--primary-soft);
   color: #115e59;
 }
 
@@ -868,7 +868,7 @@ h1 {
   gap: 12px;
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-color);
 }
 
 .inline-action-header {
@@ -881,8 +881,8 @@ h1 {
 .quiet-button {
   min-height: 34px;
   padding: 0 10px;
-  color: #334155;
-  background: #e2e8f0;
+  color: var(--text-color);
+  background: var(--border-color);
   border-radius: 8px;
   box-shadow: none;
 }

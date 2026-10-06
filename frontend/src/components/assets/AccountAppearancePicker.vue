@@ -118,14 +118,14 @@ export default {
   gap: 8px;
   margin: 0;
   padding: 12px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--secondary-color);
 }
 
 .appearance-picker legend,
 .picker-group > span {
-  color: #475569;
+  color: var(--light-text-color);
   font-size: 0.86rem;
   font-weight: 800;
 }
@@ -137,18 +137,18 @@ export default {
   min-height: 64px;
   gap: 10px;
   padding: 8px;
-  color: #0f172a;
+  color: var(--text-color);
   text-align: left;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: none;
 }
 
 .appearance-trigger:hover,
 .appearance-trigger.open {
-  border-color: #0f766e;
-  background: #f0fdfa;
+  border-color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .appearance-summary {
@@ -158,14 +158,14 @@ export default {
 }
 
 .appearance-summary > span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.8rem;
 }
 
 .trigger-arrow {
   width: 18px;
   height: 18px;
-  color: #64748b;
+  color: var(--light-text-color);
   transition: transform 0.2s ease;
 }
 
@@ -177,9 +177,9 @@ export default {
   display: grid;
   gap: 12px;
   padding: 12px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .picker-group {
@@ -200,15 +200,15 @@ export default {
   min-height: 48px;
   padding: 6px;
   place-items: center;
-  color: #475569;
-  background: #ffffff;
-  border: 1px solid #dbe4ee;
+  color: var(--light-text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: none;
 }
 
 .icon-options button.selected {
-  border-color: #0f766e;
+  border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
 }
 
@@ -225,24 +225,24 @@ export default {
   background: var(--swatch);
   border: 3px solid #ffffff;
   border-radius: 50%;
-  box-shadow: 0 0 0 1px #cbd5e1;
+  box-shadow: 0 0 0 1px var(--border-color);
 }
 
 .color-swatch.selected {
-  box-shadow: 0 0 0 3px #0f172a;
+  box-shadow: 0 0 0 3px var(--text-color);
 }
 
-.swatch-teal { --swatch: #0f766e; }
+.swatch-teal { --swatch: var(--primary-color); }
 .swatch-blue { --swatch: #2563eb; }
-.swatch-green { --swatch: #16a34a; }
-.swatch-amber { --swatch: #d97706; }
-.swatch-rose { --swatch: #e11d48; }
+.swatch-green { --swatch: var(--income-color); }
+.swatch-amber { --swatch: var(--warning-color); }
+.swatch-rose { --swatch: var(--expense-color); }
 .swatch-purple { --swatch: #9333ea; }
-.swatch-slate { --swatch: #64748b; }
+.swatch-slate { --swatch: var(--light-text-color); }
 
 .appearance-hint {
   margin: 0;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
   line-height: 1.45;
 }
@@ -259,8 +259,8 @@ export default {
   flex: 0 0 auto;
   min-height: 36px;
   padding: 6px 14px;
-  color: #ffffff;
-  background: #0f766e;
+  color: var(--on-primary);
+  background: var(--primary-color);
   border: 0;
   border-radius: 8px;
   box-shadow: none;

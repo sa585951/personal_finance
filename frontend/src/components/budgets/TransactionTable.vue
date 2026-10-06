@@ -130,8 +130,8 @@ export default {
   gap: 10px;
   min-height: 74px;
   padding: 12px;
-  background-color: #ffffff;
-  border: 1px solid #dbe4ee;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -158,7 +158,7 @@ export default {
 
 .transaction-main span,
 .transaction-side span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.86rem;
 }
 
@@ -166,7 +166,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #0f766e;
+  color: var(--primary-color);
   font-weight: 700;
 }
 
@@ -206,49 +206,49 @@ export default {
 }
 
 .edit-btn {
-  background-color: #dbeafe;
-  color: #1d4ed8;
+  background-color: var(--primary-soft);
+  color: var(--primary-color);
 }
 
 .edit-btn:hover {
-  background-color: #bfdbfe;
+  background-color: var(--brand-border);
 }
 
 .delete-btn {
-  background-color: #fee2e2;
-  color: #dc2626;
+  background-color: var(--expense-soft);
+  color: var(--expense-color);
 }
 
 .delete-btn:hover {
-  background-color: #fecaca;
+  background-color: var(--expense-color);
 }
 
 .income-amount {
-  color: #0f766e;
+  color: var(--income-color);
   font-weight: bold;
 }
 
 .expense-amount {
-  color: #dc2626;
+  color: var(--expense-color);
   font-weight: bold;
 }
 
 .type-chip.income {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--income-color);
+  background: var(--income-soft);
 }
 
 .type-chip.expense {
-  color: #dc2626;
-  background: #fee2e2;
+  color: var(--expense-color);
+  background: var(--expense-soft);
 }
 
 .no-data {
   text-align: center;
   padding: 2rem;
   color: #666;
-  background-color: #ffffff;
-  border: 1px solid #dbe4ee;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
   margin-top: 1rem;
   border-radius: 8px;
 }

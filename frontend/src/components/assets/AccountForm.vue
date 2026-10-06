@@ -164,7 +164,7 @@ export default {
 
 .form-group label {
   font-weight: bold;
-  color: #475569;
+  color: var(--light-text-color);
 }
 
 .form-group input,
@@ -172,9 +172,9 @@ export default {
   min-height: 44px;
   width: 100%;
   padding: 0.8rem 1rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
   transition: all 0.3s ease;
 }
 
@@ -188,7 +188,7 @@ export default {
 .account-form button {
   min-height: 46px;
   margin-top: 4px;
-  background-color: #0f766e;
+  background-color: var(--primary-color);
 }
 
 .message {

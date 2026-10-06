@@ -188,7 +188,7 @@ export default {
   min-height: calc(100vh - 80px);
   margin: 0 auto;
   padding: 24px 14px calc(var(--app-bottom-nav-height) + 22px);
-  color: #1f2933;
+  color: var(--text-color);
 }
 
 .budget-header {
@@ -203,8 +203,8 @@ export default {
   flex-shrink: 0;
   min-height: 38px;
   padding: 0 12px;
-  color: #ffffff;
-  background: #0f766e;
+  color: var(--on-primary);
+  background: var(--primary-color);
   border-radius: 8px;
   box-shadow: none;
 }
@@ -216,7 +216,7 @@ export default {
 
 .eyebrow {
   margin: 0 0 4px;
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -237,9 +237,9 @@ h1 {
 .form-container {
   margin-top: 1rem;
   padding: 16px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background-color: #ffffff;
+  background-color: var(--card-bg);
   box-shadow: none;
 }
 
@@ -252,14 +252,14 @@ h1 {
 }
 
 .form-container h3 {
-  color: #1f2933;
+  color: var(--text-color);
 }
 
 .quiet-button {
   min-height: 34px;
   padding: 0 10px;
-  color: #334155;
-  background: #e2e8f0;
+  color: var(--text-color);
+  background: var(--border-color);
   border-radius: 8px;
   box-shadow: none;
 }
@@ -284,7 +284,7 @@ h1 {
 
 .form-group label {
   font-weight: bold;
-  color: #475569;
+  color: var(--light-text-color);
 }
 
 .form-group input,
@@ -293,9 +293,9 @@ h1 {
   min-width: 0;
   width: 100%;
   padding: 0.8rem 1rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
   transition: all 0.3s ease;
 }
 
@@ -309,11 +309,11 @@ h1 {
 .form-container button {
   grid-column: 1 / -1;
   min-height: 46px;
-  background-color: #0f766e;
+  background-color: var(--primary-color);
   padding: 10px 20px;
   border: none;
   border-radius: 8px;
-  color: white;
+  color: var(--on-primary);
   font-weight: bold;
   cursor: pointer;
   transition: all 0.3s ease;

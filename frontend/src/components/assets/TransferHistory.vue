@@ -86,13 +86,13 @@ export default {
 }
 
 .section-heading span {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.86rem;
 }
 
 .empty-hint {
   margin: 0;
-  color: #64748b;
+  color: var(--light-text-color);
 }
 
 .transfer-list {
@@ -103,9 +103,9 @@ export default {
 
 .transfer-item {
   padding: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .transfer-main,
@@ -125,7 +125,7 @@ export default {
 
 .transfer-main span,
 .transfer-meta {
-  color: #64748b;
+  color: var(--light-text-color);
   font-size: 0.86rem;
 }
 
@@ -145,17 +145,17 @@ export default {
 .transfer-actions button {
   min-height: 34px;
   padding: 0 12px;
-  color: #334155;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
+  color: var(--text-color);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: none;
   font-size: 0.88rem;
 }
 
 .transfer-actions .danger {
-  color: #b91c1c;
-  border-color: #fecaca;
-  background: #fef2f2;
+  color: var(--expense-color);
+  border-color: var(--expense-color);
+  background: var(--expense-soft);
 }
 </style>
