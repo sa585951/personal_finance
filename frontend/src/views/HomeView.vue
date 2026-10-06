@@ -1118,4 +1118,90 @@ h1 {
     height: 6px;
   }
 }
+
+/* Nomica visual system */
+.home-screen { max-width: 560px; }
+.home-header { margin-bottom: 22px; align-items: flex-end; }
+.home-header h1 { font-weight: 800; }
+.page-add-button { border-radius: 12px; background: var(--primary-color); box-shadow: 0 8px 18px rgba(17, 111, 103, 0.18); }
+.getting-started-panel { padding: 20px; border-color: #d1e8db; background: #f9fdf9; }
+.getting-started-heading > strong { color: #0d675d; background: #e0f1e9; border-radius: 12px; }
+.setup-step { min-height: 72px; background: #fff; border-color: #e3ebe4; }
+.setup-step > span:first-child { background: var(--primary-color); border-radius: 11px; }
+.setup-step.complete > span:first-child { color: var(--primary-color); background: var(--primary-soft); }
+.insights-panel { padding: 20px; }
+.section-heading h2 { color: var(--text-color); font-size: 1.12rem; font-weight: 800; }
+.insight-card, .insight-empty { padding: 14px; border-color: #e7ece7; background: #fafbf8; }
+.insight-card { transition: transform 180ms ease, box-shadow 180ms ease; }
+.insight-card:hover { box-shadow: 0 8px 22px rgba(20, 60, 53, 0.08); }
+.insight-marker { width: 4px; background: #8da49c; }
+.insight-card.needs-action { background: #fffaf4; border-color: #f0dcc4; }
+.insight-card.needs-action .insight-marker { background: #c9894d; }
+.insight-card.attention .insight-marker { background: #638c9a; }
+.insight-content strong, .insight-empty strong { color: var(--text-color); }
+.insight-action { color: var(--primary-color); border-color: #dce7df; }
+.monthly-overview-card {
+  isolation: isolate;
+  padding: clamp(22px, 5vw, 30px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 24px;
+  background: linear-gradient(135deg, #124940 0%, #116d63 62%, #31847a 100%);
+  box-shadow: 0 18px 32px rgba(16, 91, 81, 0.19);
+}
+.monthly-overview-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 270px;
+  height: 270px;
+  top: -165px;
+  right: -95px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  box-shadow: 0 0 0 34px rgba(255, 255, 255, 0.035), 0 0 0 80px rgba(255, 255, 255, 0.025);
+  pointer-events: none;
+}
+.overview-card-header span:first-child {
+  padding: 6px 10px;
+  color: #174d43;
+  background: #e4f4e8;
+  border-radius: 999px;
+}
+.overview-card-header span:last-child { color: rgba(255, 255, 255, 0.83); }
+.overview-balance {
+  font-size: clamp(2.45rem, 9vw, 3.35rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  overflow-wrap: anywhere;
+}
+.overview-scope-toggle { margin-top: 22px; border-radius: 999px; }
+.overview-scope-toggle button { border-radius: 999px; }
+.overview-scope-toggle button.active { color: #0c5b55; }
+.overview-stats {
+  gap: 10px;
+  padding: 14px 0;
+  margin-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+.overview-stats p { color: rgba(255, 255, 255, 0.72); }
+.overview-stats strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
+.ratio-track { height: 7px; }
+.ratio-fill { transition: width 320ms ease; }
+.ratio-fill.income { background: #d8ecd7; }
+.ratio-fill.expense { background: #e8b898; }
+.overview-expense-source {
+  padding: 15px;
+  background: rgba(3, 49, 43, 0.22);
+  border-color: rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+}
+@media (max-width: 420px) {
+  .home-header { align-items: center; }
+  .insight-card { grid-template-columns: 4px minmax(0, 1fr); }
+  .insight-marker { width: 4px; height: 100%; min-height: 42px; }
+  .insight-action { grid-column: 2; justify-self: start; }
+  .insight-summary-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .insight-summary-strip span { white-space: normal; line-height: 1.2; }
+}
 </style>

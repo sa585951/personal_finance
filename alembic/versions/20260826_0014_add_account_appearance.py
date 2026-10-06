@@ -20,24 +20,33 @@ COLOR_KEYS = "'teal', 'blue', 'green', 'amber', 'rose', 'purple', 'slate'"
 
 
 def upgrade():
-    op.add_column(
-        "accounts",
-        sa.Column(
-            "icon_key",
-            sa.String(length=30),
-            server_default=sa.text("'other'"),
-            nullable=False,
-        ),
-    )
-    op.add_column(
-        "accounts",
-        sa.Column(
-            "color_key",
-            sa.String(length=20),
-            server_default=sa.text("'slate'"),
-            nullable=False,
-        ),
-    )
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("accounts")}
+
+    # The base migration creates tables from the current SQLAlchemy metadata.
+    # Fresh databases may therefore already contain these columns, while an
+    # existing database at revision 0013 still needs them added here.
+    if "icon_key" not in columns:
+        op.add_column(
+            "accounts",
+            sa.Column(
+                "icon_key",
+                sa.String(length=30),
+                server_default=sa.text("'other'"),
+                nullable=False,
+            ),
+        )
+    if "color_key" not in columns:
+        op.add_column(
+            "accounts",
+            sa.Column(
+                "color_key",
+                sa.String(length=20),
+                server_default=sa.text("'slate'"),
+                nullable=False,
+            ),
+        )
 
     op.execute(
         sa.text(
@@ -67,20 +76,36 @@ def upgrade():
         )
     )
 
-    op.create_check_constraint(
-        "ck_accounts_icon_key",
-        "accounts",
-        f"icon_key in ({ICON_KEYS})",
-    )
-    op.create_check_constraint(
-        "ck_accounts_color_key",
-        "accounts",
-        f"color_key in ({COLOR_KEYS})",
-    )
+    check_constraints = {
+        constraint.get("name") for constraint in sa.inspect(bind).get_check_constraints("accounts")
+    }
+    if "ck_accounts_icon_key" not in check_constraints:
+        op.create_check_constraint(
+            "ck_accounts_icon_key",
+            "accounts",
+            f"icon_key in ({ICON_KEYS})",
+        )
+    if "ck_accounts_color_key" not in check_constraints:
+        op.create_check_constraint(
+            "ck_accounts_color_key",
+            "accounts",
+            f"color_key in ({COLOR_KEYS})",
+        )
 
 
 def downgrade():
-    op.drop_constraint("ck_accounts_color_key", "accounts", type_="check")
-    op.drop_constraint("ck_accounts_icon_key", "accounts", type_="check")
-    op.drop_column("accounts", "color_key")
-    op.drop_column("accounts", "icon_key")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    check_constraints = {
+        constraint.get("name") for constraint in inspector.get_check_constraints("accounts")
+    }
+    if "ck_accounts_color_key" in check_constraints:
+        op.drop_constraint("ck_accounts_color_key", "accounts", type_="check")
+    if "ck_accounts_icon_key" in check_constraints:
+        op.drop_constraint("ck_accounts_icon_key", "accounts", type_="check")
+
+    columns = {column["name"] for column in sa.inspect(bind).get_columns("accounts")}
+    if "color_key" in columns:
+        op.drop_column("accounts", "color_key")
+    if "icon_key" in columns:
+        op.drop_column("accounts", "icon_key")

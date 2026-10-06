@@ -1,6 +1,6 @@
 <template>
   <Navbar v-if="!['Login', 'AuthCallback'].includes($route.name)" />
-  <main>
+  <main :class="{ 'with-navbar': !['Login', 'AuthCallback'].includes($route.name) }">
   <router-view />
   </main>
 </template>
@@ -16,4 +16,8 @@ export default {
 };
 </script>
 
-<style></style>
+<style>
+@media (min-width: 1024px) {
+  #app main.with-navbar { padding-top: 72px; }
+}
+</style>

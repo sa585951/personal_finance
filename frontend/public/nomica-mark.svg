@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Nomica">
+  <rect width="1024" height="1024" fill="#124940"/>
+  <path d="M262 738V286L762 738V286" fill="none" stroke="#F7F8F4" stroke-width="102" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="762" cy="286" r="58" fill="#D8A46D"/>
+</svg>

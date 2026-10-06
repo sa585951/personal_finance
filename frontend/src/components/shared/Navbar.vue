@@ -1,7 +1,7 @@
 <template>
   <nav class="navbar" aria-label="主要導覽">
     <div class="logo">
-      <router-link to="/">Nomica</router-link>
+      <router-link to="/"><img src="/nomica-mark.svg" alt="" class="logo-mark" />Nomica</router-link>
     </div>
     <ul class="nav-links">
       <li v-for="item in navItems" :key="item.to">
@@ -23,8 +23,9 @@
         </label>
       </template>
       <template v-if="isLoggedIn">
-        <button class="account-button" type="button" @click="showAccountMenu = !showAccountMenu">
-          {{ userName || "帳號" }}
+        <button class="account-button" type="button" :aria-label="`帳號選單：${userName || '帳號'}`" :aria-expanded="showAccountMenu" @click="showAccountMenu = !showAccountMenu">
+          <span class="account-initial" aria-hidden="true">{{ (userName || "帳")[0] }}</span>
+          <span class="account-name">{{ userName || "帳號" }}</span>
         </button>
         <div v-if="showAccountMenu" class="account-menu">
           <span>{{ userName || "已登入" }}</span>
@@ -318,10 +319,100 @@ export default {
     border: 1px solid #99f6e4;
   }
 
-  .logout-button {
-    color: #b91c1c;
-    background: #fee2e2;
-    border: 1px solid #fecaca;
+.logout-button {
+  color: #b91c1c;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+}
+}
+
+/* Product navigation */
+.navbar {
+  left: 10px;
+  right: 10px;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  min-height: 68px;
+  padding: 6px;
+  border: 1px solid rgba(201, 218, 210, 0.82);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 36px rgba(17, 57, 51, 0.14);
+  backdrop-filter: blur(18px);
+}
+.nav-links { max-width: 540px; gap: 2px; }
+.nav-links a {
+  min-height: 54px;
+  border-radius: 15px;
+  color: #70817c;
+  font-size: 0.72rem;
+  font-weight: 700;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+.nav-links svg { width: 21px; height: 21px; }
+.nav-links a:hover,
+.nav-links a.router-link-active,
+.nav-links a.router-link-exact-active {
+  color: #0c675e;
+  background: #e6f3ee;
+}
+.nav-links a.router-link-active svg,
+.nav-links a.router-link-exact-active svg { color: #0c675e; }
+.account-button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid #c9e2d8;
+  border-radius: 50%;
+  color: #0c675e;
+  background: #e6f3ee;
+}
+.account-initial { font-size: 0.9rem; font-weight: 800; }
+.account-name { display: none; }
+.account-menu { border-radius: 16px; border-color: var(--border-color); }
+.account-menu-link { color: var(--primary-color); background: var(--primary-soft); border-color: #c9e2d8; }
+.dev-user-switcher { border-radius: 12px; border-color: var(--border-color); background: #f5f8f5; }
+.dev-user-switcher select { width: 58px; border: 0; background: transparent; color: var(--text-color); }
+@media (max-width: 380px) {
+  .navbar { left: 6px; right: 6px; }
+  .nav-links a { font-size: 0.68rem; }
+  .nav-links svg { width: 19px; height: 19px; }
+}
+@media (min-width: 1024px) {
+  .navbar {
+    top: 0;
+    bottom: auto;
+    left: 0;
+    right: 0;
+    min-height: 72px;
+    padding: 8px max(24px, calc((100vw - 1120px) / 2));
+    justify-content: space-between;
+    gap: 36px;
+    border: 0;
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 0;
+    box-shadow: 0 6px 22px rgba(17, 57, 51, 0.055);
   }
+  .logo { display: block; flex: 0 0 auto; }
+  .logo a {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-color);
+    font-size: 1.2rem;
+    font-weight: 850;
+    letter-spacing: -0.04em;
+    text-decoration: none;
+  }
+  .logo-mark { width: 34px; height: 34px; border-radius: 11px; }
+  .nav-links { flex: 0 1 540px; }
+  .nav-links a { flex-direction: row; gap: 7px; min-height: 42px; font-size: 0.84rem; }
+  .nav-links svg { width: 18px; height: 18px; }
+  .account-button { display: inline-flex; width: auto; max-width: 150px; padding: 0 12px 0 4px; gap: 8px; border-radius: 999px; }
+  .account-initial { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: #d6ece3; }
+  .account-name { display: block; overflow: hidden; text-overflow: ellipsis; }
+  .account-menu { top: calc(100% + 10px); bottom: auto; }
 }
 </style>

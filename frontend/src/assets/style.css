@@ -1,71 +1,170 @@
-/* ========================
-   基礎排版與通用樣式
-   ======================== */
 :root {
-  --primary-color: #0f766e;
-  --primary-soft: #ccfbf1;
-  --secondary-color: #f8fafc;
+  color-scheme: light;
+  --primary-color: #116f67;
+  --primary-hover: #0c5b55;
+  --primary-soft: #e2f3ee;
+  --secondary-color: #f8f6f1;
   --card-bg: #ffffff;
-  --border-color: #dbe4ee;
-  --text-color: #1f2933;
-  --light-text-color: #64748b;
-  --danger-color: #dc2626;
-  --update-color: #2563eb;
-  --warning-color: #ca8a04;
-  --page-bg: #f4f7f9;
+  --border-color: #e5e9e3;
+  --text-color: #19332f;
+  --light-text-color: #647570;
+  --danger-color: #bb514c;
+  --update-color: #386f9c;
+  --warning-color: #a86b32;
+  --page-bg: #f7f8f4;
   --page-max-width: 960px;
   --compact-page-max-width: 520px;
-  --card-radius: 10px;
-  --app-bottom-nav-height: 82px;
+  --card-radius: 20px;
+  --app-bottom-nav-height: 88px;
+  --surface-shadow: 0 12px 32px rgba(31, 62, 56, 0.055);
+  --motion-fast: 180ms;
+  --motion-normal: 280ms;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
-  background-color: var(--page-bg);
   color: var(--text-color);
-  line-height: 1.6;
+  background: radial-gradient(circle at 50% -140px, #eaf4ed 0, transparent 440px), var(--page-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Noto Sans TC", "Helvetica Neue", sans-serif;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overscroll-behavior-y: none;
+  text-rendering: optimizeLegibility;
 }
 
-#app {
-  min-height: 100vh;
-}
+#app { min-height: 100vh; }
+button, input, select, textarea { font: inherit; }
 
 button {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  color: white;
-  font-weight: bold;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 18px;
+  color: #fff;
+  background: var(--primary-color);
+  font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   box-shadow: none;
+  transition: transform var(--motion-fast) ease, background-color var(--motion-fast) ease, border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
   -webkit-tap-highlight-color: transparent;
 }
 
+button:disabled { cursor: not-allowed; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid #79bcb0;
+  outline-offset: 3px;
+}
+
 @media (hover: hover) and (pointer: fine) {
-  button:hover {
-    filter: brightness(0.97);
+  button:not(:disabled):hover { transform: translateY(-2px); }
+}
+button:not(:disabled):active { transform: scale(0.98); }
+.delete-btn { background-color: var(--danger-color); }
+.update-btn { background-color: var(--update-color); }
+.confirm-btn { background-color: var(--primary-color); }
+
+/* Shared product surfaces. Pages retain their own layout and financial semantics. */
+#app :is(.home-screen, .transactions-screen, .assets-screen, .analysis-screen, .trip-list-view, .universal-add-screen) {
+  position: relative;
+  padding-top: clamp(24px, 5vw, 42px);
+}
+
+#app :is(.home-header, .page-header, .assets-header, .analysis-header, .add-header) h1 {
+  color: var(--text-color);
+  font-size: clamp(1.72rem, 4.5vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1.18;
+}
+
+#app :is(.home-screen, .transactions-screen, .assets-screen, .analysis-screen, .trip-list-view, .universal-add-screen) .eyebrow {
+  color: var(--primary-color);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+}
+
+#app :is(.page-add-button, .primary-action) {
+  border-radius: 12px;
+  background: var(--primary-color);
+  box-shadow: 0 6px 14px rgba(17, 111, 103, 0.15);
+}
+
+#app :is(.insights-panel, .getting-started-panel, .account-health-panel, .create-panel, .management-panel, .action-panel, .transfer-result-panel, .records-section, .entry-form-section, .summary-card, .status-card, .chart-card, .source-card, .preview-card, .success-panel, .trip-card) {
+  border-color: var(--border-color);
+  border-radius: var(--card-radius);
+  box-shadow: var(--surface-shadow);
+}
+
+#app :is(.setup-step, .insight-card, .insight-empty, .health-card) { border-radius: 14px; }
+#app main :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-radius: 12px;
+  accent-color: var(--primary-color);
+}
+#app main :is(input:not([type="checkbox"]):not([type="radio"]), select) { min-height: 44px; }
+#app main :is(input[type="checkbox"], input[type="radio"]) { accent-color: var(--primary-color); }
+#app :is(.trip-card, .allocation-entry) { transition: transform var(--motion-fast) ease, box-shadow var(--motion-fast) ease; }
+@media (hover: hover) and (pointer: fine) {
+  #app :is(.trip-card, .allocation-entry):hover { transform: translateY(-2px); box-shadow: 0 12px 25px rgba(20, 60, 53, 0.1); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #app main > * { animation: page-enter 360ms both; }
+  @keyframes page-enter {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 }
 
-.delete-btn {
-  background-color: var(--danger-color);
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
-.update-btn {
-  background-color: var(--update-color);
+
+/* Tablet uses the same bottom navigation as phones, with roomier content. */
+@media (min-width: 700px) {
+  #app :is(.transactions-screen, .assets-screen, .analysis-screen, .trip-list-view, .trips-page, .budget-screen) {
+    width: min(100%, 900px);
+    max-width: 900px;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+  #app .universal-add-screen {
+    width: min(100%, 720px);
+    max-width: 720px;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+  #app .home-screen {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    width: min(100%, 960px);
+    max-width: 960px;
+    padding-left: 24px;
+    padding-right: 24px;
+    align-content: start;
+  }
+  #app .home-screen > :not(.monthly-overview-card):not(.insights-panel) { grid-column: 1 / -1; }
+  #app .home-screen :is(.monthly-overview-card, .insights-panel, .getting-started-panel) { margin-top: 0; margin-bottom: 0; }
+  #app .home-screen :is(.monthly-overview-card, .insights-panel) { align-self: start; }
+  #app .assets-screen .health-card-grid,
+  #app .assets-screen .overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #app .assets-screen .currency-card + .currency-card { padding-top: 0; border-top: 0; }
+  #app .assets-screen .total-primary strong { overflow-wrap: anywhere; }
+  #app .trip-list-view :is(.trip-grid, .trip-form) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-.confirm-btn {
-  background-color: var(--primary-color);
+
+@media (min-width: 900px) {
+  #app .analysis-screen {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    align-content: start;
+  }
+  #app .analysis-screen > :not(.status-card) { grid-column: 1 / -1; }
+  #app .analysis-screen > .status-card { margin: 0; }
 }
