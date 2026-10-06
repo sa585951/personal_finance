@@ -16,10 +16,10 @@
         {{ filter.label }}
       </button>
     </div>
-    <p v-if="loading" class="activity-state">
+    <p v-if="loading && !activities.length" class="activity-state">
       載入中...
     </p>
-    <p v-else-if="error" class="activity-state error">
+    <p v-else-if="error && !activities.length" class="activity-state error">
       {{ error }}
     </p>
     <p v-else-if="!activities.length" class="activity-state">
@@ -61,34 +61,28 @@
         </div>
       </article>
     </div>
-    <div
+    <AppPagination
       v-if="activities.length"
-      class="activity-pagination"
-    >
-      <button
-        type="button"
-        :disabled="!pagination.has_prev || loading"
-        @click="requestPage(pagination.page - 1)"
-      >
-        上一頁
-      </button>
-      <span>
-        第 {{ pagination.page }} 頁
-      </span>
-      <button
-        type="button"
-        :disabled="!pagination.has_next || loading"
-        @click="requestPage(pagination.page + 1)"
-      >
-        下一頁
-      </button>
-    </div>
+      :current-page="pagination.page"
+      :page-size="pagination.limit"
+      :has-next="pagination.has_next"
+      :has-previous="pagination.has_prev"
+      :loading="loading"
+      :error="error"
+      aria-label="帳戶活動分頁"
+      @next="requestPage(pagination.page + 1)"
+      @previous="requestPage(pagination.page - 1)"
+      @retry="requestPage(pagination.page)"
+    />
   </section>
 </template>
 
 <script>
+import AppPagination from "@/components/shared/AppPagination.vue";
+
 export default {
   name: "AccountActivityPanel",
+  components: { AppPagination },
   props: {
     activities: {
       type: Array,
@@ -110,7 +104,7 @@ export default {
       type: Object,
       default: () => ({
         page: 1,
-        limit: 10,
+        limit: 20,
         has_next: false,
         has_prev: false,
       }),
@@ -406,39 +400,4 @@ export default {
   background: #fef2f2;
 }
 
-.activity-pagination {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-}
-
-.activity-pagination button {
-  min-height: 38px;
-  padding: 0 12px;
-  color: #334155;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  box-shadow: none;
-  font-size: 0.84rem;
-  font-weight: 900;
-}
-
-.activity-pagination button:hover {
-  transform: none;
-  box-shadow: none;
-}
-
-.activity-pagination button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.activity-pagination span {
-  color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 800;
-  white-space: nowrap;
-}
 </style>

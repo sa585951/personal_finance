@@ -496,7 +496,7 @@ def get_asset_activity(current_user_id, account_key):
         activity_page = asset_manager.get_account_activity(
             current_user_id,
             account_key,
-            limit=request.args.get("limit", 10),
+            limit=request.args.get("limit", 20),
             page=request.args.get("page", 1),
             activity_filter=request.args.get("filter", "all"),
         )
@@ -983,13 +983,15 @@ def get_trip_overview(current_user_id, trip_id):
         segment_timings["invite_ms"] = 0
 
         segment_started_at = time.perf_counter()
-        transactions = budget_manager.get_all_transactions(
+        transaction_page = budget_manager.get_all_transactions(
             current_user_id,
             trip_id=trip_id,
-            limit=request.args.get("limit", 50),
+            limit=20,
             trip=trip,
             current_trip_member=current_member,
+            return_pagination=True,
         )
+        transaction_summary = budget_manager.get_trip_transaction_summary(current_user_id, trip_id)
         segment_timings["transactions_ms"] = (time.perf_counter() - segment_started_at) * 1000
 
         segment_started_at = time.perf_counter()
@@ -1017,7 +1019,9 @@ def get_trip_overview(current_user_id, trip_id):
             "success": True,
             "data": {
                 "trip": trip,
-                "transactions": transactions,
+                "transactions": transaction_page["items"],
+                "transaction_pagination": transaction_page["pagination"],
+                "transaction_summary": transaction_summary,
                 "split_summary": split_summary,
                 "settlement_suggestions": [],
                 "settlements": [],
@@ -1463,27 +1467,37 @@ def get_available_months(current_user_id):
 @token_required
 def get_transactions(current_user_id):
     try:
+        trip_id = request.args.get("trip_id")
         pagination_requested = any(
             request.args.get(name) is not None
-            for name in ("type", "month", "limit", "cursor")
+            for name in ("trip_id", "type", "month", "date", "limit", "cursor")
         )
+        limit = request.args.get("limit")
+        if trip_id and limit is None:
+            limit = 20
         result = budget_manager.get_all_transactions(
             current_user_id,
-            trip_id=request.args.get("trip_id"),
+            trip_id=trip_id,
             include_trips=request.args.get("include_trips") == "true",
             monthly_report=request.args.get("monthly_report") == "true",
-            limit=request.args.get("limit"),
+            limit=limit,
             transaction_type=request.args.get("type"),
             month=request.args.get("month"),
+            transaction_date=request.args.get("date"),
             cursor=request.args.get("cursor"),
             return_pagination=pagination_requested,
         )
         if pagination_requested:
-            return jsonify({
+            response_data = {
                 "success": True,
                 "data": result["items"],
                 "pagination": result["pagination"],
-            }), 200
+            }
+            if trip_id:
+                response_data["trip_transaction_summary"] = (
+                    budget_manager.get_trip_transaction_summary(current_user_id, trip_id)
+                )
+            return jsonify(response_data), 200
         return jsonify({"success": True, "data": result}), 200
     except ValueError as e:
         return jsonify({"success": False, "message": str(e)}), 400

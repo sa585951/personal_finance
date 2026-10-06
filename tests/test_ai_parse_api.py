@@ -137,6 +137,15 @@ class FakeBudgetManager:
             }
         return [{"id": "transaction-1"}]
 
+    def get_trip_transaction_summary(self, user_id, trip_id):
+        return {
+            "total_count": 12,
+            "expense_count": 10,
+            "missing_split_count": 1,
+            "date_counts": [{"date": "2027-03-01", "count": 12}],
+            "category_totals": [{"category": "伙食", "amount": 1200}],
+        }
+
     def add_trip_settlement(
         self,
         user_id,
@@ -798,6 +807,28 @@ def test_get_transactions_without_pagination_query_keeps_legacy_shape(monkeypatc
     assert response.status_code == 200
     assert payload == {"success": True, "data": [{"id": "transaction-1"}]}
     assert fake_budget_manager.last_list_request["return_pagination"] is False
+
+
+def test_get_trip_transactions_enforces_backend_pagination(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_budget_manager = FakeBudgetManager()
+    monkeypatch.setattr(web_app, "budget_manager", fake_budget_manager)
+
+    response = web_app.app.test_client().get(
+        "/api/transactions?trip_id=11111111-1111-1111-1111-111111111111&date=2027-03-01",
+        headers=_auth_headers(),
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["pagination"]["has_more"] is True
+    assert payload["trip_transaction_summary"]["total_count"] == 12
+    assert fake_budget_manager.last_list_request["trip_id"] == (
+        "11111111-1111-1111-1111-111111111111"
+    )
+    assert fake_budget_manager.last_list_request["limit"] == 20
+    assert fake_budget_manager.last_list_request["transaction_date"] == "2027-03-01"
+    assert fake_budget_manager.last_list_request["return_pagination"] is True
 
 
 def test_ai_parse_events_api_returns_recent_events(monkeypatch):

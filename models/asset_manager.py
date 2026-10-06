@@ -971,7 +971,7 @@ class AssetManager:
             transfers.append(transfer)
         return transfers
 
-    def get_account_activity(self, user_id, account_key, limit=10, page=1, activity_filter="all"):
+    def get_account_activity(self, user_id, account_key, limit=20, page=1, activity_filter="all"):
         """取得單一帳戶近期收支、轉帳與餘額校正活動。"""
         normalized_filter = (activity_filter or "all").strip().lower()
         if normalized_filter not in {"all", "income", "expense", "transfer", "settlement", "adjustment"}:

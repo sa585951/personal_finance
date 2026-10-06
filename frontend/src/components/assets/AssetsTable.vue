@@ -397,7 +397,7 @@ export default {
     accountActivityPage(accountId) {
       return this.accountActivityPagination[accountId] || {
         page: 1,
-        limit: 10,
+        limit: 20,
         has_next: false,
         has_prev: false,
       };

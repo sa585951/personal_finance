@@ -33,7 +33,7 @@ export default {
     Doughnut,
   },
   props: {
-    transactions: {
+    categoryTotals: {
       type: Array,
       default: () => [],
     },
@@ -43,26 +43,20 @@ export default {
     },
   },
   computed: {
-    categoryTotals() {
-      const totals = new Map();
-      this.transactions
-        .filter((transaction) => transaction.type === "expense")
-        .forEach((transaction) => {
-          const category = transaction.budget_category || transaction.category || "其他";
-          const amount = Number(transaction.converted_amount ?? transaction.amount ?? 0);
-          if (amount <= 0) return;
-          totals.set(category, (totals.get(category) || 0) + amount);
-        });
-
-      return Array.from(totals.entries())
-        .map(([category, amount]) => ({ category, amount }))
+    normalizedCategoryTotals() {
+      return this.categoryTotals
+        .map((item) => ({
+          category: item.category || "其他",
+          amount: Number(item.amount || 0),
+        }))
+        .filter((item) => item.amount > 0)
         .sort((left, right) => right.amount - left.amount);
     },
     hasData() {
-      return this.categoryTotals.length > 0;
+      return this.normalizedCategoryTotals.length > 0;
     },
     totalAmount() {
-      return this.categoryTotals.reduce((sum, item) => sum + item.amount, 0);
+      return this.normalizedCategoryTotals.reduce((sum, item) => sum + item.amount, 0);
     },
     totalText() {
       if (!this.hasData) {
@@ -72,10 +66,10 @@ export default {
     },
     chartData() {
       return {
-        labels: this.categoryTotals.map((item) => item.category),
+        labels: this.normalizedCategoryTotals.map((item) => item.category),
         datasets: [
           {
-            data: this.categoryTotals.map((item) => item.amount),
+            data: this.normalizedCategoryTotals.map((item) => item.amount),
             backgroundColor: [
               "#0f766e",
               "#2563eb",

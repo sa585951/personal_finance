@@ -35,6 +35,7 @@ def test_transaction_cursor_rejects_invalid_value(cursor):
     [
         ({"transaction_type": "transfer"}, "type 僅支援 expense 或 income"),
         ({"month": "2026/08"}, "month 格式必須為 YYYY-MM"),
+        ({"transaction_date": "2026/08/19"}, "date 格式必須為 YYYY-MM-DD"),
         ({"limit": 0}, "limit 必須介於 1 到 50"),
         ({"limit": 51}, "limit 必須介於 1 到 50"),
     ],

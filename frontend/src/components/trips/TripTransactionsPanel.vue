@@ -38,9 +38,14 @@
         <p>需完成分攤設定後，這些支出才會依個人分攤金額納入月報。</p>
       </div>
 
-      <div v-if="transactions.length === 0" class="empty-state">尚未新增旅行支出</div>
-      <div v-else-if="filteredTransactions.length === 0" class="empty-state">這一天尚無旅行支出</div>
-      <div v-else class="transaction-list">
+      <div v-if="!loadError && transactions.length === 0" class="empty-state">尚未新增旅行支出</div>
+      <div
+        v-else-if="transactions.length > 0 && filteredTransactions.length === 0"
+        class="empty-state"
+      >
+        這一天尚無旅行支出
+      </div>
+      <div v-else-if="transactions.length > 0" class="transaction-list">
         <div
           v-for="transaction in filteredTransactions"
           :key="transaction.id"
@@ -76,6 +81,21 @@
           </button>
         </div>
       </div>
+
+      <AppPagination
+        v-if="transactions.length > 0 || loadError"
+        :current-page="currentPage"
+        :page-size="pagination.limit || 20"
+        :total-count="pagination.total_count"
+        :has-next="pagination.has_more"
+        :has-previous="currentPage > 1"
+        :loading="loading"
+        :error="loadError"
+        aria-label="旅行交易分頁"
+        @next="$emit('next-page')"
+        @previous="$emit('previous-page')"
+        @retry="$emit('retry-page')"
+      />
     </section>
 
     <section v-if="selectedTransaction" class="transaction-detail-section">
@@ -145,10 +165,11 @@
 
 <script>
 import { Delete, Document, Edit, List } from "@element-plus/icons-vue";
+import AppPagination from "@/components/shared/AppPagination.vue";
 
 export default {
   name: "TripTransactionsPanel",
-  components: { Delete, Document, Edit, List },
+  components: { AppPagination, Delete, Document, Edit, List },
   props: {
     transactions: { type: Array, default: () => [] },
     filteredTransactions: { type: Array, default: () => [] },
@@ -157,11 +178,21 @@ export default {
     missingSplitCount: { type: Number, default: 0 },
     selectedTransaction: { type: Object, default: null },
     currentMemberId: { type: String, default: "" },
+    pagination: {
+      type: Object,
+      default: () => ({ next_cursor: null, has_more: false, limit: 20, total_count: 0 }),
+    },
+    currentPage: { type: Number, default: 1 },
+    loading: { type: Boolean, default: false },
+    loadError: { type: String, default: "" },
   },
   emits: [
     "delete-transaction",
     "edit-transaction",
     "export",
+    "next-page",
+    "previous-page",
+    "retry-page",
     "select-date",
     "select-transaction",
   ],
@@ -196,6 +227,11 @@ export default {
 .trip-transactions-panels {
   display: grid;
   gap: 16px;
+  min-width: 0;
+}
+
+.transactions-section {
+  min-width: 0;
 }
 
 .section-title,
@@ -250,6 +286,7 @@ export default {
   gap: 8px;
   clear: both;
   margin: 4px 0 14px;
+  max-width: 100%;
   padding: 2px 0 4px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;

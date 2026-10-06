@@ -26,7 +26,7 @@
     </div>
 
     <div class="trip-category-panel" :class="{ expanded }">
-      <TripCategoryChart :transactions="transactions" :currency="currency" />
+      <TripCategoryChart :category-totals="categoryTotals" :currency="currency" />
     </div>
   </div>
 </template>
@@ -43,7 +43,7 @@ export default {
     expenseTotal: { type: Number, default: 0 },
     netAmount: { type: Number, default: 0 },
     netStatus: { type: Object, required: true },
-    transactions: { type: Array, default: () => [] },
+    categoryTotals: { type: Array, default: () => [] },
     expanded: { type: Boolean, default: false },
   },
   emits: ["toggle"],

@@ -259,6 +259,7 @@ class BudgetManager:
         current_trip_member=None,
         transaction_type=None,
         month=None,
+        transaction_date=None,
         cursor=None,
         return_pagination=False,
     ):
@@ -285,6 +286,12 @@ class BudgetManager:
             except (TypeError, ValueError) as exc:
                 raise ValueError("month 格式必須為 YYYY-MM") from exc
             month_end = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        parsed_transaction_date = None
+        if transaction_date is not None:
+            try:
+                parsed_transaction_date = self._parse_date(transaction_date)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("date 格式必須為 YYYY-MM-DD") from exc
         cursor_values = self._decode_transaction_cursor(cursor) if cursor else None
         creator_users = users_table.alias("creator_users")
         split_counts = (
@@ -437,6 +444,8 @@ class BudgetManager:
                 transactions_table.c.transaction_date >= month_start,
                 transactions_table.c.transaction_date < month_end,
             )
+        if parsed_transaction_date:
+            stmt = stmt.where(transactions_table.c.transaction_date == parsed_transaction_date)
 
         total_count = None
         if return_pagination:
@@ -525,6 +534,78 @@ class BudgetManager:
                 "limit": parsed_limit,
                 "total_count": total_count,
             },
+        }
+
+    def get_trip_transaction_summary(self, user_id, trip_id):
+        """取得不受列表分頁影響的旅行交易統計。"""
+        parsed_user_id = self._parse_user_id(user_id)
+        parsed_trip_id = self._parse_optional_uuid(trip_id, "trip_id")
+        TripManager(self.db_session).get_trip(parsed_user_id, parsed_trip_id)
+
+        base_conditions = (
+            transactions_table.c.trip_id == parsed_trip_id,
+            transactions_table.c.deleted_at.is_(None),
+        )
+        counts = self.db_session.execute(
+            select(
+                func.count(transactions_table.c.id).label("total_count"),
+                func.count(transactions_table.c.id)
+                .filter(transactions_table.c.type == "expense")
+                .label("expense_count"),
+            ).where(*base_conditions)
+        ).one()
+
+        split_counts = (
+            select(
+                transaction_splits_table.c.transaction_id,
+                func.count(transaction_splits_table.c.id).label("split_count"),
+            )
+            .group_by(transaction_splits_table.c.transaction_id)
+            .subquery()
+        )
+        missing_split_count = self.db_session.execute(
+            select(func.count(transactions_table.c.id))
+            .outerjoin(split_counts, split_counts.c.transaction_id == transactions_table.c.id)
+            .where(
+                *base_conditions,
+                transactions_table.c.type == "expense",
+                transactions_table.c.converted_amount > 0,
+                func.coalesce(split_counts.c.split_count, 0) == 0,
+            )
+        ).scalar_one()
+
+        date_rows = self.db_session.execute(
+            select(
+                transactions_table.c.transaction_date,
+                func.count(transactions_table.c.id).label("count"),
+            )
+            .where(*base_conditions)
+            .group_by(transactions_table.c.transaction_date)
+            .order_by(transactions_table.c.transaction_date.asc())
+        )
+        category_rows = self.db_session.execute(
+            select(
+                categories_table.c.name.label("category"),
+                func.sum(transactions_table.c.converted_amount).label("amount"),
+            )
+            .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
+            .where(*base_conditions, transactions_table.c.type == "expense")
+            .group_by(categories_table.c.name)
+            .order_by(func.sum(transactions_table.c.converted_amount).desc())
+        )
+
+        return {
+            "total_count": int(counts.total_count or 0),
+            "expense_count": int(counts.expense_count or 0),
+            "missing_split_count": int(missing_split_count or 0),
+            "date_counts": [
+                {"date": row.transaction_date.isoformat(), "count": int(row.count)}
+                for row in date_rows
+            ],
+            "category_totals": [
+                {"category": row.category, "amount": float(row.amount or 0)}
+                for row in category_rows
+            ],
         }
 
     @staticmethod

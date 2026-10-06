@@ -113,7 +113,7 @@
           :expense-total="tripExpenseTotal"
           :net-amount="myTripNetAmount"
           :net-status="myTripNetStatus"
-          :transactions="tripTransactions"
+          :category-totals="tripTransactionSummary.category_totals"
           :expanded="showTripSummary"
           @toggle="showTripSummary = !showTripSummary"
         />
@@ -169,16 +169,24 @@
         />
 
         <TripTransactionsPanel
+          ref="tripTransactionsPanel"
           v-show="activeSection === 'transactions'"
           :transactions="tripTransactions"
           :filtered-transactions="filteredTripTransactions"
           :date-filters="tripDateFilters"
           :selected-date="selectedTransactionDate"
-          :missing-split-count="transactionsMissingSplits.length"
+          :missing-split-count="tripTransactionSummary.missing_split_count"
           :selected-transaction="selectedTransactionDetail"
           :current-member-id="selectedTrip.current_member_id || ''"
+          :pagination="tripTransactionPagination"
+          :current-page="tripTransactionPager.page"
+          :loading="isTripTransactionsLoading"
+          :load-error="tripTransactionLoadError"
           @export="exportTripTransactionsCsv"
-          @select-date="selectedTransactionDate = $event"
+          @next-page="loadNextTripTransactionPage"
+          @previous-page="loadPreviousTripTransactionPage"
+          @retry-page="retryTripTransactionPage"
+          @select-date="selectTripTransactionDate"
           @select-transaction="loadTransactionDetail"
           @delete-transaction="deleteTripTransaction"
           @edit-transaction="startEditTransaction"
@@ -243,6 +251,12 @@ import TripStatusCenter from "@/components/trips/TripStatusCenter.vue";
 import TripSummaryPanel from "@/components/trips/TripSummaryPanel.vue";
 import TripSwitcherModal from "@/components/trips/TripSwitcherModal.vue";
 import TripTransactionsPanel from "@/components/trips/TripTransactionsPanel.vue";
+import {
+  createCursorPager,
+  cursorForPage,
+  recordCursorPage,
+  resetCursorPager,
+} from "@/utils/cursorPagination";
 
 export default {
   name: "TripsView",
@@ -279,6 +293,23 @@ export default {
       selectedTrip: null,
       assets: {},
       tripTransactions: [],
+      tripTransactionPagination: {
+        next_cursor: null,
+        has_more: false,
+        limit: 20,
+        total_count: 0,
+      },
+      tripTransactionPager: createCursorPager(20),
+      tripTransactionSummary: {
+        total_count: 0,
+        expense_count: 0,
+        missing_split_count: 0,
+        date_counts: [],
+        category_totals: [],
+      },
+      isTripTransactionsLoading: false,
+      tripTransactionLoadError: "",
+      tripTransactionRetry: null,
       selectedTransactionDetail: null,
       splitSummary: [],
       settlementSuggestions: [],
@@ -354,31 +385,23 @@ export default {
       ].filter(Boolean)));
     },
     tripExpenseTotal() {
-      return this.tripTransactions
-        .filter((transaction) => transaction.type === "expense")
-        .reduce((sum, transaction) => sum + Number(transaction.converted_amount || 0), 0);
+      return (this.tripTransactionSummary.category_totals || []).reduce(
+        (sum, item) => sum + Number(item.amount || 0),
+        0
+      );
     },
     tripDateFilters() {
-      const dateMap = new Map();
-      this.tripTransactions.forEach((transaction) => {
-        if (!transaction.date) return;
-        const current = dateMap.get(transaction.date) || {
-          key: transaction.date,
-          label: this.formatDateChip(transaction.date),
-          count: 0,
-        };
-        current.count += 1;
-        dateMap.set(transaction.date, current);
-      });
-
-      const dates = Array.from(dateMap.values())
-        .sort((left, right) => left.key.localeCompare(right.key));
+      const dates = (this.tripTransactionSummary.date_counts || []).map((item) => ({
+        key: item.date,
+        label: this.formatDateChip(item.date),
+        count: Number(item.count || 0),
+      }));
 
       return [
         {
           key: "all",
           label: "全部",
-          count: this.tripTransactions.length,
+          count: this.tripTransactionSummary.total_count,
         },
         ...dates,
       ];
@@ -391,15 +414,8 @@ export default {
         (transaction) => transaction.date === this.selectedTransactionDate
       );
     },
-    transactionsMissingSplits() {
-      return this.tripTransactions.filter((transaction) => (
-        transaction.type === "expense"
-        && Number(transaction.converted_amount || 0) > 0
-        && Number(transaction.split_count || 0) === 0
-      ));
-    },
     tripCloseoutStatus() {
-      if (this.tripTransactions.length === 0) {
+      if (this.tripTransactionSummary.total_count === 0) {
         return { label: "尚無支出", tone: "neutral" };
       }
       if (this.settlementSuggestions.length > 0) {
@@ -411,8 +427,10 @@ export default {
       return [
         {
           label: "旅行支出",
-          value: this.tripTransactions.length > 0 ? `${this.tripTransactions.length} 筆` : "尚未記錄",
-          tone: this.tripTransactions.length > 0 ? "success" : "neutral",
+          value: this.tripTransactionSummary.total_count > 0
+            ? `${this.tripTransactionSummary.total_count} 筆`
+            : "尚未記錄",
+          tone: this.tripTransactionSummary.total_count > 0 ? "success" : "neutral",
         },
         {
           label: "待收待付",
@@ -440,8 +458,8 @@ export default {
         pending: "warning",
         legacy: "neutral",
       };
-      const missingSplitCount = this.transactionsMissingSplits.length;
-      const expenseCount = this.tripTransactions.filter((transaction) => transaction.type === "expense").length;
+      const missingSplitCount = this.tripTransactionSummary.missing_split_count;
+      const expenseCount = this.tripTransactionSummary.expense_count;
 
       return [
         {
@@ -800,6 +818,23 @@ export default {
     applyTripOverview(overview) {
       this.selectedTrip = overview.trip;
       this.tripTransactions = overview.transactions || [];
+      this.tripTransactionPagination = overview.transaction_pagination || {
+        next_cursor: null,
+        has_more: false,
+        limit: 20,
+        total_count: this.tripTransactions.length,
+      };
+      this.tripTransactionPager = resetCursorPager(this.tripTransactionPager);
+      this.tripTransactionSummary = overview.transaction_summary || {
+        total_count: this.tripTransactions.length,
+        expense_count: this.tripTransactions.filter((item) => item.type === "expense").length,
+        missing_split_count: 0,
+        date_counts: [],
+        category_totals: [],
+      };
+      this.isTripTransactionsLoading = false;
+      this.tripTransactionLoadError = "";
+      this.tripTransactionRetry = null;
       this.splitSummary = overview.split_summary || [];
       this.settlementSuggestions = overview.settlement_suggestions || [];
       this.settlementRecords = overview.settlements || [];
@@ -1093,11 +1128,92 @@ export default {
         this.assets = {};
       }
     },
-    async fetchTripTransactions() {
-      if (!this.selectedTrip) return;
+    async loadNextTripTransactionPage() {
+      if (!this.tripTransactionPagination.has_more || this.isTripTransactionsLoading) return;
+      const loaded = await this.fetchTripTransactions(
+        this.tripTransactionPagination.next_cursor,
+        this.tripTransactionPager.page + 1
+      );
+      if (loaded) this.scrollTripTransactionsIntoView();
+    },
+    async loadPreviousTripTransactionPage() {
+      if (this.tripTransactionPager.page <= 1 || this.isTripTransactionsLoading) return;
+      const targetPage = this.tripTransactionPager.page - 1;
+      const loaded = await this.fetchTripTransactions(
+        cursorForPage(this.tripTransactionPager, targetPage),
+        targetPage
+      );
+      if (loaded) this.scrollTripTransactionsIntoView();
+    },
+    async retryTripTransactionPage() {
+      const retry = this.tripTransactionRetry;
+      await this.fetchTripTransactions(
+        retry?.cursor ?? cursorForPage(this.tripTransactionPager, this.tripTransactionPager.page),
+        retry?.page ?? this.tripTransactionPager.page
+      );
+    },
+    async selectTripTransactionDate(date) {
+      if (date === this.selectedTransactionDate || this.isTripTransactionsLoading) return;
+      this.selectedTransactionDate = date;
+      this.tripTransactionPager = resetCursorPager(this.tripTransactionPager);
+      await this.fetchTripTransactions();
+    },
+    async fetchTripTransactions(cursor = null, targetPage = 1) {
+      if (!this.selectedTrip || this.isTripTransactionsLoading) return;
+      this.isTripTransactionsLoading = true;
+      this.tripTransactionLoadError = "";
+      this.tripTransactionRetry = null;
       try {
-        const response = await apiClient.get(`/api/transactions?trip_id=${this.selectedTrip.id}&limit=50`);
+        let requestedCursor = cursor;
+        let requestedPage = targetPage;
+        let response;
+        while (true) {
+          const params = {
+            trip_id: this.selectedTrip.id,
+            limit: this.tripTransactionPager.pageSize,
+          };
+          if (this.selectedTransactionDate !== "all") {
+            params.date = this.selectedTransactionDate;
+          }
+          if (requestedCursor) {
+            params.cursor = requestedCursor;
+          }
+          response = await apiClient.get("/api/transactions", { params });
+          const incoming = response.data.data || [];
+          const summary = response.data.trip_transaction_summary;
+          const selectedDateStillExists = (summary?.date_counts || []).some(
+            (item) => item.date === this.selectedTransactionDate
+          );
+          if (
+            incoming.length === 0
+            && this.selectedTransactionDate !== "all"
+            && !selectedDateStillExists
+          ) {
+            this.selectedTransactionDate = "all";
+            requestedPage = 1;
+            requestedCursor = null;
+            continue;
+          }
+          if (incoming.length > 0 || requestedPage === 1) break;
+          requestedPage -= 1;
+          requestedCursor = cursorForPage(this.tripTransactionPager, requestedPage);
+        }
+
         this.tripTransactions = response.data.data || [];
+        this.tripTransactionPagination = response.data.pagination || {
+          next_cursor: null,
+          has_more: false,
+          limit: this.tripTransactionPager.pageSize,
+          total_count: this.tripTransactions.length,
+        };
+        this.tripTransactionPager = recordCursorPage(
+          this.tripTransactionPager,
+          requestedPage,
+          requestedCursor
+        );
+        if (response.data.trip_transaction_summary) {
+          this.tripTransactionSummary = response.data.trip_transaction_summary;
+        }
         this.syncSelectedTransactionDate();
         if (
           this.selectedTransactionDetail &&
@@ -1105,11 +1221,34 @@ export default {
         ) {
           this.selectedTransactionDetail = null;
         }
+        this.tripTransactionRetry = null;
+        return true;
       } catch (error) {
         console.error("無法載入旅行交易", error);
-        this.tripTransactions = [];
-        this.selectedTransactionDate = "all";
+        this.tripTransactionRetry = { cursor, page: targetPage };
+        if (targetPage === 1) {
+          this.tripTransactions = [];
+          this.tripTransactionPager = resetCursorPager(this.tripTransactionPager);
+          this.tripTransactionPagination = {
+            next_cursor: null,
+            has_more: false,
+            limit: this.tripTransactionPager.pageSize,
+            total_count: 0,
+          };
+        }
+        this.tripTransactionLoadError = error.response?.data?.message || "無法載入這一頁交易，請稍後再試。";
+        return false;
+      } finally {
+        this.isTripTransactionsLoading = false;
       }
+    },
+    scrollTripTransactionsIntoView() {
+      this.$nextTick(() => {
+        this.$refs.tripTransactionsPanel?.$el?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
     },
     syncSelectedTransactionDate() {
       if (this.selectedTransactionDate === "all") return;
@@ -1796,7 +1935,7 @@ export default {
       const text = value === null || value === undefined ? "" : String(value);
       return `"${text.replace(/"/g, '""')}"`;
     },
-    buildTripTransactionsCsv() {
+    buildTripTransactionsCsvFrom(transactions) {
       const headers = [
         "日期",
         "品項",
@@ -1811,7 +1950,7 @@ export default {
         "付款帳戶",
         "備註",
       ];
-      const rows = this.tripTransactions.map((transaction) => [
+      const rows = transactions.map((transaction) => [
         transaction.date,
         transaction.category,
         transaction.merchant || "",
@@ -1829,6 +1968,41 @@ export default {
         .map((row) => row.map((value) => this.escapeCsvValue(value)).join(","))
         .join("\n");
     },
+    async fetchAllTripTransactionsForExport() {
+      const transactions = [];
+      const seenIds = new Set();
+      const seenCursors = new Set();
+      let cursor = null;
+      let hasMore = true;
+
+      while (hasMore) {
+        const params = {
+          trip_id: this.selectedTrip.id,
+          limit: 50,
+        };
+        if (cursor) params.cursor = cursor;
+
+        const response = await apiClient.get("/api/transactions", { params });
+        const incoming = response.data.data || [];
+        incoming.forEach((transaction) => {
+          if (!seenIds.has(transaction.id)) {
+            seenIds.add(transaction.id);
+            transactions.push(transaction);
+          }
+        });
+
+        const pagination = response.data.pagination || {};
+        const nextCursor = pagination.next_cursor || null;
+        hasMore = pagination.has_more === true && Boolean(nextCursor);
+        if (hasMore && seenCursors.has(nextCursor)) {
+          throw new Error("交易分頁游標重複，已停止匯出");
+        }
+        if (nextCursor) seenCursors.add(nextCursor);
+        cursor = nextCursor;
+      }
+
+      return transactions;
+    },
     downloadCsv(csv) {
       const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
@@ -1844,7 +2018,23 @@ export default {
     async exportTripTransactionsCsv() {
       if (!this.selectedTrip || this.tripTransactions.length === 0) return;
 
-      const csv = this.buildTripTransactionsCsv();
+      this.$swal.fire({
+        title: "正在整理完整交易資料",
+        text: "交易較多時可能需要一些時間。",
+        allowOutsideClick: false,
+        didOpen: () => this.$swal.showLoading(),
+      });
+
+      let allTransactions;
+      try {
+        allTransactions = await this.fetchAllTripTransactionsForExport();
+      } catch (error) {
+        console.error("無法匯出完整旅行交易", error);
+        this.$swal.fire("匯出失敗", "無法取得完整交易資料，請稍後再試。", "error");
+        return;
+      }
+
+      const csv = this.buildTripTransactionsCsvFrom(allTransactions);
       this.downloadCsv(csv);
 
       const result = await this.$swal.fire({
@@ -2009,7 +2199,7 @@ h1 {
 
 .trips-layout {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -2032,6 +2222,7 @@ h1 {
 .trip-detail {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .current-trip-card {

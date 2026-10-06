@@ -331,6 +331,22 @@ def test_mvp_schema_can_create_core_records():
         assert trip_transactions[0]["currency"] == "JPY"
         assert trip_transactions[0]["amount"] == 2001
 
+        dated_trip_transactions = budget_manager.get_all_transactions(
+            user_id,
+            trip_id=trip_id,
+            transaction_date="2027-03-02",
+        )
+        assert [item["id"] for item in dated_trip_transactions] == [str(transaction_id)]
+
+        trip_transaction_summary = budget_manager.get_trip_transaction_summary(user_id, trip_id)
+        assert trip_transaction_summary == {
+            "total_count": 1,
+            "expense_count": 1,
+            "missing_split_count": 0,
+            "date_counts": [{"date": "2027-03-02", "count": 1}],
+            "category_totals": [{"category": "伙食", "amount": 440.22}],
+        }
+
         initial_split_summary = budget_manager.get_trip_split_summary(user_id, trip_id)
         initial_owner_summary = next(
             item for item in initial_split_summary if item["member_id"] == str(owner_member_id)

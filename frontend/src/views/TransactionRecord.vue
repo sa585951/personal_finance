@@ -80,19 +80,20 @@
         @transaction-edit="startEditingTransaction"
         @transaction-deleted="fetchTransactions"
       />
-      <div v-if="recordTransactions.length > 0" class="record-list-actions">
-        <span>
-          已顯示 {{ recordTransactions.length }} / 共 {{ recordPagination.total_count }} 筆
-        </span>
-        <button
-          v-if="recordPagination.has_more"
-          type="button"
-          :disabled="isRecordLoading"
-          @click="loadMoreRecords"
-        >
-          {{ isRecordLoading ? "載入中" : "再載入 10 筆" }}
-        </button>
-      </div>
+      <AppPagination
+        v-if="recordTransactions.length > 0"
+        :current-page="recordPager.page"
+        :page-size="recordPager.pageSize"
+        :total-count="recordPagination.total_count"
+        :has-next="recordPagination.has_more"
+        :has-previous="recordPager.page > 1"
+        :loading="isRecordLoading"
+        :error="recordError"
+        aria-label="個人收支分頁"
+        @next="loadNextRecordPage"
+        @previous="loadPreviousRecordPage"
+        @retry="retryRecordPage"
+      />
     </section>
 
   </div>
@@ -101,7 +102,14 @@
 <script>
 import apiClient from "@/api";
 import AppStatePanel from "@/components/shared/AppStatePanel.vue";
+import AppPagination from "@/components/shared/AppPagination.vue";
 import { Plus } from "@element-plus/icons-vue";
+import {
+  createCursorPager,
+  cursorForPage,
+  recordCursorPage,
+  resetCursorPager,
+} from "@/utils/cursorPagination";
 import TransactionForm from "../components/budgets/TransactionForm.vue";
 import TransactionTable from "../components/budgets/TransactionTable.vue";
 
@@ -109,6 +117,7 @@ export default {
   name: "TransactionRecord",
   components: {
     AppStatePanel,
+    AppPagination,
     TransactionForm,
     TransactionTable,
     Plus,
@@ -118,17 +127,19 @@ export default {
       recordTransactions: [],
       activeType: this.initialTypeFromRoute(),
       editingTransaction: null,
-      recordPreviewLimit: 10,
+      recordPager: createCursorPager(20),
       recordMode: "recent",
       recordMonth: this.defaultMonthKey(),
       recordPagination: {
         next_cursor: null,
         has_more: false,
-        limit: 10,
+        limit: 20,
         total_count: 0,
       },
       isRecordLoading: false,
       recordError: "",
+      recordRequestSequence: 0,
+      recordRetry: null,
     };
   },
   watch: {
@@ -147,6 +158,7 @@ export default {
     },
     recordMonth() {
       if (this.recordMode === "month") {
+        this.recordPager = resetCursorPager(this.recordPager);
         this.fetchRecordTransactions();
       }
     },
@@ -274,62 +286,107 @@ export default {
     setRecordMode(mode) {
       if (!["recent", "month"].includes(mode) || mode === this.recordMode) return;
       this.recordMode = mode;
+      this.recordPager = resetCursorPager(this.recordPager);
       this.fetchRecordTransactions();
     },
-    async loadMoreRecords() {
+    async loadNextRecordPage() {
       if (!this.recordPagination.has_more || this.isRecordLoading) return;
-      await this.fetchRecordTransactions(true);
+      const loaded = await this.fetchRecordTransactions(
+        this.recordPagination.next_cursor,
+        this.recordPager.page + 1
+      );
+      if (loaded) this.scrollRecordsIntoView();
     },
-    async fetchRecordTransactions(append = false) {
-      if (this.isRecordLoading) return;
+    async loadPreviousRecordPage() {
+      if (this.recordPager.page <= 1 || this.isRecordLoading) return;
+      const targetPage = this.recordPager.page - 1;
+      const loaded = await this.fetchRecordTransactions(
+        cursorForPage(this.recordPager, targetPage),
+        targetPage
+      );
+      if (loaded) this.scrollRecordsIntoView();
+    },
+    async retryRecordPage() {
+      const retry = this.recordRetry;
+      await this.fetchRecordTransactions(
+        retry?.cursor ?? cursorForPage(this.recordPager, this.recordPager.page),
+        retry?.page ?? this.recordPager.page
+      );
+    },
+    async fetchRecordTransactions(cursor = null, targetPage = 1) {
+      const requestId = ++this.recordRequestSequence;
       this.isRecordLoading = true;
       this.recordError = "";
+      this.recordRetry = null;
       try {
-        const params = {
-          type: this.activeType,
-          limit: this.recordPreviewLimit,
-        };
-        if (this.recordMode === "month") {
-          params.month = this.recordMonth;
-        }
-        if (append && this.recordPagination.next_cursor) {
-          params.cursor = this.recordPagination.next_cursor;
-        }
-        const response = await apiClient.get("/api/transactions", { params });
-        const incoming = response.data.data || [];
-        if (append) {
-          const existingIds = new Set(this.recordTransactions.map((transaction) => transaction.id));
-          this.recordTransactions = [
-            ...this.recordTransactions,
-            ...incoming.filter((transaction) => !existingIds.has(transaction.id)),
-          ];
-        } else {
-          this.recordTransactions = incoming;
-        }
+        let requestedCursor = cursor;
+        let requestedPage = targetPage;
+        let response;
+        do {
+          const params = {
+            type: this.activeType,
+            limit: this.recordPager.pageSize,
+          };
+          if (this.recordMode === "month") {
+            params.month = this.recordMonth;
+          }
+          if (requestedCursor) {
+            params.cursor = requestedCursor;
+          }
+          response = await apiClient.get("/api/transactions", { params });
+          if (requestId !== this.recordRequestSequence) return false;
+          if ((response.data.data || []).length > 0 || requestedPage === 1) break;
+          requestedPage -= 1;
+          requestedCursor = cursorForPage(this.recordPager, requestedPage);
+        } while (requestedPage >= 1);
+
+        this.recordTransactions = response.data.data || [];
         this.recordPagination = response.data.pagination || {
           next_cursor: null,
           has_more: false,
-          limit: this.recordPreviewLimit,
+          limit: this.recordPager.pageSize,
           total_count: this.recordTransactions.length,
         };
+        this.recordPager = recordCursorPage(
+          this.recordPager,
+          requestedPage,
+          requestedCursor
+        );
+        this.recordRetry = null;
+        return true;
       } catch (error) {
+        if (requestId !== this.recordRequestSequence) return false;
         console.error("無法載入收支紀錄", error);
-        if (!append) {
+        this.recordRetry = { cursor, page: targetPage };
+        if (targetPage === 1) {
           this.recordTransactions = [];
+          this.recordPager = resetCursorPager(this.recordPager);
           this.recordPagination = {
             next_cursor: null,
             has_more: false,
-            limit: this.recordPreviewLimit,
+            limit: this.recordPager.pageSize,
             total_count: 0,
           };
         }
         this.recordError = error.response?.data?.message || "無法載入紀錄，請稍後再試。";
+        return false;
       } finally {
-        this.isRecordLoading = false;
+        if (requestId === this.recordRequestSequence) {
+          this.isRecordLoading = false;
+        }
       }
     },
     async fetchTransactions() {
+      this.recordPager = resetCursorPager(this.recordPager);
       await this.fetchRecordTransactions();
+    },
+    scrollRecordsIntoView() {
+      this.$nextTick(() => {
+        document.querySelector(".records-section")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
     },
   },
   created() {
@@ -530,43 +587,6 @@ h1 {
   color: #475569;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-}
-
-.record-list-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 12px 0 0;
-}
-
-.record-list-actions span {
-  color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.record-list-actions button {
-  min-height: 42px;
-  padding: 0 18px;
-  color: #334155;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  box-shadow: none;
-  font-size: 0.92rem;
-  font-weight: 900;
-}
-
-.record-list-actions button:hover {
-  transform: none;
-  box-shadow: none;
-  border-color: #94a3b8;
-}
-
-.record-list-actions button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
 }
 
 .section-heading {

@@ -354,7 +354,7 @@ export default {
 
       try {
         const response = await apiClient.get(
-          `/api/assets/${accountId}/activity?limit=10&page=${page}&filter=${activityFilter}`
+          `/api/assets/${accountId}/activity?limit=20&page=${page}&filter=${activityFilter}`
         );
         const activityPage = response.data.data || {};
         this.accountActivities = {
@@ -365,7 +365,7 @@ export default {
           ...this.accountActivityPagination,
           [accountId]: activityPage.pagination || {
             page,
-            limit: 10,
+            limit: 20,
             has_next: false,
             has_prev: page > 1,
           },
