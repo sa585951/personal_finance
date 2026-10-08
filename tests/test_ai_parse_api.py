@@ -131,7 +131,7 @@ class FakeBudgetManager:
                 "pagination": {
                     "next_cursor": "next-page",
                     "has_more": True,
-                    "limit": 10,
+                    "limit": kwargs.get("limit") or 10,
                     "total_count": 12,
                 },
             }
@@ -145,6 +145,9 @@ class FakeBudgetManager:
             "date_counts": [{"date": "2027-03-01", "count": 12}],
             "category_totals": [{"category": "伙食", "amount": 1200}],
         }
+
+    def get_trip_split_summary(self, user_id, trip_id, **kwargs):
+        return [{"member_id": "member-1", "net_amount": 0}]
 
     def add_trip_settlement(
         self,
@@ -172,6 +175,22 @@ class FakeBudgetManager:
         return True, "結算已更新"
 
 
+class FakeTripManager:
+    def get_trip(self, user_id, trip_id):
+        return {
+            "id": trip_id,
+            "name": "API Contract Trip",
+            "current_member_id": "member-1",
+            "members": [
+                {
+                    "id": "member-1",
+                    "user_id": user_id,
+                    "role": "owner",
+                }
+            ],
+        }
+
+
 class FakeAssetManager:
     def find_asset_by_name(self, user_id, name, currency=None, context_text=None):
         self.account_match_request = {
@@ -192,6 +211,50 @@ class FakeAssetManager:
         self.deleted_transfer = None
         self.adjustment_payload = None
         self.adjustment_list_request = None
+        self.activity_request = None
+
+    def get_all_assets(self, user_id):
+        return {
+            "account-1": {
+                "id": "account-1",
+                "account_key": "account-1",
+                "bank_name": "合約信用卡",
+                "account_type": "credit_card",
+                "currency": "TWD",
+                "balance": -1200,
+                "credit_card_billing": {
+                    "closing_day": 5,
+                    "due_day": 20,
+                    "due_month_offset": 1,
+                    "override_closing_date": None,
+                    "override_due_date": None,
+                    "next_closing_date": "2027-03-05",
+                    "next_due_closing_date": "2027-03-05",
+                    "next_due_date": "2027-03-20",
+                    "next_due_date_source": "estimated",
+                    "today": "2027-02-10",
+                },
+            }
+        }
+
+    def get_account_activity(self, user_id, account_key, limit=20, page=1, activity_filter="all"):
+        self.activity_request = {
+            "user_id": user_id,
+            "account_key": account_key,
+            "limit": limit,
+            "page": page,
+            "activity_filter": activity_filter,
+        }
+        return {
+            "items": [{"id": "activity-1", "type": "expense", "amount": -1200}],
+            "pagination": {
+                "page": int(page),
+                "limit": int(limit),
+                "has_next": False,
+                "has_prev": int(page) > 1,
+                "filter": activity_filter,
+            },
+        }
 
     def update_account(self, user_id, account_key, **changes):
         self.update_payload = {
@@ -831,6 +894,42 @@ def test_get_trip_transactions_enforces_backend_pagination(monkeypatch):
     assert fake_budget_manager.last_list_request["return_pagination"] is True
 
 
+def test_trip_overview_returns_stable_contract(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_budget_manager = FakeBudgetManager()
+    monkeypatch.setattr(web_app, "budget_manager", fake_budget_manager)
+    monkeypatch.setattr(web_app, "trip_manager", FakeTripManager())
+
+    response = web_app.app.test_client().get(
+        "/api/trips/trip-1/overview",
+        headers=_auth_headers(),
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["success"] is True
+    assert set(payload["data"]) == {
+        "trip",
+        "transactions",
+        "transaction_pagination",
+        "transaction_summary",
+        "split_summary",
+        "settlement_suggestions",
+        "settlements",
+        "invite",
+    }
+    assert payload["data"]["trip"]["current_member_id"] == "member-1"
+    assert payload["data"]["transaction_pagination"] == {
+        "next_cursor": "next-page",
+        "has_more": True,
+        "limit": 20,
+        "total_count": 12,
+    }
+    assert payload["data"]["transaction_summary"]["total_count"] == 12
+    assert fake_budget_manager.last_list_request["limit"] == 20
+    assert fake_budget_manager.last_list_request["return_pagination"] is True
+
+
 def test_ai_parse_events_api_returns_recent_events(monkeypatch):
     web_app = _load_web_app(monkeypatch)
     fake_linebot_manager = FakeLineBotManager()
@@ -848,6 +947,65 @@ def test_ai_parse_events_api_returns_recent_events(monkeypatch):
     assert fake_linebot_manager.ai_parse_event_manager.list_request == {
         "user_id": "22222222-2222-2222-2222-222222222222",
         "limit": "5",
+    }
+
+
+def test_get_assets_preserves_credit_card_billing_contract(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    monkeypatch.setattr(web_app, "asset_manager", FakeAssetManager())
+
+    response = web_app.app.test_client().get("/api/assets", headers=_auth_headers())
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["success"] is True
+    assert set(payload["data"]) == {"account-1"}
+    billing = payload["data"]["account-1"]["credit_card_billing"]
+    assert billing == {
+        "closing_day": 5,
+        "due_day": 20,
+        "due_month_offset": 1,
+        "override_closing_date": None,
+        "override_due_date": None,
+        "next_closing_date": "2027-03-05",
+        "next_due_closing_date": "2027-03-05",
+        "next_due_date": "2027-03-20",
+        "next_due_date_source": "estimated",
+        "today": "2027-02-10",
+    }
+
+
+def test_get_account_activity_preserves_page_contract(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    fake_asset_manager = FakeAssetManager()
+    monkeypatch.setattr(web_app, "asset_manager", fake_asset_manager)
+
+    response = web_app.app.test_client().get(
+        "/api/assets/account-1/activity?limit=20&page=2&filter=expense",
+        headers=_auth_headers(),
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload == {
+        "success": True,
+        "data": {
+            "items": [{"id": "activity-1", "type": "expense", "amount": -1200}],
+            "pagination": {
+                "page": 2,
+                "limit": 20,
+                "has_next": False,
+                "has_prev": True,
+                "filter": "expense",
+            },
+        },
+    }
+    assert fake_asset_manager.activity_request == {
+        "user_id": "22222222-2222-2222-2222-222222222222",
+        "account_key": "account-1",
+        "limit": "20",
+        "page": "2",
+        "activity_filter": "expense",
     }
 
 

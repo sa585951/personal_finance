@@ -56,7 +56,7 @@ Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、�
 - iOS 正式登入、Keychain session lifecycle、核心 CRUD 與 TestFlight；目前只有 read-only prototype。
 - 旅行分類預算與進階旅行報表。
 
-新的執行 Roadmap 見 `docs/product-roadmap.md`，M2 原測試計畫與有限證據收尾說明見 `docs/m2-pwa-alpha-plan.md`。下一個獨立 Web 功能批次為信用卡結帳日與繳款截止日資訊；M4 旅行擴充須有明確需求依據，iOS 正式開發仍暫緩。舊 Phase 文件保留作為歷史紀錄，不再作為新工作的階段判定來源。
+新的執行 Roadmap 見 `docs/product-roadmap.md`，M2 原測試計畫與有限證據收尾說明見 `docs/m2-pwa-alpha-plan.md`。信用卡帳期與共用分頁已完成本地第一版，目前先固定既有 Web API contract 與 backend 測試基線；M4 旅行擴充須有明確需求依據，iOS 正式功能開發仍暫緩。舊 Phase 文件保留作為歷史紀錄，不再作為新工作的階段判定來源。
 
 ## 為什麼要調整方向
 

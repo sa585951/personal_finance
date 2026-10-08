@@ -241,9 +241,9 @@ export default {
 .ai-quick-input {
   margin: 0 0 1rem;
   padding: 16px;
-  border: 1px solid var(--brand-border);
-  border-radius: 10px;
-  background: #f8fbff;
+  border: 1px solid var(--ai-border);
+  border-radius: 12px;
+  background: var(--ai-surface);
 }
 
 .quick-header {
@@ -262,7 +262,7 @@ export default {
 
 .eyebrow {
   margin: 0 0 3px;
-  color: #2563eb;
+  color: var(--ai-accent);
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0;
@@ -305,8 +305,8 @@ export default {
   min-height: 58px;
   padding: 10px 12px;
   color: var(--text-color);
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  background: var(--ai-surface-raised);
+  border: 1px solid var(--ai-border);
   border-radius: 8px;
   font: inherit;
   resize: vertical;
@@ -316,8 +316,8 @@ export default {
 .apply-button {
   min-height: 42px;
   padding: 0 16px;
-  color: #ffffff;
-  background: #2563eb;
+  color: var(--on-primary);
+  background: var(--primary-color);
   border: 0;
   border-radius: 8px;
   box-shadow: none;
@@ -339,7 +339,7 @@ export default {
 .example-chips button {
   min-height: 32px;
   padding: 0 10px;
-  color: var(--primary-hover);
+  color: var(--ai-accent);
   background: var(--primary-soft);
   border: 1px solid var(--brand-border);
   border-radius: 999px;
@@ -355,9 +355,9 @@ export default {
 .parse-result {
   margin-top: 12px;
   padding: 12px;
-  border: 1px solid var(--primary-soft);
+  border: 1px solid var(--ai-border);
   border-radius: 8px;
-  background: var(--card-bg);
+  background: var(--ai-surface-raised);
 }
 
 .result-heading {

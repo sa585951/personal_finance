@@ -96,9 +96,9 @@ export default {
 <style scoped>
 .parse-events-panel {
   margin: 0 0 1rem;
-  border: 1px dashed var(--border-color);
-  border-radius: 10px;
-  background: var(--card-bg);
+  border: 1px dashed var(--ai-border);
+  border-radius: 12px;
+  background: var(--ai-surface);
 }
 
 .panel-toggle {
@@ -144,7 +144,8 @@ export default {
   min-height: 32px;
   padding: 0 10px;
   color: var(--text-color);
-  background: var(--border-color);
+  background: var(--ai-surface-raised);
+  border: 1px solid var(--ai-border);
   border: 0;
   border-radius: 8px;
   box-shadow: none;
@@ -172,7 +173,8 @@ export default {
 
 .event-list li {
   padding: 10px;
-  background: var(--secondary-color);
+  background: var(--ai-surface-raised);
+  border: 1px solid var(--ai-border);
   border-radius: 8px;
 }
 

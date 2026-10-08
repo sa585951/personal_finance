@@ -5,8 +5,8 @@
 - Roadmap 版本：M0 至 M9
 - 生效日期：2026-08-17
 - 目前 Milestone：M3 Ledger Correctness 第一輪完成；M2 PWA Alpha 以有限證據收尾，解除後續 Web 開發關卡
-- 下一個工作批次：信用卡結帳日與繳款截止日的 Web 帳期資訊；M4 Travel Product 仍須有明確需求依據才啟動
-- 帳期批次狀態：本地第一版已實作；正式環境尚須先執行 `20260925_0015` migration，並完成資料庫與手機版操作驗收，不視為已上線
+- 目前工作批次：既有 Web API contract 與 backend 穩定化，先固定 Auth、帳戶、交易分頁與旅行 overview 的相容格式，作為後續 PWA／iOS client 基線
+- 帳期與共用分頁批次狀態：本地第一版、migration chain、DB smoke 與 390／430px 操作驗收已完成；正式環境仍須套用 `20260925_0015` 並做部署後驗收，不視為已上線
 
 舊有 Phase 1 至 Phase 7、Phase App 與 Allocation 文件保留為歷史開發紀錄。新工作一律使用本文件的 Milestone 命名，避免同時維護兩套進度語言。
 
@@ -88,7 +88,7 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 - Confirm 需具備防重複送出行為。
 - 日常收支統一由 `/add` 新增；旅行支出維持旅行詳情內的獨立流程。
 - `POST /api/transactions` 以 optional `client_request_id` 支援順序與併發重送，帳戶餘額只異動一次。
-- 交易列表改為 cursor pagination，最近紀錄與月份查找每批 10 筆；月度分析以分頁方式取得完整月份資料。
+- 交易列表使用 cursor pagination，最近紀錄與月份查找目前每頁 20 筆；月度分析以分頁方式取得完整月份資料。
 - 未刪除帳務資料不因列表分頁而刪除。軟刪除後 30 天僅代表符合永久清理資格，目前未宣稱已有自動 purge worker。
 - 本批部署順序固定為 Alembic migration `20260819_0010`、backend、frontend。
 
@@ -189,7 +189,7 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 ## 執行順序
 
-以下為原訂 Milestone 順序；實際上 M3 第一輪已先完成，M2 則以有限證據收尾。下一批 Web 帳期資訊為獨立小批次，不代表 M4 已啟動。
+以下為原訂 Milestone 順序；實際上 M3 第一輪已先完成，M2 則以有限證據收尾。信用卡帳期與共用分頁已完成本地第一版，目前先進行 API contract／backend 穩定化；這些獨立批次不代表 M4 已啟動。
 
 ```text
 M0 Finance Contract
