@@ -134,6 +134,25 @@
 
 ## 相容性原則
 
+### Receipt import V1
+
+登入後呼叫 `POST /api/receipt-imports`，傳入 `{qr_payload, input_method}`；`input_method` 為 `qr_camera` 或 `qr_image`。只接受台灣左側 QR，後端驗證日期、號碼、賣方統編與含稅總額。此解析不驗證發票真偽或作廢狀態，原文與圖片不保存。
+
+成功 `data` 為 `{receipt, duplicate}`。receipt 包含 `id`、`invoice_number`、`issued_on`、`seller_identifier`、`total_amount`、`currency`、nullable `merchant_name`、`status` 與 nullable `transaction_id`。狀態為 `pending`／`linked`／`ignored`；精確身分為使用者＋號碼＋日期＋賣方統編，與來源無關。
+
+`GET /api/receipt-imports/:id/matches?merchant=...` 回傳 `{receipt, candidates}`，最多五筆；candidate 含 `id/date/amount/currency/title/merchant/reasons`。限本人未刪除的日常支出、同金額同幣別、日期前後一天且尚未連結發票，永遠不自動合併。
+
+`POST /api/receipt-imports/:id/resolve` 傳入 `action`：
+
+- `create`：必填 `item`、`budget_category`，可填 `account_id`、`merchant`、`description`；日期、金額、幣別由 receipt 固定，交易與連結原子提交。
+- `link`：傳入 `transaction_id`，必須為目前候選；不覆寫既有交易。
+- `ignore`：保留發票但不新增交易。
+- `reopen`：將略過項目回到 pending。
+
+回傳 `{receipt, replayed}`；linked receipt 重送回傳 `replayed=true`。原交易軟刪除後重新掃描／處理會回到 pending，重新建立使用新的伺服器 request ID。所有 endpoint 成功 200、輸入或存取錯誤 400、未登入 401、未預期錯誤 500（不回傳內部細節）。
+
+需先部署 migration `20261008_0016`，再部署 backend/frontend。V1 不含批次確認或載具 API。
+
 - 本文件涵蓋的既有欄位不得無預警改名、改型別或改變 nesting。
 - 新增 optional 欄位屬向後相容；移除欄位、改為 required、改變金額／日期型別或更換 pagination 模式都需要獨立 migration 計畫。
 - Client 對未知欄位必須容忍；對必填欄位缺失則應回報 decode error，不自行填入可能改變財務語意的預設值。

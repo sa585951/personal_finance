@@ -24,6 +24,7 @@ from models.database import db_session
 from models.schema import transactions_table, trips_table
 from models.settlement_account_entry_manager import SettlementAccountEntryManager
 from models.transaction_service import TransactionService
+from models.receipt_import_service import ReceiptImportService
 from models.trip_manager import TripManager
 from models.user_manager import UserManager
 
@@ -1505,6 +1506,32 @@ def get_transactions(current_user_id):
         app.logger.error(f"Error in get_transactions: {e}")
         return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
     
+@app.route("/api/receipt-imports", methods=["POST"])
+@app.route("/api/receipt-imports/<string:receipt_id>/matches", methods=["GET"])
+@app.route("/api/receipt-imports/<string:receipt_id>/resolve", methods=["POST"])
+@token_required
+def receipt_import(current_user_id, receipt_id=None):
+    try:
+        service = ReceiptImportService(db_session, get_transaction_service())
+        if request.method == "GET":
+            result = service.matches(current_user_id, receipt_id, request.args.get("merchant", ""))
+        else:
+            data = request.get_json(silent=True)
+            if not isinstance(data, dict):
+                raise ValueError("請提供 JSON object")
+            result = service.resolve(current_user_id, receipt_id, data) if receipt_id else service.import_qr(current_user_id, data)
+        db_session.commit()
+        return jsonify({"success": True, "data": result}), 200
+    except ValueError as exc:
+        db_session.rollback()
+        return jsonify({"success": False, "message": str(exc)}), 400
+    except Exception:
+        db_session.rollback()
+        # Do not log request bodies or QR content, which contain invoice secrets.
+        app.logger.error("Receipt operation failed")
+        return jsonify({"success": False, "message": "發票處理失敗，請稍後再試"}), 500
+
+
 @app.route("/api/transactions", methods=["POST"])
 @token_required
 def add_transaction(current_user_id):

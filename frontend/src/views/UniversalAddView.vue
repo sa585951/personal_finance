@@ -9,7 +9,9 @@
       <span aria-hidden="true"></span>
     </header>
 
-    <template v-if="stage === 'input'">
+    <ReceiptEntryFlow v-if="stage === 'receipt'" @manual="openManual('expense')" @cancel="resetDraft" />
+    <template v-else-if="stage === 'input'">
+      <button type="button" class="receipt-entry" @click="stage = 'receipt'">掃描發票記帳</button>
       <AIQuickInput
         :type="preferredType"
         auto-apply
@@ -132,6 +134,7 @@
 
 <script>
 import AIQuickInput from "@/components/budgets/AIQuickInput.vue";
+import ReceiptEntryFlow from "@/components/receipts/ReceiptEntryFlow.vue";
 import TransactionForm from "@/components/budgets/TransactionForm.vue";
 import AccountImpactCard from "@/components/shared/AccountImpactCard.vue";
 import { BottomLeft, CircleCheckFilled, TopRight } from "@element-plus/icons-vue";
@@ -139,6 +142,7 @@ import { BottomLeft, CircleCheckFilled, TopRight } from "@element-plus/icons-vue
 export default {
   name: "UniversalAddView",
   components: {
+    ReceiptEntryFlow,
     AIQuickInput,
     TransactionForm,
     AccountImpactCard,
@@ -148,7 +152,7 @@ export default {
   },
   data() {
     return {
-      stage: "input",
+      stage: this.$route.query.mode === "receipt" ? "receipt" : "input",
       preferredType: this.$route.query.type === "income" ? "income" : "expense",
       activeType: "expense",
       draft: {},

@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import jwt
+import pytest
 
 
 class FakeMessageParser:
@@ -496,6 +497,36 @@ def test_auth_me_accepts_cookie_token(monkeypatch):
     assert response.status_code == 200
     assert payload["success"] is True
     assert payload["data"]["user_id"] == "22222222-2222-2222-2222-222222222222"
+
+
+@pytest.mark.parametrize("path,method", [
+    ("/api/receipt-imports", "post"),
+    ("/api/receipt-imports/11111111-1111-1111-1111-111111111111/matches", "get"),
+    ("/api/receipt-imports/11111111-1111-1111-1111-111111111111/resolve", "post"),
+])
+def test_receipt_endpoints_require_authentication(monkeypatch, path, method):
+    web_app = _load_web_app(monkeypatch)
+    response = getattr(web_app.app.test_client(), method)(path)
+    assert response.status_code == 401
+
+
+def test_receipt_api_rejects_non_object_json_and_sanitizes_errors(monkeypatch):
+    web_app = _load_web_app(monkeypatch)
+    client = web_app.app.test_client()
+    response = client.post("/api/receipt-imports", json=[], headers=_auth_headers())
+    assert response.status_code == 400
+
+    class BrokenReceiptService:
+        def __init__(self, *args):
+            pass
+
+        def import_qr(self, *args):
+            raise RuntimeError("sensitive invoice data")
+
+    monkeypatch.setattr(web_app, "ReceiptImportService", BrokenReceiptService)
+    response = client.post("/api/receipt-imports", json={}, headers=_auth_headers())
+    assert response.status_code == 500
+    assert "sensitive" not in response.get_data(as_text=True)
 
 
 def test_auth_me_rejects_missing_token(monkeypatch):

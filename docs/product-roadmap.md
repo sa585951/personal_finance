@@ -5,7 +5,7 @@
 - Roadmap 版本：M0 至 M9
 - 生效日期：2026-08-17
 - 目前 Milestone：M3 Ledger Correctness 第一輪完成；M2 PWA Alpha 以有限證據收尾，解除後續 Web 開發關卡
-- 目前工作批次：既有 Web API contract 與 backend 穩定化，先固定 Auth、帳戶、交易分頁與旅行 overview 的相容格式，作為後續 PWA／iOS client 基線
+- 目前工作批次：發票掃描記帳 V1；API contract 基線已建立。支援台灣電子發票左側 QR、跨來源精確去重、人工確認候選，以及建立／連結日常支出；部署需先套用 `20261008_0016`。
 - 帳期與共用分頁批次狀態：本地第一版、migration chain、DB smoke 與 390／430px 操作驗收已完成；正式環境仍須套用 `20260925_0015` 並做部署後驗收，不視為已上線
 
 舊有 Phase 1 至 Phase 7、Phase App 與 Allocation 文件保留為歷史開發紀錄。新工作一律使用本文件的 Milestone 命名，避免同時維護兩套進度語言。
@@ -189,7 +189,7 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 ## 執行順序
 
-以下為原訂 Milestone 順序；實際上 M3 第一輪已先完成，M2 則以有限證據收尾。信用卡帳期與共用分頁已完成本地第一版，目前先進行 API contract／backend 穩定化；這些獨立批次不代表 M4 已啟動。
+以下為原訂 Milestone 順序；實際上 M3 第一輪已先完成，M2 則以有限證據收尾。信用卡帳期、共用分頁與 API contract 基線已完成本地第一版，目前進行發票掃描記帳 V1；這些獨立批次不代表 M4 已啟動。發票批次確認、載具同步、OCR 與旅行發票留待獨立批次。
 
 ```text
 M0 Finance Contract

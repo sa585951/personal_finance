@@ -356,6 +356,35 @@ transactions_table = Table(
 )
 
 
+receipt_documents_table = Table(
+    "receipt_documents",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False),
+    Column("invoice_number", String(10), nullable=False),
+    Column("issued_on", Date, nullable=False),
+    Column("seller_identifier", String(8), nullable=False),
+    Column("total_amount", AMOUNT, nullable=False),
+    Column("currency", String(3), ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False),
+    Column("merchant_name", String(255)),
+    Column("transaction_id", UUID(as_uuid=True), ForeignKey("transactions.id", ondelete="RESTRICT"), unique=True),
+    Column("status", String(20), nullable=False, server_default=text("'pending'")),
+    Column("first_source", String(20), nullable=False),
+    Column("last_source", String(20), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("deleted_at", DateTime(timezone=True)),
+    Column("purge_after", DateTime(timezone=True)),
+    UniqueConstraint("user_id", "invoice_number", "issued_on", "seller_identifier", name="uq_receipt_identity"),
+    CheckConstraint("total_amount > 0", name="ck_receipt_amount"),
+    CheckConstraint("status in ('pending', 'linked', 'ignored')", name="ck_receipt_status"),
+    CheckConstraint("(status = 'linked') = (transaction_id is not null)", name="ck_receipt_link"),
+    CheckConstraint("first_source in ('qr_camera', 'qr_image', 'carrier')", name="ck_receipt_first_source"),
+    CheckConstraint("last_source in ('qr_camera', 'qr_image', 'carrier')", name="ck_receipt_last_source"),
+)
+Index("ix_receipts_user_date", receipt_documents_table.c.user_id, receipt_documents_table.c.issued_on)
+
+
 transaction_splits_table = Table(
     "transaction_splits",
     metadata,

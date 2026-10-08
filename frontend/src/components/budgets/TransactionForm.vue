@@ -18,6 +18,7 @@
           type="date"
           id="transactionDate"
           v-model="newTransaction.date"
+          :readonly="lockedReceiptFields"
           required
         />
       </label>
@@ -57,6 +58,7 @@
           type="number"
           id="transactionAmount"
           v-model.number="newTransaction.amount"
+          :readonly="lockedReceiptFields"
           required
         />
       </label>
@@ -129,6 +131,8 @@ export default {
   name: "TransactionForm",
   components: { AccountImpactCard, AccountPicker },
   props: {
+    lockedReceiptFields: { type: Boolean, default: false },
+    externalSubmit: { type: Function, default: null },
     type: {
       type: String,
       default: "expense",
@@ -216,7 +220,7 @@ export default {
       );
     },
     accountOptions() {
-      return Object.values(this.assets || {});
+      return Object.values(this.assets || {}).filter((account) => !this.lockedReceiptFields || account.currency === "TWD");
     },
     selectedAccount() {
       if (!this.newTransaction.account_id) return null;
@@ -390,7 +394,9 @@ export default {
           return;
         }
 
-        const response = await apiClient.post(`/api/transactions`, this.transactionPayload());
+        const response = this.externalSubmit
+          ? await this.externalSubmit(this.transactionPayload())
+          : await apiClient.post(`/api/transactions`, this.transactionPayload());
 
         await this.fetchAssets();
         this.$emit("transaction-added", {

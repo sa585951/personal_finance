@@ -58,8 +58,19 @@ def test_alembic_can_upgrade_an_empty_database_to_head(monkeypatch):
 
     verification_engine.dispose()
 
-    assert revision == "20260925_0015"
+    assert revision == "20261008_0016"
+    assert "receipt_documents" in table_names
     assert {"icon_key", "color_key"}.issubset(account_columns)
     assert {"ck_accounts_icon_key", "ck_accounts_color_key"}.issubset(account_checks)
     assert "credit_card_billing_profiles" in table_names
     assert "ix_credit_card_billing_profiles_user" in billing_indexes
+
+    # Exercise the deployed 0015 -> 0016 path, not only metadata.create_all.
+    command.downgrade(alembic_config, "20260925_0015")
+    command.upgrade(alembic_config, "head")
+    deployed_engine = create_engine(database_url, future=True)
+    with deployed_engine.connect() as connection:
+        receipt_indexes = {index["name"] for index in inspect(connection).get_indexes("receipt_documents")}
+        assert "ix_receipts_user_date" in receipt_indexes
+        assert connection.execute(text("SELECT count(*) FROM receipt_documents")).scalar_one() == 0
+    deployed_engine.dispose()
