@@ -17,7 +17,6 @@ export default {
 </script>
 
 <style>
-@media (min-width: 1024px) {
-  #app main.with-navbar { padding-top: 72px; }
-}
+#app main.with-navbar { padding-top: calc(64px + env(safe-area-inset-top)); }
+@media (min-width: 1024px) { #app main.with-navbar { padding-top: 72px; } }
 </style>

@@ -12,28 +12,24 @@
       </li>
     </ul>
     <div class="auth-section">
-      <ThemeToggle />
-      <template v-if="devAuthBypass">
-        <label class="dev-user-switcher">
-          <span>測試使用者</span>
-          <select v-model="selectedDevUser" @change="switchDevUser">
-            <option v-for="user in devUsers" :key="user.id" :value="user.id">
-              {{ user.name }}
-            </option>
-          </select>
-        </label>
-      </template>
-      <template v-if="isLoggedIn">
+      <template v-if="isLoggedIn || devAuthBypass">
         <button class="account-button" type="button" :aria-label="`帳號選單：${userName || '帳號'}`" :aria-expanded="showAccountMenu" @click="showAccountMenu = !showAccountMenu">
           <span class="account-initial" aria-hidden="true">{{ (userName || "帳")[0] }}</span>
           <span class="account-name">{{ userName || "帳號" }}</span>
         </button>
         <div v-if="showAccountMenu" class="account-menu">
           <span>{{ userName || "已登入" }}</span>
+          <ThemeToggle show-label />
+          <label v-if="devAuthBypass" class="dev-user-switcher">
+            <span>測試使用者</span>
+            <select v-model="selectedDevUser" aria-label="測試使用者" @change="switchDevUser">
+              <option v-for="user in devUsers" :key="user.id" :value="user.id">{{ user.name }}</option>
+            </select>
+          </label>
           <router-link class="account-menu-link" to="/account" @click="showAccountMenu = false">
             帳號設定
           </router-link>
-          <button class="logout-button" type="button" @click="logout">登出</button>
+          <button v-if="isLoggedIn" class="logout-button" type="button" @click="logout">登出</button>
         </div>
       </template>
     </div>
@@ -80,8 +76,24 @@ export default {
   },
   mounted() {
     this.checkLoginStatus();
+    document.addEventListener('pointerdown', this.closeOutside);
+    document.addEventListener('keydown', this.closeOnEscape);
   },
+  beforeUnmount() {
+    document.removeEventListener('pointerdown', this.closeOutside);
+    document.removeEventListener('keydown', this.closeOnEscape);
+  },
+  watch: { '$route.fullPath'() { this.showAccountMenu = false; } },
   methods: {
+    closeOutside(event) {
+      if (!this.$el.querySelector('.auth-section')?.contains(event.target)) this.showAccountMenu = false;
+    },
+    closeOnEscape(event) {
+      if (event.key === 'Escape' && this.showAccountMenu) {
+        this.showAccountMenu = false;
+        this.$el.querySelector('.account-button')?.focus();
+      }
+    },
     async checkLoginStatus() {
       if (this.devAuthBypass) {
         this.isLoggedIn = false;
@@ -423,5 +435,25 @@ export default {
   .account-initial { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: var(--primary-soft); }
   .account-name { display: block; overflow: hidden; text-overflow: ellipsis; }
   .account-menu { top: calc(100% + 10px); bottom: auto; }
+}
+</style>
+
+<style scoped>
+/* Account controls live in the top brand bar; bottom navigation has five tabs. */
+.navbar { top: 0; bottom: auto; left: 0; right: 0; min-height: 64px; padding: calc(8px + env(safe-area-inset-top)) 16px 8px; justify-content: space-between; border: 0; border-bottom: 1px solid var(--border-color); border-radius: 0; backdrop-filter: none; background: var(--card-bg); box-shadow: var(--surface-shadow); }
+.logo { display: block; }
+.logo a { display: flex; align-items: center; gap: 9px; color: var(--text-color); text-decoration: none; font-size: 1.1rem; font-weight: 850; letter-spacing: -.04em; }
+.logo-mark { width: 32px; height: 32px; border-radius: 10px; }
+.nav-links { position: fixed; left: 10px; right: 10px; bottom: max(8px, env(safe-area-inset-bottom)); width: auto; max-width: none; min-height: 68px; padding: 6px; border: 1px solid var(--border-color); border-radius: 18px; background: var(--card-bg); box-shadow: 0 4px 16px rgba(23,26,31,.08); }
+.auth-section { position: relative; display: flex; }
+.account-button { width: 44px; height: 44px; min-height: 44px; }
+.account-menu { top: calc(100% + 10px); bottom: auto; width: 220px; max-width: calc(100vw - 32px); padding: 14px; gap: 10px; }
+.account-menu :deep(.theme-toggle) { width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px; justify-content: flex-start; }
+.account-menu-link, .logout-button { min-height: 44px; }
+.dev-user-switcher { display: flex; min-height: 44px; }
+.dev-user-switcher select { width: 100%; min-height: 36px; }
+@media (min-width: 1024px) {
+  .navbar { min-height: 72px; padding: 8px max(24px, calc((100vw - 1120px) / 2)); }
+  .nav-links { position: static; width: auto; max-width: 540px; min-height: auto; padding: 0; border: 0; box-shadow: none; background: transparent; }
 }
 </style>

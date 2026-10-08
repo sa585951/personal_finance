@@ -11,7 +11,7 @@
 
     <ReceiptEntryFlow v-if="stage === 'receipt'" @manual="openManual('expense')" @cancel="resetDraft" />
     <template v-else-if="stage === 'input'">
-      <button type="button" class="receipt-entry" @click="stage = 'receipt'">掃描發票記帳</button>
+      <button type="button" class="receipt-entry" @click="stage = 'receipt'"><Document aria-hidden="true" /><span>掃描發票記帳<small>掃描 QR Code，帶入日期與金額</small></span><ArrowRight aria-hidden="true" /></button>
       <AIQuickInput
         :type="preferredType"
         auto-apply
@@ -137,7 +137,7 @@ import AIQuickInput from "@/components/budgets/AIQuickInput.vue";
 import ReceiptEntryFlow from "@/components/receipts/ReceiptEntryFlow.vue";
 import TransactionForm from "@/components/budgets/TransactionForm.vue";
 import AccountImpactCard from "@/components/shared/AccountImpactCard.vue";
-import { BottomLeft, CircleCheckFilled, TopRight } from "@element-plus/icons-vue";
+import { BottomLeft, CircleCheckFilled, TopRight, Document, ArrowRight } from "@element-plus/icons-vue";
 
 export default {
   name: "UniversalAddView",
@@ -149,6 +149,8 @@ export default {
     BottomLeft,
     CircleCheckFilled,
     TopRight,
+    Document,
+    ArrowRight,
   },
   data() {
     return {
@@ -237,6 +239,10 @@ export default {
 </script>
 
 <style scoped>
+.receipt-entry { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 72px; padding: 14px 16px; margin-bottom: 16px; color: var(--primary-color); background: var(--primary-soft); border: 1px solid var(--brand-border); border-radius: var(--card-radius); text-align: left; font-weight: 800; }
+.receipt-entry svg { width: 24px; height: 24px; flex: none; }
+.receipt-entry span { flex: 1; }
+.receipt-entry small { display: block; margin-top: 4px; color: var(--light-text-color); font-weight: 500; }
 .universal-add-screen {
   max-width: 520px;
   min-height: calc(100vh - var(--app-bottom-nav-height));
