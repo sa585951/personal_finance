@@ -1,5 +1,5 @@
 <template>
-  <div class="card">
+  <div class="card app-chart-card">
     <div class="card-header">
       <h3 class="card-title">超支警告</h3>
     </div>
@@ -54,14 +54,6 @@ export default {
 </script>
 
 <style scoped>
-.card {
-  background-color: var(--secondary-color);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  padding: 20px;
-  margin-bottom: 20px;
-}
-
 .card-header {
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 15px;
@@ -81,8 +73,8 @@ export default {
 }
 
 .warning-item {
-  background-color: #fff3e0; /* Light orange background */
-  border-left: 5px solid #ff9800; /* Orange border */
+  background-color: var(--warning-soft);
+  border-left: 5px solid var(--warning-color);
   padding: 15px;
   margin-bottom: 10px;
   border-radius: 8px;
@@ -97,18 +89,18 @@ export default {
 }
 
 .overspend-amount {
-  color: #d32f2f; /* Red color for overspend amount */
+  color: var(--expense-color);
   font-weight: bold;
 }
 
 .details {
   font-size: 0.9em;
-  color: #757575;
+  color: var(--light-text-color);
 }
 
 .no-warnings {
   text-align: center;
-  color: #66bb6a; /* Green for positive message */
+  color: var(--income-color);
   font-style: italic;
   padding: 20px;
 }

@@ -5,7 +5,7 @@
         <p class="eyebrow">Nomica Ledger</p>
         <h1>個人收支</h1>
       </div>
-      <button type="button" class="page-add-button" @click="openUniversalAdd">
+      <button type="button" class="page-add-button app-primary-action" @click="openUniversalAdd">
         <Plus />
         <span>記一筆</span>
       </button>
@@ -23,7 +23,7 @@
       </button>
     </div>
 
-    <section v-if="editingTransaction" class="entry-form-section">
+    <section v-if="editingTransaction" class="entry-form-section app-surface">
       <TransactionForm
         :type="activeType"
         :editing-transaction="editingTransaction"
@@ -32,7 +32,7 @@
       />
     </section>
 
-    <section class="records-section">
+    <section class="records-section app-surface">
       <div class="section-heading">
         <h2>{{ tableTitle }}</h2>
         <span>{{ tableMetaText }}</span>
@@ -425,11 +425,7 @@ export default {
   min-width: 96px;
   min-height: 44px;
   padding: 0 14px;
-  color: var(--on-primary);
-  background: var(--primary-color);
   border: 0;
-  border-radius: 8px;
-  box-shadow: none;
   font-size: 0.92rem;
   font-weight: 900;
 }
@@ -620,11 +616,8 @@ h1 {
     align-items: flex-start;
   }
 
-  .page-header h1 {
-    font-size: 1.65rem;
-  }
-
-  h1 {
+  .page-header h1,
+h1 {
     font-size: 1.65rem;
   }
 

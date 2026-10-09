@@ -24,6 +24,44 @@ Nomica 是日常收支、帳戶與旅行分攤的同一本帳。採用「Calm Fi
 
 深色模式的主要文字使用 `#F7F8FA`，次要文字使用 `#BEC4CE`；瀏覽器字體平滑維持系統預設，避免小尺寸繁體中文字在深色背景上顯得過細。AI 解析區使用獨立的 `--ai-surface`、`--ai-surface-raised`、`--ai-border` 與 `--ai-accent`，在 Light/Dark 使用不同表面層級，不以固定淺藍色跨模式顯示。
 
+### Web 共用 UI 類別
+
+`frontend/src/assets/style.css` 管理主題 token 與全站基準；`frontend/src/assets/ui.css` 管理需明確加上 class 才生效的共用樣式，由 `main.js` 載入。主要頁面、旅行操作與配置表單已逐步採用，不會自動替換沒有加上 class 的元件。
+
+- `app-card`：卡片表面、邊框、圓角與陰影；不設定內距或排版。
+- `app-surface`：既有頁面卡片的表面樣式，不設定文字顏色或邊框寬度；取代原本依賴頁面 class 名稱的高權重 `#app` 覆寫。
+- `app-primary-action`：僅提供主要操作的配色與圓角，保留既有控制項尺寸與排版；新控制項優先使用完整的 `app-button`。
+- `app-chart-card`：共用既有圖表／提醒卡的表面、內距與間距，保留原本視覺規格。
+- `app-form-fields`／`app-field-labels`：配置表單的共用欄位／僅標籤樣式。使用低權重 `:where()`，帳戶選擇器、金額組合輸入框與各表單斷點仍由 component 控制。
+- `app-button`：基本按鈕／連結、44px 最小高度、圖示、disabled 與鍵盤焦點；搭配 `app-button--primary`、`app-button--soft`、`app-button--text`。
+- `app-notice`：狀態訊息內距與字級；搭配 `app-notice--info`、`app-notice--error`。`role="status"`／`role="alert"` 仍由 template 提供。
+- 按鈕局部差異可透過 `--app-button-padding`、`--app-button-radius`、`--app-button-weight`、`--app-button-gap` 調整，避免複製整份宣告。
+
+頁面 grid、導覽定位、相機框線與候選交易排版繼續放在 component 的 scoped CSS。後續移轉其他頁面應逐批替換並檢查深淺色、hover、focus、disabled 與手機版面；不要一次以全域 `button` selector 覆寫既有元件。
+
+警告文字使用 `--warning-text`，警告色標與邊框使用 `--warning-color`。首頁深色 hero 上的白字／透明色、品牌資產及使用者自選色票不是一般中性色，不能機械式全部替換。
+
+### CSS 與 UI 回歸檢查
+
+在 `frontend` 執行：
+
+```sh
+npm ci
+npm run check:styles
+npm run lint
+npm run build
+npx playwright install chromium
+npm run test:ui
+```
+
+macOS 已安裝 Chrome 時也可用 `UI_BROWSER_CHANNEL=chrome npm run test:ui`。測試自動啟動本機 Vite（127.0.0.1:4174）、隔離 `.env.local` 的 API／開發登入設定，結束後關閉服務。若需使用已啟動的本機 Vite，可指定 `UI_BASE_URL=http://127.0.0.1:5176`；只允許 loopback URL。
+
+所有 `/api/` 請求都由 mock 攔截，其他外部請求會被阻擋，且預設不允許寫入操作。測試涵蓋 320／390／430／768／1280px 的深淺色主要頁面、配置表單、焦點、外觀偏好保留、選單操作、相機拒絕備援與 loading／error／retry。截圖輸出於 `frontend/test-results/ui`（不納入 Git），供目視檢查；目前不是像素差異 golden-image 測試，也不代表真實裝置相機或正式 API 整合驗收。
+
+`check:styles` 驗證 CSS 可解析、首頁／Navbar 不重新累積相同層級的 selector 與 property 覆寫、共用 UI 不使用 ID selector，並防止恢復本批已移除的按鈕／表面覆寫。它不是完整的 Stylelint 或 accessibility audit。
+
+本批已移除依頁面名稱指定的卡片與主要按鈕全域覆寫；全站頁面尺寸、輸入框基準、旅行配色與響應式配置仍保留在 `style.css`。不將所有重複的 flex／grid 宣告強制抽成工具 class；其他頁面的局部樣式仍可按需求分批收斂。
+
 ## 品牌標記與 LINE 頭像
 
 Nomica 使用同一個「N」標記：兩條白色直柱代表穩定的帳目結構，Aqua 斜線代表從日常記帳延伸到旅行的流動。完整圖示使用 Indigo 方形底；保留四周留白，縮小到 32px 或裁成圓形時仍能辨認。圖示內不放產品名稱或 LINE 商標；名稱由介面文字或 LINE 帳號名稱呈現。

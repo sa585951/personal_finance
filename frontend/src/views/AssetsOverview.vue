@@ -33,7 +33,7 @@
         <ArrowRight class="allocation-entry-arrow" aria-hidden="true" />
       </router-link>
 
-      <section class="account-health-panel" aria-label="帳戶健康度">
+      <section class="account-health-panel app-surface" aria-label="帳戶健康度">
         <div class="section-heading">
           <h2>帳戶健康度</h2>
           <span>{{ accountHealthSummary }}</span>
@@ -54,7 +54,7 @@
         </div>
       </section>
 
-      <section class="action-panel">
+      <section class="action-panel app-surface">
         <div class="action-tabs" aria-label="帳戶操作">
           <button
             type="button"
@@ -94,7 +94,7 @@
         </div>
       </section>
 
-      <section v-if="lastTransferResult?.impact" class="transfer-result-panel">
+      <section v-if="lastTransferResult?.impact" class="transfer-result-panel app-surface">
         <div class="transfer-result-heading">
           <div>
             <p>Movement completed</p>
@@ -687,8 +687,6 @@ h1 {
 .account-health-panel {
   padding: 16px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--card-bg);
 }
 
 .section-heading {
@@ -722,7 +720,7 @@ h1 {
   min-height: 92px;
   padding: 12px;
   border: 1px solid var(--border-color);
-  border-left: 4px solid #94a3b8;
+  border-left: 4px solid var(--light-text-color);
   border-radius: 8px;
   background: var(--secondary-color);
 }
@@ -730,7 +728,7 @@ h1 {
 .health-card.warning {
   background: var(--warning-soft);
   border-color: var(--warning-color);
-  border-left-color: #f59e0b;
+  border-left-color: var(--warning-color);
 }
 
 .health-card.danger {
@@ -742,7 +740,7 @@ h1 {
 .health-card.info {
   background: var(--primary-soft);
   border-color: var(--brand-border);
-  border-left-color: #2563eb;
+  border-left-color: var(--primary-color);
 }
 
 .health-card.success {
@@ -781,17 +779,13 @@ h1 {
 .action-panel {
   padding: 16px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--card-bg);
 }
 
 .transfer-result-panel {
   display: grid;
   gap: 12px;
   padding: 16px;
-  border: 1px solid var(--brand-border);
-  border-radius: 10px;
-  background: var(--primary-soft);
+  border: 1px solid var(--border-color);
 }
 
 .transfer-result-heading {
@@ -855,7 +849,7 @@ h1 {
 .action-tab.active {
   border-color: var(--primary-color);
   background: var(--primary-soft);
-  color: #115e59;
+  color: var(--primary-color);
 }
 
 .action-tab:disabled {

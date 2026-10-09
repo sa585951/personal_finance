@@ -288,7 +288,8 @@ export default {
 
 .field select:focus,
 .field input:focus {
-  outline: none;
+  outline: 3px solid var(--primary-color);
+  outline-offset: 3px;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }

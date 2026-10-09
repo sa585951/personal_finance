@@ -1,5 +1,5 @@
 <template>
-  <div class="card">
+  <div class="card app-chart-card">
     <div class="card-header">
       <h3 class="card-title">資產配置</h3>
     </div>
@@ -65,14 +65,6 @@ export default {
 </script>
 
 <style scoped>
-.card {
-  background-color: var(--secondary-color);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  padding: 20px;
-  margin-bottom: 20px;
-}
-
 .card-header {
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 15px;

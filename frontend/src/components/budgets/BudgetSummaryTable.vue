@@ -513,7 +513,7 @@ select {
 }
 
 .alert-card.danger {
-  color: #991b1b;
+  color: var(--expense-color);
   background: var(--expense-soft);
   border: 1px solid var(--expense-color);
   border-left: 4px solid var(--expense-color);
@@ -523,14 +523,14 @@ select {
   color: var(--warning-color);
   background: var(--warning-soft);
   border: 1px solid var(--warning-color);
-  border-left: 4px solid #f59e0b;
+  border-left: 4px solid var(--warning-color);
 }
 
 .alert-card.neutral {
   color: var(--primary-hover);
   background: var(--primary-soft);
   border: 1px solid var(--brand-border);
-  border-left: 4px solid #2563eb;
+  border-left: 4px solid var(--primary-color);
 }
 
 .alert-card.clear {
@@ -610,7 +610,7 @@ select {
 }
 
 .card-top .unset {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .card-top > strong {
@@ -684,8 +684,8 @@ select {
 }
 
 .update-btn {
-  color: #ffffff;
-  background-color: #2563eb;
+  color: var(--on-primary);
+  background-color: var(--primary-color);
 }
 
 .no-data {

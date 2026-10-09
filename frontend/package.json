@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "check:styles": "node scripts/check-styles.cjs",
+    "test:ui": "node scripts/test-ui.cjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
@@ -26,6 +28,8 @@
     "@vitejs/plugin-vue": "^6.0.1",
     "eslint": "^7.32.0",
     "eslint-plugin-vue": "^8.0.3",
+    "playwright": "1.62.1",
+    "postcss": "8.5.29",
     "vite": "^7.1.4"
   }
 }

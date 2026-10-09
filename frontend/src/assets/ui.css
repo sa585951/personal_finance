@@ -1,0 +1,90 @@
+/* Opt-in UI primitives. Layout and domain-specific visuals stay in components. */
+.app-surface {
+  border-color: var(--border-color);
+  border-radius: var(--card-radius);
+  background: var(--card-bg);
+  box-shadow: var(--surface-shadow);
+}
+
+/* Appearance only: existing control layout remains component-owned. */
+.app-primary-action {
+  border-radius: 12px;
+  color: var(--on-primary);
+  background: var(--primary-color);
+  box-shadow: none;
+}
+
+.app-chart-card {
+  background: var(--secondary-color);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .08);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+:where(.app-form-fields, .app-field-labels) label {
+  display: grid;
+  gap: 6px;
+  color: var(--light-text-color);
+  font-weight: 700;
+}
+:where(.app-form-fields) :is(input, select) {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  font: inherit;
+}
+
+.app-card {
+  color: var(--text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  box-shadow: var(--surface-shadow);
+}
+
+.app-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-button-gap, 8px);
+  min-height: 44px;
+  padding: var(--app-button-padding, 10px 14px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-button-radius, 10px);
+  color: var(--text-color);
+  background: var(--secondary-color);
+  font-weight: var(--app-button-weight, 700);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--motion-fast);
+}
+.app-button > svg { width: 19px; height: 19px; flex: none; }
+.app-button--primary {
+  color: var(--on-primary);
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  border-radius: var(--app-button-radius, 12px);
+}
+.app-button--primary:hover { background: var(--primary-hover); }
+.app-button--soft {
+  color: var(--primary-color);
+  background: var(--primary-soft);
+  border-color: var(--brand-border);
+}
+.app-button--text {
+  padding: var(--app-button-padding, 8px 4px);
+  color: var(--light-text-color);
+  background: transparent;
+  border-color: transparent;
+  font-size: .8rem;
+}
+.app-button:disabled { opacity: .5; cursor: wait; }
+.app-button:focus-visible { outline: 3px solid var(--primary-color); outline-offset: 3px; }
+
+.app-notice { padding: 12px; border-radius: 10px; font-size: .85rem; }
+.app-notice--info { color: var(--primary-color); background: var(--primary-soft); }
+.app-notice--error { color: var(--expense-color); background: var(--expense-soft); }

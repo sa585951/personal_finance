@@ -55,7 +55,7 @@
         </div>
       </section>
 
-      <section class="status-card">
+      <section class="status-card app-surface">
         <div class="section-heading">
           <div>
             <span>預算狀態</span>
@@ -86,7 +86,7 @@
         </p>
       </section>
 
-      <section class="status-card">
+      <section class="status-card app-surface">
         <div class="section-heading">
           <div>
             <span>旅行摘要</span>
@@ -120,7 +120,7 @@
     </template>
 
     <template v-else-if="activeTab === 'spending'">
-      <section class="chart-card">
+      <section class="chart-card app-surface">
         <div class="chart-switch" aria-label="支出分析切換">
           <button type="button" :class="{ active: spendingView === 'category' }" @click="spendingView = 'category'">
             分類比例
@@ -144,7 +144,7 @@
         <button type="button" :class="{ active: flowType === 'income' }" @click="flowType = 'income'">收入</button>
       </div>
 
-      <section v-if="flowType === 'income'" class="source-card">
+      <section v-if="flowType === 'income'" class="source-card app-surface">
         <div class="section-heading">
           <div>
             <span>收入來源</span>
@@ -166,7 +166,7 @@
         <p v-else>這個月份尚未記錄收入。</p>
       </section>
 
-      <section class="source-card">
+      <section class="source-card app-surface">
         <div class="section-heading">
           <div>
             <span>{{ flowType === "income" ? "入帳帳戶" : "付款來源" }}</span>
@@ -608,15 +608,20 @@ h2 {
   background: var(--card-bg);
 }
 
-.summary-card,
+.summary-card {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+}
+
 .status-card,
 .chart-card,
 .source-card {
   margin-top: 12px;
   padding: 16px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--card-bg);
 }
 
 .summary-card {

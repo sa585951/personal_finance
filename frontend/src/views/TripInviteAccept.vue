@@ -7,7 +7,7 @@
 
       <button
         v-if="tripId"
-        class="primary-action"
+        class="primary-action app-primary-action"
         type="button"
         @click="$router.replace({ name: 'Trips', query: { trip_id: tripId } })"
       >
@@ -106,7 +106,14 @@ h1 {
   line-height: 1.6;
 }
 
-.primary-action,
+.primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  width: 100%;
+}
+
 .secondary-action {
   display: inline-flex;
   align-items: center;
@@ -114,11 +121,6 @@ h1 {
   min-height: 42px;
   width: 100%;
   border-radius: 8px;
-}
-
-.primary-action {
-  color: var(--on-primary);
-  background: var(--primary-color);
 }
 
 .secondary-action {

@@ -9,14 +9,14 @@
         <button class="icon-button" type="button" title="重新整理" @click="fetchTrips">
           <Refresh />
         </button>
-        <button class="primary-action" type="button" @click="showCreateTrip = !showCreateTrip">
+        <button class="primary-action app-primary-action" type="button" @click="showCreateTrip = !showCreateTrip">
           <Plus />
           {{ showCreateTrip ? "收合" : "新增" }}
         </button>
       </div>
     </header>
 
-    <section v-if="showCreateTrip || (!loading && trips.length === 0)" class="create-panel">
+    <section v-if="showCreateTrip || (!loading && trips.length === 0)" class="create-panel app-surface">
       <div class="section-heading">
         <div>
           <span>NEW TRIP</span>
@@ -64,7 +64,7 @@
         <p class="field-hint full-row">
           只會將你的旅行分攤金額納入個人統計，其他成員可自行決定。
         </p>
-        <button class="primary-action full-row" type="submit" :disabled="submittingTrip">
+        <button class="primary-action full-row app-primary-action" type="submit" :disabled="submittingTrip">
           <Plus />
           {{ submittingTrip ? "建立中" : "建立旅行" }}
         </button>
@@ -106,7 +106,7 @@
             <button
               v-for="trip in group.trips"
               :key="trip.id"
-              class="trip-card"
+              class="trip-card app-surface"
               type="button"
               @click="openTrip(trip.id)"
             >
@@ -129,7 +129,7 @@
       </div>
     </section>
 
-    <section v-if="showTripManagement" class="management-panel">
+    <section v-if="showTripManagement" class="management-panel app-surface">
       <div class="section-heading">
         <div>
           <span>ARCHIVE</span>
@@ -420,7 +420,13 @@ h2 {
   gap: 6px;
 }
 
-.primary-action,
+.primary-action {
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 12px;
+  font-weight: 800;
+}
+
 .secondary-action,
 .quiet-action,
 .icon-button {
@@ -432,8 +438,6 @@ h2 {
 }
 
 .primary-action {
-  color: var(--on-primary);
-  background: var(--primary-color);
   border: 1px solid var(--primary-color);
 }
 
@@ -456,7 +460,11 @@ h2 {
 }
 
 .create-panel,
-.management-panel,
+.management-panel {
+  padding: 16px;
+  border: 1px solid var(--border-color);
+}
+
 .page-state,
 .empty-state {
   padding: 16px;
@@ -606,11 +614,8 @@ h2 {
   padding: 14px;
   color: var(--light-text-color);
   text-align: left;
-  background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-left: 4px solid var(--primary-color);
-  border-radius: 8px;
-  box-shadow: none;
 }
 
 .trip-card:hover {

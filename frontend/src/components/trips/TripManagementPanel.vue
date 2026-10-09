@@ -3,7 +3,7 @@
     <button class="management-toggle" type="button" @click="$emit('toggle')">
       {{ expanded ? "收合旅行管理" : "旅行管理" }}
     </button>
-    <div v-if="expanded" class="management-panel">
+    <div v-if="expanded" class="management-panel app-surface">
       <div>
         <strong>帳本狀態</strong>
         <span>封存會保留資料；刪除會先保留 30 天。</span>
@@ -96,9 +96,7 @@ export default {
   display: grid;
   gap: 12px;
   padding: 12px;
-  background: var(--secondary-color);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
 }
 
 .management-panel > div:first-child {

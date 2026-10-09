@@ -180,9 +180,10 @@ export default {
 
 .form-group input:focus,
 .form-group select:focus {
-  outline: none;
+  outline: 3px solid var(--primary-color);
+  outline-offset: 3px;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+  box-shadow: none;
 }
 
 .account-form button {
@@ -196,8 +197,8 @@ export default {
   padding: 1rem;
   border-radius: 6px;
   font-weight: bold;
-  background-color: #e8f5e9;
-  color: #2e7d32;
+  background-color: var(--income-soft);
+  color: var(--income-color);
   text-align: center;
 }
 </style>

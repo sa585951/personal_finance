@@ -12,6 +12,7 @@
   --expense-color: #d95353;
   --expense-soft: #fff0f0;
   --warning-soft: #fff6e8;
+  --warning-text: #7c2d12;
   --on-primary: #ffffff;
   --secondary-color: #f0f2f5;
   --card-bg: #ffffff;
@@ -58,6 +59,7 @@
     --expense-color: #ff7373;
     --expense-soft: #3d2327;
     --warning-soft: #3b3020;
+    --warning-text: #f5c879;
     --on-primary: #101216;
     --secondary-color: #21252c;
     --card-bg: #181b21;
@@ -148,20 +150,6 @@ button:not(:disabled):active { transform: scale(0.98); }
   letter-spacing: 0.11em;
 }
 
-#app :is(.page-add-button, .primary-action) {
-  border-radius: 12px;
-  color: var(--on-primary);
-  background: var(--primary-color);
-  box-shadow: none;
-}
-
-#app :is(.insights-panel, .getting-started-panel, .account-health-panel, .create-panel, .management-panel, .action-panel, .transfer-result-panel, .records-section, .entry-form-section, .status-card, .chart-card, .source-card, .preview-card, .success-panel, .trip-card) {
-  border-color: var(--border-color);
-  border-radius: var(--card-radius);
-  background: var(--card-bg);
-  box-shadow: var(--surface-shadow);
-}
-
 #app :is(.setup-step, .insight-card, .insight-empty, .health-card) { border-radius: 14px; }
 #app main :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
   border-radius: 12px;
@@ -181,11 +169,11 @@ button:not(:disabled):active { transform: scale(0.98); }
   --brand-border: var(--travel-color);
 }
 #app :is(.trip-list-view, .trips-page) .eyebrow { color: var(--travel-color); }
-#app :is(.trip-list-view, .trips-page) :is(.primary-action, .page-add-button) {
+#app :is(.trip-list-view, .trips-page) .app-primary-action {
   color: #fff;
   background: #247e8f;
 }
-:root[data-theme="dark"] #app :is(.trip-list-view, .trips-page) :is(.primary-action, .page-add-button) {
+:root[data-theme="dark"] #app :is(.trip-list-view, .trips-page) .app-primary-action {
   color: #101216;
   background: var(--travel-color);
 }

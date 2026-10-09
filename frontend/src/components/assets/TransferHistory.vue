@@ -82,7 +82,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #1f2937;
+  color: var(--text-color);
 }
 
 .section-heading span {

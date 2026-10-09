@@ -811,7 +811,7 @@ export default {
   padding: 10px 12px;
   border-radius: 8px;
   background: var(--warning-soft);
-  color: #7c2d12;
+  color: var(--warning-text);
   font-size: 0.84rem;
 }
 

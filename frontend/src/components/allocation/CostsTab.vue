@@ -9,7 +9,7 @@
       <Close v-if="showForm" /><Plus v-else />{{ showForm ? "收合表單" : "新增投入成本" }}
     </button>
 
-    <form v-if="showForm" class="entry-form" @submit.prevent="saveEntry">
+    <form v-if="showForm" class="entry-form app-form-fields" @submit.prevent="saveEntry">
       <label>
         <span>配置標的</span>
         <select v-model="form.holding_id" required :disabled="Boolean(editingEntry)">
@@ -47,7 +47,7 @@
       </label>
       <div class="form-actions wide-field">
         <button v-if="editingEntry" class="secondary-action" type="button" @click="resetForm">取消編輯</button>
-        <button class="primary-action" type="submit" :disabled="saving">{{ saving ? "儲存中" : editingEntry ? "儲存變更" : "新增成本" }}</button>
+        <button class="primary-action app-primary-action" type="submit" :disabled="saving">{{ saving ? "儲存中" : editingEntry ? "儲存變更" : "新增成本" }}</button>
       </div>
       <p v-if="form.entry_type === 'transfer' && form.holding_id && !eligibleTransfers.length" class="form-hint wide-field">
         最近轉帳中沒有符合此標的投資帳戶與幣別的紀錄。
@@ -135,8 +135,8 @@ export default {
 <style scoped>
 .tab-panel { display: grid; gap: 14px; }.cost-summary { padding: 16px; border: 1px solid var(--brand-border); border-radius: 10px; background: var(--primary-soft); }.cost-summary > div { display: flex; justify-content: space-between; gap: 12px; }.cost-summary span { color: var(--light-text-color); font-weight: 700; }.cost-summary strong { color: var(--primary-color); font-size: 1.3rem; }.cost-summary p { margin: 5px 0 0; color: var(--light-text-color); font-size: .86rem; }
 .panel-toggle { justify-self: start; min-height: 40px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; color: var(--primary-color); background: var(--card-bg); border: 1px solid var(--brand-border); }.panel-toggle svg { width: 17px; height: 17px; }
-.entry-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--secondary-color); }.entry-form label { display: grid; gap: 6px; color: var(--light-text-color); font-weight: 700; }.wide-field { grid-column: 1 / -1; }.entry-form input, .entry-form select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); font: inherit; }.entry-form input:focus, .entry-form select:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary-color); }
-.form-actions { display: flex; justify-content: flex-end; gap: 8px; }.primary-action, .secondary-action { min-height: 38px; padding: 0 12px; border-radius: 8px; }.primary-action { color: var(--on-primary); background: var(--primary-color); }.secondary-action { color: var(--text-color); background: var(--card-bg); border: 1px solid var(--border-color); }.form-hint { margin: 0; color: var(--warning-color); font-size: .86rem; }
+.entry-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--secondary-color); }.wide-field { grid-column: 1 / -1; }.entry-form input:focus, .entry-form select:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary-color); }
+.form-actions { display: flex; justify-content: flex-end; gap: 8px; }.primary-action { min-height: 38px; padding: 0 12px; }.secondary-action { min-height: 38px; padding: 0 12px; border-radius: 8px; }.secondary-action { color: var(--text-color); background: var(--card-bg); border: 1px solid var(--border-color); }.form-hint { margin: 0; color: var(--warning-color); font-size: .86rem; }
 .cost-list { display: grid; gap: 8px; }.cost-row { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); }.cost-date { display: grid; place-items: center; padding: 6px; color: var(--primary-color); background: var(--primary-soft); border-radius: 8px; }.cost-date strong { font-size: 1.12rem; line-height: 1; }.cost-date span { font-size: .68rem; }.cost-copy { min-width: 0; display: grid; gap: 2px; }.cost-copy span { overflow: hidden; color: var(--light-text-color); font-size: .84rem; text-overflow: ellipsis; white-space: nowrap; }.cost-amount { color: var(--text-color); white-space: nowrap; }.row-actions { display: flex; gap: 4px; }.row-actions button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; color: var(--light-text-color); background: var(--secondary-color); border: 1px solid var(--border-color); }.row-actions button svg { width: 16px; height: 16px; }.row-actions .danger-icon { color: var(--expense-color); }.empty-state { padding: 28px 16px; color: var(--light-text-color); text-align: center; border: 1px dashed var(--border-color); border-radius: 10px; background: var(--secondary-color); }
 @media (max-width: 640px) { .entry-form { grid-template-columns: 1fr; }.entry-form label, .wide-field { grid-column: 1; }.cost-row { grid-template-columns: 48px minmax(0, 1fr) auto; }.cost-amount { grid-column: 2; }.row-actions { grid-column: 3; grid-row: 1 / span 2; flex-direction: column; } }
 </style>

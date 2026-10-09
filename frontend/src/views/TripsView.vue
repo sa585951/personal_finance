@@ -64,7 +64,7 @@
           <div class="monthly-preference-actions">
             <button
               type="button"
-              class="primary-action"
+              class="primary-action app-primary-action"
               :disabled="updatingTripSettings"
               @click="updateMonthlyReportPreference('include')"
             >
@@ -2129,8 +2129,24 @@ h1 {
   font-size: 2rem;
 }
 
-.icon-button,
-.primary-action,
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+}
+
 .secondary-action,
 .quiet-action {
   display: inline-flex;
@@ -2179,7 +2195,6 @@ h1 {
 
 .primary-action {
   align-self: end;
-  background: var(--primary-color);
 }
 
 .secondary-action {

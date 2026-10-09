@@ -26,7 +26,7 @@
               <option v-for="user in devUsers" :key="user.id" :value="user.id">{{ user.name }}</option>
             </select>
           </label>
-          <router-link class="account-menu-link" to="/account" @click="showAccountMenu = false">
+          <router-link class="account-menu-link app-button app-button--soft" to="/account" @click="showAccountMenu = false">
             帳號設定
           </router-link>
           <button v-if="isLoggedIn" class="logout-button" type="button" @click="logout">登出</button>
@@ -159,70 +159,71 @@ export default {
 
 <style scoped>
 .navbar {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(14px);
-  min-height: var(--app-bottom-nav-height);
-  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border-color);
-  box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
   position: fixed;
-  bottom: 0;
+  top: 0;
   left: 0;
   right: 0;
   z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 64px;
+  padding: calc(8px + env(safe-area-inset-top)) 16px 8px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg);
+  box-shadow: var(--surface-shadow);
 }
-
-.logo,
-.auth-section {
-  display: none;
+.logo { display: block; }
+.logo a {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-color);
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 850;
+  letter-spacing: -.04em;
 }
-
-.dev-user-switcher {
-  display: none;
-}
-
+.logo-mark { width: 32px; height: 32px; border-radius: 10px; }
 .nav-links {
-  list-style: none;
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  bottom: max(8px, env(safe-area-inset-bottom));
   display: flex;
   justify-content: space-between;
-  gap: 0;
   flex: 1 1 auto;
+  gap: 2px;
   min-width: 0;
-  max-width: 520px;
+  min-height: 68px;
   margin: 0;
-  padding: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--card-bg);
+  box-shadow: 0 4px 16px rgba(23, 26, 31, .08);
 }
-
-.nav-links li {
-  flex: 1;
-}
-
+.nav-links li { flex: 1; }
 .nav-links a {
-  color: var(--light-text-color);
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.3s ease;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 3px;
   width: 100%;
-  min-height: 58px;
+  min-height: 54px;
   padding: 0 2px;
-  border-radius: 12px;
-  font-size: 0.78rem;
+  border-radius: 15px;
+  color: var(--light-text-color);
+  text-decoration: none;
+  font-size: .72rem;
+  font-weight: 700;
+  transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease, transform var(--motion-fast) ease;
 }
-
-.nav-links svg {
-  width: 20px;
-  height: 20px;
-}
-
+.nav-links svg { width: 21px; height: 21px; }
+.nav-links a span { line-height: 1; }
 .nav-links a:hover,
 .nav-links a.router-link-active,
 .nav-links a.router-link-exact-active {
@@ -231,229 +232,122 @@ export default {
   border-bottom: 0;
   transform: none;
 }
-
-.nav-links a.router-link-active svg,
-.nav-links a.router-link-exact-active svg {
-  color: var(--primary-color);
-}
-
-.nav-links a span {
-  line-height: 1;
-}
-
-@media (min-width: 1px) {
-  .auth-section {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    position: relative;
-    flex: 0 0 auto;
-    z-index: 1;
-  }
-
-  .dev-user-switcher {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px;
-    color: var(--text-color);
-    background: var(--secondary-color);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    font-size: 0.75rem;
-    font-weight: 700;
-  }
-
-  .dev-user-switcher span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  .dev-user-switcher select {
-    width: 74px;
-    min-height: 28px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    background: var(--card-bg);
-    font-size: 0.78rem;
-  }
-
-  .account-button {
-    min-height: 34px;
-    max-width: 78px;
-    padding: 6px 8px;
-    color: var(--text-color);
-    background: rgba(255, 255, 255, 0.94);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    font-size: 0.78rem;
-    font-weight: 800;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .account-menu {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    right: 0;
-    min-width: 150px;
-    padding: 10px;
-    display: grid;
-    gap: 8px;
-    color: var(--text-color);
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.18);
-  }
-
-  .account-menu span {
-    font-size: 0.78rem;
-    font-weight: 800;
-  }
-
-  .account-menu-link,
-  .logout-button {
-    min-height: 34px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-    border-radius: 8px;
-    font-weight: 800;
-  }
-
-  .account-menu-link {
-    color: var(--primary-color);
-    background: var(--primary-soft);
-    border: 1px solid var(--brand-border);
-  }
-
-.logout-button {
-  color: var(--expense-color);
-  background: var(--expense-soft);
-  border: 1px solid var(--expense-color);
-}
-}
-
-/* Product navigation */
-.navbar {
-  left: 10px;
-  right: 10px;
-  bottom: max(8px, env(safe-area-inset-bottom));
-  min-height: 68px;
-  padding: 6px;
-  border: 1px solid var(--border-color);
-  border-radius: 18px;
-  background: var(--card-bg);
-  box-shadow: 0 4px 16px rgba(23, 26, 31, 0.08);
-}
-.nav-links { max-width: 540px; gap: 2px; }
-.nav-links a {
-  min-height: 54px;
-  border-radius: 15px;
-  color: var(--light-text-color);
-  font-size: 0.72rem;
-  font-weight: 700;
-  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
-}
-.nav-links svg { width: 21px; height: 21px; }
-.nav-links a:hover,
-.nav-links a.router-link-active,
-.nav-links a.router-link-exact-active {
-  color: var(--primary-color);
-  background: var(--primary-soft);
-}
 .nav-links a.router-link-active svg,
 .nav-links a.router-link-exact-active svg { color: var(--primary-color); }
 .nav-links a[href="/trips"].router-link-active,
 .nav-links a[href="/trips"].router-link-exact-active { color: var(--travel-color); background: var(--travel-soft); }
 .nav-links a[href="/trips"].router-link-active svg,
 .nav-links a[href="/trips"].router-link-exact-active svg { color: var(--travel-color); }
+.auth-section { position: relative; z-index: 1; display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
 .account-button {
   display: grid;
   place-items: center;
-  width: 38px;
+  width: 44px;
   min-width: 38px;
-  height: 38px;
+  max-width: 78px;
+  height: 44px;
+  min-height: 44px;
   padding: 0;
+  overflow: hidden;
   border: 1px solid var(--brand-border);
   border-radius: 50%;
   color: var(--primary-color);
   background: var(--primary-soft);
+  font-size: .78rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.account-initial { font-size: 0.9rem; font-weight: 800; }
+.account-initial { font-size: .9rem; font-weight: 800; }
 .account-name { display: none; }
-.account-menu { border-radius: 16px; border-color: var(--border-color); background: var(--card-bg); }
-.account-menu-link { color: var(--primary-color); background: var(--primary-soft); border-color: var(--brand-border); }
-.dev-user-switcher { border-radius: 12px; border-color: var(--border-color); background: var(--secondary-color); }
-.dev-user-switcher select { width: 58px; border: 0; background: transparent; color: var(--text-color); }
-.auth-section :deep(.theme-toggle) { width: 42px; min-width: 42px; min-height: 42px; padding: 0; border-radius: 13px; }
+.account-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  display: grid;
+  gap: 10px;
+  width: 220px;
+  min-width: 150px;
+  max-width: calc(100vw - 32px);
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  color: var(--text-color);
+  background: var(--card-bg);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, .18);
+}
+.account-menu span { font-size: .78rem; font-weight: 800; }
+.account-menu :deep(.theme-toggle) {
+  width: 100%;
+  min-width: 42px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  justify-content: flex-start;
+}
+.account-menu-link {
+  --app-button-padding: 0;
+  --app-button-radius: 8px;
+  --app-button-weight: 800;
+  --app-button-gap: normal;
+  transition: all 0s;
+}
+.logout-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 1px solid var(--expense-color);
+  border-radius: 8px;
+  color: var(--expense-color);
+  background: var(--expense-soft);
+  text-decoration: none;
+  font-weight: 800;
+}
+.dev-user-switcher {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  color: var(--text-color);
+  background: var(--secondary-color);
+  font-size: .75rem;
+  font-weight: 700;
+}
+.dev-user-switcher span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.dev-user-switcher select {
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-color);
+  background: transparent;
+  font-size: .78rem;
+}
 @media (max-width: 380px) {
-  .navbar { left: 6px; right: 6px; }
-  .nav-links a { font-size: 0.68rem; }
+  .nav-links a { font-size: .68rem; }
   .nav-links svg { width: 19px; height: 19px; }
 }
 @media (min-width: 1024px) {
-  .navbar {
-    top: 0;
-    bottom: auto;
-    left: 0;
-    right: 0;
-    min-height: 72px;
-    padding: 8px max(24px, calc((100vw - 1120px) / 2));
-    justify-content: space-between;
-    gap: 36px;
-    border: 0;
-    border-bottom: 1px solid var(--border-color);
-    border-radius: 0;
-    box-shadow: 0 2px 10px rgba(23, 26, 31, 0.04);
-  }
-  .logo { display: block; flex: 0 0 auto; }
-  .logo a {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--text-color);
-    font-size: 1.2rem;
-    font-weight: 850;
-    letter-spacing: -0.04em;
-    text-decoration: none;
-  }
-  .logo-mark { width: 34px; height: 34px; border-radius: 11px; }
-  .nav-links { flex: 0 1 540px; }
-  .nav-links a { flex-direction: row; gap: 7px; min-height: 42px; font-size: 0.84rem; }
+  .navbar { min-height: 72px; padding: 8px max(24px, calc((100vw - 1120px) / 2)); gap: 36px; }
+  .logo { flex: 0 0 auto; }
+  .nav-links { position: static; flex: 0 1 540px; max-width: 540px; min-height: auto; padding: 0; border: 0; background: transparent; box-shadow: none; }
+  .nav-links a { flex-direction: row; gap: 7px; min-height: 42px; font-size: .84rem; }
   .nav-links svg { width: 18px; height: 18px; }
-  .account-button { display: inline-flex; width: auto; max-width: 150px; padding: 0 12px 0 4px; gap: 8px; border-radius: 999px; }
+  .account-button { display: inline-flex; max-width: 150px; padding: 0 12px 0 4px; gap: 8px; border-radius: 999px; }
   .account-initial { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: var(--primary-soft); }
   .account-name { display: block; overflow: hidden; text-overflow: ellipsis; }
-  .account-menu { top: calc(100% + 10px); bottom: auto; }
-}
-</style>
-
-<style scoped>
-/* Account controls live in the top brand bar; bottom navigation has five tabs. */
-.navbar { top: 0; bottom: auto; left: 0; right: 0; min-height: 64px; padding: calc(8px + env(safe-area-inset-top)) 16px 8px; justify-content: space-between; border: 0; border-bottom: 1px solid var(--border-color); border-radius: 0; backdrop-filter: none; background: var(--card-bg); box-shadow: var(--surface-shadow); }
-.logo { display: block; }
-.logo a { display: flex; align-items: center; gap: 9px; color: var(--text-color); text-decoration: none; font-size: 1.1rem; font-weight: 850; letter-spacing: -.04em; }
-.logo-mark { width: 32px; height: 32px; border-radius: 10px; }
-.nav-links { position: fixed; left: 10px; right: 10px; bottom: max(8px, env(safe-area-inset-bottom)); width: auto; max-width: none; min-height: 68px; padding: 6px; border: 1px solid var(--border-color); border-radius: 18px; background: var(--card-bg); box-shadow: 0 4px 16px rgba(23,26,31,.08); }
-.auth-section { position: relative; display: flex; }
-.account-button { width: 44px; height: 44px; min-height: 44px; }
-.account-menu { top: calc(100% + 10px); bottom: auto; width: 220px; max-width: calc(100vw - 32px); padding: 14px; gap: 10px; }
-.account-menu :deep(.theme-toggle) { width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px; justify-content: flex-start; }
-.account-menu-link, .logout-button { min-height: 44px; }
-.dev-user-switcher { display: flex; min-height: 44px; }
-.dev-user-switcher select { width: 100%; min-height: 36px; }
-@media (min-width: 1024px) {
-  .navbar { min-height: 72px; padding: 8px max(24px, calc((100vw - 1120px) / 2)); }
-  .nav-links { position: static; width: auto; max-width: 540px; min-height: auto; padding: 0; border: 0; box-shadow: none; background: transparent; }
 }
 </style>

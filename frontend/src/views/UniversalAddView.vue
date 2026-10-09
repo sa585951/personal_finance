@@ -38,7 +38,7 @@
     </template>
 
     <template v-else-if="stage === 'preview'">
-      <section class="preview-card">
+      <section class="preview-card app-surface">
         <div class="preview-heading">
           <div>
             <p>AI Preview</p>
@@ -95,7 +95,7 @@
     </template>
 
     <template v-else>
-      <section class="success-panel">
+      <section class="success-panel app-surface">
         <div
           class="success-visual"
           :class="successKind"
@@ -126,7 +126,7 @@
 
       <div class="success-actions">
         <button type="button" class="secondary-action" @click="resetDraft">再記一筆</button>
-        <button type="button" class="primary-action" @click="finishAdded">完成並返回</button>
+        <button type="button" class="primary-action app-primary-action" @click="finishAdded">完成並返回</button>
       </div>
     </template>
   </div>
@@ -302,15 +302,32 @@ export default {
   font-size: 1.55rem;
 }
 
-.manual-options,
-.preview-card,
-.manual-heading,
-.success-panel {
+.manual-options {
   margin-bottom: 14px;
   padding: 16px;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 10px;
+}
+
+.preview-card {
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+}
+
+.manual-heading {
+  margin-bottom: 14px;
+  padding: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.success-panel {
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
 }
 
 .success-panel {

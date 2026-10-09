@@ -98,7 +98,7 @@ export default {
   min-height: 100vh;
   padding: 72px 16px 104px;
   background: var(--secondary-color);
-  color: #1f2937;
+  color: var(--text-color);
 }
 
 .account-hero,
@@ -207,7 +207,7 @@ p {
 }
 
 .state-message.error {
-  color: #991b1b;
+  color: var(--expense-color);
   background: var(--expense-soft);
 }
 

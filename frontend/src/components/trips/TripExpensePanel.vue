@@ -209,7 +209,7 @@
       >
         取消編輯
       </button>
-      <button class="primary-action full-row" type="submit" :disabled="submitting">
+      <button class="primary-action full-row app-primary-action" type="submit" :disabled="submitting">
         <Plus />
         {{ editingTransactionId ? "更新支出" : "新增支出" }}
       </button>
@@ -578,7 +578,13 @@ input:disabled {
   border-color: var(--warning-color);
 }
 
-.primary-action,
+.primary-action {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 0;
+  font-weight: 800;
+}
+
 .quiet-action {
   min-height: 42px;
   padding: 0 14px;
@@ -593,8 +599,6 @@ input:disabled {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: var(--on-primary);
-  background: var(--primary-color);
 }
 
 .quiet-action {

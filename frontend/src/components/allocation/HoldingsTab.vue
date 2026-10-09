@@ -14,7 +14,7 @@
       {{ showForm ? "收合表單" : "新增配置標的" }}
     </button>
 
-    <form v-if="showForm" class="entry-form" @submit.prevent="saveHolding">
+    <form v-if="showForm" class="entry-form app-form-fields" @submit.prevent="saveHolding">
       <AccountPicker
         v-model="form.account_id"
         class="wide-field"
@@ -42,7 +42,7 @@
       </label>
       <div class="form-actions wide-field">
         <button v-if="editingHolding" class="secondary-action" type="button" @click="resetForm">取消編輯</button>
-        <button class="primary-action" type="submit" :disabled="saving || !investmentAccounts.length">
+        <button class="primary-action app-primary-action" type="submit" :disabled="saving || !investmentAccounts.length">
           {{ saving ? "儲存中" : editingHolding ? "儲存變更" : "新增標的" }}
         </button>
       </div>
@@ -179,10 +179,9 @@ export default {
 .target-summary p { margin: 6px 0 10px; color: var(--light-text-color); font-size: .86rem; }
 .target-track { height: 8px; overflow: hidden; background: var(--border-color); border-radius: 999px; }.target-track div { height: 100%; background: var(--primary-color); }
 .panel-toggle { justify-self: start; min-height: 40px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; color: var(--primary-color); background: var(--card-bg); border: 1px solid var(--brand-border); }.panel-toggle svg { width: 17px; height: 17px; }
-.entry-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--secondary-color); }
-.entry-form label { display: grid; gap: 6px; color: var(--light-text-color); font-weight: 700; }.wide-field { grid-column: 1 / -1; }
-.entry-form input, .entry-form select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); font: inherit; }.entry-form input:focus, .entry-form select:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary-color); }
-.form-actions, .card-actions { display: flex; justify-content: flex-end; gap: 8px; }.primary-action, .secondary-action, .card-actions button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; border-radius: 8px; }.primary-action { color: var(--on-primary); background: var(--primary-color); }.secondary-action, .card-actions button { color: var(--text-color); background: var(--card-bg); border: 1px solid var(--border-color); }.card-actions svg { width: 16px; height: 16px; }.card-actions .danger-action { color: var(--expense-color); border-color: var(--expense-color); background: var(--expense-soft); }
+.entry-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--secondary-color); }.wide-field { grid-column: 1 / -1; }.entry-form input:focus, .entry-form select:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary-color); }
+.form-actions, .card-actions { display: flex; justify-content: flex-end; gap: 8px; }.primary-action { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; }.secondary-action,
+.card-actions button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; border-radius: 8px; }.secondary-action, .card-actions button { color: var(--text-color); background: var(--card-bg); border: 1px solid var(--border-color); }.card-actions svg { width: 16px; height: 16px; }.card-actions .danger-action { color: var(--expense-color); border-color: var(--expense-color); background: var(--expense-soft); }
 .form-hint { margin: 0; color: var(--warning-color); font-size: .86rem; }
 .holding-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.holding-card { padding: 16px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); }.holding-card.inactive { opacity: .65; }
 .holding-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.holding-top span { color: var(--primary-color); font-size: .75rem; font-weight: 800; }.holding-top h3 { margin: 2px 0; }.holding-top p { margin: 0; color: var(--light-text-color); font-size: .86rem; }.holding-top > strong { color: var(--primary-color); font-size: 1.2rem; }

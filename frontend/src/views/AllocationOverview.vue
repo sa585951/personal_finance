@@ -6,7 +6,7 @@
         <h1>資產配置</h1>
         <p class="page-description">記錄自己的投資策略、投入成本與手動估值，不連接券商或即時行情。</p>
       </div>
-      <button class="primary-action" type="button" @click="toggleForm">
+      <button class="primary-action app-primary-action" type="button" @click="toggleForm">
         <Close v-if="showForm" />
         <Plus v-else />
         <span>{{ showForm ? "收合" : "新增組合" }}</span>
@@ -20,7 +20,7 @@
           <p>每個投資組合只使用一種基準幣別。</p>
         </div>
       </div>
-      <form class="portfolio-form" @submit.prevent="savePortfolio">
+      <form class="portfolio-form app-form-fields" @submit.prevent="savePortfolio">
         <label>
           <span>組合名稱</span>
           <input v-model.trim="form.name" maxlength="100" placeholder="例如：長期 ETF" required />
@@ -37,7 +37,7 @@
           <button v-if="editingPortfolio" class="secondary-action" type="button" @click="resetForm">
             取消編輯
           </button>
-          <button class="primary-action" type="submit" :disabled="saving">
+          <button class="primary-action app-primary-action" type="submit" :disabled="saving">
             {{ saving ? "儲存中" : editingPortfolio ? "儲存變更" : "建立組合" }}
           </button>
         </div>
@@ -80,7 +80,7 @@
       <div class="empty-icon" aria-hidden="true"><TrendCharts /></div>
       <h2>建立第一個投資組合</h2>
       <p>先決定基準幣別，再加入同幣別投資帳戶中的配置標的。</p>
-      <button class="primary-action" type="button" @click="showForm = true"><Plus />新增投資組合</button>
+      <button class="primary-action app-primary-action" type="button" @click="showForm = true"><Plus />新增投資組合</button>
     </section>
   </div>
 </template>
@@ -178,8 +178,8 @@ export default {
 .eyebrow { margin: 0 0 4px; color: var(--primary-color); font-size: .78rem; font-weight: 800; text-transform: uppercase; }
 h1 { margin: 0; font-size: 2rem; letter-spacing: 0; }
 .page-description { max-width: 560px; margin: 8px 0 0; color: var(--light-text-color); line-height: 1.55; }
-.primary-action, .secondary-action { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border-radius: 8px; }
-.primary-action { color: var(--on-primary); background: var(--primary-color); }
+.primary-action { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; }
+.secondary-action { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border-radius: 8px; }
 .secondary-action { color: var(--text-color); background: var(--card-bg); border: 1px solid var(--border-color); }
 .primary-action svg, .secondary-action svg { width: 18px; height: 18px; }
 .form-panel, .state-panel, .empty-panel { padding: 20px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); }
@@ -188,8 +188,6 @@ h1 { margin: 0; font-size: 2rem; letter-spacing: 0; }
 .section-heading h2 { margin: 0; font-size: 1.15rem; }
 .section-heading p { margin: 4px 0 0; color: var(--light-text-color); }
 .portfolio-form { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 14px; }
-.portfolio-form label { display: grid; gap: 6px; color: var(--light-text-color); font-weight: 700; }
-.portfolio-form input, .portfolio-form select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); font: inherit; }
 .portfolio-form input:focus, .portfolio-form select:focus { outline: 3px solid var(--primary-soft); border-color: var(--primary-color); }
 .form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
 .state-panel { color: var(--light-text-color); }
