@@ -337,8 +337,8 @@ class AIParseService:
         return None
 
     def _clean_local_description(self, message):
-        description = re.sub(r"\d+(?:\.\d+)?\s*(?:元|塊|圓|twd|ntd|\$)?", "", message, flags=re.IGNORECASE)
-        description = self._remove_date_phrase(description)
+        description = self._remove_date_phrase(message)
+        description = re.sub(r"\d+(?:,\d{3})*(?:\.\d+)?\s*(?:元|塊|圓|twd|ntd|\$)?", "", description, flags=re.IGNORECASE)
         description = self._remove_account_phrase(description)
         description = self._remove_currency_words(description)
         description = re.sub(r"(使用|付|付款|刷卡|現金|信用卡|銀行|郵局|LINE Pay|街口|悠遊卡)", "", description)

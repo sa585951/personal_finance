@@ -30,6 +30,16 @@ def test_local_fallback_excludes_date_digits_from_amount(message):
     assert result['source'] == 'local_fallback'
     assert result['legacy']['amount'] == 91
     assert result['transaction']['amount'] == '91'
+    assert result['transaction']['title'] == '午餐'
+    assert result['transaction']['description'] == ''
+
+
+def test_local_fallback_removes_grouped_money_without_damaging_title():
+    service = AIParseService(FakeGeminiModel('not-json'), '{message}')
+    result = service.parse('2026-10-01 午餐1,291元')
+    assert result['transaction']['amount'] == '1291'
+    assert result['transaction']['title'] == '午餐'
+    assert result['transaction']['date'] == '2026-10-01'
 
 
 @pytest.mark.parametrize('message', ['2026-10-01', '午餐2份91元', '帳號12345午餐91元'])

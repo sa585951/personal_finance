@@ -30,7 +30,7 @@ Web在發送前將原payload／UUID保存於以登入使用者分隔的`sessionS
 
 事件處理結果與帳務先commit，之後才傳送LINE reply。reply失敗回503，讓LINE可重送；重送使用當次reply token傳遞原結果，不再記帳。簽章仍由現有SDK驗證，無效簽章400。交易中途失敗會rollback event inbox、交易、movement與草稿確認狀態，再以相同event ID重試。
 
-local fallback取金額前先移除日期；「2026-10-01 午餐91元」預覽為91，不取2026。無法區分多個數字時不猜金額。這不證明外部模型準確率，也不取代AI quota／計費與隱私gateway。現有其他LINE多步驟選單的RAM state尚未整體遷移；本次持久化草稿保證針對自然語言收支確認，不宣稱所有選單流程均可跨worker續接。
+local fallback取金額及清理標題前先移除日期；「2026-10-01 午餐91元」預覽為91、標題為「午餐」，不取2026，也不殘留日期分隔符號。千分位金額會完整移除，不在標題留下逗號。無法區分多個數字時不猜金額。這不證明外部模型準確率，也不取代AI quota／計費與隱私gateway。現有其他LINE多步驟選單的RAM state尚未整體遷移；本次持久化草稿保證針對自然語言收支確認，不宣稱所有選單流程均可跨worker續接。
 
 ## Migration與部署順序
 
