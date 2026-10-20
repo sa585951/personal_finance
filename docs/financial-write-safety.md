@@ -45,3 +45,11 @@ local fallback取金額前先移除日期；「2026-10-01 午餐91元」預覽�
 正式回歸置於`tests/test_financial_command_idempotency.py`、`tests/test_line_durable_confirmation.py`及現有API／parser／migration tests。DB測試沿用顯式`RUN_DB_SMOKE_TESTS=1`與loopback `*_test` guard，會重建schema，只能在確認歸屬的獨立空測試DB執行。
 
 另以本機實際Chrome→API→本輪獨立PostgreSQL驗證Transfer及整筆還款的「已提交→丟回應→重整→原key重試」，並以LINE profile/reply替身、實際HTTP與DB驗證重複事件及確認前零扣款。這些臨時runner、合成資料、憑證與證據不進版控。真LINE delivery、Gemini、正式登入與手機實機不在本批通過結論內。
+
+## F05收尾：核心帳務寫入錯誤
+
+帳戶新增／修改／刪除／校正、Transfer新增／修改／刪除、群組結算新增／修改／撤銷、私人posting／反轉、預算新增／刪除及日常交易新增／修改／刪除，共17個寫入入口統一處理未預期例外：先rollback，回500與一般錯誤訊息。server log只保留固定操作名稱與例外類型，不記錄SQL、bound parameters或原始exception字串。已知業務驗證ValueError保留提示；既有404驗證與冪等衝突409維持。
+
+LINE webhook不記錄原始body，parser失敗也不記錄可能包含輸入或token的exception字串。`tests/test_financial_error_responses.py`涵蓋各入口的DB／未預期／驗證錯誤，並以實際DB驗證原始同帳戶轉帳被拒絕且零異動，以及第一側餘額更新後SQL失敗的完整rollback與原key重試。Flask test client使用隔離的Auth替身，不算真實登入驗收。
+
+這次不新增migration，也不改帳務計算。此範圍不是全站錯誤回應稽核；其他查詢、旅行管理、配置及Auth入口仍需逐步檢查。正式環境設定與真實外部服務的結論維持未驗證。

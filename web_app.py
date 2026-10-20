@@ -103,6 +103,16 @@ def shutdown_session(exception=None):
     finally:
         db_session.remove()
 
+def _financial_write_error(error, operation, validation_status=400):
+    db_session.rollback()
+    if isinstance(error, ValueError):
+        return jsonify({"success": False, "message": str(error)}), validation_status
+    # DB exception strings include SQL and bound financial data. Log only the
+    # operation and exception type; never expose parameters in JSON or logs.
+    app.logger.error("Financial write failed: operation=%s type=%s", operation, type(error).__name__)
+    return jsonify({"success": False, "message": "操作暫時無法完成，請稍後以原資料重試"}), 500
+
+
 def _is_cookie_secure():
     return os.getenv("FLASK_ENV") == "production"
 
@@ -456,9 +466,7 @@ def add_asset(current_user_id):
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in add_asset: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
+        return _financial_write_error(e, "add_asset", validation_status=400)
 
 @app.route("/api/assets/<string:account_key>", methods=["PUT"])
 @token_required
@@ -487,9 +495,7 @@ def update_asset_balance(current_user_id, account_key):
         status_code = 404 if "找不到此帳戶" in str(e) else 400
         return jsonify({"success": False, "message": str(e)}), status_code
     except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in update_asset_balance: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _financial_write_error(e, "update_asset_balance", validation_status=400)
 
 @app.route("/api/assets/<string:account_key>/activity", methods=["GET"])
 @token_required
@@ -554,9 +560,7 @@ def create_asset_adjustment(current_user_id, account_key):
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in create_asset_adjustment: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _financial_write_error(e, "create_asset_adjustment", validation_status=400)
 
 @app.route("/api/assets/<string:account_key>", methods=["DELETE"])
 @token_required
@@ -567,8 +571,7 @@ def delete_asset(current_user_id, account_key):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        app.logger.error(f"Error in delete_asset: {e}")
-        return jsonify({"success": False, "message": str(e)}), 404
+        return _financial_write_error(e, "delete_asset", validation_status=404)
 
 @app.route("/api/transfer", methods=["POST"])
 @token_required
@@ -597,9 +600,7 @@ def transfer_funds(current_user_id):
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in transfer_funds: {e}")
-        return jsonify({"success": False, "message": "轉帳暫時無法完成，請使用原資料重試"}), 500
+        return _financial_write_error(e, "transfer_funds", validation_status=400)
 
 @app.route("/api/transfers/recent", methods=["GET"])
 @token_required
@@ -634,8 +635,7 @@ def update_transfer(current_user_id, transfer_id):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        app.logger.error(f"Error in update_transfer: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+        return _financial_write_error(e, "update_transfer", validation_status=400)
 
 @app.route("/api/transfers/<string:transfer_id>", methods=["DELETE"])
 @token_required
@@ -646,8 +646,7 @@ def delete_transfer(current_user_id, transfer_id):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        app.logger.error(f"Error in delete_transfer: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+        return _financial_write_error(e, "delete_transfer", validation_status=400)
 
 # --- API - Asset Allocation ---
 
@@ -1273,9 +1272,7 @@ def add_trip_settlement(current_user_id, trip_id):
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 409
     except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in add_trip_settlement: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+        return _financial_write_error(e, "add_trip_settlement", validation_status=400)
 
 
 @app.route("/api/trips/<string:trip_id>/settlements/<string:settlement_id>", methods=["PATCH"])
@@ -1292,9 +1289,7 @@ def update_trip_settlement(current_user_id, trip_id, settlement_id):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in update_trip_settlement: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+        return _financial_write_error(e, "update_trip_settlement", validation_status=400)
 
 
 @app.route(
@@ -1323,9 +1318,7 @@ def create_settlement_account_entry(current_user_id, trip_id, settlement_id):
             "replayed": replayed,
         }), 200 if replayed else 201
     except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in create_settlement_account_entry: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+        return _financial_write_error(e, "create_settlement_account_entry", validation_status=400)
 
 
 @app.route(
@@ -1351,9 +1344,7 @@ def reverse_settlement_account_entry(current_user_id, trip_id, settlement_id):
             "replayed": replayed,
         }), 200
     except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in reverse_settlement_account_entry: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+        return _financial_write_error(e, "reverse_settlement_account_entry", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/settlements/<string:settlement_id>", methods=["DELETE"])
 @token_required
@@ -1364,9 +1355,7 @@ def delete_trip_settlement(current_user_id, trip_id, settlement_id):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in delete_trip_settlement: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+        return _financial_write_error(e, "delete_trip_settlement", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/archive", methods=["POST"])
 @token_required
@@ -1455,8 +1444,7 @@ def set_budget(current_user_id):
             },
         }), 201
     except Exception as e:
-        app.logger.error(f"Error in set_budget: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
+        return _financial_write_error(e, "set_budget", validation_status=400)
 @app.route("/api/budgets/<string:month>/<string:category>", methods=["DELETE"])
 @token_required
 def delete_budget(current_user_id, month, category):
@@ -1466,8 +1454,7 @@ def delete_budget(current_user_id, month, category):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        app.logger.error(f"Error in delete_budget: {e}")
-        return jsonify({"success": False, "message": str(e)}), 404
+        return _financial_write_error(e, "delete_budget", validation_status=404)
     
 @app.route("/api/months", methods=["GET"])
 @token_required
@@ -1581,9 +1568,7 @@ def add_transaction(current_user_id):
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in add_transaction: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
+        return _financial_write_error(e, "add_transaction", validation_status=400)
 
 @app.route("/api/transactions/<string:transaction_id>", methods=["GET"])
 @token_required
@@ -1609,9 +1594,7 @@ def update_transaction(current_user_id, transaction_id):
             db_session.commit()
         return jsonify({"success": result["success"], "message": result["message"]}), 200
     except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in update_transaction: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+        return _financial_write_error(e, "update_transaction", validation_status=400)
 
 @app.route("/api/transactions/<string:transaction_id>", methods=["DELETE"])
 @token_required
@@ -1622,9 +1605,7 @@ def delete_transaction(current_user_id, transaction_id):
             db_session.commit()
         return jsonify({"success": result["success"], "message": result["message"]}), 200
     except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in delete_transaction: {e}")
-        return jsonify({"success": False, "message": str(e)}), 404
+        return _financial_write_error(e, "delete_transaction", validation_status=404)
 
 @app.route("/api/budgets/summary/<string:month>", methods=["GET"])
 @token_required
@@ -1765,8 +1746,9 @@ def line_webhook():
     except InvalidSignatureError:
         app.logger.warning("Invalid signature. Please check your channel secret.")
         return 'Invalid signature', 400
-    except Exception as e:
-        app.logger.error(f"Error parsing webhook body: {e}")
+    except Exception:
+        # Parser exceptions may embed the original webhook text or tokens.
+        app.logger.error("LINE webhook parsing failed")
         return 'Error parsing request', 400
 
     for event in events:

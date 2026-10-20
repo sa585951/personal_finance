@@ -184,7 +184,7 @@ def test_failed_confirmation_rolls_back_event_transaction_movement_and_status(li
     assert_one_commit(engine, data, draft_id)
 
 
-def test_real_flask_webhook_retries_after_reply_failure_without_reposting(line_db, monkeypatch):
+def test_real_flask_webhook_retries_after_reply_failure_without_reposting(line_db, monkeypatch, caplog):
     import web_app
     engine, data = line_db
     db = scoped_session(sessionmaker(bind=engine))
@@ -209,4 +209,6 @@ def test_real_flask_webhook_retries_after_reply_failure_without_reposting(line_d
     assert send(confirmation).status_code == 503
     assert send(confirmation).status_code == 200
     assert_one_commit(engine, data, draft_id)
+    assert 'synthetic-reply' not in caplog.text
+    assert '2026-10-01 午餐91元' not in caplog.text
     db.remove()
