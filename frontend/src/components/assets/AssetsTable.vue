@@ -83,7 +83,10 @@
                     <p>{{ translateAccountType(account.asset.account_type) }}</p>
                   </div>
                 </div>
-                <strong>{{ formatMoney(account.asset.balance, account.asset.currency) }}</strong>
+                <strong class="account-balance">
+                  <span>{{ account.asset.currency || "TWD" }}</span>
+                  <bdi>{{ formatAmount(account.asset.balance, account.asset.currency) }}</bdi>
+                </strong>
               </div>
               <span class="activity-hint">
                 {{ expandedAccountId === account.key ? "收合近期活動" : "查看近期活動" }}
@@ -521,11 +524,14 @@ export default {
       }
     },
     formatMoney(amount, currency = "TWD") {
+      return `${currency} ${this.formatAmount(amount, currency)}`;
+    },
+    formatAmount(amount, currency = "TWD") {
       const minorUnit = ["TWD", "JPY", "KRW"].includes(currency) ? 0 : 2;
-      return `${currency} ${Number(amount || 0).toLocaleString("zh-TW", {
+      return Number(amount || 0).toLocaleString("zh-TW", {
         minimumFractionDigits: minorUnit,
         maximumFractionDigits: minorUnit,
-      })}`;
+      });
     },
     positiveBalance(asset) {
       return Math.max(0, Number(asset?.balance || 0));
@@ -717,6 +723,7 @@ export default {
 }
 
 .account-card {
+  container-type: inline-size;
   padding: 14px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
@@ -745,10 +752,8 @@ export default {
 }
 
 .account-main {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  gap: 10px;
 }
 
 .account-identity {
@@ -767,6 +772,7 @@ export default {
   color: var(--text-color);
   font-size: 1rem;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 
 .account-main p {
@@ -775,9 +781,25 @@ export default {
 }
 
 .account-main strong {
-  flex-shrink: 0;
   color: var(--text-color);
   font-size: 1.2rem;
+}
+
+.account-balance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+}
+
+.account-balance span {
+  font-size: 0.8rem;
+}
+
+.account-balance bdi {
+  white-space: nowrap;
+  font-size: clamp(1rem, 8cqi, 1.2rem);
+  font-variant-numeric: tabular-nums;
 }
 
 .activity-hint {
