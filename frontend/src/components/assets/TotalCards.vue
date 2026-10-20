@@ -21,7 +21,10 @@
           @click="toggleAllocation(currencyTotal.currency)"
         >
           <span>{{ currencyTotal.currency }} 總金額</span>
-          <strong>{{ formatMoney(currencyTotal.total, currencyTotal.currency) }}</strong>
+          <strong :class="{ 'long-total': formatAmount(currencyTotal.total, currencyTotal.currency).length > 12 }">
+            <span class="total-currency">{{ currencyTotal.currency }}</span>
+            <bdi class="total-number">{{ formatAmount(currencyTotal.total, currencyTotal.currency) }}</bdi>
+          </strong>
           <small>{{ currencyTotal.accountCount || 0 }} 個帳戶 · 以可用資金 100% 計</small>
           <small>{{ isAllocationCollapsed(currencyTotal.currency) ? "點擊展開資金分配" : "點擊收合資金分配" }}</small>
         </button>
@@ -116,11 +119,14 @@ export default {
         .filter((item) => item.amount > 0);
     },
     formatMoney(amount, currency) {
+      return `${currency} ${this.formatAmount(amount, currency)}`;
+    },
+    formatAmount(amount, currency) {
       const minorUnit = ["TWD", "JPY", "KRW"].includes(currency) ? 0 : 2;
-      return `${currency} ${Number(amount || 0).toLocaleString("zh-TW", {
+      return Number(amount || 0).toLocaleString("zh-TW", {
         minimumFractionDigits: minorUnit,
         maximumFractionDigits: minorUnit,
-      })}`;
+      });
     },
     percentage(amount, totalAmount) {
       const total = Number(totalAmount || 0);
@@ -181,6 +187,7 @@ export default {
 }
 
 .total-primary {
+  container-type: inline-size;
   width: 100%;
   padding: 18px;
   border: 0;
@@ -209,11 +216,26 @@ export default {
 }
 
 .total-primary strong {
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
   margin: 4px 0;
   font-size: 1.85rem;
   line-height: 1.15;
-  word-break: break-word;
+}
+
+.total-primary .total-currency {
+  font-size: 0.6em;
+}
+
+.total-number {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.long-total .total-number {
+  font-size: clamp(1rem, 9cqi, 1.85rem);
 }
 
 .allocation-panel {
