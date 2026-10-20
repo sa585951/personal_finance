@@ -52,4 +52,6 @@ local fallback取金額前先移除日期；「2026-10-01 午餐91元」預覽�
 
 LINE webhook不記錄原始body，parser失敗也不記錄可能包含輸入或token的exception字串。`tests/test_financial_error_responses.py`涵蓋各入口的DB／未預期／驗證錯誤，並以實際DB驗證原始同帳戶轉帳被拒絕且零異動，以及第一側餘額更新後SQL失敗的完整rollback與原key重試。Flask test client使用隔離的Auth替身，不算真實登入驗收。
 
-這次不新增migration，也不改帳務計算。此範圍不是全站錯誤回應稽核；其他查詢、旅行管理、配置及Auth入口仍需逐步檢查。正式環境設定與真實外部服務的結論維持未驗證。
+後續收尾將同一原則擴至54個AI解析、查詢、旅行管理、配置與分析入口，與前述17個寫入入口共用`_api_operation_error`。未預期錯誤一律rollback、回500並只記操作與例外類型；原有明確業務驗證400／404及配置的資源不存在語意維持。舊版部分入口將DB失敗回400／404，現在改為500，client應視為未知結果並保留原提交識別，而非自動當成資料無效重建請求。
+
+`tests/test_api_error_redaction.py`以Flask API與service邊界故障注入，逐一驗證這54個入口的DB例外、未知例外與驗證錯誤。這不是所有安全面的稽核；Auth/OAuth、framework層例外、provider SDK自身的logging，以及正式log保存政策不在本次API handler驗證範圍。沒有新增migration、改帳務計算或驗證正式部署／真實外部服務。

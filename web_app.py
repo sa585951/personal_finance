@@ -103,13 +103,13 @@ def shutdown_session(exception=None):
     finally:
         db_session.remove()
 
-def _financial_write_error(error, operation, validation_status=400):
+def _api_operation_error(error, operation, validation_status=None):
     db_session.rollback()
-    if isinstance(error, ValueError):
+    if validation_status is not None and isinstance(error, ValueError):
         return jsonify({"success": False, "message": str(error)}), validation_status
     # DB exception strings include SQL and bound financial data. Log only the
     # operation and exception type; never expose parameters in JSON or logs.
-    app.logger.error("Financial write failed: operation=%s type=%s", operation, type(error).__name__)
+    app.logger.error("API operation failed: operation=%s type=%s", operation, type(error).__name__)
     return jsonify({"success": False, "message": "操作暫時無法完成，請稍後以原資料重試"}), 500
 
 
@@ -377,10 +377,8 @@ def parse_ai_input(current_user_id):
                 "parse_result": parse_result,
             },
         }), 200
-    except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in parse_ai_input: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
+    except Exception as error:
+        return _api_operation_error(error, "parse_ai_input")
 
 @app.route("/api/ai/parse-events", methods=["GET"])
 @token_required
@@ -391,9 +389,8 @@ def get_ai_parse_events(current_user_id):
             limit=request.args.get("limit", 20),
         )
         return jsonify({"success": True, "data": events}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_ai_parse_events: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_ai_parse_events")
 
 # --- API - 資產管理 ---
 
@@ -403,9 +400,8 @@ def get_assets(current_user_id):
     try:
         assets = asset_manager.get_all_assets(current_user_id)
         return jsonify({"success": True, "data": assets}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_assets: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_assets")
 
 @app.route("/api/dashboard/overview", methods=["GET"])
 @token_required
@@ -422,9 +418,8 @@ def get_dashboard_overview(current_user_id):
                 "trips": trip_manager.list_trips(current_user_id),
             },
         }), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_dashboard_overview: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_dashboard_overview")
 
 @app.route("/api/assets", methods=["POST"])
 @token_required
@@ -466,7 +461,7 @@ def add_asset(current_user_id):
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
-        return _financial_write_error(e, "add_asset", validation_status=400)
+        return _api_operation_error(e, "add_asset", validation_status=400)
 
 @app.route("/api/assets/<string:account_key>", methods=["PUT"])
 @token_required
@@ -495,7 +490,7 @@ def update_asset_balance(current_user_id, account_key):
         status_code = 404 if "找不到此帳戶" in str(e) else 400
         return jsonify({"success": False, "message": str(e)}), status_code
     except Exception as e:
-        return _financial_write_error(e, "update_asset_balance", validation_status=400)
+        return _api_operation_error(e, "update_asset_balance", validation_status=400)
 
 @app.route("/api/assets/<string:account_key>/activity", methods=["GET"])
 @token_required
@@ -512,9 +507,8 @@ def get_asset_activity(current_user_id, account_key):
     except ValueError as e:
         status_code = 400 if "篩選" in str(e) else 404
         return jsonify({"success": False, "message": str(e)}), status_code
-    except Exception as e:
-        app.logger.error(f"Error in get_asset_activity: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_asset_activity")
 
 @app.route("/api/assets/<string:account_key>/adjustments", methods=["GET"])
 @token_required
@@ -528,9 +522,8 @@ def get_asset_adjustments(current_user_id, account_key):
         return jsonify({"success": True, "data": adjustments}), 200
     except ValueError as e:
         return jsonify({"success": False, "message": str(e)}), 404
-    except Exception as e:
-        app.logger.error(f"Error in get_asset_adjustments: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_asset_adjustments")
 
 @app.route("/api/assets/<string:account_key>/adjustments", methods=["POST"])
 @token_required
@@ -560,7 +553,7 @@ def create_asset_adjustment(current_user_id, account_key):
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
-        return _financial_write_error(e, "create_asset_adjustment", validation_status=400)
+        return _api_operation_error(e, "create_asset_adjustment", validation_status=400)
 
 @app.route("/api/assets/<string:account_key>", methods=["DELETE"])
 @token_required
@@ -571,7 +564,7 @@ def delete_asset(current_user_id, account_key):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        return _financial_write_error(e, "delete_asset", validation_status=404)
+        return _api_operation_error(e, "delete_asset", validation_status=404)
 
 @app.route("/api/transfer", methods=["POST"])
 @token_required
@@ -600,7 +593,7 @@ def transfer_funds(current_user_id):
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
-        return _financial_write_error(e, "transfer_funds", validation_status=400)
+        return _api_operation_error(e, "transfer_funds", validation_status=400)
 
 @app.route("/api/transfers/recent", methods=["GET"])
 @token_required
@@ -611,9 +604,8 @@ def get_recent_transfers(current_user_id):
             limit=request.args.get("limit", 10),
         )
         return jsonify({"success": True, "data": transfers}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_recent_transfers: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_recent_transfers")
 
 @app.route("/api/transfers/<string:transfer_id>", methods=["PUT"])
 @token_required
@@ -635,7 +627,7 @@ def update_transfer(current_user_id, transfer_id):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        return _financial_write_error(e, "update_transfer", validation_status=400)
+        return _api_operation_error(e, "update_transfer", validation_status=400)
 
 @app.route("/api/transfers/<string:transfer_id>", methods=["DELETE"])
 @token_required
@@ -646,7 +638,7 @@ def delete_transfer(current_user_id, transfer_id):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        return _financial_write_error(e, "delete_transfer", validation_status=400)
+        return _api_operation_error(e, "delete_transfer", validation_status=400)
 
 # --- API - Asset Allocation ---
 
@@ -662,8 +654,7 @@ def get_portfolios(current_user_id):
     try:
         return jsonify({"success": True, "data": asset_allocation_manager.list_portfolios(current_user_id)}), 200
     except Exception as error:
-        app.logger.error(f"Error in get_portfolios: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "get_portfolios")
 
 
 @app.route("/api/portfolios", methods=["POST"])
@@ -681,9 +672,7 @@ def create_portfolio(current_user_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        db_session.rollback()
-        app.logger.error(f"Error in create_portfolio: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "create_portfolio")
 
 
 @app.route("/api/portfolios/<string:portfolio_id>", methods=["GET"])
@@ -695,8 +684,7 @@ def get_portfolio(current_user_id, portfolio_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        app.logger.error(f"Error in get_portfolio: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "get_portfolio")
 
 
 @app.route("/api/portfolios/<string:portfolio_id>", methods=["PATCH"])
@@ -713,9 +701,7 @@ def update_portfolio(current_user_id, portfolio_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        db_session.rollback()
-        app.logger.error(f"Error in update_portfolio: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "update_portfolio")
 
 
 @app.route("/api/portfolios/<string:portfolio_id>", methods=["DELETE"])
@@ -728,9 +714,7 @@ def delete_portfolio(current_user_id, portfolio_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        db_session.rollback()
-        app.logger.error(f"Error in delete_portfolio: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "delete_portfolio")
 
 
 @app.route("/api/portfolios/<string:portfolio_id>/holdings", methods=["POST"])
@@ -752,9 +736,7 @@ def create_holding(current_user_id, portfolio_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        db_session.rollback()
-        app.logger.error(f"Error in create_holding: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "create_holding")
 
 
 @app.route("/api/holdings/<string:holding_id>", methods=["PATCH"])
@@ -771,9 +753,7 @@ def update_holding(current_user_id, holding_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        db_session.rollback()
-        app.logger.error(f"Error in update_holding: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "update_holding")
 
 
 @app.route("/api/holdings/<string:holding_id>", methods=["DELETE"])
@@ -786,9 +766,7 @@ def delete_holding(current_user_id, holding_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        db_session.rollback()
-        app.logger.error(f"Error in delete_holding: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "delete_holding")
 
 
 @app.route("/api/holdings/<string:holding_id>/cost-entries", methods=["POST"])
@@ -810,9 +788,7 @@ def create_holding_cost_entry(current_user_id, holding_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        db_session.rollback()
-        app.logger.error(f"Error in create_holding_cost_entry: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "create_holding_cost_entry")
 
 
 @app.route("/api/holding-cost-entries/<string:cost_entry_id>", methods=["PATCH"])
@@ -829,9 +805,7 @@ def update_holding_cost_entry(current_user_id, cost_entry_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        db_session.rollback()
-        app.logger.error(f"Error in update_holding_cost_entry: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "update_holding_cost_entry")
 
 
 @app.route("/api/holding-cost-entries/<string:cost_entry_id>", methods=["DELETE"])
@@ -844,9 +818,7 @@ def delete_holding_cost_entry(current_user_id, cost_entry_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        db_session.rollback()
-        app.logger.error(f"Error in delete_holding_cost_entry: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "delete_holding_cost_entry")
 
 
 @app.route("/api/portfolios/<string:portfolio_id>/snapshots", methods=["GET"])
@@ -858,8 +830,7 @@ def get_portfolio_snapshots(current_user_id, portfolio_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        app.logger.error(f"Error in get_portfolio_snapshots: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "get_portfolio_snapshots")
 
 
 @app.route("/api/portfolios/<string:portfolio_id>/snapshots", methods=["POST"])
@@ -879,9 +850,7 @@ def create_portfolio_snapshot(current_user_id, portfolio_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        db_session.rollback()
-        app.logger.error(f"Error in create_portfolio_snapshot: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "create_portfolio_snapshot")
 
 
 @app.route("/api/portfolios/<string:portfolio_id>/allocation-preview", methods=["POST"])
@@ -898,8 +867,7 @@ def get_allocation_preview(current_user_id, portfolio_id):
     except (ValueError, AllocationNotFoundError) as error:
         return _allocation_error_response(error)
     except Exception as error:
-        app.logger.error(f"Error in get_allocation_preview: {error}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+        return _api_operation_error(error, "get_allocation_preview")
 
 # --- API - 旅行帳本 ---
 
@@ -915,9 +883,8 @@ def get_trips(current_user_id):
             include_deleted=include_deleted,
         )
         return jsonify({"success": True, "data": trips}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_trips: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_trips")
 
 @app.route("/api/trips", methods=["POST"])
 @token_required
@@ -941,9 +908,8 @@ def create_trip(current_user_id):
         )
         db_session.commit()
         return jsonify({"success": True, "message": "旅行建立成功", "data": trip}), 201
-    except Exception as e:
-        app.logger.error(f"Error in create_trip: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "create_trip", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>", methods=["GET"])
 @token_required
@@ -951,9 +917,8 @@ def get_trip(current_user_id, trip_id):
     try:
         trip = trip_manager.get_trip(current_user_id, trip_id)
         return jsonify({"success": True, "data": trip}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_trip: {e}")
-        return jsonify({"success": False, "message": str(e)}), 404
+    except Exception as error:
+        return _api_operation_error(error, "get_trip", validation_status=404)
 
 @app.route("/api/trips/<string:trip_id>", methods=["PATCH"])
 @token_required
@@ -970,10 +935,8 @@ def update_trip(current_user_id, trip_id):
         )
         db_session.commit()
         return jsonify({"success": True, "message": "旅行設定已更新", "data": trip}), 200
-    except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in update_trip: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "update_trip", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/overview", methods=["GET"])
 @token_required
@@ -1038,9 +1001,8 @@ def get_trip_overview(current_user_id, trip_id):
                 "invite": None,
             },
         }), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_trip_overview: {e}")
-        return jsonify({"success": False, "message": str(e)}), 404
+    except Exception as error:
+        return _api_operation_error(error, "get_trip_overview", validation_status=404)
 
 @app.route("/api/trips/<string:trip_id>/members", methods=["GET"])
 @token_required
@@ -1048,9 +1010,8 @@ def get_trip_members(current_user_id, trip_id):
     try:
         members = trip_manager.list_trip_members(current_user_id, trip_id)
         return jsonify({"success": True, "data": members}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_trip_members: {e}")
-        return jsonify({"success": False, "message": str(e)}), 404
+    except Exception as error:
+        return _api_operation_error(error, "get_trip_members", validation_status=404)
 
 @app.route("/api/trips/<string:trip_id>/members", methods=["POST"])
 @token_required
@@ -1068,9 +1029,8 @@ def add_trip_member(current_user_id, trip_id):
         )
         db_session.commit()
         return jsonify({"success": True, "message": "旅伴新增成功", "data": member}), 201
-    except Exception as e:
-        app.logger.error(f"Error in add_trip_member: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "add_trip_member", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/members/<string:member_id>", methods=["DELETE"])
 @token_required
@@ -1079,9 +1039,8 @@ def delete_trip_member(current_user_id, trip_id, member_id):
         member = trip_manager.remove_member(current_user_id, trip_id, member_id)
         db_session.commit()
         return jsonify({"success": True, "message": "旅伴已刪除", "data": member}), 200
-    except Exception as e:
-        app.logger.error(f"Error in delete_trip_member: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "delete_trip_member", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/members/<string:member_id>/role", methods=["PATCH"])
 @token_required
@@ -1096,10 +1055,8 @@ def update_trip_member_role(current_user_id, trip_id, member_id):
         )
         db_session.commit()
         return jsonify({"success": True, "message": "旅伴權限已更新", "data": member}), 200
-    except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in update_trip_member_role: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "update_trip_member_role", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/members/me/monthly-report-preference", methods=["PATCH"])
 @token_required
@@ -1116,10 +1073,8 @@ def update_my_trip_monthly_report_preference(current_user_id, trip_id):
         )
         db_session.commit()
         return jsonify({"success": True, "message": "個人月報偏好已更新", "data": result}), 200
-    except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in update_my_trip_monthly_report_preference: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "update_my_trip_monthly_report_preference", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/leave", methods=["POST"])
 @token_required
@@ -1128,10 +1083,8 @@ def leave_trip(current_user_id, trip_id):
         member = trip_manager.leave_trip(current_user_id, trip_id)
         db_session.commit()
         return jsonify({"success": True, "message": "已退出旅行帳本", "data": member}), 200
-    except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in leave_trip: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "leave_trip", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/invite", methods=["GET"])
 @token_required
@@ -1139,9 +1092,8 @@ def get_trip_invite(current_user_id, trip_id):
     try:
         invite = trip_manager.get_active_invite(current_user_id, trip_id)
         return jsonify({"success": True, "data": invite}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_trip_invite: {e}")
-        return jsonify({"success": False, "message": str(e)}), 404
+    except Exception as error:
+        return _api_operation_error(error, "get_trip_invite", validation_status=404)
 
 @app.route("/api/trips/<string:trip_id>/invite", methods=["POST"])
 @token_required
@@ -1157,10 +1109,8 @@ def create_trip_invite(current_user_id, trip_id):
         invite["invite_url"] = f"{FRONTEND_BASE_URL.rstrip('/')}/trips/invite/{invite['token']}"
         db_session.commit()
         return jsonify({"success": True, "message": "邀請連結已建立", "data": invite}), 201
-    except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in create_trip_invite: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "create_trip_invite", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/invite", methods=["DELETE"])
 @token_required
@@ -1169,10 +1119,8 @@ def close_trip_invite(current_user_id, trip_id):
         invite = trip_manager.close_invite(current_user_id, trip_id)
         db_session.commit()
         return jsonify({"success": True, "message": "邀請連結已關閉", "data": invite}), 200
-    except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in close_trip_invite: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "close_trip_invite", validation_status=400)
 
 @app.route("/api/trip-invites/<string:token>/accept", methods=["POST"])
 @token_required
@@ -1181,10 +1129,8 @@ def accept_trip_invite(current_user_id, token):
         result = trip_manager.accept_invite(current_user_id, token)
         db_session.commit()
         return jsonify({"success": True, "message": "已加入旅行帳本", "data": result}), 200
-    except Exception as e:
-        db_session.rollback()
-        app.logger.error(f"Error in accept_trip_invite: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "accept_trip_invite", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/split-summary", methods=["GET"])
 @token_required
@@ -1192,9 +1138,8 @@ def get_trip_split_summary(current_user_id, trip_id):
     try:
         summary = budget_manager.get_trip_split_summary(current_user_id, trip_id)
         return jsonify({"success": True, "data": summary}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_trip_split_summary: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "get_trip_split_summary", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/split-state", methods=["GET"])
 @token_required
@@ -1215,9 +1160,8 @@ def get_trip_split_state(current_user_id, trip_id):
                 "settlements": settlements,
             },
         }), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_trip_split_state: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "get_trip_split_state", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/settlement-suggestions", methods=["GET"])
 @token_required
@@ -1225,9 +1169,8 @@ def get_trip_settlement_suggestions(current_user_id, trip_id):
     try:
         suggestions = budget_manager.get_trip_settlement_suggestions(current_user_id, trip_id)
         return jsonify({"success": True, "data": suggestions}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_trip_settlement_suggestions: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "get_trip_settlement_suggestions", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/settlements", methods=["GET"])
 @token_required
@@ -1235,9 +1178,8 @@ def get_trip_settlements(current_user_id, trip_id):
     try:
         settlements = budget_manager.get_trip_settlements(current_user_id, trip_id)
         return jsonify({"success": True, "data": settlements}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_trip_settlements: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "get_trip_settlements", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/settlements", methods=["POST"])
 @token_required
@@ -1272,7 +1214,7 @@ def add_trip_settlement(current_user_id, trip_id):
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 409
     except Exception as e:
-        return _financial_write_error(e, "add_trip_settlement", validation_status=400)
+        return _api_operation_error(e, "add_trip_settlement", validation_status=400)
 
 
 @app.route("/api/trips/<string:trip_id>/settlements/<string:settlement_id>", methods=["PATCH"])
@@ -1289,7 +1231,7 @@ def update_trip_settlement(current_user_id, trip_id, settlement_id):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        return _financial_write_error(e, "update_trip_settlement", validation_status=400)
+        return _api_operation_error(e, "update_trip_settlement", validation_status=400)
 
 
 @app.route(
@@ -1318,7 +1260,7 @@ def create_settlement_account_entry(current_user_id, trip_id, settlement_id):
             "replayed": replayed,
         }), 200 if replayed else 201
     except Exception as e:
-        return _financial_write_error(e, "create_settlement_account_entry", validation_status=400)
+        return _api_operation_error(e, "create_settlement_account_entry", validation_status=400)
 
 
 @app.route(
@@ -1344,7 +1286,7 @@ def reverse_settlement_account_entry(current_user_id, trip_id, settlement_id):
             "replayed": replayed,
         }), 200
     except Exception as e:
-        return _financial_write_error(e, "reverse_settlement_account_entry", validation_status=400)
+        return _api_operation_error(e, "reverse_settlement_account_entry", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/settlements/<string:settlement_id>", methods=["DELETE"])
 @token_required
@@ -1355,7 +1297,7 @@ def delete_trip_settlement(current_user_id, trip_id, settlement_id):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        return _financial_write_error(e, "delete_trip_settlement", validation_status=400)
+        return _api_operation_error(e, "delete_trip_settlement", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/archive", methods=["POST"])
 @token_required
@@ -1364,9 +1306,8 @@ def archive_trip(current_user_id, trip_id):
         trip = trip_manager.archive_trip(current_user_id, trip_id)
         db_session.commit()
         return jsonify({"success": True, "message": "旅行已封存", "data": trip}), 200
-    except Exception as e:
-        app.logger.error(f"Error in archive_trip: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "archive_trip", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/unarchive", methods=["POST"])
 @token_required
@@ -1375,9 +1316,8 @@ def unarchive_trip(current_user_id, trip_id):
         trip = trip_manager.unarchive_trip(current_user_id, trip_id)
         db_session.commit()
         return jsonify({"success": True, "message": "旅行已解除封存", "data": trip}), 200
-    except Exception as e:
-        app.logger.error(f"Error in unarchive_trip: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "unarchive_trip", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>/restore", methods=["POST"])
 @token_required
@@ -1386,9 +1326,8 @@ def restore_trip(current_user_id, trip_id):
         trip = trip_manager.restore_trip(current_user_id, trip_id)
         db_session.commit()
         return jsonify({"success": True, "message": "旅行已復原", "data": trip}), 200
-    except Exception as e:
-        app.logger.error(f"Error in restore_trip: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "restore_trip", validation_status=400)
 
 @app.route("/api/trips/<string:trip_id>", methods=["DELETE"])
 @token_required
@@ -1397,9 +1336,8 @@ def delete_trip(current_user_id, trip_id):
         trip = trip_manager.delete_trip(current_user_id, trip_id)
         db_session.commit()
         return jsonify({"success": True, "message": "旅行已刪除", "data": trip}), 200
-    except Exception as e:
-        app.logger.error(f"Error in delete_trip: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "delete_trip", validation_status=400)
 
 # --- API - 預算與支出管理 ---
 
@@ -1410,9 +1348,8 @@ def get_budget_categories(current_user_id):
         include_meta = request.args.get("include_meta") == "true"
         categories = budget_manager.get_all_budget_categories(current_user_id, include_meta=include_meta)
         return jsonify({"success": True, "data": categories}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_budget_categories: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_budget_categories")
 
 @app.route("/api/budgets", methods=["POST"])
 @token_required
@@ -1444,7 +1381,7 @@ def set_budget(current_user_id):
             },
         }), 201
     except Exception as e:
-        return _financial_write_error(e, "set_budget", validation_status=400)
+        return _api_operation_error(e, "set_budget", validation_status=400)
 @app.route("/api/budgets/<string:month>/<string:category>", methods=["DELETE"])
 @token_required
 def delete_budget(current_user_id, month, category):
@@ -1454,7 +1391,7 @@ def delete_budget(current_user_id, month, category):
             db_session.commit()
         return jsonify({"success": success, "message": message}), 200
     except Exception as e:
-        return _financial_write_error(e, "delete_budget", validation_status=404)
+        return _api_operation_error(e, "delete_budget", validation_status=404)
     
 @app.route("/api/months", methods=["GET"])
 @token_required
@@ -1462,9 +1399,8 @@ def get_available_months(current_user_id):
     try:
         months = budget_manager.get_all_transaction_months(current_user_id)
         return jsonify({"success": True, "data": sorted(months, reverse=True)}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_available_months: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_available_months")
 
 @app.route("/api/transactions", methods=["GET"])
 @token_required
@@ -1504,9 +1440,8 @@ def get_transactions(current_user_id):
         return jsonify({"success": True, "data": result}), 200
     except ValueError as e:
         return jsonify({"success": False, "message": str(e)}), 400
-    except Exception as e:
-        app.logger.error(f"Error in get_transactions: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_transactions")
     
 @app.route("/api/receipt-imports", methods=["POST"])
 @app.route("/api/receipt-imports/<string:receipt_id>/matches", methods=["GET"])
@@ -1568,7 +1503,7 @@ def add_transaction(current_user_id):
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
     except Exception as e:
-        return _financial_write_error(e, "add_transaction", validation_status=400)
+        return _api_operation_error(e, "add_transaction", validation_status=400)
 
 @app.route("/api/transactions/<string:transaction_id>", methods=["GET"])
 @token_required
@@ -1576,9 +1511,8 @@ def get_transaction_detail(current_user_id, transaction_id):
     try:
         transaction = budget_manager.get_transaction_detail(current_user_id, transaction_id)
         return jsonify({"success": True, "data": transaction}), 200
-    except Exception as e:
-        app.logger.error(f"Error in get_transaction_detail: {e}")
-        return jsonify({"success": False, "message": str(e)}), 404
+    except Exception as error:
+        return _api_operation_error(error, "get_transaction_detail", validation_status=404)
 
 @app.route("/api/transactions/<string:transaction_id>", methods=["PUT"])
 @token_required
@@ -1594,7 +1528,7 @@ def update_transaction(current_user_id, transaction_id):
             db_session.commit()
         return jsonify({"success": result["success"], "message": result["message"]}), 200
     except Exception as e:
-        return _financial_write_error(e, "update_transaction", validation_status=400)
+        return _api_operation_error(e, "update_transaction", validation_status=400)
 
 @app.route("/api/transactions/<string:transaction_id>", methods=["DELETE"])
 @token_required
@@ -1605,7 +1539,7 @@ def delete_transaction(current_user_id, transaction_id):
             db_session.commit()
         return jsonify({"success": result["success"], "message": result["message"]}), 200
     except Exception as e:
-        return _financial_write_error(e, "delete_transaction", validation_status=404)
+        return _api_operation_error(e, "delete_transaction", validation_status=404)
 
 @app.route("/api/budgets/summary/<string:month>", methods=["GET"])
 @token_required
@@ -1613,9 +1547,8 @@ def get_monthly_summary(current_user_id, month):
     try:
         response_data = budget_manager.get_budget_summary(current_user_id, month)
         return jsonify({"success": True, "data": response_data})
-    except Exception as e:
-        app.logger.error(f"Error in get_monthly_summary: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_monthly_summary")
 
 # --- API - 已退役的財務目標相容入口 ---
 
@@ -1650,9 +1583,8 @@ def get_monthly_expenses(current_user_id):
             }]
         }
         return jsonify({"success": True, "data": chart_data})
-    except Exception as e:
-        app.logger.error(f"Error in get_monthly_expenses: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_monthly_expenses")
 
 @app.route("/api/reports/asset_allocation", methods=["GET"])
 @token_required
@@ -1669,9 +1601,8 @@ def get_asset_allocation(current_user_id):
             }]
         }
         return jsonify({"success": True, "data": chart_data})
-    except Exception as e:
-        app.logger.error(f"Error in get_asset_allocation: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_asset_allocation")
 
 @app.route("/api/reports/income_expense_summary", methods=["GET"])
 @token_required
@@ -1698,9 +1629,8 @@ def get_income_expense_summary(current_user_id):
             }]
         }
         return jsonify({"success": True, "data": chart_data})
-    except Exception as e:
-        app.logger.error(f"Error in get_income_expense_summary: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_income_expense_summary")
 
 @app.route("/api/reports/transactions_by_category_over_time", methods=["GET"])
 @token_required
@@ -1709,9 +1639,8 @@ def get_transactions_by_category_over_time(current_user_id):
     try:
         chart_data = budget_manager.get_transactions_by_category_over_time(current_user_id, interval)
         return jsonify({"success": True, "data": chart_data})
-    except Exception as e:
-        app.logger.error(f"Error in get_transactions_by_category_over_time: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_transactions_by_category_over_time")
 
 @app.route("/api/reports/overspending_warnings", methods=["GET"])
 @token_required
@@ -1720,9 +1649,8 @@ def get_overspending_warnings(current_user_id):
     try:
         warnings = budget_manager.check_over_warnings(current_user_id, month)
         return jsonify({"success": True, "data": warnings})
-    except Exception as e:
-        app.logger.error(f"Error in get_overspending_warnings: {e}")
-        return jsonify({"success": False, "message": "伺服器內部錯誤"}), 500
+    except Exception as error:
+        return _api_operation_error(error, "get_overspending_warnings")
 
 @app.route("/api/reports/goal_summary", methods=["GET"])
 @token_required

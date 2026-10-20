@@ -11,6 +11,8 @@
 - nullable 欄位保留為 JSON `null`，不以空字串代替。
 - 一般成功 response 使用 `{ "success": true, "data": ... }`；寫入操作可另外包含 `message`、`replayed`。
 - 一般錯誤使用 `{ "success": false, "message": "..." }`。Auth middleware 的 401 response 目前是 legacy `{ "message": "..." }`，client 應以 HTTP status 判斷 session 失效，不依賴單一錯誤文案。
+- 帳務、旅行、配置、解析與分析 API 的未預期 DB／內部錯誤回 500，訊息不包含 SQL、參數或 provider 細節；已知業務驗證仍依各 endpoint 回 400／404，冪等資料衝突回 409。舊版部分入口曾把 DB 失敗回 400／404，client 不應沿用此假設。
+- 寫入收到 5xx 或斷線時不得直接推定未提交；有 `client_request_id` 契約的操作應保留原 key 與 payload，依原請求重試。其餘操作先核對紀錄，不能自行更換意圖重送。
 - 收到 401 時，Web／iOS 必須清除失效憑證並回到登入流程；不得持續重送同一 token。
 
 ## Auth
