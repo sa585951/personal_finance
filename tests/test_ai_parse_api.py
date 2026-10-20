@@ -171,6 +171,13 @@ class FakeBudgetManager:
         }
         return True, "結算已確認", "settlement-1"
 
+    def create_trip_settlement(self, user_id, trip_id, from_member_id, to_member_id, amount,
+                               note=None, settled_on=None, client_request_id=None):
+        self.settlement_request_id = client_request_id
+        success, message, key = self.add_trip_settlement(user_id, trip_id, from_member_id, to_member_id,
+                                                        amount, note=note, settled_on=settled_on)
+        return dict(success=success, message=message, settlement_id=key, replayed=False)
+
     def update_trip_settlement(self, user_id, trip_id, settlement_id, amount, settled_on):
         self.last_settlement_update = (user_id, trip_id, settlement_id, amount, settled_on)
         return True, "結算已更新"
@@ -274,6 +281,11 @@ class FakeAssetManager:
             "note": note,
         }
         return True, "轉帳成功"
+
+    def create_transfer(self, user_id, source_id, dest_id, amount, note=None, client_request_id=None):
+        self.transfer_request_id = client_request_id
+        success, message = self.transfer(user_id, source_id, dest_id, amount, note=note)
+        return dict(success=success, message=message, transfer_id='transfer-1', replayed=False)
 
     def update_transfer(self, user_id, transfer_id, source_id, dest_id, amount, note=None):
         self.update_transfer_payload = {
@@ -1188,6 +1200,7 @@ def test_create_trip_settlement_api_returns_settlement_id(monkeypatch):
             "amount": 200,
             "note": "現金還款",
             "settled_on": "2026-08-15",
+            "client_request_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
         },
         headers=_auth_headers(),
     )
@@ -1280,6 +1293,7 @@ def test_transfer_api_passes_allocation_note(monkeypatch):
             "dest_id": "investment",
             "amount": 5000,
             "note": "定期定額",
+            "client_request_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
         },
         headers=_auth_headers(),
     )
@@ -1294,6 +1308,72 @@ def test_transfer_api_passes_allocation_note(monkeypatch):
         "note": "定期定額",
     }
     assert fake_db_session.commits == 1
+
+
+@pytest.mark.parametrize('endpoint', ['transfer', 'settlement'])
+def test_financial_create_apis_forward_request_id_and_return_replay(monkeypatch, endpoint):
+    web_app = _load_web_app(monkeypatch)
+    db = FakeDBSession()
+    monkeypatch.setattr(web_app, 'db_session', db)
+    key = str(uuid.uuid4())
+    if endpoint == 'transfer':
+        target = FakeAssetManager()
+        method = 'create_transfer'
+        path = '/api/transfer'
+        payload = dict(source_id='cash', dest_id='bank', amount=100, client_request_id=key)
+        monkeypatch.setattr(web_app, 'asset_manager', target)
+        result = dict(success=True, message='replay', transfer_id='original', replayed=True)
+    else:
+        target = FakeBudgetManager()
+        method = 'create_trip_settlement'
+        path = '/api/trips/trip-1/settlements'
+        payload = dict(from_member_id='b', to_member_id='a', amount=100, client_request_id=key)
+        monkeypatch.setattr(web_app, 'budget_manager', target)
+        result = dict(success=True, message='replay', settlement_id='original', replayed=True)
+    calls = []
+    def replay(*args, **kwargs):
+        calls.append(kwargs)
+        return result
+    monkeypatch.setattr(target, method, replay)
+    response = web_app.app.test_client().post(path, json=payload, headers=_auth_headers())
+    assert response.status_code == 200 and response.get_json()['replayed']
+    assert calls[0]['client_request_id'] == key and db.commits == 1
+
+
+@pytest.mark.parametrize('endpoint', ['transfer', 'settlement'])
+def test_financial_create_apis_return_conflict_and_rollback(monkeypatch, endpoint):
+    from models.idempotency import IdempotencyConflict
+    web_app = _load_web_app(monkeypatch)
+    db = FakeDBSession()
+    monkeypatch.setattr(web_app, 'db_session', db)
+    if endpoint == 'transfer':
+        target, method, path = FakeAssetManager(), 'create_transfer', '/api/transfer'
+        payload = dict(source_id='cash', dest_id='bank', amount=100)
+        monkeypatch.setattr(web_app, 'asset_manager', target)
+    else:
+        target, method, path = FakeBudgetManager(), 'create_trip_settlement', '/api/trips/trip-1/settlements'
+        payload = dict(from_member_id='b', to_member_id='a', amount=100)
+        monkeypatch.setattr(web_app, 'budget_manager', target)
+    def conflict(*args, **kwargs):
+        raise IdempotencyConflict('request payload changed')
+    monkeypatch.setattr(target, method, conflict)
+    payload['client_request_id'] = str(uuid.uuid4())
+    response = web_app.app.test_client().post(path, json=payload, headers=_auth_headers())
+    assert response.status_code == 409 and not response.get_json()['success']
+    assert db.rollbacks == 1 and db.commits == 0
+
+
+@pytest.mark.parametrize('endpoint', ['transfer', 'settlement'])
+def test_financial_create_apis_require_a_request_key(monkeypatch, endpoint):
+    web_app = _load_web_app(monkeypatch)
+    db = FakeDBSession()
+    monkeypatch.setattr(web_app, 'db_session', db)
+    path = '/api/transfer' if endpoint == 'transfer' else '/api/trips/trip-1/settlements'
+    payload = dict(source_id='cash', dest_id='bank', amount=100) if endpoint == 'transfer' else dict(from_member_id='b', to_member_id='a', amount=100)
+    for key in (None, ''):
+        response = web_app.app.test_client().post(path, json={**payload, 'client_request_id': key}, headers=_auth_headers())
+        assert response.status_code == 400 and not response.get_json()['success']
+    assert db.commits == 0
 
 
 def test_recent_transfers_api_returns_allocation_history(monkeypatch):

@@ -192,10 +192,13 @@ class AIParseService:
         return legacy_result
 
     def _extract_amount(self, message):
-        match = re.search(r"(\d+(?:\.\d+)?)\s*(?:元|塊|圓|twd|ntd)?", message, re.IGNORECASE)
-        if not match:
+        # Date digits are not money. Ambiguous numeric input stays unrecognized
+        # rather than silently choosing a year, quantity or account number.
+        content = self._remove_date_phrase(message)
+        matches = re.findall(r"(?<![\d.])(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:元|塊|圓|twd|ntd)?", content, re.IGNORECASE)
+        if len(matches) != 1:
             return None
-        amount = Decimal(match.group(1))
+        amount = Decimal(matches[0].replace(',', ''))
         if amount <= 0:
             return None
         return float(amount) if amount % 1 else int(amount)

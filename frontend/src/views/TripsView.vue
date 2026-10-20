@@ -202,6 +202,7 @@
           :show-details="showSplitDetails"
           :form="settlementForm"
           :submitting="submittingSettlement"
+          :pending="Boolean(settlementCommand?.pending)"
           :current-member-id="selectedTrip.current_member_id || ''"
           :is-owner="isTripOwner"
           @copy-summary="copySettlementSummary"
@@ -243,6 +244,7 @@
 <script>
 import { Calendar, List, Location, Money, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
 import apiClient from "@/api";
+import { openPendingCommand } from '@/utils/pendingFinancialCommand';
 import TripExpensePanel from "@/components/trips/TripExpensePanel.vue";
 import TripManagementPanel from "@/components/trips/TripManagementPanel.vue";
 import TripMembersPanel from "@/components/trips/TripMembersPanel.vue";
@@ -315,6 +317,7 @@ export default {
       settlementSuggestions: [],
       settlementRecords: [],
       submittingSettlement: false,
+      settlementCommand: null,
       settlementForm: {
         id: null,
         from_member_id: "",
@@ -838,7 +841,9 @@ export default {
       this.splitSummary = overview.split_summary || [];
       this.settlementSuggestions = overview.settlement_suggestions || [];
       this.settlementRecords = overview.settlements || [];
+      this.settlementCommand = null;
       this.resetSettlementForm();
+      this.restoreSettlementCommand();
       this.splitDetailsLoaded = false;
       this.inviteStatusLoaded = false;
       this.activeInvite = overview.invite || null;
@@ -1555,6 +1560,10 @@ export default {
       }
     },
     resetSettlementForm() {
+      if (this.settlementCommand?.pending) {
+        this.settlementForm = { id: null, ...this.settlementCommand.pending.payload };
+        return;
+      }
       this.settlementForm = {
         id: null,
         from_member_id: "",
@@ -1569,6 +1578,11 @@ export default {
       });
     },
     selectSettlementSuggestion(suggestion) {
+      if (this.settlementCommand?.pending) {
+        this.resetSettlementForm();
+        this.focusSettlementAmount();
+        return;
+      }
       this.settlementForm = {
         id: null,
         from_member_id: suggestion.from_member_id,
@@ -1579,6 +1593,10 @@ export default {
       this.focusSettlementAmount();
     },
     editSettlement(settlement) {
+      if (this.settlementCommand?.pending) {
+        this.resetSettlementForm();
+        return;
+      }
       this.settlementForm = {
         id: settlement.id,
         from_member_id: settlement.from_member_id,
@@ -1595,6 +1613,18 @@ export default {
         input?.focus({ preventScroll: true });
       });
     },
+    async restoreSettlementCommand() {
+      const tripId = this.selectedTrip?.id;
+      if (!tripId) return;
+      try {
+        const command = await openPendingCommand(`settlement:${tripId}`);
+        if (this.selectedTrip?.id !== tripId || this.settlementCommand) return;
+        this.settlementCommand = command;
+        if (command.pending) this.settlementForm = { id: null, ...command.pending.payload };
+      } catch (error) {
+        console.error('無法載入待確認的還款', error);
+      }
+    },
     async saveSettlement() {
       if (this.submittingSettlement || !this.selectedTrip) return;
       this.submittingSettlement = true;
@@ -1606,17 +1636,25 @@ export default {
             settled_on: this.settlementForm.settled_on,
           });
         } else {
-          await apiClient.post(`/api/trips/${tripId}/settlements`, {
+          const command = this.settlementCommand || await openPendingCommand(`settlement:${tripId}`);
+          if (this.selectedTrip?.id !== tripId) return;
+          this.settlementCommand = command;
+          const payload = command.prepare({
             from_member_id: this.settlementForm.from_member_id,
             to_member_id: this.settlementForm.to_member_id,
             amount: this.settlementForm.amount,
             settled_on: this.settlementForm.settled_on,
           });
+          await apiClient.post(`/api/trips/${tripId}/settlements`, payload);
+          command.clear();
         }
         this.resetSettlementForm();
         await this.fetchSplitState();
       } catch (error) {
-        this.$swal.fire("儲存失敗", error.response?.data?.message || "請稍後再試", "error");
+        if (error.response?.status === 400) this.settlementCommand?.clear();
+        if (this.settlementCommand?.pending) this.resetSettlementForm();
+        this.$swal.fire("儲存失敗", error.response?.data?.message || (this.settlementCommand?.pending
+          ? "結果尚未確認，已保留原資料，請重試這筆還款。" : error.message || "請稍後再試"), "error");
         await this.fetchSplitState();
       } finally {
         this.submittingSettlement = false;

@@ -7,6 +7,8 @@ from .message_parser import MessageParser
 from .user_state_manager import UserStateManager
 from ..ai_parse_event_manager import AIParseEventManager
 from ..user_manager import UserManager
+from .transaction_drafts import LineTransactionDrafts
+from .webhook_events import LineWebhookEvents
 from linebot.v3 import WebhookParser
 from linebot.v3.messaging import (
     ApiClient,
@@ -124,41 +126,32 @@ class LineBotManager:
         
         self.message_handler = MessageHandler(self.user_state_manager, self.db_session)
 
+    def process_event(self, event):
+        handler = self.build_message_response if getattr(event, 'message', None) is not None else self.build_postback_response
+        return LineWebhookEvents(self.db_session).process(event, handler)
+
     def handle_message_flex(self, event):
-        """
-        處理單一訊息事件的核心邏輯。
-        由 web_app 傳入 event 和 db_session。
-        """
+        response = self.build_message_response(event)
+        if response is not None:
+            self.reply_message_flex(event.reply_token, response)
+        return response
+
+    def build_message_response(self, event):
         user_message = event.message.text.strip()
-        line_user_id = event.source.user_id
-        print(f"Received message from line_user_id: {line_user_id}")
-
-        # 獲取使用者 Line 顯示名稱
-        profile = self.line_bot_api.get_profile(line_user_id)
-        display_name = profile.display_name
-
-        # 確保使用者存在於資料庫中，後續業務邏輯使用內部 UUID
-        user = self.user_manager.get_or_create_user_for_identity("line", line_user_id, display_name)
-        internal_user_id = str(user["id"])
-
+        profile = self.line_bot_api.get_profile(event.source.user_id)
+        user = self.user_manager.get_or_create_user_for_identity('line', event.source.user_id, profile.display_name)
+        internal_user_id = str(user['id'])
         if self.app_state and self.app_state.is_cold_start():
-            print(f"冷啟動期間收到訊息: {user_message}")
-            self.reply_message_flex(event.reply_token, "🚀 系統剛啟動完成！\n請重新發送您的訊息，我現在準備好了 😊")
-            return
-
-        # 正常的訊息解析流程
-        shared_parse_result = self.message_parser.parse_shared(user_message)
-        parsed_data = shared_parse_result["legacy"]
-        parse_event = self.ai_parse_event_manager.record_from_parse_result(
-            internal_user_id,
-            "line_bot",
-            shared_parse_result,
-        )
-        
-        response_message = self.message_handler.handle_user_message(internal_user_id, user_message, parsed_data)
-        self._confirm_parse_event_if_transaction_created(internal_user_id, parse_event, parsed_data)
-
-        self.reply_message_flex(event.reply_token, response_message)
+            return '系統剛啟動完成，請重新傳送訊息。尚未建立收支。'
+        if self.user_state_manager.get_user_state(internal_user_id):
+            return self.message_handler.handle_user_message(internal_user_id, user_message, {})
+        parsed = self.message_parser.parse_shared(user_message)
+        if parsed['legacy'].get('type') in {'expense', 'income'}:
+            # Never auto-commit parsed money: the persisted preview requires an
+            # explicit owner-bound postback before any account/ledger mutation.
+            return LineTransactionDrafts(self.db_session).prepare(internal_user_id, parsed)
+        self.ai_parse_event_manager.record_from_parse_result(internal_user_id, 'line_bot', parsed)
+        return self.message_handler.handle_user_message(internal_user_id, user_message, parsed['legacy'])
 
     def _confirm_parse_event_if_transaction_created(self, user_id, parse_event, parsed_data):
         """LINE 自然語言直接建立交易後，標記 parse event 已被採用。"""
@@ -181,26 +174,23 @@ class LineBotManager:
         )
 
     def handle_postback_event(self, event):
-        """
-        處理 Postback 事件 (例如 DatetimePicker)
-        """
-        line_user_id = event.source.user_id
+        response = self.build_postback_response(event)
+        if response is not None:
+            self.reply_message_flex(event.reply_token, response)
+        return response
+
+    def build_postback_response(self, event):
+        profile = self.line_bot_api.get_profile(event.source.user_id)
+        user = self.user_manager.get_or_create_user_for_identity('line', event.source.user_id, profile.display_name)
+        internal_user_id = str(user['id'])
         data = event.postback.data
-        params = event.postback.params if event.postback.params else {}
-        
-        print(f"Received postback from line_user_id: {line_user_id}, data: {data}, params: {params}")
+        for action in ('confirm', 'cancel'):
+            prefix = 'nomica.' + action + ':'
+            if data.startswith(prefix):
+                return LineTransactionDrafts(self.db_session).resolve(internal_user_id, data[len(prefix):], action)
+        return self.message_handler.handle_postback(internal_user_id, data, event.postback.params or {})
 
-        # 確保使用者存在
-        profile = self.line_bot_api.get_profile(line_user_id)
-        user = self.user_manager.get_or_create_user_for_identity("line", line_user_id, profile.display_name)
-        internal_user_id = str(user["id"])
-
-        # 交給 MessageHandler 處理
-        response_message = self.message_handler.handle_postback(internal_user_id, data, params)
-        
-        if response_message:
-            self.reply_message_flex(event.reply_token, response_message)
-    def reply_message_flex(self, reply_token, message):
+    def reply_message_flex(self, reply_token, message, raise_on_error=False):
         """
         支援 Flex Message 的回覆方法
         """
@@ -212,6 +202,8 @@ class LineBotManager:
                 )
             )
         except ApiException as e:
+            if raise_on_error:
+                raise
             print(f"Line API Error: {e}")
 
     def push_message_flex(self, user_id, message):

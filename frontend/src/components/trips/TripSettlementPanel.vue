@@ -58,14 +58,14 @@
       </div>
     </div>
 
-    <form v-if="(debtors.length && creditors.length) || form.id" class="settlement-form" @submit.prevent="$emit('submit')">
+    <form v-if="pending || (debtors.length && creditors.length) || form.id" class="settlement-form" @submit.prevent="$emit('submit')">
       <strong>{{ form.id ? "修改還款紀錄" : "記錄已收到的還款" }}</strong>
       <div class="settlement-form-fields">
         <label>
           付款旅伴
           <select
             :value="form.from_member_id"
-            :disabled="Boolean(form.id) || submitting"
+            :disabled="Boolean(form.id) || submitting || pending"
             required
             @change="$emit('update-form', { from_member_id: $event.target.value })"
           >
@@ -73,7 +73,7 @@
             <option v-for="member in debtors" :key="member.member_id" :value="member.member_id">
               {{ member.display_name }}
             </option>
-            <option v-if="form.id && !debtors.some((member) => member.member_id === form.from_member_id)" :value="form.from_member_id">
+            <option v-if="(form.id || pending) && !debtors.some((member) => member.member_id === form.from_member_id)" :value="form.from_member_id">
               {{ memberName(form.from_member_id) }}
             </option>
           </select>
@@ -82,7 +82,7 @@
           收款旅伴
           <select
             :value="form.to_member_id"
-            :disabled="Boolean(form.id) || submitting"
+            :disabled="Boolean(form.id) || submitting || pending"
             required
             @change="$emit('update-form', { to_member_id: $event.target.value })"
           >
@@ -90,7 +90,7 @@
             <option v-for="member in creditors" :key="member.member_id" :value="member.member_id">
               {{ member.display_name }}
             </option>
-            <option v-if="form.id && !creditors.some((member) => member.member_id === form.to_member_id)" :value="form.to_member_id">
+            <option v-if="(form.id || pending) && !creditors.some((member) => member.member_id === form.to_member_id)" :value="form.to_member_id">
               {{ memberName(form.to_member_id) }}
             </option>
           </select>
@@ -104,7 +104,7 @@
             :min="amountStep"
             :max="settlementLimit"
             :step="amountStep"
-            :disabled="submitting"
+            :disabled="submitting || pending"
             required
             @input="$emit('update-form', { amount: $event.target.value })"
           >
@@ -115,7 +115,7 @@
             :value="form.settled_on"
             type="date"
             :max="today"
-            :disabled="submitting"
+            :disabled="submitting || pending"
             required
             @input="$emit('update-form', { settled_on: $event.target.value })"
           >
@@ -127,8 +127,8 @@
       <small>此處只更新旅行分帳；不會自動異動任何人的帳戶餘額。</small>
       <div class="settlement-form-actions">
         <button v-if="form.id" class="quiet-mini-button" type="button" :disabled="submitting" @click="$emit('cancel-edit')">取消修改</button>
-        <button class="confirm-settlement-button" type="submit" :disabled="!canSubmit">
-          {{ submitting ? "儲存中..." : form.id ? "儲存修改" : "記錄還款" }}
+        <button class="confirm-settlement-button" type="submit" :disabled="submitting || (!pending && !canSubmit)">
+          {{ submitting ? "儲存中..." : pending ? "重試原還款" : form.id ? "儲存修改" : "記錄還款" }}
         </button>
       </div>
     </form>
@@ -238,6 +238,7 @@ export default {
     showDetails: { type: Boolean, default: false },
     form: { type: Object, required: true },
     submitting: { type: Boolean, default: false },
+    pending: { type: Boolean, default: false },
     currentMemberId: { type: String, default: "" },
     isOwner: { type: Boolean, default: false },
     tripTimezone: { type: String, default: "Asia/Taipei" },

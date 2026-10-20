@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from config import DEFAULT_CURRENCY
 from .account_movement import record_account_movement
+from .idempotency import IdempotencyManager, money
 from .schema import (
     accounts_table,
     budgets_table,
@@ -1586,6 +1587,24 @@ class BudgetManager:
         if limit <= 0:
             raise ValueError("目前這組旅伴沒有待結算款項")
         return limit
+
+    def create_trip_settlement(self, user_id, trip_id, from_member_id, to_member_id, amount,
+                               note=None, settled_on=None, client_request_id=None):
+        payload = dict(
+            trip_id=str(UUID(str(trip_id))), from_member_id=str(UUID(str(from_member_id))),
+            to_member_id=str(UUID(str(to_member_id))), amount=money(amount),
+            note=(str(note).strip() or None) if note is not None else None,
+            settled_on=settled_on,
+        )
+        def apply():
+            success, message, settlement_id = self.add_trip_settlement(
+                user_id, payload['trip_id'], payload['from_member_id'], payload['to_member_id'],
+                payload['amount'], note=payload['note'], settled_on=payload['settled_on'],
+            )
+            return dict(success=success, message=message, settlement_id=str(settlement_id))
+        return IdempotencyManager(self.db_session).execute(
+            user_id, 'settlement.create', client_request_id, payload, apply,
+        )
 
     def add_trip_settlement(self, user_id, trip_id, from_member_id, to_member_id, amount, note=None, settled_on=None):
         """確認一筆旅行分帳還款，不異動任何付款帳戶餘額。"""

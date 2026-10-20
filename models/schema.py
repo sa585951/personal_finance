@@ -668,6 +668,28 @@ ai_parse_events_table = Table(
 )
 
 
+financial_commands_table = Table(
+    "financial_commands", metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False),
+    Column("operation", String(40), nullable=False),
+    Column("request_id", UUID(as_uuid=True), nullable=False),
+    Column("payload_hash", String(64), nullable=False),
+    Column("result", JSONB),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    UniqueConstraint("user_id", "operation", "request_id", name="uq_financial_commands_request"),
+)
+
+
+line_webhook_events_table = Table(
+    "line_webhook_events", metadata,
+    Column("event_id", String(255), primary_key=True),
+    Column("payload_hash", String(64), nullable=False),
+    Column("reply_payload", JSONB),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+)
+
+
 attachments_table = Table(
     "attachments",
     metadata,

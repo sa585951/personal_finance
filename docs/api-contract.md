@@ -134,6 +134,12 @@
 
 ## 相容性原則
 
+### 財務建立命令（2026-10-20）
+
+`POST /api/transfer`與`POST /api/trips/:tripId/settlements`新增必填UUID `client_request_id`。缺key／格式不合法400，同使用者同operation同key但不同payload409。相同payload重送回原ID與`replayed=true`；Transfer維持200，群組結算初次201／重播200。成功`data`分別包含`transfer_id`／`settlement_id`。
+
+此為必填欄位的獨立相容性遷移批次；需先部署migration `20261020_0017`並同步更新寫入client。Web未知提交結果沿用原key，不能自動重建key。部署順序、canonical payload、LINE確認前不寫入及回退限制見`docs/financial-write-safety.md`。
+
 ### Receipt import V1
 
 登入後呼叫 `POST /api/receipt-imports`，傳入 `{qr_payload, input_method}`；`input_method` 為 `qr_camera` 或 `qr_image`。只接受台灣左側 QR，後端驗證日期、號碼、賣方統編與含稅總額。此解析不驗證發票真偽或作廢狀態，原文與圖片不保存。

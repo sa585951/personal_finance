@@ -1,4 +1,5 @@
 from datetime import date
+import pytest
 
 from models.ai_parse_service import AIParseService
 from models.linebot.message_parser import MessageParser
@@ -17,6 +18,24 @@ class FakeGeminiModel:
     def generate_content(self, prompt):
         self.last_prompt = prompt
         return FakeGeminiResponse(self.response_text)
+
+
+@pytest.mark.parametrize('message', [
+    '2026-10-01 午餐91元', '2026/10/01 午餐91元', '2026年10月1日 午餐91元',
+    '10/1 午餐91元', '昨天午餐91元',
+])
+def test_local_fallback_excludes_date_digits_from_amount(message):
+    service = AIParseService(FakeGeminiModel('not-json'), '{message}')
+    result = service.parse(message)
+    assert result['source'] == 'local_fallback'
+    assert result['legacy']['amount'] == 91
+    assert result['transaction']['amount'] == '91'
+
+
+@pytest.mark.parametrize('message', ['2026-10-01', '午餐2份91元', '帳號12345午餐91元'])
+def test_local_fallback_does_not_guess_ambiguous_numeric_amount(message):
+    service = AIParseService(FakeGeminiModel('not-json'), '{message}')
+    assert service.parse(message)['intent'] != 'create_transaction'
 
 
 def test_quick_parser_result_is_normalized_and_keeps_legacy_format():

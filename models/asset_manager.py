@@ -8,6 +8,7 @@ from sqlalchemy import delete, desc, insert, or_, select, update
 
 from config import DEFAULT_CURRENCY
 from .account_movement import record_account_movement
+from .idempotency import IdempotencyManager, money
 from .credit_card_billing import billing_schedule, normalize_billing
 from .schema import (
     account_adjustments_table,
@@ -682,13 +683,26 @@ class AssetManager:
         return True, "成功刪除帳戶"
 
     def transfer(self, user_id, source_key, dest_key, amount, note=None):
+        result = self.create_transfer(user_id, source_key, dest_key, amount, note=note)
+        return result['success'], result['message']
+
+    def create_transfer(self, user_id, source_key, dest_key, amount, note=None, client_request_id=None):
+        payload = dict(source_id=str(self._parse_uuid(source_key)), dest_id=str(self._parse_uuid(dest_key)),
+                       amount=money(amount), note=self._normalize_transfer_note(note))
+        if payload['source_id'] == payload['dest_id']:
+            raise ValueError('轉出和轉入帳戶不能是同一個')
+        return IdempotencyManager(self.db_session).execute(user_id, 'transfer.create', client_request_id, payload,
+            lambda: self._create_transfer(user_id, payload['source_id'], payload['dest_id'], payload['amount'], payload['note']))
+
+    def _create_transfer(self, user_id, source_key, dest_key, amount, note=None):
         """處理同幣別帳戶間轉帳。"""
         transfer_amount = Decimal(str(amount))
         if transfer_amount <= 0:
-            return False, "轉帳金額必須大於0"
+            raise ValueError("轉帳金額必須大於0")
 
-        source_account = self._get_account(user_id, source_key)
-        target_account = self._get_account(user_id, dest_key)
+        # Stable lock order prevents stale balance writes and opposite-direction deadlocks.
+        locked = self._lock_transfer_accounts(user_id, [source_key, dest_key])
+        source_account, target_account = locked[source_key], locked[dest_key]
         if not source_account:
             raise ValueError("來源帳戶不存在或權限不足")
         if not target_account:
@@ -734,11 +748,11 @@ class AssetManager:
                 note=self._normalize_transfer_note(note),
             )
         )
-        return True, "轉帳成功"
+        return {'success': True, 'message': '轉帳成功', 'transfer_id': str(transfer_id)}
 
     def update_transfer(self, user_id, transfer_id, source_key, dest_key, amount, note=None):
         """編輯既有同幣別轉帳，會同步回復舊餘額並套用新餘額。"""
-        transfer = self._get_transfer(user_id, transfer_id)
+        transfer = self._get_transfer(user_id, transfer_id, for_update=True)
         if not transfer:
             raise ValueError("找不到此轉帳紀錄或權限不足")
         if self._transfer_has_cost_entries(transfer["id"]):
@@ -748,8 +762,10 @@ class AssetManager:
         if transfer_amount <= 0:
             return False, "轉帳金額必須大於0"
 
-        source_account = self._get_account(user_id, source_key)
-        target_account = self._get_account(user_id, dest_key)
+        source_key, dest_key = str(self._parse_uuid(source_key)), str(self._parse_uuid(dest_key))
+        locked = self._lock_transfer_accounts(user_id, [source_key, dest_key,
+            transfer['source_account_id'], transfer['target_account_id']])
+        source_account, target_account = locked[source_key], locked[dest_key]
         if not source_account:
             raise ValueError("來源帳戶不存在或權限不足")
         if not target_account:
@@ -799,12 +815,13 @@ class AssetManager:
 
     def delete_transfer(self, user_id, transfer_id):
         """軟刪除轉帳並回復該筆轉帳造成的餘額變動。"""
-        transfer = self._get_transfer(user_id, transfer_id)
+        transfer = self._get_transfer(user_id, transfer_id, for_update=True)
         if not transfer:
             raise ValueError("找不到此轉帳紀錄或權限不足")
         if self._transfer_has_cost_entries(transfer["id"]):
             raise ValueError("此轉帳已分配到投資標的，請先刪除相關投入成本紀錄")
 
+        self._lock_transfer_accounts(user_id, [transfer['source_account_id'], transfer['target_account_id']])
         now = datetime.now(timezone.utc)
         self._reverse_transfer_effect(
             user_id,
@@ -833,12 +850,18 @@ class AssetManager:
             .limit(1)
         ).first() is not None
 
-    def _get_transfer(self, user_id, transfer_id):
+    def _lock_transfer_accounts(self, user_id, account_ids):
+        keys = sorted({str(self._parse_uuid(key)) for key in account_ids})
+        return {key: self._get_account(user_id, key, for_update=True) for key in keys}
+
+    def _get_transfer(self, user_id, transfer_id, for_update=False):
         stmt = select(transfers_table).where(
             transfers_table.c.user_id == self._parse_user_id(user_id),
             transfers_table.c.id == self._parse_uuid(transfer_id, "transfer_id"),
             transfers_table.c.deleted_at.is_(None),
         )
+        if for_update:
+            stmt = stmt.with_for_update()
         row = self.db_session.execute(stmt).first()
         return dict(row._mapping) if row else None
 

@@ -15,6 +15,7 @@ import jwt
 
 # 匯入重構後的核心類別和資料庫引擎
 from models.asset_manager import AssetManager
+from models.idempotency import IdempotencyConflict
 from models.asset_allocation_manager import AllocationNotFoundError, AssetAllocationManager
 from models.auth_session_manager import AuthSessionManager
 from models.budget_manager import BudgetManager
@@ -573,23 +574,32 @@ def delete_asset(current_user_id, account_key):
 @token_required
 def transfer_funds(current_user_id):
     data = request.get_json()
-    if not data or not all(k in data for k in ["source_id", "dest_id", "amount"]):
-        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+    if not isinstance(data, dict) or not all(k in data for k in ["source_id", "dest_id", "amount"]) or not data.get('client_request_id'):
+        return jsonify({"success": False, "message": "缺少必要欄位或 client_request_id"}), 400
 
     try:
-        success, message = asset_manager.transfer(
+        result = asset_manager.create_transfer(
             current_user_id,
             data["source_id"],
             data["dest_id"],
             data["amount"],
             note=data.get("note"),
+            client_request_id=data.get("client_request_id"),
         )
-        if success:
+        if result['success']:
             db_session.commit()
-        return jsonify({"success": success, "message": message}), 200
-    except Exception as e:
-        app.logger.error(f"Error in transfer_funds: {e}")
+        return jsonify({"success": result['success'], "message": result['message'],
+                        "data": {"transfer_id": result['transfer_id']}, "replayed": result['replayed']}), 200
+    except IdempotencyConflict as e:
+        db_session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 409
+    except ValueError as e:
+        db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
+    except Exception as e:
+        db_session.rollback()
+        app.logger.error(f"Error in transfer_funds: {e}")
+        return jsonify({"success": False, "message": "轉帳暫時無法完成，請使用原資料重試"}), 500
 
 @app.route("/api/transfers/recent", methods=["GET"])
 @token_required
@@ -1235,11 +1245,11 @@ def get_trip_settlements(current_user_id, trip_id):
 def add_trip_settlement(current_user_id, trip_id):
     data = request.get_json()
     required_fields = ["from_member_id", "to_member_id", "amount"]
-    if not data or not all(k in data for k in required_fields):
-        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+    if not isinstance(data, dict) or not all(k in data for k in required_fields) or not data.get('client_request_id'):
+        return jsonify({"success": False, "message": "缺少必要欄位或 client_request_id"}), 400
 
     try:
-        success, message, settlement_id = budget_manager.add_trip_settlement(
+        result = budget_manager.create_trip_settlement(
             current_user_id,
             trip_id,
             data["from_member_id"],
@@ -1247,16 +1257,21 @@ def add_trip_settlement(current_user_id, trip_id):
             data["amount"],
             note=data.get("note"),
             settled_on=data.get("settled_on"),
+            client_request_id=data.get("client_request_id"),
         )
-        if success:
+        if result['success']:
             db_session.commit()
         return jsonify({
-            "success": success,
-            "message": message,
+            "success": result['success'],
+            "message": result['message'],
+            "replayed": result['replayed'],
             "data": {
-                "settlement_id": settlement_id,
+                "settlement_id": result['settlement_id'],
             },
-        }), 201
+        }), 200 if result['replayed'] else 201
+    except IdempotencyConflict as e:
+        db_session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 409
     except Exception as e:
         db_session.rollback()
         app.logger.error(f"Error in add_trip_settlement: {e}")
@@ -1742,7 +1757,7 @@ def line_webhook():
     """Line Bot Webhook 端點 (已重構)"""
     signature = request.headers.get('X-Line-Signature', '')
     body = request.get_data(as_text=True)
-    app.logger.info(f"Request body: {body}")
+    # Do not log webhook text, reply tokens or signatures.
 
     try:
         # 使用 SDK v3 parser 驗證簽名並解析事件
@@ -1754,21 +1769,21 @@ def line_webhook():
         app.logger.error(f"Error parsing webhook body: {e}")
         return 'Error parsing request', 400
 
-    # 遍歷所有事件
     for event in events:
+        if not ((isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent))
+                or isinstance(event, PostbackEvent)):
+            continue
         try:
-            # 處理文字訊息事件
-            if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
-                linebot_manager.handle_message_flex(event)
-                db_session.commit()
-            # 處理 Postback 事件 (例如 DatetimePicker)
-            elif isinstance(event, PostbackEvent):
-                linebot_manager.handle_postback_event(event)
-                db_session.commit()
-        except Exception as e:
-            app.logger.error(f"Error handling Line event: {e}")
-            # 如果處理過程中發生任何錯誤，回覆使用者一個通用錯誤訊息
-            linebot_manager.reply_message_flex(event.reply_token, "抱歉，處理您的請求時發生內部錯誤，請稍後再試。")
+            response = linebot_manager.process_event(event)
+            # Commit the inbox result and ledger before sending the external
+            # reply. A lost reply/HTTP response is safe to redeliver and replay.
+            db_session.commit()
+            if response is not None:
+                linebot_manager.reply_message_flex(event.reply_token, response, raise_on_error=True)
+        except Exception:
+            db_session.rollback()
+            app.logger.error('LINE event handling failed')
+            return 'Event processing failed; retry later', 503
 
     return 'OK'
 

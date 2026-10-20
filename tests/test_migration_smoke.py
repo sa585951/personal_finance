@@ -58,7 +58,8 @@ def test_alembic_can_upgrade_an_empty_database_to_head(monkeypatch):
 
     verification_engine.dispose()
 
-    assert revision == "20261008_0016"
+    assert revision == "20261020_0017"
+    assert {'financial_commands', 'line_webhook_events'}.issubset(table_names)
     assert "receipt_documents" in table_names
     assert {"icon_key", "color_key"}.issubset(account_columns)
     assert {"ck_accounts_icon_key", "ck_accounts_color_key"}.issubset(account_checks)
@@ -74,3 +75,31 @@ def test_alembic_can_upgrade_an_empty_database_to_head(monkeypatch):
         assert "ix_receipts_user_date" in receipt_indexes
         assert connection.execute(text("SELECT count(*) FROM receipt_documents")).scalar_one() == 0
     deployed_engine.dispose()
+
+    # Simulate a populated0016 deployment, not just empty metadata.create_all.
+    command.downgrade(alembic_config, '20261008_0016')
+    from models.user_manager import UserManager
+    from models.asset_manager import AssetManager
+    from models.budget_manager import BudgetManager
+    with verification_engine.begin() as connection:
+        user = UserManager(connection).get_or_create_user_for_identity('qa', 'migration0016', 'Migration')
+        assets = AssetManager(connection)
+        assets.add_account(user['id'], 'cash', 'cash', 1000, currency='TWD')
+        assets.add_account(user['id'], 'bank', 'bank', 0, currency='TWD')
+        accounts = assets.get_all_assets(user['id'])
+        cash = next(a['id'] for a in accounts.values() if a['bank_name'] == 'cash')
+        bank = next(a['id'] for a in accounts.values() if a['bank_name'] == 'bank')
+        assets.transfer(user['id'], cash, bank, 100)
+        BudgetManager(connection).add_transaction(user['id'], '2026-10-01', 'Legacy expense', 50, 'expense', '伙食', account_id=cash)
+        before = {table: connection.execute(text('SELECT count(*) FROM '+table)).scalar_one()
+                  for table in ('users', 'accounts', 'transfers', 'transactions', 'account_movements')}
+        before_balances = connection.execute(text('SELECT id,balance FROM accounts ORDER BY id')).all()
+    command.upgrade(alembic_config, 'head')
+    with verification_engine.connect() as connection:
+        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '20261020_0017'
+        for table, count in before.items():
+            assert connection.execute(text('SELECT count(*) FROM '+table)).scalar_one() == count
+        assert connection.execute(text('SELECT id,balance FROM accounts ORDER BY id')).all() == before_balances
+        assert connection.execute(text('SELECT count(*) FROM financial_commands')).scalar_one() == 0
+        assert connection.execute(text('SELECT count(*) FROM line_webhook_events')).scalar_one() == 0
+    verification_engine.dispose()

@@ -71,9 +71,9 @@
       <button
         type="submit"
         class="confirm-btn"
-        :disabled="accountOptions.length < 2 || hasCurrencyMismatch"
+        :disabled="isSubmitting || !commandStore || accountOptions.length < 2 || hasCurrencyMismatch"
       >
-        {{ isEditing ? "更新轉帳" : "確認轉帳" }}
+        {{ isSubmitting ? "處理中…" : isEditing ? "更新轉帳" : commandStore?.pending ? "重試原轉帳" : "確認轉帳" }}
       </button>
       <button
         v-if="isEditing"
@@ -84,6 +84,7 @@
         取消編輯
       </button>
     </form>
+    <p v-if="commandMessage" class="empty-hint" role="status">{{ commandMessage }}</p>
   </div>
 </template>
 
@@ -91,6 +92,7 @@
 import apiClient from "../../api";
 import AccountImpactCard from "@/components/shared/AccountImpactCard.vue";
 import AccountPicker from "@/components/shared/AccountPicker.vue";
+import { openPendingCommand } from '@/utils/pendingFinancialCommand';
 
 export default {
   name: "TransferForm",
@@ -108,6 +110,9 @@ export default {
   emits: ["transfer-success", "cancel-edit"],
   data() {
     return {
+      isSubmitting: false,
+      commandStore: null,
+      commandMessage: '',
       transferData: {
         source_id: "",
         dest_id: "",
@@ -153,6 +158,17 @@ export default {
       };
     },
   },
+  async mounted() {
+    try {
+      this.commandStore = await openPendingCommand('transfer');
+      if (this.commandStore.pending) {
+        this.transferData = { ...this.commandStore.pending.payload };
+        this.commandMessage = '已帶回上一筆提交資料，請先重試確認結果。';
+      }
+    } catch (error) {
+      this.commandMessage = error.message || '暫時無法載入轉帳資料，請重新整理。';
+    }
+  },
   watch: {
     editingTransfer: {
       immediate: true,
@@ -175,6 +191,11 @@ export default {
         || null;
     },
     async handleTransfer() {
+      if (this.isSubmitting || !this.commandStore) return;
+      if (this.isEditing && this.commandStore.pending) {
+        this.commandMessage = '上一筆新增轉帳尚未確認，請先完成原提交的重試。';
+        return;
+      }
       if (!this.transferData.source_id || !this.transferData.dest_id) {
         this.$swal.fire("欄位未完整", "請選擇轉出與轉入帳戶。", "warning");
         return;
@@ -192,6 +213,7 @@ export default {
         return;
       }
 
+      this.isSubmitting = true;
       try {
         const submittedImpact = this.transferImpact
           ? {
@@ -200,15 +222,18 @@ export default {
               targetAccount: { ...this.transferImpact.targetAccount },
             }
           : null;
-        const payload = {
+        let payload = {
           source_id: this.transferData.source_id,
           dest_id: this.transferData.dest_id,
           amount: this.transferData.amount,
           note: this.transferData.note,
         };
+        if (!this.isEditing) payload = this.commandStore.prepare(payload);
         const response = this.isEditing
           ? await apiClient.put(`/api/transfers/${this.editingTransfer.id}`, payload)
           : await apiClient.post(`/api/transfer`, payload);
+        if (!response.data.success) throw new Error(response.data.message);
+        if (!this.isEditing) this.commandStore.clear();
 
         this.$emit("transfer-success", {
           message: response.data.message,
@@ -217,15 +242,26 @@ export default {
         });
         this.resetTransferForm();
       } catch (error) {
+        if (error.response?.status === 400) this.commandStore.clear();
+        if (this.commandStore.pending) this.transferData = { ...this.commandStore.pending.payload };
+        this.commandMessage = this.commandStore.pending ? '結果尚未確認，已保留原資料，請重試原轉帳。' : error.message;
         this.$swal.fire(
           this.isEditing ? "更新失敗" : "轉帳失敗",
-          error.response?.data?.message || "請稍後再試。",
+          error.response?.data?.message || this.commandMessage || "請稍後再試。",
           "error"
         );
         console.error("轉帳失敗:", error);
+      } finally {
+        this.isSubmitting = false;
       }
     },
     resetTransferForm() {
+      if (this.commandStore?.pending) {
+        this.transferData = { ...this.commandStore.pending.payload };
+        this.commandMessage = '上一筆提交結果尚未確認，請先重試原轉帳。';
+        return;
+      }
+      this.commandMessage = '';
       this.transferData = {
         source_id: "",
         dest_id: "",
