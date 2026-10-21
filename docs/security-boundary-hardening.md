@@ -87,3 +87,54 @@ Cookie 為 host-only、HttpOnly、production Secure、SameSite=Lax；寫入仍�
 目前 tracked files 沒有匹配 Google Key 格式。這不是完整秘密掃描或未洩漏保證。
 正式 Project/Billing/Tier、配額、Spend Cap、Auto-reload、Key 限制、其他 Key
 與實例的用量都尚無後台證據；AI-02 的正式環境部分保持待確認，未變更計費或輪替 Key。
+
+## DEP-01：相容依賴更新與剩餘風險
+
+2026-10-21 以 npm registry 重新盤點，更新 axios 至 1.20.0、Vue 至
+3.5.44、Vite 至 7.3.7，並更新既有相依範圍內的 transitive packages。
+保留現有主版本與 ESLint 設定，未使用 `audit fix --force`、強制 overrides
+或執行套件安裝 scripts。確切版本以 `frontend/package-lock.json` 為準。
+
+| 範圍 | 更新前 | 更新後 |
+| --- | --- | --- |
+| 完整 lockfile audit | 20（14 high、5 moderate、1 low） | 7 moderate；無 high / critical |
+| 更新後 `npm audit --omit=dev` | 本批未另保存更新前分類數量 | 0 |
+
+剩餘 7 項是兩條開發工具相依鏈的統計，不是 7 個獨立執行期漏洞：
+
+- `eslint-plugin-vue@8.7.1 → postcss-selector-parser@6.1.5`：
+  [selector 解析 CPU 耗盡](https://github.com/advisories/GHSA-rj75-hqrm-r3gf)，
+  audit 指出修補範圍為 7.1.6 以上，超過既有父套件要求的 6.x。
+- `eslint / @eslint/eslintrc → js-yaml → argparse → sprintf-js@1.0.3`：
+  [不受限 precision 的 DoS](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)。
+  audit 建議的完整修復包含 ESLint 主版本更新，需獨立遷移設定與回歸。
+
+本批未發現這兩個套件由 production runtime dependencies 引入；此結論只限
+npm 相依分類，不代表所有 build 工具都不會進入產物。已知可達面是處理原始碼的
+lint / 工具鏈；對不可信 PR、CSS 或格式字串的實際 exploit 未在本批重現。
+後續以獨立工作升級 ESLint / Vue lint plugin 並驗證規則相容性；CI 不向不可信
+程式提供正式憑證，執行環境應保留逾時及資源限制。不得把 audit 歸零作為全面重構理由。
+
+## 本批本機驗證證據與發布限制
+
+- Backend：465 passed；包含真實隔離 PostgreSQL、多連線 state 競爭、
+  migration 空庫及既有 0017 含帳務資料升級，以及原有帳務／發票／LINE 回歸。
+- Frontend：`check:styles`、`lint`、production `build` 通過；正式 build
+  若設定 `VITE_DEV_AUTH_BYPASS=true`，已確認會拒絕建置。
+- Chrome `test:ui`：五尺寸、深淺色、惡意對話框內容、Cookie 導向及 AI
+  停用時手動記帳流程；API 與相機為替身，不等於實機／正式 API 驗收。
+- 另以最終 production build、本機 HTTPS、真實 Flask API 與本批專用
+  PostgreSQL 驗證 Cookie 登入、導向、登出撤銷及重新載入。
+  LINE 授權／token exchange 仍為替身，未呼叫正式 LINE 或 Gemini。
+  驗證 Cookie 的 HttpOnly / Secure / SameSite=Lax、URL 與 localStorage
+  不留 Token、登出後 `/api/auth/me` 回 401；該合成使用者未建立財務交易。
+
+測試 DB 是本批新建的 tmpfs PostgreSQL container，未掛載既有資料卷；
+測試連線另以 host / port / database allowlist 拒絕其他 PostgreSQL 目標。
+沒有修改正式 DB、正式環境變數、Provider 設定或既有使用者財務資料。
+
+這些證據只支持本機修補，不宣告 S1 正式部署或 G1 通過。
+公開前仍須完成上方 staging 同源代理／真實 LINE callback 驗收、手機 PWA
+Cookie 與相機實測、正式 Key / Billing 證據及相應發布門檻。
+S2 帳務併發、S3 匯率／月報、S4 重試與核心流程、S5 真實資料門檻及
+S6 正式產品交付順序維持不變。
