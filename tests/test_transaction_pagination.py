@@ -38,6 +38,8 @@ def test_transaction_cursor_rejects_invalid_value(cursor):
         ({"transaction_date": "2026/08/19"}, "date 格式必須為 YYYY-MM-DD"),
         ({"limit": 0}, "limit 必須介於 1 到 50"),
         ({"limit": 51}, "limit 必須介於 1 到 50"),
+        ({"trip_id": "22222222-2222-2222-2222-222222222222", "monthly_report": True},
+         "trip_id 不可與 monthly_report 同時使用"),
     ],
 )
 def test_transaction_pagination_rejects_invalid_filters(kwargs, message):

@@ -267,6 +267,10 @@ class BudgetManager:
         """獲取指定使用者的所有交易紀錄。"""
         parsed_user_id = self._parse_user_id(user_id)
         parsed_trip_id = self._parse_optional_uuid(trip_id, "trip_id")
+        # Monthly-report projections require the member-scoped split joins;
+        # the trip-list branch below intentionally does not build those joins.
+        if parsed_trip_id and monthly_report:
+            raise ValueError("trip_id 不可與 monthly_report 同時使用")
         parsed_limit = None
         if limit is not None:
             try:
