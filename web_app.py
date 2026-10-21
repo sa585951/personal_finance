@@ -20,6 +20,7 @@ from models.asset_allocation_manager import AllocationNotFoundError, AssetAlloca
 from models.auth_session_manager import AuthSessionManager
 from models.oauth_login_state_manager import OAuthLoginStateManager
 from models.security_settings import load_security_settings
+from models.optional_access import load_optional_access
 from models.budget_manager import BudgetManager
 from models.linebot.manager import LineBotManager
 from models.app_state import AppStateManager
@@ -40,6 +41,7 @@ SECURITY_SETTINGS = load_security_settings(os.environ)
 FRONTEND_BASE_URL = SECURITY_SETTINGS.frontend_origin
 VITE_BACKEND_BASE_URL = SECURITY_SETTINGS.login_origin
 DEV_AUTH_BYPASS = SECURITY_SETTINGS.dev_auth_bypass
+OPTIONAL_ACCESS = load_optional_access(os.environ)
 SLOW_REQUEST_LOG_MS = float(os.getenv("SLOW_REQUEST_LOG_MS", "500"))
 DEV_AUTH_USERS = {
     "local-dev-user": {
@@ -243,9 +245,11 @@ def start_request_timer():
     g.request_started_at = time.perf_counter()
     if SECURITY_SETTINGS.environment == "production" and app.debug:
         return jsonify({"success": False, "message": "服務設定錯誤"}), 503
-    if DEV_AUTH_BYPASS and (request.remote_addr not in {"127.0.0.1", "::1"}
+    local_mode = (SECURITY_SETTINGS.environment != "production"
+                  and (OPTIONAL_ACCESS.ai_parse or OPTIONAL_ACCESS.line_interactions))
+    if (DEV_AUTH_BYPASS or local_mode) and (request.remote_addr not in {"127.0.0.1", "::1"}
                            or urlsplit(request.host_url).hostname not in {"localhost", "127.0.0.1", "::1"}):
-        return jsonify({"success": False, "message": "開發登入僅限本機"}), 403
+        return jsonify({"success": False, "message": "開發與合成測試模式僅限本機"}), 403
 
 
 @app.after_request
@@ -347,11 +351,28 @@ def get_auth_account(user_id):
 
 # --- API - AI 快速輸入 ---
 
+@app.route("/api/capabilities", methods=["GET"])
+@token_required
+def get_capabilities(current_user_id):
+    response = jsonify({"success": True, "data": {
+        "ai_parse": OPTIONAL_ACCESS.ai_parse,
+        "line_interactions": OPTIONAL_ACCESS.line_interactions,
+    }})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
 @app.route("/api/ai/parse", methods=["POST"])
 @token_required
 def parse_ai_input(current_user_id):
+    if not OPTIONAL_ACCESS.ai_parse:
+        return jsonify({"success": False, "code": "AI_DISABLED", "message": "解析暫停開放，請使用手動輸入或發票 QR"}), 503
     data = request.get_json(silent=True) or {}
-    text = (data.get("text") or data.get("message") or "").strip()
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "輸入必須為 JSON object"}), 400
+    text = data.get("text") or data.get("message") or ""
+    if not isinstance(text, str) or len(text) > 1000:
+        return jsonify({"success": False, "message": "text 必須為 1000 字元以內的文字"}), 400
+    text = text.strip()
     if not text:
         return jsonify({"success": False, "message": "缺少 text 欄位"}), 400
 
@@ -1681,6 +1702,10 @@ def line_webhook():
         # Parser exceptions may embed the original webhook text or tokens.
         app.logger.error("LINE webhook parsing failed")
         return 'Error parsing request', 400
+
+    if not OPTIONAL_ACCESS.line_interactions:
+        # Acknowledge valid deliveries without profile calls, persistence or writes.
+        return 'LINE interaction is paused', 200
 
     for event in events:
         if not ((isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent))

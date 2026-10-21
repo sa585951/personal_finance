@@ -56,6 +56,7 @@ async function installMocks(page) {
     if (method !== 'GET') return route.fulfill({ status: 405, json: { success: false, message: 'UI test: writes are blocked' } });
     let data = [];
     if (url.pathname === '/api/auth/me') data = { name: 'Test', user_id: 'test' };
+    if (url.pathname === '/api/capabilities') data = { ai_parse: false, line_interactions: false };
     if (url.pathname === '/api/assets') data = assets;
     if (url.pathname === '/api/dashboard/overview') data = { transactions: [], monthly_report_transactions: [], trips: [] };
     if (url.pathname === '/api/portfolios') data = [portfolio];
@@ -136,6 +137,20 @@ async function testCookieAuthNavigation(browser) {
   }
 }
 
+async function testDisabledAiKeepsManualEntry(browser) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    const errors = await installMocks(page);
+    await page.goto(`${base.origin}/add`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('status').filter({ hasText: '解析暫停開放' }).waitFor();
+    await page.getByRole('button', { name: '手動新增支出', exact: true }).click();
+    await page.locator('.manual-heading').waitFor();
+    assert((await page.locator('.manual-heading').innerText()).includes('手動新增支出'));
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+}
+
 (async () => {
   let server, browser;
   try {
@@ -152,6 +167,7 @@ async function testCookieAuthNavigation(browser) {
     browser = await chromium.launch({ headless: true, ...(process.env.UI_BROWSER_CHANNEL ? { channel: process.env.UI_BROWSER_CHANNEL } : {}) });
     await testUntrustedDialogs(browser);
     await testCookieAuthNavigation(browser);
+    await testDisabledAiKeepsManualEntry(browser);
     for (const width of [320, 390, 430, 768, 1280]) for (const theme of ['light', 'dark']) {
       const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
       await context.addInitScript(value => {

@@ -454,6 +454,8 @@ def _load_web_app(monkeypatch):
     monkeypatch.setenv("JWT_SECRET_KEY", "test-secret")
     monkeypatch.setenv("VITE_BACKEND_BASE_URL", "https://frontend.example.test")
     monkeypatch.setenv("FRONTEND_BASE_URL", "https://frontend.example.test")
+    monkeypatch.setenv("NOMICA_AI_MODE", "disabled")
+    monkeypatch.setenv("NOMICA_LINE_MODE", "disabled")
     monkeypatch.setenv("NOMICA_ENV", "production")
     monkeypatch.setenv("FLASK_DEBUG", "false")
     monkeypatch.setenv("FLASK_ENV", "production")
@@ -461,6 +463,10 @@ def _load_web_app(monkeypatch):
 
     sys.modules.pop("web_app", None)
     web_app = importlib.import_module("web_app")
+    # Explicit test-only policy substitute exercises existing parser/LINE HTTP
+    # contracts without opening the production feature or contacting a provider.
+    from models.optional_access import OptionalAccess
+    web_app.OPTIONAL_ACCESS = OptionalAccess(ai_parse=True, line_interactions=True)
     web_app.auth_session_manager = FakeAuthSessionManager()
     web_app.db_session = FakeDBSession()
     # HTTP boundary tests use an isolated in-memory state store. PostgreSQL

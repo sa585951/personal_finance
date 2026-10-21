@@ -62,3 +62,28 @@ Cookie 為 host-only、HttpOnly、production Secure、SameSite=Lax；寫入仍�
 新 Auth 與 API 路徑不進 Service Worker cache。瀏覽器回歸含 Cookie session
 導向、過期／缺 Cookie、舊 URL/localStorage Token 清除、無 Bearer 自動傳送及惡意 redirect。
 這不代表 Vercel/LINE 正式設定、真實手機或歷史 Token 影響已完成驗收。
+
+## AI-01 / AI-02：未驗收入口的暫停與設定盤點
+
+`NOMICA_AI_MODE`、`NOMICA_LINE_MODE` 預設 `disabled`。目前僅另允許
+`synthetic`，且必須是明確的 loopback development/testing；公開環境不能藉旗標
+開啟未完成的 AI。synthetic 只供合成資料與替身流程，仍禁止共用 Adapter 呼叫
+雲端模型，也不建立持有正式 Key 的 Gemini client。
+
+- Web `/api/ai/parse` 停用時先驗證身份，再回 503 `AI_DISABLED`，不解析或新增 event。
+- `/api/capabilities` 回報可用入口且不快取；前端預設關閉 AI，手動及 QR 仍可操作。
+- LINE 停用時仍驗簽；有效 delivery 回 200，不查 profile、不存 inbox/draft、
+  不處理文字、選單或 postback、不回覆訊息、不改帳務。這是暫停整個互動入口；
+  LINE Login 不受此設定影響。
+- Provider/LINE SDK 例外只記型別，不記原文、Token 或完整回應。
+
+這是 S1 的 containment，**不是**共用額度、預算 Reservation、即時 Kill Switch
+或 Usage 帳本。對外啟用仍須另完成 G-AI，不能只把模式改名為 public。
+未來要恢復 LINE 查詢或選單，也須明確開放並驗收，而不是任意繞過停用分支。
+既有解析歷史未在本批刪除，其保存及資料控制仍接 S5。
+
+2026-10-21 本機唯讀盤點：Backend `.env` 存在 Key（未輸出），目前 Git 索引
+沒有 `.env`／`frontend/.env.local`，現有 refs 中 `.env` 路徑沒有歷史 commit；
+目前 tracked files 沒有匹配 Google Key 格式。這不是完整秘密掃描或未洩漏保證。
+正式 Project/Billing/Tier、配額、Spend Cap、Auto-reload、Key 限制、其他 Key
+與實例的用量都尚無後台證據；AI-02 的正式環境部分保持待確認，未變更計費或輪替 Key。

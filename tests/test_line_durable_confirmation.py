@@ -185,7 +185,8 @@ def test_failed_confirmation_rolls_back_event_transaction_movement_and_status(li
 
 
 def test_real_flask_webhook_retries_after_reply_failure_without_reposting(line_db, monkeypatch, caplog):
-    import web_app
+    from tests.test_ai_parse_api import _load_web_app
+    web_app = _load_web_app(monkeypatch)
     engine, data = line_db
     db = scoped_session(sessionmaker(bind=engine))
     api = FakeLINE()

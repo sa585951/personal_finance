@@ -1,4 +1,5 @@
 import json
+import logging
 
 class GeminiParser:
     def __init__(self, model, prompt_template, cold_start_checker=None):
@@ -34,13 +35,14 @@ class GeminiParser:
             return self._validate_result(result, message)
         
         except Exception as e:
-            print(f"Gemini 解析失敗: {e}")
+            # SDK exceptions can contain prompts, credentials and provider payloads.
+            logging.getLogger(__name__).warning("Gemini parsing failed: type=%s", type(e).__name__)
 
             # 冷啟動期間的特殊處理
             if self.cold_start_checker and self.cold_start_checker():
                 print("冷啟動期間 Gemini 失敗， 可能是網路連線還沒穩定")
 
-            return {"type": "other", "error": str(e)}
+            return {"type": "other", "error": "parser_unavailable"}
         
     def _clean_response(self, text):
         """清理 Gemini 回應"""

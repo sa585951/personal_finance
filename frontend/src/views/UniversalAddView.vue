@@ -13,11 +13,13 @@
     <template v-else-if="stage === 'input'">
       <button type="button" class="receipt-entry" @click="stage = 'receipt'"><Document aria-hidden="true" /><span>掃描發票記帳<small>掃描 QR Code，帶入日期與金額</small></span><ArrowRight aria-hidden="true" /></button>
       <AIQuickInput
+        v-if="aiAvailable"
         :type="preferredType"
         auto-apply
         @apply-draft="openPreview"
         @parse-failed="parseFailure = $event"
       />
+      <p v-else class="parse-failure" role="status">解析暫停開放，仍可手動輸入或掃描發票。</p>
 
       <p v-if="parseFailure" class="parse-failure">{{ parseFailure }}</p>
 
@@ -84,7 +86,7 @@
           <p>Manual Entry</p>
           <h2>{{ activeType === "income" ? "手動新增收入" : "手動新增支出" }}</h2>
         </div>
-        <button type="button" @click="resetDraft">改用 AI</button>
+        <button type="button" @click="resetDraft">返回輸入選項</button>
       </section>
       <TransactionForm
         :key="clientRequestId"
@@ -134,6 +136,7 @@
 
 <script>
 import AIQuickInput from "@/components/budgets/AIQuickInput.vue";
+import apiClient from "@/api";
 import ReceiptEntryFlow from "@/components/receipts/ReceiptEntryFlow.vue";
 import TransactionForm from "@/components/budgets/TransactionForm.vue";
 import AccountImpactCard from "@/components/shared/AccountImpactCard.vue";
@@ -161,10 +164,19 @@ export default {
       missingFields: [],
       expanded: false,
       parseFailure: "",
+      aiAvailable: false,
       successResult: null,
       clientRequestId: this.createRequestId(),
       returnTo: this.safeReturnPath(window.history.state?.returnTo),
     };
+  },
+  async mounted() {
+    try {
+      const response = await apiClient.get('/api/capabilities');
+      this.aiAvailable = response.data?.data?.ai_parse === true;
+    } catch {
+      this.aiAvailable = false;
+    }
   },
   computed: {
     successKind() {

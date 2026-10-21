@@ -17,6 +17,13 @@
 
 ## Auth
 
+### `GET /api/capabilities`
+
+需登入，回傳 `{success:true,data:{ai_parse:boolean,line_interactions:boolean}}`，
+不快取。未完成公開驗收時預設兩者為 false；Web `/api/ai/parse` 回 503
+`code=AI_DISABLED`，不解析／不保存新事件。LINE 暫停互動但不影響 LINE Login。
+本機 synthetic 模式及 G-AI 邊界見 `security-boundary-hardening.md`。
+
 ### `GET /api/auth/me`
 
 成功的 `data`：

@@ -75,6 +75,8 @@ def _load_web_app(monkeypatch):
     monkeypatch.setenv("JWT_SECRET_KEY", "test-secret")
     monkeypatch.setenv("VITE_BACKEND_BASE_URL", "https://frontend.example.test")
     monkeypatch.setenv("FRONTEND_BASE_URL", "https://frontend.example.test")
+    monkeypatch.setenv("NOMICA_AI_MODE", "disabled")
+    monkeypatch.setenv("NOMICA_LINE_MODE", "disabled")
     monkeypatch.setenv("NOMICA_ENV", "production")
     monkeypatch.setenv("FLASK_DEBUG", "false")
     monkeypatch.setenv("FLASK_ENV", "production")

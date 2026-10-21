@@ -1,6 +1,7 @@
 # models/linebot/manager.py
 
 import os
+import logging
 from google import genai
 from .message_handler import MessageHandler
 from .message_parser import MessageParser
@@ -9,6 +10,7 @@ from ..ai_parse_event_manager import AIParseEventManager
 from ..user_manager import UserManager
 from .transaction_drafts import LineTransactionDrafts
 from .webhook_events import LineWebhookEvents
+from ..optional_access import load_optional_access
 from linebot.v3 import WebhookParser
 from linebot.v3.messaging import (
     ApiClient,
@@ -28,6 +30,9 @@ class GeminiModelAdapter:
         self.model_name = model_name
 
     def generate_content(self, prompt):
+        # Enforce containment at the shared outbound boundary, not just Web UI.
+        if not load_optional_access(os.environ).cloud_ai:
+            raise RuntimeError("Cloud AI is paused pending G-AI validation")
         return self.client.models.generate_content(
             model=self.model_name,
             contents=prompt,
@@ -59,7 +64,8 @@ class LineBotManager:
         # Gemini 設定
         self.gemini_model_name = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
         gemini_api_key = os.getenv("GEMINI_API_KEY")
-        self.gemini_client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
+        self.gemini_client = (genai.Client(api_key=gemini_api_key)
+                              if gemini_api_key and load_optional_access(os.environ).cloud_ai else None)
         self.model = (
             GeminiModelAdapter(self.gemini_client, self.gemini_model_name)
             if self.gemini_client
@@ -204,7 +210,7 @@ class LineBotManager:
         except ApiException as e:
             if raise_on_error:
                 raise
-            print(f"Line API Error: {e}")
+            logging.getLogger(__name__).warning("LINE reply failed: type=%s", type(e).__name__)
 
     def push_message_flex(self, user_id, message):
         """
@@ -218,7 +224,7 @@ class LineBotManager:
                 )
             )
         except ApiException as e:
-            print(f"Line Push Error: {e}")
+            logging.getLogger(__name__).warning("LINE push failed: type=%s", type(e).__name__)
 
     def _to_line_message(self, message):
         """把舊流程的純文字輸出統一轉成 Flex 卡片。"""
