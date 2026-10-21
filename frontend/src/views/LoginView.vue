@@ -26,18 +26,17 @@
 
 <script>
 import ThemeToggle from "@/components/shared/ThemeToggle.vue";
+import { safeRedirectPath } from "@/utils/authNavigation";
 
 export default {
   name: 'LoginView',
   components: { ThemeToggle },
   methods: {
     safeRedirectPath(value) {
-      return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
-        ? value
-        : '/';
+      return safeRedirectPath(value);
     },
     lineLogin() {
-      const backendBaseUrl = import.meta.env.VITE_APP_API_URL;
+      const backendBaseUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_APP_API_URL || '');
       const redirectPath = this.safeRedirectPath(this.$route.query.redirect || '/');
       const params = new URLSearchParams({ redirect: redirectPath });
       window.location.href = `${backendBaseUrl}/line-login-start?${params.toString()}`;

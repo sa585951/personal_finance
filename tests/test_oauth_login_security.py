@@ -70,6 +70,11 @@ def test_success_consumes_state_even_if_browser_cookie_is_replayed(monkeypatch):
     response = client.get("/line-login-callback", query_string=query)
     assert response.status_code == 302
     assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert set(parse_qs(urlparse(response.location).query)) == {"redirect"}
+    assert response.location.startswith("https://frontend.example.test/auth-callback?")
+    auth_cookie = client.get_cookie(app.APP_AUTH_COOKIE_NAME)
+    assert auth_cookie and auth_cookie.http_only and auth_cookie.secure
+    assert auth_cookie.same_site == "Lax" and auth_cookie.origin_only
     client.set_cookie(app.LINE_LOGIN_BROWSER_COOKIE, browser, path="/line-login-callback")
     assert client.get("/line-login-callback", query_string=query).status_code == 400
     assert len(calls) == 1 and calls[0]["timeout"] == 10
@@ -85,3 +90,12 @@ def test_wrong_provider_nonce_never_creates_app_session(monkeypatch):
     monkeypatch.setattr(app, "_create_app_auth_token", forbidden)
     response = client.get("/line-login-callback", query_string={"state": params["state"], "code": "test"})
     assert response.status_code == 400
+
+
+@pytest.mark.parametrize("path", ["//evil.example", "/\\evil.example", "/%5cevil.example", "/%2fevil.example", "/%0a/evil.example"])
+def test_redirects_cannot_escape_the_frontend_origin(monkeypatch, path):
+    app = _load_web_app(monkeypatch)
+    client = app.app.test_client()
+    params, browser = start(app, client, path)
+    challenge = app.oauth_login_state_manager.consume(params["state"], browser)
+    assert challenge["redirect_path"] == "/"

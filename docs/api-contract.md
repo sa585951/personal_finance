@@ -4,7 +4,7 @@
 
 ## 共通規則
 
-- 需要登入的 endpoint 使用 session-backed JWT；Bearer token 與 HttpOnly cookie 皆由現有 Web auth 流程處理。
+- 需要登入的 endpoint 使用 session-backed JWT。Web 使用同源 proxy 與 HttpOnly Cookie；callback 不傳 URL Token，前端不再保存／自動傳送 localStorage Bearer。明確的非瀏覽器 Bearer client 仍受後端 Session 驗證。部署要求見 `security-boundary-hardening.md`（migration `20261021_0018`）。
 - UUID 以 JSON string 傳輸。
 - 日期使用 `YYYY-MM-DD`；時間使用含 timezone 的 ISO 8601 string。
 - 金額、匯率與換算金額目前使用 JSON number。Client 不應自行用 binary floating point 重新計算帳務結果。

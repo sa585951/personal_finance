@@ -18,7 +18,9 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
 
-  if (requestUrl.pathname.startsWith("/api")) {
+  // Auth requests must always reach the network, never an offline shell/cache.
+  if (requestUrl.pathname.startsWith("/api") || requestUrl.pathname.startsWith("/line-login-")
+      || requestUrl.pathname === "/auth-callback") {
     return;
   }
 

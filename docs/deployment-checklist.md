@@ -338,3 +338,10 @@ npm run build
 - 是否需要 owner 手動合併 member。
 - 是否要在 Phase 5 就補 Google Login。
 - 是否要建立 staging 與 production 兩套 Supabase 專案。
+# S1 Cookie Auth 切換注意
+
+`20261021_0018` 起 Web 登入改為同源 Cookie。部署前先依
+`docs/security-boundary-hardening.md` 的 R13/R14 步驟配置前端 API／OAuth proxy、
+Backend 的同源 HTTPS URL、LINE callback 與 production 旗標，並協調前後端版本。
+舊的「前端 Vercel、瀏覽器直接呼叫 Render API」設定不可原樣沿用。
+本節是必要設定指引，不是已完成的正式部署證據。

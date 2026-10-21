@@ -72,7 +72,7 @@ async function testUntrustedDialogs(browser) {
   try {
     const page = await context.newPage();
     const errors = await installMocks(page);
-    await page.goto(`${base}/login`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${base.origin}/login`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(async () => {
       const { default: Swal } = await import('/node_modules/sweetalert2/dist/sweetalert2.esm.all.js');
       const { default: TripView } = await import('/src/views/TripsView.vue');
@@ -104,6 +104,38 @@ async function testUntrustedDialogs(browser) {
   }
 }
 
+async function testCookieAuthNavigation(browser) {
+  for (const authenticated of [true, false]) {
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage();
+      const requests = [];
+      await page.addInitScript(() => localStorage.setItem('authToken', 'retired-local-token'));
+      await installMocks(page);
+      await page.route('**/api/auth/me', route => {
+        requests.push(route.request().headers());
+        return route.fulfill({ status: authenticated ? 200 : 401,
+          json: authenticated ? { success: true, data: { user_id: 'test', name: 'Test' } } : { message: 'Session invalid' } });
+      });
+      await page.goto(`${base.origin}/auth-callback?token=retired-url-token&redirect=%2Ftransactions`, { waitUntil: 'domcontentloaded' });
+      try {
+        await page.waitForURL(url => authenticated ? url.pathname === '/transactions' : url.pathname === '/login');
+      } catch (error) {
+        throw new Error(`Cookie navigation auth=${authenticated}, path=${new URL(page.url()).pathname}, body=${(await page.locator('body').innerText()).slice(0, 240)}`, { cause: error });
+      }
+      assert.equal(await page.evaluate(() => localStorage.getItem('authToken')), null);
+      assert(requests.length > 0);
+      assert(requests.every(headers => !headers.authorization), 'Web must not send a retired bearer token');
+      assert(!page.url().includes('retired-url-token'));
+      assert.equal(await page.evaluate(async () => {
+        const { safeRedirectPath } = await import('/src/utils/authNavigation.js');
+        return ['//evil.example', '/%5cevil.example', '/%2fevil.example', '/%0aevil.example']
+          .every(path => safeRedirectPath(path) === '/');
+      }), true);
+    } finally { await context.close(); }
+  }
+}
+
 (async () => {
   let server, browser;
   try {
@@ -119,6 +151,7 @@ async function testUntrustedDialogs(browser) {
     await ready();
     browser = await chromium.launch({ headless: true, ...(process.env.UI_BROWSER_CHANNEL ? { channel: process.env.UI_BROWSER_CHANNEL } : {}) });
     await testUntrustedDialogs(browser);
+    await testCookieAuthNavigation(browser);
     for (const width of [320, 390, 430, 768, 1280]) for (const theme of ['light', 'dark']) {
       const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
       await context.addInitScript(value => {

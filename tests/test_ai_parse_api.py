@@ -452,8 +452,10 @@ def _load_web_app(monkeypatch):
     monkeypatch.setenv("LINE_MSG_CHANNEL_ACCESS_TOKEN", "line-message-token")
     monkeypatch.setenv("LINE_MSG_CHANNEL_SECRET", "line-message-secret")
     monkeypatch.setenv("JWT_SECRET_KEY", "test-secret")
-    monkeypatch.setenv("VITE_BACKEND_BASE_URL", "http://127.0.0.1:5001")
-    monkeypatch.setenv("FRONTEND_BASE_URL", "http://127.0.0.1:5174")
+    monkeypatch.setenv("VITE_BACKEND_BASE_URL", "https://frontend.example.test")
+    monkeypatch.setenv("FRONTEND_BASE_URL", "https://frontend.example.test")
+    monkeypatch.setenv("NOMICA_ENV", "production")
+    monkeypatch.setenv("FLASK_DEBUG", "false")
     monkeypatch.setenv("FLASK_ENV", "production")
     monkeypatch.setenv("DEV_AUTH_BYPASS", "false")
 
@@ -663,7 +665,7 @@ def test_cookie_auth_allows_unsafe_request_from_allowed_origin(monkeypatch):
     response = client.post(
         "/api/ai/parse",
         json={"text": "   "},
-        headers={"Origin": "http://127.0.0.1:5174"},
+        headers={"Origin": "https://frontend.example.test"},
     )
 
     assert response.status_code == 400
@@ -700,7 +702,7 @@ def test_logout_clears_auth_cookie(monkeypatch):
         header.startswith(f"{web_app.APP_AUTH_COOKIE_NAME}=;")
         and "HttpOnly" in header
         and "Secure" in header
-        and "SameSite=None" in header
+        and "SameSite=Lax" in header
         for header in set_cookie_headers
     )
 
@@ -712,7 +714,7 @@ def test_production_auth_cookie_options_are_http_only_secure(monkeypatch):
 
     assert options["httponly"] is True
     assert options["secure"] is True
-    assert options["samesite"] == "None"
+    assert options["samesite"] == "Lax"
     assert options["path"] == "/"
     assert options["max_age"] == 30 * 24 * 60 * 60
 

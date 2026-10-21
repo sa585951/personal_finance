@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { jwtDecode } from 'jwt-decode';
 import apiClient from "@/api";
 
 const HomeView = () => import("../views/HomeView.vue");
@@ -111,24 +110,6 @@ const router = createRouter({
   routes,
 });
 
-function hasValidLocalToken() {
-  const token = localStorage.getItem('authToken');
-  if (!token) return false;
-  try {
-    const decoded = jwtDecode(token);
-    const hasSession = Boolean(decoded.session_id);
-    const isFresh = decoded.exp * 1000 > Date.now();
-    if (!hasSession || !isFresh) {
-      localStorage.removeItem('authToken');
-      return false;
-    }
-    return true;
-  } catch (e) {
-    localStorage.removeItem('authToken');
-    return false;
-  }
-}
-
 async function hasValidCookieSession() {
   try {
     const response = await apiClient.get("/api/auth/me");
@@ -141,7 +122,7 @@ async function hasValidCookieSession() {
 // Navigation Guard
 router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
-  if (import.meta.env.VITE_DEV_AUTH_BYPASS === "true") {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_BYPASS === "true") {
     if (to.name === "Login") {
       next({ name: "Home" });
       return;
@@ -150,7 +131,11 @@ router.beforeEach(async (to, from, next) => {
     return;
   }
 
-  const isAuthenticated = hasValidLocalToken() || await hasValidCookieSession();
+  if (!requiresAuth && to.name !== 'Login') {
+    next();
+    return;
+  }
+  const isAuthenticated = await hasValidCookieSession();
 
   if (requiresAuth && !isAuthenticated) {
     // If route requires auth and user is not authenticated, redirect to login

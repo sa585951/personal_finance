@@ -2,24 +2,20 @@ import axios from 'axios';
 
 // 建立一個 Axios 實例
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_APP_API_URL, // 從環境變數讀取 API 的基礎 URL
+  // Production browser auth uses the same-origin API proxy, including Safari/PWA.
+  baseURL: import.meta.env.PROD ? '' : (import.meta.env.VITE_APP_API_URL || ''),
   withCredentials: true,
 });
+
+// Retire old URL/localStorage credentials; the backend cookie is authoritative.
+localStorage.removeItem('authToken');
 
 // 新增一個請求攔截器 (Request Interceptor)
 apiClient.interceptors.request.use(
   (config) => {
     config.metadata = { startTime: performance.now() };
 
-    // 從 localStorage 獲取 token
-    const token = localStorage.getItem('authToken');
-    
-    // 如果 token 存在，則在每個請求的 header 中加入 Authorization
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    if (import.meta.env.VITE_DEV_AUTH_BYPASS === "true") {
+    if (import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_BYPASS === "true") {
       config.headers['X-Dev-User'] = localStorage.getItem('devAuthUser') || 'local-dev-user';
     }
 

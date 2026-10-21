@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from uuid import UUID
-from urllib.parse import urlencode
+from urllib.parse import urlencode, unquote, urlsplit
 import time
 
 from flask import Flask, jsonify, request, redirect, g
@@ -19,6 +19,7 @@ from models.idempotency import IdempotencyConflict
 from models.asset_allocation_manager import AllocationNotFoundError, AssetAllocationManager
 from models.auth_session_manager import AuthSessionManager
 from models.oauth_login_state_manager import OAuthLoginStateManager
+from models.security_settings import load_security_settings
 from models.budget_manager import BudgetManager
 from models.linebot.manager import LineBotManager
 from models.app_state import AppStateManager
@@ -35,7 +36,10 @@ LINE_CHANNEL_SECRET = os.getenv("LINE_LOGIN_CHANNEL_SECRET")
 VITE_BACKEND_BASE_URL = os.getenv("VITE_BACKEND_BASE_URL")
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
-DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS") == "true" and os.getenv("FLASK_ENV") != "production"
+SECURITY_SETTINGS = load_security_settings(os.environ)
+FRONTEND_BASE_URL = SECURITY_SETTINGS.frontend_origin
+VITE_BACKEND_BASE_URL = SECURITY_SETTINGS.login_origin
+DEV_AUTH_BYPASS = SECURITY_SETTINGS.dev_auth_bypass
 SLOW_REQUEST_LOG_MS = float(os.getenv("SLOW_REQUEST_LOG_MS", "500"))
 DEV_AUTH_USERS = {
     "local-dev-user": {
@@ -66,14 +70,7 @@ if not all([LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, JWT_SECRET_KEY, VITE_BACKEND_B
 # 實例化 Flask 應用程式
 app = Flask(__name__)
 ALLOWED_BROWSER_ORIGINS = {
-    "https://personal-finance-gilt.vercel.app",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-    "http://localhost:5175",
-    "http://127.0.0.1:5175",
-    FRONTEND_BASE_URL,
+    SECURITY_SETTINGS.frontend_origin,
 }
 CORS(
     app,
@@ -117,14 +114,14 @@ def _api_operation_error(error, operation, validation_status=None):
 
 
 def _is_cookie_secure():
-    return os.getenv("FLASK_ENV") == "production"
+    return SECURITY_SETTINGS.secure_cookies
 
 def _auth_cookie_options():
     if _is_cookie_secure():
         return {
             "httponly": True,
             "secure": True,
-            "samesite": "None",
+            "samesite": "Lax",
             "path": "/",
             "max_age": APP_AUTH_TOKEN_DAYS * 24 * 60 * 60,
         }
@@ -142,7 +139,7 @@ def _clear_auth_cookie(response):
         path="/",
         secure=_is_cookie_secure(),
         httponly=True,
-        samesite="None" if _is_cookie_secure() else "Lax",
+        samesite="Lax",
     )
 
 def _extract_auth_token():
@@ -211,9 +208,10 @@ def _safe_frontend_redirect_path(value):
     if not value:
         return "/"
     text = str(value)
-    if not text.startswith("/") or text.startswith("//"):
+    decoded = unquote(text)
+    if len(text) > 2048 or not decoded.startswith("/") or decoded.startswith("//"):
         return "/"
-    if "\n" in text or "\r" in text:
+    if "\\" in decoded or any(ord(char) < 32 or ord(char) == 127 for char in decoded):
         return "/"
     return text
 
@@ -243,6 +241,11 @@ linebot_manager = LineBotManager(app_state, db_session)
 @app.before_request
 def start_request_timer():
     g.request_started_at = time.perf_counter()
+    if SECURITY_SETTINGS.environment == "production" and app.debug:
+        return jsonify({"success": False, "message": "服務設定錯誤"}), 503
+    if DEV_AUTH_BYPASS and (request.remote_addr not in {"127.0.0.1", "::1"}
+                           or urlsplit(request.host_url).hostname not in {"localhost", "127.0.0.1", "::1"}):
+        return jsonify({"success": False, "message": "開發登入僅限本機"}), 403
 
 
 @app.after_request
@@ -1782,7 +1785,8 @@ def line_login_callback():
         db_session.commit()
 
         # 5. 重定向到前端
-        callback_query = urlencode({"token": app_token, "redirect": frontend_redirect_path})
+        # Web credentials stay in a host-only HttpOnly cookie, never in a URL.
+        callback_query = urlencode({"redirect": frontend_redirect_path})
         response = redirect(f"{FRONTEND_BASE_URL}/auth-callback?{callback_query}")
         response.set_cookie(APP_AUTH_COOKIE_NAME, app_token, **_auth_cookie_options())
         return response
@@ -1800,4 +1804,6 @@ def healthcheck():
     return "OK", 200
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    if SECURITY_SETTINGS.environment == "production":
+        raise RuntimeError("正式環境請使用 WSGI server 啟動 web_app:app")
+    app.run(debug=False, host="127.0.0.1", port=int(os.environ.get("PORT", 5000)))

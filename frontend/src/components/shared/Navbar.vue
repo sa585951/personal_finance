@@ -39,7 +39,6 @@
 <script>
 import apiClient from "@/api";
 import ThemeToggle from "@/components/shared/ThemeToggle.vue";
-import { jwtDecode } from 'jwt-decode';
 import { HomeFilled, Money, PieChart, Suitcase, Wallet } from '@element-plus/icons-vue';
 
 export default {
@@ -57,7 +56,7 @@ export default {
       isLoggedIn: false,
       userName: '',
       showAccountMenu: false,
-      devAuthBypass: import.meta.env.VITE_DEV_AUTH_BYPASS === "true",
+      devAuthBypass: import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_BYPASS === "true",
       selectedDevUser: localStorage.getItem('devAuthUser') || 'local-dev-user',
       devUsers: [
         { id: 'local-dev-user', name: 'Dev User' },
@@ -101,24 +100,6 @@ export default {
         return;
       }
 
-      const token = localStorage.getItem('authToken');
-      if (token) {
-        try {
-          const decoded = jwtDecode(token);
-          // Phase 7.1 後 token 必須綁定後端 session，舊 token 需重新登入。
-          if (decoded.session_id && decoded.exp * 1000 > Date.now()) {
-            this.isLoggedIn = true;
-            this.userName = decoded.name; // 從 JWT payload 中讀取 name
-            return;
-          } else {
-            localStorage.removeItem('authToken');
-          }
-        } catch (error) {
-          console.error("JWT 解碼失敗:", error);
-          localStorage.removeItem('authToken');
-        }
-      }
-
       try {
         const response = await apiClient.get('/api/auth/me');
         if (response.data?.success) {
@@ -138,7 +119,8 @@ export default {
       try {
         await apiClient.post('/api/auth/logout');
       } catch (error) {
-        console.warn("後端登出失敗，仍會清除本機登入狀態。", error);
+        this.$swal.fire("登出未完成", "請檢查連線後重試。", "error");
+        return;
       }
       localStorage.removeItem('authToken');
       this.isLoggedIn = false;

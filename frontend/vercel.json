@@ -1,8 +1,29 @@
 {
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "https://personal-finance-x1hy.onrender.com/api/:path*"
+    },
+    {
+      "source": "/line-login-start",
+      "destination": "https://personal-finance-x1hy.onrender.com/line-login-start"
+    },
+    {
+      "source": "/line-login-callback",
+      "destination": "https://personal-finance-x1hy.onrender.com/line-login-callback"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/auth-callback",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
     }
   ]
 }

@@ -32,3 +32,33 @@ Auth 回應禁止快取／Referrer，錯誤不輸出 Provider 或 DB 詳情。
 回歸包含不符／缺少 Cookie、過期／竄改／重放、nonce 與 HTTP 交換邊界，
 以及隔離 PostgreSQL 多連線僅一次消耗、跨 Session 保留狀態和含帳務 0017 升級。
 Provider 使用替身，不等於真實 LINE 登入／手機驗收。
+
+## R13 / R14：Web Cookie 與公開設定
+
+Web callback 不再傳 Token；前端清除既有 `authToken` 並改以 `/api/auth/me`
+驗證 Cookie session，router、Navbar、Axios 同步切換。Bearer API 留給明確的
+非瀏覽器 client；不批次撤銷既有 session，因此歷史已曝光憑證的處置仍需另行核對。
+Cookie 為 host-only、HttpOnly、production Secure、SameSite=Lax；寫入仍檢查 Origin。
+
+正式環境以同源 proxy 避免第三方 Cookie 被 Safari/PWA 阻擋：
+
+1. 先備份並將目標 DB 升至 `20261021_0018`，不要在正式環境執行測試。
+2. `NOMICA_ENV=production`（兼容 `FLASK_ENV`，兩者都缺省時以 production 判定）；
+   `DEV_AUTH_BYPASS=false`、`FLASK_DEBUG=false`。
+3. Backend 的 `FRONTEND_BASE_URL` 及 `VITE_BACKEND_BASE_URL` 都設為同一個前端
+   HTTPS origin；後者在此是瀏覽器可達的 OAuth callback origin，不是內網位址。
+4. LINE Console callback 改為該 origin 的 `/line-login-callback`。
+5. `frontend/vercel.json` 已加入 `/api/*` 與 `/line-login-*` 的代理，目的地沿用
+   原 Vite 設定中的 Render host。部署前核對實際 backend host；其他平台提供等效代理。
+6. 前後端須協調切換，前端 production 使用相對 URL，忽略 dev-only `VITE_APP_API_URL`。
+   先在 staging 驗證 Cookie／Origin、登入、登出、重開及 callback，再開放登入。
+
+未配置同源 HTTPS、未知環境、公開環境 bypass/debug 或 development 的公開 URL
+會拒絕啟動。開發 bypass 還限制 request host 與來源 IP 為 loopback；正式 build
+若含 `VITE_DEV_AUTH_BYPASS=true` 會失敗。development 須使用 localhost/127.0.0.1
+且前後端維持同一 hostname；相對 API 的 Vite proxy 預設指向本機 5000，可用
+`NOMICA_DEV_API_TARGET` 明確指定。直接 `python web_app.py` 僅限本機，正式使用 WSGI。
+
+新 Auth 與 API 路徑不進 Service Worker cache。瀏覽器回歸含 Cookie session
+導向、過期／缺 Cookie、舊 URL/localStorage Token 清除、無 Bearer 自動傳送及惡意 redirect。
+這不代表 Vercel/LINE 正式設定、真實手機或歷史 Token 影響已完成驗收。
