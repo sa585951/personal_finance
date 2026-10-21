@@ -67,6 +67,43 @@ async function installMocks(page) {
   return errors;
 }
 
+async function testUntrustedDialogs(browser) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    const errors = await installMocks(page);
+    await page.goto(`${base}/login`, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(async () => {
+      const { default: Swal } = await import('/node_modules/sweetalert2/dist/sweetalert2.esm.all.js');
+      const { default: TripView } = await import('/src/views/TripsView.vue');
+      window.dialogAttack = 0;
+      const hostile = '</textarea><img src=x onerror="window.dialogAttack++"><svg onload="window.dialogAttack++">';
+      window.dialogTest = { Swal, TripView, hostile };
+      await TripView.methods.copySettlementSummary.call({
+        buildSettlementSummaryText: () => hostile,
+        writeTextToClipboard: async () => { throw new Error('clipboard unavailable'); },
+        $swal: Swal,
+      });
+    });
+    assert.equal(await page.locator('.swal-copy-textarea').inputValue(), await page.evaluate(() => window.dialogTest.hostile));
+    assert.equal(await page.locator('.swal2-popup img[src=x], .swal2-popup svg[onload]').count(), 0);
+    await page.evaluate(() => {
+      const { Swal, TripView, hostile } = window.dialogTest;
+      Swal.close();
+      window.deleteDialogResult = TripView.methods.deleteSelectedTrip.call({ selectedTrip: { name: hostile }, $swal: Swal });
+    });
+    await page.locator('.swal2-input').waitFor();
+    assert((await page.locator('.swal2-html-container').innerText()).includes(await page.evaluate(() => window.dialogTest.hostile)));
+    assert.equal(await page.locator('.swal2-popup img[src=x], .swal2-popup svg[onload]').count(), 0);
+    await page.locator('.swal2-cancel').click();
+    await page.evaluate(() => window.deleteDialogResult);
+    assert.equal(await page.evaluate(() => window.dialogAttack), 0);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+}
+
 (async () => {
   let server, browser;
   try {
@@ -81,6 +118,7 @@ async function installMocks(page) {
     }
     await ready();
     browser = await chromium.launch({ headless: true, ...(process.env.UI_BROWSER_CHANNEL ? { channel: process.env.UI_BROWSER_CHANNEL } : {}) });
+    await testUntrustedDialogs(browser);
     for (const width of [320, 390, 430, 768, 1280]) for (const theme of ['light', 'dark']) {
       const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
       await context.addInitScript(value => {

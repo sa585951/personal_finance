@@ -242,6 +242,7 @@
 </template>
 
 <script>
+import { copyDialogOptions } from "@/utils/safeDialogs";
 import { Calendar, List, Location, Money, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
 import apiClient from "@/api";
 import { openPendingCommand } from '@/utils/pendingFinancialCommand';
@@ -1097,17 +1098,7 @@ export default {
         await this.writeTextToClipboard(this.latestInviteUrl);
         this.$swal.fire("已複製", "邀請連結已複製到剪貼簿。", "success");
       } catch (error) {
-        this.$swal.fire({
-          title: "請手動複製",
-          html: `<textarea class="swal-copy-textarea" readonly>${this.latestInviteUrl}</textarea>`,
-          icon: "info",
-          confirmButtonText: "我知道了",
-          didOpen: () => {
-            const textarea = document.querySelector(".swal-copy-textarea");
-            textarea?.focus();
-            textarea?.select();
-          },
-        });
+        this.$swal.fire(copyDialogOptions(this.latestInviteUrl));
       }
     },
     async fetchExpenseCategories() {
@@ -1808,17 +1799,7 @@ export default {
         await this.writeTextToClipboard(text);
         this.$swal.fire("已複製", "結算摘要已複製到剪貼簿。", "success");
       } catch (error) {
-        this.$swal.fire({
-          title: "請手動複製",
-          html: `<textarea class="swal-copy-textarea" readonly>${text}</textarea>`,
-          icon: "info",
-          confirmButtonText: "我知道了",
-          didOpen: () => {
-            const textarea = document.querySelector(".swal-copy-textarea");
-            textarea?.focus();
-            textarea?.select();
-          },
-        });
+        this.$swal.fire(copyDialogOptions(text));
       }
     },
     async archiveSelectedTrip() {
@@ -1848,7 +1829,8 @@ export default {
       if (!this.selectedTrip) return;
       const result = await this.$swal.fire({
         title: "刪除旅行帳本？",
-        html: `<p>會先保留 30 天。若要刪除，請輸入帳本名稱：</p><strong>${this.selectedTrip.name}</strong>`,
+        // Render the shared trip name as text to prevent stored HTML injection.
+        text: `會先保留 30 天。若要刪除，請輸入帳本名稱：${this.selectedTrip.name}`,
         input: "text",
         inputPlaceholder: this.selectedTrip.name,
         icon: "warning",
@@ -2089,17 +2071,7 @@ export default {
         await this.writeTextToClipboard(csv);
         this.$swal.fire("已複製", "CSV 內容已複製到剪貼簿。", "success");
       } catch (error) {
-        this.$swal.fire({
-          title: "請手動複製",
-          html: `<textarea class="swal-copy-textarea" readonly>${csv}</textarea>`,
-          icon: "info",
-          confirmButtonText: "我知道了",
-          didOpen: () => {
-            const textarea = document.querySelector(".swal-copy-textarea");
-            textarea?.focus();
-            textarea?.select();
-          },
-        });
+        this.$swal.fire(copyDialogOptions(csv));
       }
     },
     formatMoney(amount, currency) {
