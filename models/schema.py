@@ -21,6 +21,18 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 metadata = MetaData()
 legacy_metadata = MetaData()
 
+# Store only hashes of OAuth state/browser secrets; no financial or identity data.
+oauth_login_states_table = Table(
+    "oauth_login_states", metadata,
+    Column("state_hash", String(64), primary_key=True),
+    Column("browser_hash", String(64), nullable=False),
+    Column("redirect_path", String(2048), nullable=False),
+    Column("nonce", String(64), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("consumed_at", DateTime(timezone=True)),
+    Index("ix_oauth_login_states_expiry", "expires_at"),
+)
+
 UUID_PK = dict(
     primary_key=True,
     server_default=text("gen_random_uuid()"),

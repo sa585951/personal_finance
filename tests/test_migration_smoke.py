@@ -58,7 +58,8 @@ def test_alembic_can_upgrade_an_empty_database_to_head(monkeypatch):
 
     verification_engine.dispose()
 
-    assert revision == "20261020_0017"
+    assert revision == "20261021_0018"
+    assert "oauth_login_states" in table_names
     assert {'financial_commands', 'line_webhook_events'}.issubset(table_names)
     assert "receipt_documents" in table_names
     assert {"icon_key", "color_key"}.issubset(account_columns)
@@ -96,10 +97,22 @@ def test_alembic_can_upgrade_an_empty_database_to_head(monkeypatch):
         before_balances = connection.execute(text('SELECT id,balance FROM accounts ORDER BY id')).all()
     command.upgrade(alembic_config, 'head')
     with verification_engine.connect() as connection:
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '20261020_0017'
+        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '20261021_0018'
         for table, count in before.items():
             assert connection.execute(text('SELECT count(*) FROM '+table)).scalar_one() == count
         assert connection.execute(text('SELECT id,balance FROM accounts ORDER BY id')).all() == before_balances
         assert connection.execute(text('SELECT count(*) FROM financial_commands')).scalar_one() == 0
         assert connection.execute(text('SELECT count(*) FROM line_webhook_events')).scalar_one() == 0
+    verification_engine.dispose()
+
+    # Exercise a deployed0017 with financial data, not just the moving baseline.
+    command.downgrade(alembic_config, "20261020_0017")
+    with verification_engine.connect() as connection:
+        assert "oauth_login_states" not in inspect(connection).get_table_names()
+    command.upgrade(alembic_config, "head")
+    with verification_engine.connect() as connection:
+        assert "oauth_login_states" in inspect(connection).get_table_names()
+        assert connection.execute(text('SELECT id,balance FROM accounts ORDER BY id')).all() == before_balances
+        for table, count in before.items():
+            assert connection.execute(text('SELECT count(*) FROM '+table)).scalar_one() == count
     verification_engine.dispose()

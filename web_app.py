@@ -18,6 +18,7 @@ from models.asset_manager import AssetManager
 from models.idempotency import IdempotencyConflict
 from models.asset_allocation_manager import AllocationNotFoundError, AssetAllocationManager
 from models.auth_session_manager import AuthSessionManager
+from models.oauth_login_state_manager import OAuthLoginStateManager
 from models.budget_manager import BudgetManager
 from models.linebot.manager import LineBotManager
 from models.app_state import AppStateManager
@@ -55,6 +56,7 @@ DEV_AUTH_USERS = {
     },
 }
 LINE_LOGIN_STATE_TTL_MINUTES = 10
+LINE_LOGIN_BROWSER_COOKIE = "nomica_login_browser"
 APP_AUTH_COOKIE_NAME = "nomica_auth_token"
 APP_AUTH_TOKEN_DAYS = 30
 
@@ -83,6 +85,7 @@ CORS(
 asset_manager = AssetManager(db_session)
 asset_allocation_manager = AssetAllocationManager(db_session)
 auth_session_manager = AuthSessionManager(db_session)
+oauth_login_state_manager = OAuthLoginStateManager(db_session)
 budget_manager = BudgetManager(db_session)
 settlement_account_entry_manager = SettlementAccountEntryManager(db_session)
 trip_manager = TripManager(db_session)
@@ -215,21 +218,12 @@ def _safe_frontend_redirect_path(value):
     return text
 
 def _create_line_login_state(redirect_path):
-    payload = {
-        "type": "line_login_state",
-        "redirect": _safe_frontend_redirect_path(redirect_path),
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=LINE_LOGIN_STATE_TTL_MINUTES),
-    }
-    return jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
+    return oauth_login_state_manager.issue(
+        _safe_frontend_redirect_path(redirect_path), LINE_LOGIN_STATE_TTL_MINUTES,
+    )
 
 def _decode_line_login_state(state):
-    try:
-        payload = jwt.decode(state, JWT_SECRET_KEY, algorithms=["HS256"])
-    except jwt.PyJWTError as exc:
-        raise ValueError("LINE Login state 驗證失敗") from exc
-    if payload.get("type") != "line_login_state":
-        raise ValueError("LINE Login state 類型不正確")
-    return _safe_frontend_redirect_path(payload.get("redirect"))
+    return oauth_login_state_manager.consume(state, request.cookies.get(LINE_LOGIN_BROWSER_COOKIE))
 
 def _create_app_auth_token(user, provider):
     expires_at = datetime.now(timezone.utc) + timedelta(days=APP_AUTH_TOKEN_DAYS)
@@ -253,6 +247,12 @@ def start_request_timer():
 
 @app.after_request
 def log_request_duration(response):
+    if request.path.startswith(("/api/auth/", "/line-login-")):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+    if request.path == "/line-login-callback":
+        response.delete_cookie(LINE_LOGIN_BROWSER_COOKIE, path="/line-login-callback",
+                               secure=_is_cookie_secure(), httponly=True, samesite="Lax")
     started_at = getattr(g, "request_started_at", None)
     if started_at is None:
         return response
@@ -1701,18 +1701,29 @@ def line_webhook():
 def line_login_start():
     redirect_path = _safe_frontend_redirect_path(request.args.get("redirect", "/"))
     redirect_uri = f"{VITE_BACKEND_BASE_URL}/line-login-callback"
-    state = _create_line_login_state(redirect_path)
+    try:
+        challenge = _create_line_login_state(redirect_path)
+        db_session.commit()
+    except Exception as error:
+        return _api_operation_error(error, "line_login_start")
     query = urlencode(
         {
             "response_type": "code",
             "client_id": LINE_CHANNEL_ID,
             "redirect_uri": redirect_uri,
-            "state": state,
+            "state": challenge["state"],
+            "nonce": challenge["nonce"],
             "scope": "profile openid",
             "bot_prompt": "aggressive",
         }
     )
-    return redirect(f"https://access.line.me/oauth2/v2.1/authorize?{query}")
+    response = redirect(f"https://access.line.me/oauth2/v2.1/authorize?{query}")
+    response.set_cookie(
+        LINE_LOGIN_BROWSER_COOKIE, challenge["browser_token"], httponly=True,
+        secure=_is_cookie_secure(), samesite="Lax", path="/line-login-callback",
+        max_age=LINE_LOGIN_STATE_TTL_MINUTES * 60,
+    )
+    return response
 
 @app.route("/line-login-callback", methods=["GET"])
 def line_login_callback():
@@ -1724,7 +1735,10 @@ def line_login_callback():
         return jsonify({"success": False, "message": "LINE Login state 遺失"}), 400
 
     try:
-        frontend_redirect_path = _decode_line_login_state(state)
+        challenge = _decode_line_login_state(state)
+        # Consume before any provider call: replay remains rejected on failure.
+        db_session.commit()
+        frontend_redirect_path = _safe_frontend_redirect_path(challenge["redirect_path"])
 
         # 1. 交換 Token
         token_url = "https://api.line.me/oauth2/v2.1/token"
@@ -1734,15 +1748,18 @@ def line_login_callback():
             'grant_type': 'authorization_code', 'code': code, 'redirect_uri': redirect_uri,
             'client_id': LINE_CHANNEL_ID, 'client_secret': LINE_CHANNEL_SECRET
         }
-        response = requests.post(token_url, headers=headers, data=data)
+        response = requests.post(token_url, headers=headers, data=data, timeout=10)
         response.raise_for_status()
         id_token = response.json().get('id_token')
 
         # 2. 驗證 ID Token
         decoded_id_token = jwt.decode(
             id_token, LINE_CHANNEL_SECRET, algorithms=['HS256'],
-            audience=LINE_CHANNEL_ID, issuer='https://access.line.me'
+            audience=LINE_CHANNEL_ID, issuer='https://access.line.me',
+            options={"require": ["exp", "iat", "sub", "nonce"]}
         )
+        if decoded_id_token.get("nonce") != challenge["nonce"]:
+            raise ValueError("LINE Login nonce 驗證失敗")
         line_user_id = decoded_id_token.get('sub')
         display_name = decoded_id_token.get('name')
         provider_email = decoded_id_token.get('email')
@@ -1770,19 +1787,13 @@ def line_login_callback():
         response.set_cookie(APP_AUTH_COOKIE_NAME, app_token, **_auth_cookie_options())
         return response
 
-    except requests.exceptions.RequestException as e:
-        app.logger.error(f"Line Token Exchange Error: {e}")
-        return jsonify({"success": False, "message": f"Line 認證失敗: {e}"}), 500
-    except jwt.PyJWTError as e:
-        app.logger.error(f"ID Token Verification Error: {e}")
-        return jsonify({"success": False, "message": f"ID Token 驗證失敗: {e}"}), 500
-    except ValueError as e:
-        app.logger.error(f"Line Login State Error: {e}")
-        return jsonify({"success": False, "message": str(e)}), 400
-    except Exception as e:
-        app.logger.error(f"Unhandled Line Login Callback Error: {e}")
-        return jsonify({"success": False, "message": f"登入處理失敗: {e}"}), 500
-    
+    except (ValueError, jwt.PyJWTError):
+        db_session.rollback()
+        app.logger.warning("LINE login verification failed")
+        return jsonify({"success": False, "message": "登入驗證失敗，請重新登入"}), 400
+    except Exception as error:
+        return _api_operation_error(error, "line_login_callback")
+
 @app.route('/healthcheck')
 def healthcheck():
     """一個簡單的健康檢查端點，只為了讓服務保持啟動"""

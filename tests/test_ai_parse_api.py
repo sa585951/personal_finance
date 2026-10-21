@@ -460,6 +460,15 @@ def _load_web_app(monkeypatch):
     sys.modules.pop("web_app", None)
     web_app = importlib.import_module("web_app")
     web_app.auth_session_manager = FakeAuthSessionManager()
+    web_app.db_session = FakeDBSession()
+    # HTTP boundary tests use an isolated in-memory state store. PostgreSQL
+    # concurrency/durability is covered by test_oauth_login_state_manager.py.
+    from sqlalchemy import create_engine
+    from models.schema import oauth_login_states_table
+    from models.oauth_login_state_manager import OAuthLoginStateManager
+    connection = create_engine("sqlite://").connect()
+    oauth_login_states_table.create(connection)
+    web_app.oauth_login_state_manager = OAuthLoginStateManager(connection)
     return web_app
 
 
@@ -1450,7 +1459,8 @@ def test_delete_transfer_api_soft_deletes_and_commits(monkeypatch):
 def test_line_login_start_creates_signed_state_with_safe_redirect(monkeypatch):
     web_app = _load_web_app(monkeypatch)
 
-    response = web_app.app.test_client().get("/line-login-start?redirect=/trips/invite/test-token")
+    client = web_app.app.test_client()
+    response = client.get("/line-login-start?redirect=/trips/invite/test-token")
     location = response.headers["Location"]
 
     assert response.status_code == 302
@@ -1460,17 +1470,20 @@ def test_line_login_start_creates_signed_state_with_safe_redirect(monkeypatch):
     from urllib.parse import parse_qs, urlparse
 
     query = parse_qs(urlparse(location).query)
-    redirect_path = web_app._decode_line_login_state(query["state"][0])
-    assert redirect_path == "/trips/invite/test-token"
+    browser_token = client.get_cookie(web_app.LINE_LOGIN_BROWSER_COOKIE, path="/line-login-callback").value
+    challenge = web_app.oauth_login_state_manager.consume(query["state"][0], browser_token)
+    assert challenge["redirect_path"] == "/trips/invite/test-token"
     assert query["bot_prompt"] == ["aggressive"]
 
 
 def test_line_login_state_rejects_external_redirect(monkeypatch):
     web_app = _load_web_app(monkeypatch)
 
-    response = web_app.app.test_client().get("/line-login-start?redirect=https://evil.example/phish")
+    client = web_app.app.test_client()
+    response = client.get("/line-login-start?redirect=https://evil.example/phish")
     from urllib.parse import parse_qs, urlparse
 
     query = parse_qs(urlparse(response.headers["Location"]).query)
-    redirect_path = web_app._decode_line_login_state(query["state"][0])
-    assert redirect_path == "/"
+    browser_token = client.get_cookie(web_app.LINE_LOGIN_BROWSER_COOKIE, path="/line-login-callback").value
+    challenge = web_app.oauth_login_state_manager.consume(query["state"][0], browser_token)
+    assert challenge["redirect_path"] == "/"
