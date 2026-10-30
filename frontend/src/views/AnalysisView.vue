@@ -32,6 +32,7 @@
     <p v-if="errorMessage" class="state-message error">{{ errorMessage }}</p>
     <p v-else-if="isLoading" class="state-message">分析資料讀取中</p>
 
+    <template v-if="!isLoading && !errorMessage">
     <template v-if="activeTab === 'overview'">
       <section class="summary-card" aria-label="月份收支摘要">
         <div class="summary-heading">
@@ -204,6 +205,7 @@
           這個月份尚未有{{ flowType === "income" ? "入帳" : "付款" }}帳戶資料。
         </p>
       </section>
+    </template>
     </template>
   </div>
 </template>

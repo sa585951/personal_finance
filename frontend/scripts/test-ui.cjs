@@ -68,6 +68,31 @@ async function installMocks(page) {
   return errors;
 }
 
+async function testReportCurrencyRefusal(browser) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await installMocks(page);
+    const message = '目前個人報表僅支援 TWD；原始資料已保留，請勿直接更改歷史幣別';
+    const reject = route => route.fulfill({ status: 400, json: {
+      success: false, code: 'REPORT_CURRENCY_UNSUPPORTED', message,
+    } });
+    await page.route('**/api/dashboard/overview', reject);
+    await page.route('**/api/transactions*', route => {
+      return new URL(route.request().url()).searchParams.get('monthly_report') === 'true'
+        ? reject(route) : route.fallback();
+    });
+    await page.goto(`${base.origin}/`, { waitUntil: 'networkidle' });
+    const homeHasReason = (await page.locator('body').innerText()).includes(message);
+    await page.goto(`${base.origin}/analysis`, { waitUntil: 'networkidle' });
+    assert((await page.locator('.state-message.error').innerText()).includes(message));
+    const analysisHidesTotals = await page.locator('.summary-card').count() === 0;
+    assert.deepEqual({ homeHasReason, analysisHidesTotals }, { homeHasReason: true, analysisHidesTotals: true });
+  } finally {
+    await context.close();
+  }
+}
+
 async function testUntrustedDialogs(browser) {
   const context = await browser.newContext();
   try {
@@ -165,6 +190,7 @@ async function testDisabledAiKeepsManualEntry(browser) {
     }
     await ready();
     browser = await chromium.launch({ headless: true, ...(process.env.UI_BROWSER_CHANNEL ? { channel: process.env.UI_BROWSER_CHANNEL } : {}) });
+    await testReportCurrencyRefusal(browser);
     await testUntrustedDialogs(browser);
     await testCookieAuthNavigation(browser);
     await testDisabledAiKeepsManualEntry(browser);
