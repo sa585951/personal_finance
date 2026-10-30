@@ -89,3 +89,11 @@ active 上限 15；rejoin 沿用 member ID，NULL user 的同名外部旅伴可�
 正式升級須先備份、暫停成員／分攤寫入並核對重複與資料量；發現異常先在隔離
 副本列處置方案並取得批准。建立 unique 可能持鎖，正式耗時與升級仍未驗收。
 舊初始 migration 的 moving metadata 問題未在本批重寫（R20 留待原計畫）。
+
+## S3.1 U02：原生表單小數驗收
+
+Chrome 先重現日常、旅行及自訂分攤皆阻擋合法 USD 小數。
+依原幣調整 step/min：USD／EUR 0.01，TWD／JPY／KRW 1；自訂分攤仍允許 0。
+驗證正常小數、最小正數、零 share、負數、超精度與切換幣別。測試填欄位採循序，
+避免焦點互搶造成假失敗。check:styles、lint、build 與五尺寸深淺色 mock UI 通過。
+未更改後端金額規則或表單外觀，沒有正式 API／手機實機驗收。

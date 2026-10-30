@@ -20,8 +20,8 @@
         <input
           :value="expense.amount"
           type="number"
-          min="1"
-          step="1"
+          :min="amountStep"
+          :step="amountStep"
           required
           @input="updateNumber('amount', $event.target.value)"
         />
@@ -132,7 +132,7 @@
               :value="expense.split_allocations[member.id]"
               type="number"
               min="0"
-              step="1"
+              :step="amountStep"
               @input="updateSplitAllocation(member.id, $event.target.value)"
             />
           </label>
@@ -250,6 +250,11 @@ export default {
     "toggle-member-options",
     "update-expense",
   ],
+  computed: {
+    amountStep() {
+      return ["USD", "EUR"].includes(this.expense.original_currency) ? "0.01" : "1";
+    },
+  },
   methods: {
     updateExpense(patch) {
       this.$emit("update-expense", patch);

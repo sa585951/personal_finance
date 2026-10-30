@@ -68,6 +68,42 @@ async function installMocks(page) {
   return errors;
 }
 
+async function testCurrencyDecimalInputs(browser) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await installMocks(page);
+    await page.goto(`${base.origin}/login`, { waitUntil: 'networkidle' });
+    await page.evaluate(async () => {
+      const { createApp } = await import('/node_modules/.vite/deps/vue.js');
+      const { default: Daily } = await import('/src/components/budgets/TransactionForm.vue');
+      const { default: Trip } = await import('/src/components/trips/TripExpensePanel.vue');
+      const dailyRoot = document.createElement('div'); dailyRoot.id = 'money-daily'; document.body.append(dailyRoot);
+      const tripRoot = document.createElement('div'); tripRoot.id = 'money-trip'; document.body.append(tripRoot);
+      const daily = createApp(Daily, { draft: { currency: 'USD', amount: 1.23, type: 'expense' } }).mount(dailyRoot);
+      const trip = createApp(Trip, { expense: { item: 'Test', amount: 1.23, original_currency: 'USD',
+        exchange_rate: 32, split_mode: 'custom', split_member_ids: ['m'], split_allocations: { m: 1.23 } },
+        members: [{ id: 'm', display_name: 'Test' }] }).mount(tripRoot);
+      window.moneyInputTest = { daily, trip };
+    });
+    await page.waitForFunction(() => window.moneyInputTest.daily.assetsLoaded && window.moneyInputTest.daily.budgetCategoriesLoaded);
+    const daily = page.locator('#money-daily #transactionAmount');
+    const trip = page.locator('#money-trip .expense-form input[type=number]').first();
+    const share = page.locator('#money-trip .custom-split-row input');
+    const valid = async (input, value) => { await input.fill(value); return input.evaluate(el => el.checkValidity()); };
+    assert.deepEqual([await valid(daily, '1.23'), await valid(trip, '0.01'), await valid(share, '1.23')], [true, true, true]);
+    assert.equal(await valid(share, '0'), true);
+    assert.equal(await valid(daily, '0.001'), false);
+    assert.equal(await valid(trip, '-1'), false);
+    assert.equal(await valid(daily, '0'), false);
+    await page.evaluate(() => { window.moneyInputTest.daily.newTransaction.original_currency = 'JPY'; });
+    assert.equal(await valid(daily, '1.23'), false);
+    assert.equal(await valid(daily, '1'), true);
+    await page.evaluate(() => { window.moneyInputTest.daily.newTransaction.original_currency = 'EUR'; });
+    assert.equal(await valid(daily, '0.01'), true);
+  } finally { await context.close(); }
+}
+
 async function testReportCurrencyRefusal(browser) {
   const context = await browser.newContext();
   try {
@@ -190,6 +226,7 @@ async function testDisabledAiKeepsManualEntry(browser) {
     }
     await ready();
     browser = await chromium.launch({ headless: true, ...(process.env.UI_BROWSER_CHANNEL ? { channel: process.env.UI_BROWSER_CHANNEL } : {}) });
+    await testCurrencyDecimalInputs(browser);
     await testReportCurrencyRefusal(browser);
     await testUntrustedDialogs(browser);
     await testCookieAuthNavigation(browser);
