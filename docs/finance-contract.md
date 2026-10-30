@@ -242,3 +242,9 @@ Expected Balance
 ## 實作邊界
 
 M0 已建立共同語言與 characterization tests；M3A 至 M3D 已新增 Anchor、Adjustment、Settlement Account Entry、Transaction／Transfer movement ledger 與 read-only Expected Balance CLI。M3E 已關閉 legacy Goals 執行入口並完成舊 schema 第一輪盤點；保留資料但不再允許產品流程讀寫，詳見 `docs/legacy-schema-inventory.md`。
+
+## R05：編輯交易的歷史匯率
+
+未明確傳入新 exchange_rate，且交易原幣與換算本幣未變時，沿用該交易已儲存的
+歷史匯率，包含改標題、日期或金額；不重新取預設表。顯式新匯率仍按既有驗證
+重算，換幣別則按既有新 pair 規則。旅行 split 與帳戶反轉／套用共用所選匯率。

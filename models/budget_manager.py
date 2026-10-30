@@ -1043,6 +1043,10 @@ class BudgetManager:
 
         transaction_currency = original_currency or existing["original_currency"]
         base_currency = trip["base_currency"] if trip else existing["base_currency"]
+        # Omitted rates must not reinterpret an unchanged historical currency pair.
+        if (exchange_rate is None and transaction_currency == existing["original_currency"]
+                and base_currency == existing["base_currency"]):
+            exchange_rate = existing["exchange_rate"]
         parsed_exchange_rate = Decimal(
             str(
                 exchange_rate

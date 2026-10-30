@@ -10,6 +10,7 @@
 - 2026-10-30：S2 核心 R03 本機修補完成（一般交易帳戶鎖、交易版本鎖、跨帳戶固定順序、相對校正鎖）；完整 Backend 475 passed。見 `docs/s2-ledger-concurrency.md`，仍不宣告正式併發／歷史帳務驗收通過。文件入口與封存規則見 `docs/README.md`。
 - S3 R04 第一個小批次：缺少跨幣別匯率時拒絕默認 1；新增／修改拒絕且零帳務異動的 regression 已驗證，完整 Backend 480 passed。R04 月報混幣及 R05～R07 未完成，見 `docs/s3-fx-correctness.md`。
 - S3 R04 第二批：依確認規則限制 TWD 個人報表，非 TWD 應納入金額明確拒絕；17 項新測試與完整 Backend 506 passed。仍待 R05～R07。
+- S3 R05：編輯未改幣別且未指定新匯率時保留歷史 rate；8 項新測試及完整 Backend 514 passed，接續 R06／R07。
 - 本批新增 migration `20261021_0018`（短效 OAuth state）；Web 改同源 Cookie，部署前須協調 API/OAuth proxy、LINE callback 及 production 設定。AI 與 LINE 互動預設停用，LINE Login、手動記帳與 QR 不受此入口設定影響；不代表已完成正式部署或 G1/G-AI/G2。
 - 帳期與共用分頁批次狀態：本地第一版、migration chain、DB smoke 與 390／430px 操作驗收已完成；正式環境仍須套用 `20260925_0015` 並做部署後驗收，不視為已上線
 

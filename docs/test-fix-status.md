@@ -20,7 +20,7 @@
 | ID | 現有依據 | 本輪結論 |
 | --- | --- | --- |
 | R04 月報混幣 | calculate_monthly_report_expenses 對 converted_amount／converted_share_amount 直接聚合，未分幣別 | 已用合成 DB 重現：TWD 600 + USD 20 得到無幣別總額 620；本機 Bug 已依確認規則修補：非 TWD 拒絕，17 項針對測試通過；不宣稱正式資料影響已盤點 |
-| R05 編輯換匯 | 未提供 exchange_rate 會再取預設值 | 待歷史非預設匯率交易的 runtime 重現；未修補 |
+| R05 編輯換匯 | 未提供 exchange_rate 會再取預設值 | 已重現並修補，8 項新案例及完整 suite 514 passed；未回填歷史資料 |
 | R06 分攤尾差 | 現有分攤與換算流程需驗證守恆 | 未執行本輪案例，不新增已證實 Bug 結論 |
 | R07 帳戶改幣別 | update_account 可直接更新 currency | 待帶帳務的修改案例與零異動保護驗證；未修補 |
 | 預設匯率表 | 靜態 preset，沒有本輪市場來源／時效驗證 | 不把預設值稱作即時或歷史市場匯率 |
