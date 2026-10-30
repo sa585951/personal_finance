@@ -3,7 +3,7 @@ import binascii
 import json
 from calendar import monthrange
 from datetime import date, datetime, time, timedelta, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -1225,6 +1225,7 @@ class BudgetManager:
                 }
             )
 
+        self._allocate_converted_split_remainder(split_rows, original_amount, exchange_rate)
         self.db_session.execute(insert(transaction_splits_table), split_rows)
 
     def add_custom_splits(
@@ -1297,7 +1298,24 @@ class BudgetManager:
                 }
             )
 
+        self._allocate_converted_split_remainder(split_rows, original_amount, exchange_rate)
         self.db_session.execute(insert(transaction_splits_table), split_rows)
+
+    @staticmethod
+    def _allocate_converted_split_remainder(rows, original_amount, exchange_rate):
+        # Match Numeric(18, 4) once for the total, then preserve that total across shares.
+        step = Decimal("0.0001")
+        target = (original_amount * exchange_rate).quantize(step, rounding=ROUND_HALF_UP)
+        raw = [row["converted_share_amount"] for row in rows]
+        rounded = [amount.quantize(step, rounding=ROUND_DOWN) for amount in raw]
+        remaining = int((target - sum(rounded)) / step)
+        ranked = sorted(range(len(rows)), key=lambda i: (
+            -(raw[i] - rounded[i]), str(rows[i]["trip_member_id"]),
+        ))
+        for i in ranked[:remaining]:
+            rounded[i] += step
+        for row, amount in zip(rows, rounded):
+            row["converted_share_amount"] = amount
 
     def _amount_to_minor_units(self, amount, scale, field_name):
         decimal_units = amount / scale
