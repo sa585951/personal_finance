@@ -153,7 +153,7 @@ class BudgetManager:
                 accounts_table.c.id == parsed_account_id,
                 accounts_table.c.user_id == user_id,
                 accounts_table.c.deleted_at.is_(None),
-            )
+            ).with_for_update()  # Serialize balance reads with every account writer.
         ).first()
         if not row:
             raise ValueError("找不到付款帳戶或權限不足")
@@ -996,7 +996,7 @@ class BudgetManager:
             select(transactions_table).where(
                 transactions_table.c.id == parsed_transaction_id,
                 transactions_table.c.deleted_at.is_(None),
-            )
+            ).with_for_update()  # Read the latest transaction before reversing it.
         ).first()
         if not existing_row:
             raise ValueError("找不到要更新的交易或權限不足")
@@ -1039,6 +1039,10 @@ class BudgetManager:
                 raise ValueError("只有自己付款時才可連動自己的帳戶")
 
         with self.db_session.begin_nested():
+            # Match Transfer's UUID order to avoid opposite-account edit deadlocks.
+            for key in sorted({str(self._parse_optional_uuid(key, "account_id"))
+                               for key in (existing["account_id"], account_id) if key}):
+                self._get_account_for_balance_update(parsed_user_id, key)
             old_account = self._get_account_for_balance_update(parsed_user_id, existing["account_id"])
             if old_account:
                 old_account_amount = self._resolve_account_delta_amount(
@@ -1769,7 +1773,7 @@ class BudgetManager:
             ).where(
                 transactions_table.c.id == parsed_transaction_id,
                 transactions_table.c.deleted_at.is_(None),
-            )
+            ).with_for_update()  # A competing delete must not reverse the same row twice.
         ).first()
         if not transaction:
             raise ValueError("找不到要刪除的交易或權限不足")

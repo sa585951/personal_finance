@@ -413,7 +413,8 @@ class AssetManager:
 
     def adjust_asset_balance(self, user_id, account_key, amount_change):
         """調整指定帳戶餘額。"""
-        account = self._get_account(user_id, account_key)
+        # Keep relative corrections atomic with transactions and transfers.
+        account = self._get_account(user_id, account_key, for_update=True)
         if not account:
             raise ValueError("找不到此帳戶或權限不足")
         if not account["track_balance"]:
@@ -602,7 +603,7 @@ class AssetManager:
 
     def update_account(self, user_id, account_key, **changes):
         """更新帳戶基本資料。"""
-        account = self._get_account(user_id, account_key)
+        account = self._get_account(user_id, account_key, for_update=True)
         if not account:
             raise ValueError("找不到此帳戶或權限不足")
 
@@ -665,7 +666,7 @@ class AssetManager:
 
     def delete_account(self, user_id, account_key):
         """兩段式刪除帳戶。"""
-        account = self._get_account(user_id, account_key)
+        account = self._get_account(user_id, account_key, for_update=True)
         if not account:
             raise ValueError("找不到要刪除的帳戶或權限不足")
 
