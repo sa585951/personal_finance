@@ -75,6 +75,16 @@ class ReportCurrencyError(ValueError):
     """Expected refusal to aggregate unsupported personal-report currencies."""
 
 
+class TransactionCreationResult(tuple):
+    """Request-local identity while retaining legacy (success, message) unpacking."""
+
+    def __new__(cls, message, transaction_id, replayed=False):
+        result = super().__new__(cls, (True, message))
+        result.transaction_id = transaction_id
+        result.replayed = replayed
+        return result
+
+
 class BudgetManager:
     """管理交易與預算。
 
@@ -847,6 +857,7 @@ class BudgetManager:
         client_request_id=None,
     ):
         """新增一筆交易紀錄。"""
+        # Legacy compatibility only; production consumers use the returned result.
         self.last_created_transaction_id = None
         self.last_create_replayed = False
         parsed_user_id = self._parse_user_id(user_id)
@@ -861,7 +872,7 @@ class BudgetManager:
             if replayed_id:
                 self.last_created_transaction_id = replayed_id
                 self.last_create_replayed = True
-                return True, "交易已建立"
+                return TransactionCreationResult("交易已建立", replayed_id, replayed=True)
         parsed_amount = self._normalize_amount(amount)
         if transaction_type not in {"expense", "income"}:
             raise ValueError("交易類型僅支援 expense 或 income")
@@ -984,9 +995,9 @@ class BudgetManager:
             ).scalar_one()
             self.last_created_transaction_id = replayed_id
             self.last_create_replayed = True
-            return True, "交易已建立"
+            return TransactionCreationResult("交易已建立", replayed_id, replayed=True)
 
-        return True, "交易新增成功"
+        return TransactionCreationResult("交易新增成功", transaction_id)
 
     def update_transaction(
         self,

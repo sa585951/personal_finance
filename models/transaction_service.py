@@ -12,7 +12,7 @@ class TransactionService:
         self.asset_manager = asset_manager
 
     def create_transaction(self, user_id, payload):
-        success, message = self.budget_manager.add_transaction(
+        created = self.budget_manager.add_transaction(
             user_id,
             payload["date"],
             payload["item"],
@@ -32,11 +32,12 @@ class TransactionService:
             review_status=payload.get("review_status", "confirmed"),
             client_request_id=payload.get("client_request_id"),
         )
+        success, message = created
         return {
             "success": success,
             "message": message,
-            "transaction_id": getattr(self.budget_manager, "last_created_transaction_id", None),
-            "replayed": getattr(self.budget_manager, "last_create_replayed", False),
+            "transaction_id": created.transaction_id,
+            "replayed": created.replayed,
         }
 
     def update_transaction(self, user_id, transaction_id, payload):

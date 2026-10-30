@@ -14,6 +14,7 @@
 - S3 R06：四位小數換算尾差依最大餘數／固定成員 ID 分配，僅既有分攤者受影響；6 項新測試及完整 Backend 520 passed，接續 R07。
 - S3 R07：帳戶建立後幣別固定（含零餘額），換幣整體拒絕且歷史零異動；6 項新測試與完整 Backend 526 passed。S3.4 R09 唯一性仍待驗證。
 - S3.4 R09：成員／split 唯一性、共享 15 active 上限與安全 migration 0019 已本機驗證，完整 Backend 536 passed；未升級既有 scenario／正式 DB。S3.1 其餘驗收仍須收尾。
+- S2.3 R16 補漏：直接回傳 request-local 交易 ID／replayed，移除已開放呼叫方共享欄位依賴；非交易建立不回 stale ID／不確認舊事件，完整 Backend 541 passed。
 - 本批新增 migration `20261021_0018`（短效 OAuth state）；Web 改同源 Cookie，部署前須協調 API/OAuth proxy、LINE callback 及 production 設定。AI 與 LINE 互動預設停用，LINE Login、手動記帳與 QR 不受此入口設定影響；不代表已完成正式部署或 G1/G-AI/G2。
 - 帳期與共用分頁批次狀態：本地第一版、migration chain、DB smoke 與 390／430px 操作驗收已完成；正式環境仍須套用 `20260925_0015` 並做部署後驗收，不視為已上線
 

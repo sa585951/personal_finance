@@ -48,3 +48,18 @@ LINE 確認、Transfer 重播、settlement、migration 及 API 錯誤回滾。
 唯讀盤點證據後另排處置。一般交易相同 key 不同 payload 的完整衝突契約仍屬後續
 重試治理，不藉本批鎖定宣告完成。S3 接續 R04／R05／R06／R07 幣別、匯率、
 四捨五入與歷史語意；S4／S5／S6 及 G-AI 不因此跳過。
+
+## S2.3 R16：請求結果隔離
+
+原 S2 僅完成 R03，後續核對原計畫補回 R16。4 個 regression 重現共用 Manager
+的 ID／replayed 串錯與非交易 endpoint 回 stale ID。
+`TransactionCreationResult` 保留舊兩值 unpack，附 request-local transaction_id／replayed；
+TransactionService 直接使用結果，Web／LINE／發票不再讀共享 last_*。
+last_* 只保留內部舊測試相容，不是 request-safe API，新增呼叫方不得依賴。
+帳戶／預算不建立交易，回 transaction_id=null 且不確認舊 parse event。
+LINE 相容 helper 保留，但只接受呼叫方明確傳入的 creation_result，未提供不確認。
+
+完整回歸曾發現刪除舊 helper 造成 3 項失敗，已恢復接口並以真實 DB 事件狀態
+驗證 explicit／query／missing／stale 四種情況；不是刪除舊測試掩蓋失敗。
+最終 8 項針對測試及完整後端 **541 passed**，零 skip。Auth／Provider 維持替身，
+沒有開啟 AI／LINE 互動或新增 migration。原有 payload 冪等衝突仍接 S4，不混為結果隔離。

@@ -1,3 +1,4 @@
+from models.budget_manager import TransactionCreationResult
 import importlib
 import sys
 import uuid
@@ -122,7 +123,7 @@ class FakeBudgetManager:
             "description": description,
             **kwargs,
         }
-        return True, "交易新增成功"
+        return TransactionCreationResult("交易新增成功", self.last_created_transaction_id, self.last_create_replayed)
 
     def get_all_transactions(self, user_id, **kwargs):
         self.last_list_request = {"user_id": user_id, **kwargs}

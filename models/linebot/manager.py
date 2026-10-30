@@ -159,16 +159,12 @@ class LineBotManager:
         self.ai_parse_event_manager.record_from_parse_result(internal_user_id, 'line_bot', parsed)
         return self.message_handler.handle_user_message(internal_user_id, user_message, parsed['legacy'])
 
-    def _confirm_parse_event_if_transaction_created(self, user_id, parse_event, parsed_data):
-        """LINE 自然語言直接建立交易後，標記 parse event 已被採用。"""
+    def _confirm_parse_event_if_transaction_created(self, user_id, parse_event, parsed_data, creation_result=None):
+        """Only a caller-provided creation result may confirm an adopted event."""
         if parsed_data.get("type") not in {"expense", "income"}:
             return None
 
-        transaction_id = getattr(
-            self.message_handler.budget_manager,
-            "last_created_transaction_id",
-            None,
-        )
+        transaction_id = creation_result.transaction_id if creation_result is not None else None
         if not transaction_id:
             return None
 

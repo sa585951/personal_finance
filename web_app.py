@@ -466,21 +466,12 @@ def add_asset(current_user_id):
             credit_card_billing=data.get("credit_card_billing"),
         )
         if success:
-            parse_event_id = data.get("parse_event_id")
-            created_transaction_id = getattr(budget_manager, "last_created_transaction_id", None)
-            if parse_event_id and created_transaction_id:
-                linebot_manager.ai_parse_event_manager.confirm_event(
-                    current_user_id,
-                    parse_event_id,
-                    data["type"],
-                    created_transaction_id,
-                )
             db_session.commit()
         return jsonify({
             "success": success,
             "message": message,
             "data": {
-                "transaction_id": str(getattr(budget_manager, "last_created_transaction_id", "")) or None,
+                "transaction_id": None,
             },
         }), 201
     except ValueError as e:
@@ -1388,16 +1379,8 @@ def set_budget(current_user_id):
         success, message = budget_manager.set_budget(
             current_user_id, data["month"], data["category"], data["amount"], data.get("notes", "")
         )
-        created_transaction_id = getattr(budget_manager, "last_created_transaction_id", None)
+        created_transaction_id = None
         if success:
-            parse_event_id = data.get("parse_event_id")
-            if parse_event_id and created_transaction_id:
-                linebot_manager.ai_parse_event_manager.confirm_event(
-                    current_user_id,
-                    parse_event_id,
-                    data["type"],
-                    created_transaction_id,
-                )
             db_session.commit()
         return jsonify({
             "success": success,

@@ -180,3 +180,8 @@
 由共用錯誤處理回覆的入口另含 `code=REPORT_CURRENCY_UNSUPPORTED`。
 原幣不是 TWD 但已換為 TWD 不受阻擋；一般／旅行帳本不套此限制。
 月份篩選在驗證前套用，cursor／limit 在驗證後套用。原始帳務不變。
+
+## R16：建立結果隔離
+
+交易 ID／replayed 僅從該次建立結果取得。建立帳戶／預算不代表建立交易，
+相容 response 的 `data.transaction_id` 為 null，不用其他請求的結果確認 parse event。
