@@ -53,14 +53,14 @@ def test_foreign_base_share_rejects_twd_report_without_rewriting_data(command_db
         assert manager.get_all_transactions(data['a'], include_trips=True)
 
 
-@pytest.mark.parametrize('reason', ['exclude', 'no_share', 'deleted', 'other_month'])
+@pytest.mark.parametrize('reason', ['exclude', 'pending', 'no_share', 'deleted', 'other_month'])
 def test_ineligible_foreign_share_does_not_block_month(command_db, reason):
     engine, data = command_db
     with Session(engine) as session:
         trip, tid = foreign_split(session, data, own_share=reason!='no_share',
                                   day='2026-11-01' if reason=='other_month' else '2026-10-01')
-        if reason == 'exclude':
-            TripManager(session).update_current_member_monthly_report_preference(data['a'], trip, 'exclude')
+        if reason in ('exclude', 'pending'):
+            TripManager(session).update_current_member_monthly_report_preference(data['a'], trip, reason)
         elif reason == 'deleted':
             BudgetManager(session).delete_transaction(data['a'], tid)
         session.commit()
@@ -125,3 +125,13 @@ def test_income_summary_month_filter_is_applied_before_currency_validation(comma
     response = client.get('/api/reports/income_expense_summary?month=2026-10', headers=headers)
     assert response.status_code == 200
     assert response.json['data']['datasets'][0]['data'] == [0, 500]
+
+
+def test_another_users_foreign_share_does_not_block_or_leak_into_my_report(command_db):
+    engine,data=command_db
+    with Session(engine) as session:
+        foreign_split(session,data)
+        session.commit()
+        manager=BudgetManager(session)
+        assert manager.calculate_monthly_report_expenses(data['b'],'2026-10')=={}
+        assert manager.get_all_transactions(data['b'],monthly_report=True,month='2026-10')==[]
