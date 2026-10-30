@@ -5,8 +5,9 @@
 - Roadmap 版本：M0 至 M9
 - 生效日期：2026-08-17
 - 目前 Milestone：M3 Ledger Correctness 第一輪完成；M2 PWA Alpha 以有限證據收尾，解除後續 Web 開發關卡
-- 目前工作批次：S1 安全邊界。情境驗收 F01–F08 已修復；本批處理 R01、R02/U06、R12/R13/R14、AI-01/02 及 DEP-01。發票掃描 V1 保留既有成果，下一步不擴充批次 resolve。細節與部署限制見 `docs/security-boundary-hardening.md`。
+- 前一工作批次：S1 安全邊界。情境驗收 F01–F08 已修復；本批處理 R01、R02/U06、R12/R13/R14、AI-01/02 及 DEP-01。發票掃描 V1 保留既有成果，下一步不擴充批次 resolve。細節與部署限制見 `docs/security-boundary-hardening.md`。
 - S1 本機修補回歸：Backend 465 passed，前端檢查／建置、五尺寸深淺色 UI 及本機 HTTPS Cookie 整合通過（LINE Provider 為替身）。npm audit 20 → 7 moderate，正式依賴 audit 為 0；剩餘 lint 工具鏈與正式部署驗收另行追蹤。
+- 2026-10-30：S2 核心 R03 本機修補完成（一般交易帳戶鎖、交易版本鎖、跨帳戶固定順序、相對校正鎖）；完整 Backend 475 passed。見 `docs/s2-ledger-concurrency.md`，仍不宣告正式併發／歷史帳務驗收通過。文件入口與封存規則見 `docs/README.md`。
 - 本批新增 migration `20261021_0018`（短效 OAuth state）；Web 改同源 Cookie，部署前須協調 API/OAuth proxy、LINE callback 及 production 設定。AI 與 LINE 互動預設停用，LINE Login、手動記帳與 QR 不受此入口設定影響；不代表已完成正式部署或 G1/G-AI/G2。
 - 帳期與共用分頁批次狀態：本地第一版、migration chain、DB smoke 與 390／430px 操作驗收已完成；正式環境仍須套用 `20260925_0015` 並做部署後驗收，不視為已上線
 

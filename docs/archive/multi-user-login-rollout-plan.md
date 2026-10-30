@@ -1,3 +1,5 @@
+> 歷史文件，2026-10-30 封存。描述當時的計畫／進度，不代表目前功能、登入安全或發布資格。現況請依 `docs/product-roadmap.md`、`docs/security-boundary-hardening.md` 與 `docs/deployment-checklist.md`。
+
 # Multi-user Login Rollout Plan
 
 此文件整理多人旅行帳本從 dev-only 測試走向正式登入/部署前，需要確認與補強的項目。

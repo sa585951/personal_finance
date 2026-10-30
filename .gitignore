@@ -20,3 +20,9 @@ xcuserdata/
 
 # 測試腳本
 scripts/simulate_webhook.py
+
+# 本機工具設定與測試／建置產物（範例設定仍進版控）
+.claude/settings.local.json
+.pytest_cache/
+.coverage
+htmlcov/

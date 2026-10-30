@@ -1,347 +1,45 @@
 # Deployment Checklist
 
-此文件整理 M2 PWA Alpha / friend test 部署前需要設定的環境變數、資料庫 migration 方向與部署後檢查項目。
-
-## Deployment Goal
-
-目前建議先做：
-
-> M2 PWA Alpha deployment / friend test
-
-也就是部署給自己與 5 至 10 位非開發者測真實 LINE Login、日常記帳、邀請連結、多人旅行帳本與分帳流程。
-
-目前不建議直接視為正式 production release。實際測試流程與通過門檻見 `docs/m2-pwa-alpha-plan.md`。
-
-## URL Rules
-
-邀請連結由後端使用 `FRONTEND_BASE_URL` 產生。
-
-本地：
-
-```text
-http://127.0.0.1:5174/trips/invite/<token>
-```
-
-部署後：
-
-```text
-https://你的前端網域/trips/invite/<token>
-```
-
-所以只要後端部署平台的 `FRONTEND_BASE_URL` 設成正式前端網址，邀請連結就不會是 localhost。
-
-## Local `.env`
-
-位置：
-
-```text
-/Users/zhefile/Projects/personal_finance/.env
-```
-
-用途：
-
-- 本地後端 Flask
-- 本地 Alembic migration
-- 本地 dev / smoke test
-
-可參考：
-
-```text
-/Users/zhefile/Projects/personal_finance/.env.example
-```
-
-需要設定：
-
-```env
-FLASK_ENV=development
-PORT=5001
-FRONTEND_BASE_URL=http://127.0.0.1:5174
-VITE_BACKEND_BASE_URL=http://127.0.0.1:5001
-DEV_AUTH_BYPASS=true
-
-DATABASE_URL=postgresql://personal_finance:personal_finance@localhost:5433/personal_finance
-
-JWT_SECRET_KEY=本地測試用-secret
-
-LINE_LOGIN_CHANNEL_ID=你的 LINE Login Channel ID
-LINE_LOGIN_CHANNEL_SECRET=你的 LINE Login Channel Secret
-
-LINE_MSG_CHANNEL_ACCESS_TOKEN=你的 LINE Messaging API Channel Access Token
-LINE_MSG_CHANNEL_SECRET=你的 LINE Messaging API Channel Secret
-
-GEMINI_API_KEY=你的 Gemini API Key
-GEMINI_MODEL=gemini-3.1-flash-lite
-```
-
-本地多人 dev 測試時：
-
-```env
-DEV_AUTH_BYPASS=true
-```
-
-本地測正式 LINE Login 時：
-
-```env
-DEV_AUTH_BYPASS=false
-```
-
-## Local frontend `.env`
-
-位置：
-
-```text
-/Users/zhefile/Projects/personal_finance/frontend/.env
-```
-
-可參考：
-
-```text
-/Users/zhefile/Projects/personal_finance/frontend/.env.example
-```
-
-本地 dev bypass 測試：
-
-```env
-VITE_APP_API_URL=http://127.0.0.1:5001
-VITE_DEV_AUTH_BYPASS=true
-```
-
-本地測正式 LINE Login：
-
-```env
-VITE_APP_API_URL=http://127.0.0.1:5001
-VITE_DEV_AUTH_BYPASS=false
-```
-
-備註：
-
-- `VITE_LINE_LOGIN_CHANNEL_ID` 目前前端不再直接組 LINE OAuth URL，登入改由後端 `/line-login-start` 發起。
-- 若 `.env.example` 仍保留 `VITE_LINE_LOGIN_CHANNEL_ID`，不影響目前流程。
-
-## Frontend Deployment Env
-
-位置：
-
-Vercel 專案設定：
-
-```text
-Vercel Dashboard -> Project -> Settings -> Environment Variables
-```
-
-Production / Preview 都建議設定：
-
-```env
-VITE_APP_API_URL=https://你的後端網址
-VITE_DEV_AUTH_BYPASS=false
-```
-
-確認事項：
-
-- 不要把 `VITE_APP_API_URL` 指到 localhost。
-- 不要在部署環境開 `VITE_DEV_AUTH_BYPASS=true`。
-
-## Backend Deployment Env
-
-位置依你使用的平台而定，例如：
-
-- Render: Dashboard -> Service -> Environment
-- Railway: Project -> Service -> Variables
-- Fly.io: Secrets
-- 其他平台：Environment Variables / Config Vars
-
-Production / staging 需要設定：
-
-```env
-FLASK_ENV=production
-DEV_AUTH_BYPASS=false
-
-DATABASE_URL=你的 Supabase PostgreSQL connection string
-
-JWT_SECRET_KEY=正式強密碼
-
-FRONTEND_BASE_URL=https://你的前端網址
-VITE_BACKEND_BASE_URL=https://你的後端網址
-
-LINE_LOGIN_CHANNEL_ID=你的 LINE Login Channel ID
-LINE_LOGIN_CHANNEL_SECRET=你的 LINE Login Channel Secret
-
-LINE_MSG_CHANNEL_ACCESS_TOKEN=你的 LINE Messaging API Channel Access Token
-LINE_MSG_CHANNEL_SECRET=你的 LINE Messaging API Channel Secret
-
-GEMINI_API_KEY=你的 Gemini API Key
-GEMINI_MODEL=gemini-3.1-flash-lite
-```
-
-重要：
-
-- `FRONTEND_BASE_URL` 會影響邀請連結。
-- `VITE_BACKEND_BASE_URL` 會影響 LINE Login callback 的 redirect URI。
-- `DEV_AUTH_BYPASS=false` 必須確認。
-- `JWT_SECRET_KEY` 不可使用本地測試值。
-
-## Supabase
-
-位置：
-
-```text
-Supabase Dashboard -> Project Settings -> Database
-```
-
-你需要取得：
-
-```text
-PostgreSQL connection string
-```
-
-用途：
-
-- 填到後端部署平台的 `DATABASE_URL`
-- 本機跑 Alembic migration 時也會用到
-
-若要從本機對 Supabase 跑 migration：
-
-```bash
-DATABASE_URL="你的 Supabase connection string" .venv/bin/alembic upgrade head
-```
-
-M3A／M3B 部署包含 migration `20260820_0011`。部署順序必須是：
-
-1. 備份資料庫並執行 Alembic migration。
-2. 部署 backend，確認 Balance Anchor／Adjustment API 可用。
-3. 部署 frontend，才開放「校正餘額」入口。
-
-此 migration 只為既有追蹤餘額帳戶建立當前快照 Anchor，不會改寫帳戶餘額，也不會猜測或重播 Anchor 前的歷史交易。
-
-M3D 部署另包含 migration `20260821_0013`。它會新增 append-only `account_movements`，並為既有追蹤帳戶建立 `reconciliation_baseline`；同樣不會改寫帳戶餘額。部署順序必須是：
-
-1. 備份資料庫並執行 `alembic upgrade head`。
-2. 立即部署新版 backend，讓後續 Transaction／Transfer movement 都能寫入 ledger。
-3. 執行一次 `python -m scripts.reconcile_accounts --fail-on-issues` 核對結果。
-
-Migration 與 backend 部署之間應避免使用者寫入交易或轉帳；舊 backend 不會寫入 `account_movements`，若在此窗口發生寫入，CLI 會回報差異，但不會自行修正。
-
-因為目前 schema 已大改，且舊 production 資料你已表示可刪，建議策略是：
-
-1. 先備份 Supabase 舊資料。
-2. 清掉舊 tables。
-3. 對 Supabase 跑 Alembic migration。
-4. 寫入 seed data。
-5. 再部署後端。
-
-注意：
-
-- 不要讓新版後端直接連舊 schema，API 很可能會因缺 table / column 失敗。
-- 若 Supabase 使用 Transaction Pooler，Alembic migration 建議用 direct connection 或 session pooler，避免 migration 行為被 pooler 影響。
-
-## LINE Developers
-
-位置：
-
-```text
-LINE Developers Console
-```
-
-需要確認兩類 Channel：
-
-### LINE Login Channel
-
-設定 callback URL：
-
-```text
-https://你的後端網址/line-login-callback
-```
-
-本地測試正式 LINE Login 時 callback URL 需能連到本地後端，通常需要 ngrok 或其他 tunnel：
-
-```text
-https://你的-ngrok-url/line-login-callback
-```
-
-### Messaging API Channel
-
-Webhook URL：
-
-```text
-https://你的後端網址/line-webhook
-```
-
-需要確認：
-
-- Webhook enabled
-- Channel access token 已填到後端部署平台
-- Channel secret 已填到後端部署平台
-
-## GitHub / Auto Deploy
-
-如果你的前端/後端平台都已綁 GitHub，push 後會自動部署。
-
-但在 push 前建議確認：
-
-1. Supabase schema 已準備好。
-2. 後端 env 已填好。
-3. 前端 env 已填好。
-4. LINE callback URL 已改好。
-5. 本地測試通過：
-
-```bash
-pytest -q
-
-cd frontend
-npm run build
-```
-
-## Deploy Order
-
-建議順序：
-
-1. 備份 Supabase 舊資料。
-2. 清空 / 重建 Supabase schema。
-3. 對 Supabase 跑 Alembic migration。
-4. 寫入 seed data。
-5. 設定後端部署平台 env。
-6. 設定前端 Vercel env。
-7. 設定 LINE Developers callback / webhook URL。
-8. Push GitHub 觸發部署。
-9. 檢查後端 healthcheck。
-10. 開前端正式網址測登入。
-11. 建立旅行邀請連結，確認連結不是 localhost。
-12. 找朋友用 LINE 點邀請連結測加入。
-
-## Post-deploy Smoke Test
-
-部署後至少測：
-
-1. 前端首頁可開。
-2. LINE Login 可登入。
-3. 登入後可看到帳戶 / 收支 / 旅行頁。
-4. 建立旅行帳本。
-5. 建立邀請連結。
-6. 邀請連結使用正式前端網址。
-7. 朋友可用 LINE Login 加入帳本。
-8. owner 可調整朋友 editor / viewer。
-9. editor 可新增自己的旅行支出。
-10. viewer 看不到新增支出入口。
-11. 分帳建議顯示正確。
-12. 只有 owner 或付款方本人可按已付款。
-
-## Current Open Decisions
-
-目前已決定：
-
-- Phase 5 先支援 LINE Login。
-- 未來可支援其他 provider 作為主登入，再建議使用者加綁 LINE 作快速記帳入口。
-- 外部旅伴與登入使用者先不自動合併。
-
-仍待部署後觀察：
-
-- 外部旅伴與登入旅伴並存是否會讓使用者混淆。
-- 是否需要 owner 手動合併 member。
-- 是否要在 Phase 5 就補 Google Login。
-- 是否要建立 staging 與 production 兩套 Supabase 專案。
-# S1 Cookie Auth 切換注意
-
-`20261021_0018` 起 Web 登入改為同源 Cookie。部署前先依
-`docs/security-boundary-hardening.md` 的 R13/R14 步驟配置前端 API／OAuth proxy、
-Backend 的同源 HTTPS URL、LINE callback 與 production 旗標，並協調前後端版本。
-舊的「前端 Vercel、瀏覽器直接呼叫 Render API」設定不可原樣沿用。
-本節是必要設定指引，不是已完成的正式部署證據。
+更新：2026-10-30。僅規劃與驗收清單，不是已部署證明。
+舊版移至 `docs/archive/deployment-checklist-pre-s1.md`，其中刪除資料及舊 Auth
+建議不再適用。最新設定契約以 `docs/security-boundary-hardening.md` 為準。
+
+## 本機到 staging
+
+1. 先確認目標環境、DB 身分與備份；核對實際 migration head。
+   本地目前 chain 為 `20261021_0018`，不可直接拿測試 runner 連 staging／production。
+2. migration 前核對可還原備份及適用版本；0018 新增短效 OAuth state，
+   不授權刪除舊帳務或自動 downgrade。升級不代表歷史不平帳已修復。
+3. Backend 設 `NOMICA_ENV=production`、`DEV_AUTH_BYPASS=false`、`FLASK_DEBUG=false`。
+   使用 WSGI，不以 debug server 公開服務。
+4. `FRONTEND_BASE_URL` 與 `VITE_BACKEND_BASE_URL` 都是同一個前端 HTTPS origin；
+   LINE Console callback 為該 origin 的 `/line-login-callback`。
+5. 核對 `frontend/vercel.json` 的 backend 目的地；其他平台須配置等效
+   `/api/*`、`/line-login-start`、`/line-login-callback` 同源代理。
+   前端正式 build 使用相對 API；不能沿用舊版跨站 localStorage Token 流程。
+6. `NOMICA_AI_MODE=disabled`、`NOMICA_LINE_MODE=disabled`。LINE Login 與
+   LINE 訊息互動分開，後者在 G-AI／入口驗收前不得恢復。
+7. 憑證只存部署平台秘密設定；範例可版控，真實 `.env`、DB dump、Token 不可版控。
+   依需求配置 JWT、DB、LINE Login 憑證；停用 AI 不需要為了部署加入 Gemini Key。
+8. 協調 frontend/backend 版本與回退方案。回退不得直接刪除 state、命令或去重資料表。
+
+## staging 驗證（先用合成資料）
+
+- 真 LINE Login 的 state／nonce、跨瀏覽器拒絕、重放拒絕與錯誤後重新登入。
+- Callback URL 無 JWT；Cookie HttpOnly／Secure／SameSite=Lax；`/api/auth/me`
+  登入後成功、登出後 401；重開、Safari／PWA 與代理不快取 Auth 回應。
+- 寫入 Origin 驗證；公開 bypass/debug 不可使用；AI／LINE 停用入口不可產生解析或帳務。
+- 手動交易與不同發票同帳戶並行、重送、編輯／刪除、Transfer、settlement、
+  餘額不足及故障回滾，並核對 movement 與 reconciliation。
+- 手機相機權限、前後鏡頭、圖片備援與返回流程；桌面 mock 不取代實機驗收。
+- 查詢隔離、匯率與月報的驗收依現行財務合約；發布前保留版本與測試證據。
+
+## 公開接收真實財務資料前
+
+S1 的正式設定、S2 併發、S3 幣別／月報、S4 核心重試及 S5 的安全／隱私／
+資料控制門檻須收斂，不能只因本機測試通過就公開。M2 已有限證據收尾，
+原 5 至 10 人招募不是目前開發阻塞；研究可用合成資料平行進行。
+
+正式金鑰限制／Billing、完整匯出、帳號刪除、保留政策及適用平台要求須逐項取得證據。
+AI 如要開放，另通過 G-AI；這次停用不等於已完成額度或預算 gateway。
+正式產品交付依 S6，iOS 不自動啟動。
