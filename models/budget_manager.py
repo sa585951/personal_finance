@@ -3,7 +3,7 @@ import binascii
 import json
 from calendar import monthrange
 from datetime import date, datetime, time, timedelta, timezone
-from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal, InvalidOperation
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -14,6 +14,8 @@ from config import DEFAULT_CURRENCY
 from .account_movement import record_account_movement
 from .idempotency import IdempotencyManager, money
 from .schema import (
+    AMOUNT,
+    RATE,
     accounts_table,
     budgets_table,
     categories_table,
@@ -110,8 +112,26 @@ class BudgetManager:
         end = start.replace(day=monthrange(start.year, start.month)[1])
         return start, end
 
-    def _normalize_amount(self, amount, field_name="金額"):
-        parsed_amount = Decimal(str(amount))
+    def _normalize_decimal(self, value, field_name, numeric_type=AMOUNT, *, round_to_scale=False):
+        try:
+            parsed = Decimal(str(value))
+            if not parsed.is_finite():
+                raise ValueError(f"{field_name}格式不正確")
+            limit = Decimal(10) ** (numeric_type.precision - numeric_type.scale)
+            if abs(parsed) >= limit:
+                raise ValueError(f"{field_name}超過可儲存範圍")
+            unit = Decimal(1).scaleb(-numeric_type.scale)
+            rounded = parsed.quantize(unit, rounding=ROUND_HALF_UP)
+            if abs(rounded) >= limit:
+                raise ValueError(f"{field_name}超過可儲存範圍")
+            if not round_to_scale and parsed != rounded:
+                raise ValueError(f"{field_name}最多允許{numeric_type.scale}位小數")
+            return rounded if round_to_scale else parsed
+        except (InvalidOperation, TypeError) as exc:
+            raise ValueError(f"{field_name}格式不正確") from exc
+
+    def _normalize_amount(self, amount, field_name="金額", numeric_type=AMOUNT):
+        parsed_amount = self._normalize_decimal(amount, field_name, numeric_type)
         if parsed_amount <= 0:
             raise ValueError(f"{field_name}必須大於0")
         return parsed_amount
@@ -890,16 +910,12 @@ class BudgetManager:
             raise ValueError("目前角色不可新增旅行交易")
         transaction_currency = original_currency or (trip["default_currency"] if trip else DEFAULT_CURRENCY)
         base_currency = trip["base_currency"] if trip else DEFAULT_CURRENCY
-        parsed_exchange_rate = Decimal(
-            str(
-                exchange_rate
-                if exchange_rate is not None
-                else self._default_exchange_rate(transaction_currency, base_currency)
-            )
+        rate_value = (exchange_rate if exchange_rate is not None
+                      else self._default_exchange_rate(transaction_currency, base_currency))
+        parsed_exchange_rate = self._normalize_amount(rate_value, "exchange_rate ", RATE)
+        converted_amount = self._normalize_decimal(
+            parsed_amount * parsed_exchange_rate, "換算金額", round_to_scale=True,
         )
-        if parsed_exchange_rate <= 0:
-            raise ValueError("exchange_rate 必須大於0")
-        converted_amount = parsed_amount * parsed_exchange_rate
         if parsed_trip_id and account_id:
             payer = next(
                 (member for member in trip["members"] if member["id"] == str(parsed_paid_by_member_id)),
@@ -1058,16 +1074,12 @@ class BudgetManager:
         if (exchange_rate is None and transaction_currency == existing["original_currency"]
                 and base_currency == existing["base_currency"]):
             exchange_rate = existing["exchange_rate"]
-        parsed_exchange_rate = Decimal(
-            str(
-                exchange_rate
-                if exchange_rate is not None
-                else self._default_exchange_rate(transaction_currency, base_currency)
-            )
+        rate_value = (exchange_rate if exchange_rate is not None
+                      else self._default_exchange_rate(transaction_currency, base_currency))
+        parsed_exchange_rate = self._normalize_amount(rate_value, "exchange_rate ", RATE)
+        converted_amount = self._normalize_decimal(
+            parsed_amount * parsed_exchange_rate, "換算金額", round_to_scale=True,
         )
-        if parsed_exchange_rate <= 0:
-            raise ValueError("exchange_rate 必須大於0")
-        converted_amount = parsed_amount * parsed_exchange_rate
         movement_at = datetime.now(timezone.utc)
 
         if parsed_trip_id and account_id:
@@ -1253,7 +1265,7 @@ class BudgetManager:
         allocations = []
         for allocation in split_allocations:
             member_id = self._parse_optional_uuid(allocation.get("trip_member_id"), "trip_member_id")
-            share_amount = Decimal(str(allocation.get("amount", "0")))
+            share_amount = self._normalize_decimal(allocation.get("amount", "0"), "分攤金額")
             if share_amount < 0:
                 raise ValueError("分攤金額不可為負數")
             allocations.append({"member_id": member_id, "share_amount": share_amount})

@@ -269,3 +269,11 @@ M0 已建立共同語言與 characterization tests；M3A 至 M3D 已新增 Ancho
 同一 member ID，不抹除歷史。外部旅伴 user_id=NULL，不以同名猜測去重。
 每個 transaction/member 僅能有一個 split。active 成員上限 15，包含 owner、
 登入成員與外部旅伴，所有加入入口共用旅行 row lock 後再計數／新增。
+
+## R06：輸入與儲存邊界
+
+交易金額／自訂 share 必須 finite、可精確表示於既有 Numeric(18,4)；匯率必須
+finite、正值且可精確表示於 Numeric(18,8)。金額仍正數、自訂 share 仍可0。
+超輸入精度／範圍直接拒絕，不交 DB 靜默捨入。計算出的換算額按四位 HALF_UP，
+並在寫入前檢查範圍；這不是新的原幣商業精度規則，旅行既有 minor-unit 限制不變。
+JSON number 契約維持，沒有歷史數值回填。

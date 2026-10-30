@@ -97,3 +97,11 @@ Chrome 先重現日常、旅行及自訂分攤皆阻擋合法 USD 小數。
 驗證正常小數、最小正數、零 share、負數、超精度與切換幣別。測試填欄位採循序，
 避免焦點互搶造成假失敗。check:styles、lint、build 與五尺寸深淺色 mock UI 通過。
 未更改後端金額規則或表單外觀，沒有正式 API／手機實機驗收。
+
+### R06 finite／DB 範圍與精度
+
+29 項 regression 先失敗（5 個正常／原有拒絕控制通過）；補入共用 Decimal finite、
+現行 Numeric 範圍／精度驗證後，新增 34 項全通過。交易新增／修改、custom share
+拒絕後即使 commit 也零異動。換算額只對計算結果按四位 HALF_UP，不默默捨入
+使用者提供的金額／匯率。含尾差及歷史匯率的針對回歸 48 passed，完整後端
+**575 passed**。沒有新 schema 或歷史修復，前端小數 UI 另已有 Chrome 回歸。
