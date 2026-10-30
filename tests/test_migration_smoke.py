@@ -58,7 +58,7 @@ def test_alembic_can_upgrade_an_empty_database_to_head(monkeypatch):
 
     verification_engine.dispose()
 
-    assert revision == "20261021_0018"
+    assert revision == "20261030_0019"
     assert "oauth_login_states" in table_names
     assert {'financial_commands', 'line_webhook_events'}.issubset(table_names)
     assert "receipt_documents" in table_names
@@ -97,7 +97,7 @@ def test_alembic_can_upgrade_an_empty_database_to_head(monkeypatch):
         before_balances = connection.execute(text('SELECT id,balance FROM accounts ORDER BY id')).all()
     command.upgrade(alembic_config, 'head')
     with verification_engine.connect() as connection:
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '20261021_0018'
+        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '20261030_0019'
         for table, count in before.items():
             assert connection.execute(text('SELECT count(*) FROM '+table)).scalar_one() == count
         assert connection.execute(text('SELECT id,balance FROM accounts ORDER BY id')).all() == before_balances

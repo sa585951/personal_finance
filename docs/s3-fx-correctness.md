@@ -75,3 +75,17 @@ UI 皆通過。沒有加入導覽／換匯新功能；不是正式 API、相機�
 4 項 regression 先 RED；最終 6 項全部通過，完整後端 **526 passed**。
 含零餘額、已有交易、刪除／歸零、同次名稱及 balance 拒絕零異動與 HTTP 400。
 沒有 migration、歷史換幣或批次修正。R04～R07 已有本機驗證，S3.4 R09 仍待完成。
+
+## S3.4 R09：唯一性與容量
+
+5 項 regression 先重現重複身份／並行超限／外部成員未受限；migration 3 項先 RED。
+補齊 trip/user、transaction/member unique constraints，兩個加入入口共用 trip 鎖，
+active 上限 15；rejoin 沿用 member ID，NULL user 的同名外部旅伴可共存。
+7 項成員／DB 案例、3 項新升級案例及原 migration smoke 通過；完整後端
+**536 passed**。`20261030_0019` 接在 0018，只加約束，先檢查兩類重複；
+若有重複就停止、保留舊 revision 與所有資料，禁止自動合併或刪除。
+
+只在已授權的專用合成 DB 測試 0019。既有 scenario DB／正式 DB 未套用。
+正式升級須先備份、暫停成員／分攤寫入並核對重複與資料量；發現異常先在隔離
+副本列處置方案並取得批准。建立 unique 可能持鎖，正式耗時與升級仍未驗收。
+舊初始 migration 的 moving metadata 問題未在本批重寫（R20 留待原計畫）。

@@ -7,7 +7,7 @@
 ## 本機到 staging
 
 1. 先確認目標環境、DB 身分與備份；核對實際 migration head。
-   本地目前 chain 為 `20261021_0018`，不可直接拿測試 runner 連 staging／production。
+   本地目前 chain 為 `20261030_0019`，不可直接拿測試 runner 連 staging／production。
 2. migration 前核對可還原備份及適用版本；0018 新增短效 OAuth state，
    不授權刪除舊帳務或自動 downgrade。升級不代表歷史不平帳已修復。
 3. Backend 設 `NOMICA_ENV=production`、`DEV_AUTH_BYPASS=false`、`FLASK_DEBUG=false`。
@@ -43,3 +43,11 @@ S1 的正式設定、S2 併發、S3 幣別／月報、S4 核心重試及 S5 的�
 正式金鑰限制／Billing、完整匯出、帳號刪除、保留政策及適用平台要求須逐項取得證據。
 AI 如要開放，另通過 G-AI；這次停用不等於已完成額度或預算 gateway。
 正式產品交付依 S6，iOS 不自動啟動。
+
+## R09／0019 升級前置
+
+0019 新增成員／分攤唯一性；正式與既有 QA DB 尚未套用。
+備份、暫停相關寫入，先核對重複資料與資料量；發現重複會停止，不自動清資料。
+不得為通過 migration 任意刪除或合併帶財務歷史的 member／split。
+在隔離副本驗證並核定清理方案後才重試，評估 DDL 鎖與維護時間；不要把
+專用 DB 的成功升級當成正式資料已可升級。0018 OAuth 設定仍需一併核對。

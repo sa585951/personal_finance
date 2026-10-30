@@ -19,6 +19,7 @@ from .schema import (
 class TripManager:
     """管理旅行帳本與旅伴。"""
 
+    MAX_ACTIVE_MEMBERS = 15
     MONTHLY_REPORT_PREFERENCES = {"pending", "include", "exclude"}
 
     def __init__(self, db_session):
@@ -139,6 +140,16 @@ class TripManager:
         if trip["owner_user_id"] != self._parse_user_id(user_id):
             raise ValueError("只有旅行 owner 可以執行此操作")
         return trip
+
+    def _lock_membership_trip(self, trip_id):
+        # Every join path takes the same parent lock before counting or inserting members.
+        row = self.db_session.execute(
+            select(trips_table).where(trips_table.c.id == self._parse_uuid(trip_id, "trip_id"))
+            .with_for_update()
+        ).first()
+        if not row or row.deleted_at is not None:
+            raise ValueError("旅行帳本目前不可加入")
+        return dict(row._mapping)
 
     def _active_member_count(self, trip_id):
         return self.db_session.execute(
@@ -334,6 +345,9 @@ class TripManager:
             raise ValueError("旅伴名稱不可為空")
         if role not in {"editor", "viewer"}:
             raise ValueError("外部旅伴 role 僅支援 editor 或 viewer")
+        self._lock_membership_trip(trip["id"])
+        if self._active_member_count(trip["id"]) >= self.MAX_ACTIVE_MEMBERS:
+            raise ValueError("旅行帳本成員已達上限")
 
         row = self.db_session.execute(
             insert(trip_members_table)
@@ -480,6 +494,9 @@ class TripManager:
             raise ValueError("邀請連結不存在或已失效")
 
         invite = dict(invite_row._mapping)
+        current_trip = self._lock_membership_trip(invite["trip_id"])
+        invite["trip_status"] = current_trip["status"]
+        invite["trip_deleted_at"] = current_trip["deleted_at"]
         now = datetime.now(timezone.utc)
         if invite["invite_status"] != "active":
             raise ValueError("邀請連結已關閉")
@@ -503,7 +520,7 @@ class TripManager:
                     "already_joined": True,
                 }
 
-        if self._active_member_count(invite["trip_id"]) >= member_limit:
+        if self._active_member_count(invite["trip_id"]) >= min(member_limit, self.MAX_ACTIVE_MEMBERS):
             raise ValueError("旅行帳本成員已達上限")
 
         if existing_member_row:

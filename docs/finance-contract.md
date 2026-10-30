@@ -262,3 +262,10 @@ M0 已建立共同語言與 characterization tests；M3A 至 M3D 已新增 Ancho
 使用者確認 V1 帳戶建立後幣別固定，包含零餘額／尚無後續帳務的帳戶。
 填錯時另建正確幣別帳戶；不重標 opening anchor、movement、交易或餘額。
 同幣別可照常更新名稱等欄位；換幣請求整體拒絕，不執行同次其他欄位／校正。
+
+## R09：成員身份與容量
+
+每個 trip/user 只保存一個 member 身份，包含 removed／soft-deleted；重新加入恢復
+同一 member ID，不抹除歷史。外部旅伴 user_id=NULL，不以同名猜測去重。
+每個 transaction/member 僅能有一個 split。active 成員上限 15，包含 owner、
+登入成員與外部旅伴，所有加入入口共用旅行 row lock 後再計數／新增。
