@@ -213,7 +213,11 @@ class BudgetManager:
     def _default_exchange_rate(self, original_currency, base_currency):
         if original_currency == base_currency:
             return Decimal("1")
-        return DEFAULT_EXCHANGE_RATES.get((original_currency, base_currency), Decimal("1"))
+        rate = DEFAULT_EXCHANGE_RATES.get((original_currency, base_currency))
+        if rate is None:
+            # Never reinterpret different currencies as equal when a rate is missing.
+            raise ValueError("缺少跨幣別匯率，請提供 exchange_rate")
+        return rate
 
     def _accessible_trip_ids_for_user(self, user_id):
         return select(trip_members_table.c.trip_id).where(
