@@ -172,3 +172,11 @@
 - 新增 optional 欄位屬向後相容；移除欄位、改為 required、改變金額／日期型別或更換 pagination 模式都需要獨立 migration 計畫。
 - Client 對未知欄位必須容忍；對必填欄位缺失則應回報 decode error，不自行填入可能改變財務語意的預設值。
 - Web 視覺重構不得改變上述資料口徑。iOS client 應先依此 contract 建立 DTO 與 decode tests，再開始寫入流程。
+
+## R04：TWD 個人報表限制
+
+月報交易投影、dashboard、預算摘要、月支出、收支摘要、分類時間序列與超支警告，
+對查詢範圍內應納入但換算本幣不是 TWD 的金額回 400 與明確提示，不回錯誤總額。
+由共用錯誤處理回覆的入口另含 `code=REPORT_CURRENCY_UNSUPPORTED`。
+原幣不是 TWD 但已換為 TWD 不受阻擋；一般／旅行帳本不套此限制。
+月份篩選在驗證前套用，cursor／limit 在驗證後套用。原始帳務不變。

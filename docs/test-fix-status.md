@@ -19,7 +19,7 @@
 
 | ID | 現有依據 | 本輪結論 |
 | --- | --- | --- |
-| R04 月報混幣 | calculate_monthly_report_expenses 對 converted_amount／converted_share_amount 直接聚合，未分幣別 | 已用合成 DB 重現：TWD 600 + USD 20 得到無幣別總額 620；確定為本機 Bug，尚未修補，不宣稱正式資料已算錯 |
+| R04 月報混幣 | calculate_monthly_report_expenses 對 converted_amount／converted_share_amount 直接聚合，未分幣別 | 已用合成 DB 重現：TWD 600 + USD 20 得到無幣別總額 620；本機 Bug 已依確認規則修補：非 TWD 拒絕，17 項針對測試通過；不宣稱正式資料影響已盤點 |
 | R05 編輯換匯 | 未提供 exchange_rate 會再取預設值 | 待歷史非預設匯率交易的 runtime 重現；未修補 |
 | R06 分攤尾差 | 現有分攤與換算流程需驗證守恆 | 未執行本輪案例，不新增已證實 Bug 結論 |
 | R07 帳戶改幣別 | update_account 可直接更新 currency | 待帶帳務的修改案例與零異動保護驗證；未修補 |
@@ -77,3 +77,5 @@ R04 月報混幣的下一批修補需維持交易原幣／旅行結算幣別／�
 使用者已明確決定：第一版只提供 TWD 報表，應納入的非 TWD 旅行分攤必須
 明確報錯，保留原始資料、不靜默漏算。此規則供下一批 R04 RED→GREEN 使用；
 本次測試盤點 commit 尚未包含實作，不能宣告月報已修復。
+
+R04 修補批次：完整後端 506 passed，17 項新案例；詳見 `docs/s3-fx-correctness.md`。

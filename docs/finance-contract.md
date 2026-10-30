@@ -145,6 +145,16 @@ Daily Expense = type=expense、trip_id IS NULL 的 converted_amount
 
 納入金額為該使用者的 `converted_share_amount`，不是 Payment 全額。
 
+### V1 個人報表幣別（R04）
+
+V1 個人報表固定為 TWD。交易原幣、旅行結算幣別及個人報表幣別分開解讀：
+原幣 JPY／USD 經交易匯率換成 TWD 的分攤可納入；應納入分攤的 base_currency
+不是 TWD 時，整個請求明確拒絕，不能混加、默默排除或改標籤。
+月份／日期／類型篩選先決定範圍，再驗證幣別；分頁／cursor 不得隱藏異幣。
+未納入、無本人 split、非 active member 或已刪除的資料不造成拒絕。
+一般帳本與旅行原幣仍可查閱；不回填或修改任何歷史交易。
+這不提供歷史報表換匯，亦不要求使用者直接更改歷史幣別來修正報表。
+
 ### 永不納入月報
 
 - Transfer。

@@ -21,7 +21,7 @@ from models.auth_session_manager import AuthSessionManager
 from models.oauth_login_state_manager import OAuthLoginStateManager
 from models.security_settings import load_security_settings
 from models.optional_access import load_optional_access
-from models.budget_manager import BudgetManager
+from models.budget_manager import BudgetManager, ReportCurrencyError
 from models.linebot.manager import LineBotManager
 from models.app_state import AppStateManager
 from models.database import db_session 
@@ -107,6 +107,8 @@ def shutdown_session(exception=None):
 
 def _api_operation_error(error, operation, validation_status=None):
     db_session.rollback()
+    if isinstance(error, ReportCurrencyError):
+        return jsonify({"success": False, "code": "REPORT_CURRENCY_UNSUPPORTED", "message": str(error)}), 400
     if validation_status is not None and isinstance(error, ValueError):
         return jsonify({"success": False, "message": str(error)}), validation_status
     # DB exception strings include SQL and bound financial data. Log only the
@@ -1634,7 +1636,7 @@ def get_income_expense_summary(current_user_id):
     month = request.args.get("month")
     try:
         income, expense = 0, 0
-        transactions = budget_manager.get_all_transactions(current_user_id, monthly_report=True)
+        transactions = budget_manager.get_all_transactions(current_user_id, monthly_report=True, month=month)
         for transaction in transactions:
             if month and not str(transaction.get("date", "")).startswith(month):
                 continue

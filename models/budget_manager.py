@@ -71,6 +71,10 @@ DEFAULT_EXCHANGE_RATES = {
 }
 
 
+class ReportCurrencyError(ValueError):
+    """Expected refusal to aggregate unsupported personal-report currencies."""
+
+
 class BudgetManager:
     """管理交易與預算。
 
@@ -218,6 +222,11 @@ class BudgetManager:
             # Never reinterpret different currencies as equal when a rate is missing.
             raise ValueError("缺少跨幣別匯率，請提供 exchange_rate")
         return rate
+
+    @staticmethod
+    def _require_twd_report_currency(currency):
+        if currency != "TWD":
+            raise ReportCurrencyError("目前個人報表僅支援 TWD，含有非 TWD 金額，無法產生報表；原始資料已保留，請勿直接更改歷史幣別")
 
     def _accessible_trip_ids_for_user(self, user_id):
         return select(trip_members_table.c.trip_id).where(
@@ -456,6 +465,16 @@ class BudgetManager:
         if parsed_transaction_date:
             stmt = stmt.where(transactions_table.c.transaction_date == parsed_transaction_date)
 
+        if monthly_report:
+            # Validate the entire filtered report before cursor/limit can hide foreign amounts.
+            report_scope = stmt.order_by(None).subquery()
+            unsupported = self.db_session.execute(
+                select(report_scope.c.base_currency)
+                .where(report_scope.c.base_currency.is_distinct_from("TWD")).limit(1)
+            ).first()
+            if unsupported is not None:
+                self._require_twd_report_currency(unsupported.base_currency)
+
         total_count = None
         if return_pagination:
             count_stmt = select(func.count()).select_from(
@@ -492,6 +511,8 @@ class BudgetManager:
         transactions = []
         for row in rows:
             transaction = dict(row._mapping)
+            if monthly_report:
+                self._require_twd_report_currency(transaction["base_currency"])
             transaction["id"] = str(transaction["id"])
             if parsed_trip_id and current_trip_member:
                 can_manage = (
@@ -1960,7 +1981,7 @@ class BudgetManager:
         parsed_user_id = self._parse_user_id(user_id)
         period_start, period_end = self._month_range(year_month)
         daily_stmt = (
-            select(categories_table.c.name, func.sum(transactions_table.c.converted_amount).label("total_spent"))
+            select(categories_table.c.name, transactions_table.c.base_currency, func.sum(transactions_table.c.converted_amount).label("total_spent"))
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
             .where(
                 transactions_table.c.user_id == parsed_user_id,
@@ -1970,13 +1991,17 @@ class BudgetManager:
                 transactions_table.c.transaction_date >= period_start,
                 transactions_table.c.transaction_date <= period_end,
             )
-            .group_by(categories_table.c.name)
+            .group_by(categories_table.c.name, transactions_table.c.base_currency)
         )
-        totals = {row.name: row.total_spent for row in self.db_session.execute(daily_stmt)}
+        totals = {}
+        for row in self.db_session.execute(daily_stmt):
+            self._require_twd_report_currency(row.base_currency)
+            totals[row.name] = row.total_spent
 
         trip_stmt = (
             select(
                 categories_table.c.name,
+                transaction_splits_table.c.base_currency,
                 func.sum(transaction_splits_table.c.converted_share_amount).label("total_spent"),
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
@@ -1993,9 +2018,10 @@ class BudgetManager:
                 transactions_table.c.transaction_date >= period_start,
                 transactions_table.c.transaction_date <= period_end,
             )
-            .group_by(categories_table.c.name)
+            .group_by(categories_table.c.name, transaction_splits_table.c.base_currency)
         )
         for row in self.db_session.execute(trip_stmt):
+            self._require_twd_report_currency(row.base_currency)
             totals[row.name] = totals.get(row.name, Decimal("0")) + (row.total_spent or Decimal("0"))
 
         return totals
@@ -2048,6 +2074,7 @@ class BudgetManager:
             select(
                 time_period,
                 categories_table.c.name.label("category"),
+                transactions_table.c.base_currency,
                 func.sum(transactions_table.c.converted_amount).label("total_spent"),
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
@@ -2057,12 +2084,13 @@ class BudgetManager:
                 transactions_table.c.type == "expense",
                 transactions_table.c.deleted_at.is_(None),
             )
-            .group_by(time_period, categories_table.c.name)
+            .group_by(time_period, categories_table.c.name, transactions_table.c.base_currency)
             .order_by(time_period.asc(), categories_table.c.name.asc())
         )
 
         data = {}
         for row in self.db_session.execute(daily_stmt):
+            self._require_twd_report_currency(row.base_currency)
             period, category, spent = row.time_period, row.category, float(row.total_spent)
             data.setdefault(period, {})[category] = spent
 
@@ -2070,6 +2098,7 @@ class BudgetManager:
             select(
                 time_period,
                 categories_table.c.name.label("category"),
+                transaction_splits_table.c.base_currency,
                 func.sum(transaction_splits_table.c.converted_share_amount).label("total_spent"),
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
@@ -2084,10 +2113,11 @@ class BudgetManager:
                 transactions_table.c.type == "expense",
                 transactions_table.c.deleted_at.is_(None),
             )
-            .group_by(time_period, categories_table.c.name)
+            .group_by(time_period, categories_table.c.name, transaction_splits_table.c.base_currency)
             .order_by(time_period.asc(), categories_table.c.name.asc())
         )
         for row in self.db_session.execute(trip_stmt):
+            self._require_twd_report_currency(row.base_currency)
             period, category, spent = row.time_period, row.category, float(row.total_spent)
             data.setdefault(period, {})[category] = data.setdefault(period, {}).get(category, 0) + spent
 
