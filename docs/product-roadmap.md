@@ -12,6 +12,7 @@
 - S3 R04 第二批：依確認規則限制 TWD 個人報表，非 TWD 應納入金額明確拒絕；17 項新測試與完整 Backend 506 passed。仍待 R05～R07。
 - S3 R05：編輯未改幣別且未指定新匯率時保留歷史 rate；8 項新測試及完整 Backend 514 passed，接續 R06／R07。
 - S3 R06：四位小數換算尾差依最大餘數／固定成員 ID 分配，僅既有分攤者受影響；6 項新測試及完整 Backend 520 passed，接續 R07。
+- S3 R07：帳戶建立後幣別固定（含零餘額），換幣整體拒絕且歷史零異動；6 項新測試與完整 Backend 526 passed。S3.4 R09 唯一性仍待驗證。
 - 本批新增 migration `20261021_0018`（短效 OAuth state）；Web 改同源 Cookie，部署前須協調 API/OAuth proxy、LINE callback 及 production 設定。AI 與 LINE 互動預設停用，LINE Login、手動記帳與 QR 不受此入口設定影響；不代表已完成正式部署或 G1/G-AI/G2。
 - 帳期與共用分頁批次狀態：本地第一版、migration chain、DB smoke 與 390／430px 操作驗收已完成；正式環境仍須套用 `20260925_0015` 並做部署後驗收，不視為已上線
 

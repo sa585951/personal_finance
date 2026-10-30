@@ -631,7 +631,11 @@ class AssetManager:
         )
 
         if "currency" in changes:
-            values["currency"] = self._normalize_currency(changes.get("currency"))
+            currency = self._normalize_currency(changes.get("currency"))
+            # Opening anchors already record the currency, even for a zero balance.
+            if currency != account["currency"]:
+                raise ValueError("帳戶建立後幣別固定，請另建正確幣別的帳戶；原始資料已保留")
+            values["currency"] = currency
 
         appearance_type = values.get("type", account["type"])
         if "icon_key" in changes:
