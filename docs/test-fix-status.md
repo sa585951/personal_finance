@@ -1,9 +1,9 @@
 # 測試、問題修復與回歸狀態
 
-日期：2026-10-30。保持 `codex/nomica-s3-fx-guard`，不 Push／Merge／建立 PR。
+更新日期：2026-11-03。保持 `codex/nomica-s3-fx-guard`，不 Push／Merge／建立 PR。
 本文件是既定 S1～S6 的測試追蹤，不重排開發範圍。
 
-最新本機驗收：完整後端 **577 passed**、零 skip；styles／lint／build／五尺寸深淺色 mock UI 通過。
+最新本機驗收（2026-11-03）：完整後端 **595 passed**、零 skip；styles／lint／build／五尺寸深淺色 mock UI 重跑通過。獨立審查 2 項 Important 已各以 RED→GREEN 修補。
 下方 489／506／514／520 等數字是各批歷史證據，不代表最新總數。
 
 ## 已證實與已修復
@@ -113,8 +113,21 @@ S2.3 R16 已補回；S3 的 R04～R07、R09 與 UI 小數／數值邊界已有�
 進 S4.1 前需確認舊 key 相容規格：現有一般交易只有 client_request_id，未保存原始
 payload 指紋；舊測試目前明確允許同 key 以不同金額回放原 ID。新請求須依原計畫
 拒絕不同 payload；已被編輯且缺原始指紋的舊請求，不能假裝用現值就可還原原意。
-已詢問舊 key 無法驗證時是否回 409／附原交易 ID 供核對，或保留明示的相容例外。
-未核定前不實作此升級規則，也不跳過 S4.1 去改生命週期。
+使用者已確認：舊 key 無原始 payload 指紋時，一律回 409，附既有交易 ID；保留資料、不自動換 key 或再次寫入。新請求須保存原始指紋；相同 payload 正常回放。S4.1 實作／驗收仍待下一批，不跳過去改生命週期。
 
 S4～S6、正式資料盤點／還原／部署、真 LINE／手機實機、平台／隱私／保留與完整匯出
 仍未完成，不可宣告已達公開或正式發布門檻。
+
+## S2／S3 獨立審查收尾（2026-11-03）
+
+fresh-context reviewer 檢查 d5257ab..a7d7056，發現 2 項 Important，無 Critical／Minor。
+已用專用合成 PostgreSQL 重現：舊 9 位 rate 分別入庫捨入後，只改標題誤扣 0.0001；
+極大有限指數在 abs() 拋 Overflow，使新增／修改 amount、rate、share 回 500。
+最小修補保留財務意圖未變時的既存換算額／split（含 ID），範圍比較改用 copy_abs()。
+18 項新案例（14 regression 原先 RED、4 控制），完整 **595 passed（48.16s）**。
+顯式金額／匯率／成員／分攤變更仍重算；未修補或回填歷史資料。無新增 migration，head 為 0019。
+
+重建臨時 runner 後只允許 nomica_s3_r04_review_20261030_test 並阻擋外網。
+恢復原 QA 容器，未停止／刪除容器或 volume，未讀寫舊 scenario DB。
+審查未覆蓋的 account 累加溢位、其他 AssetManager 數值入口、生命週期併發、
+匯率市場有效性、正式資料／DDL 耗時及 Provider／實機驗收繼續列為未驗證風險。

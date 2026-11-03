@@ -105,3 +105,11 @@ Chrome 先重現日常、旅行及自訂分攤皆阻擋合法 USD 小數。
 拒絕後即使 commit 也零異動。換算額只對計算結果按四位 HALF_UP，不默默捨入
 使用者提供的金額／匯率。含尾差及歷史匯率的針對回歸 48 passed，完整後端
 **575 passed**。沒有新 schema 或歷史修復，前端小數 UI 另已有 Chrome 回歸。
+
+## 獨立審查回歸：歷史精度與極大指數（2026-11-03）
+
+舊版允許的 9 位 rate 在 DB 捨入成 8 位，converted 另以 4 位保存；
+metadata edit 不可用已捨入 rate 再推導原換算額。財務欄位與分攤意圖相同時，
+保留 converted 與既有 splits；明確財務變更仍重算，不回填或修復舊資料。
+範圍比較使用不受 Decimal context 影響的 copy_abs()，極大指數回 400／ValueError。
+18 項新 regression／控制情境通過，完整後端 595 passed；無新增 migration。

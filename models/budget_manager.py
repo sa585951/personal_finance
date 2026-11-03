@@ -118,11 +118,11 @@ class BudgetManager:
             if not parsed.is_finite():
                 raise ValueError(f"{field_name}格式不正確")
             limit = Decimal(10) ** (numeric_type.precision - numeric_type.scale)
-            if abs(parsed) >= limit:
+            if parsed.copy_abs() >= limit:
                 raise ValueError(f"{field_name}超過可儲存範圍")
             unit = Decimal(1).scaleb(-numeric_type.scale)
             rounded = parsed.quantize(unit, rounding=ROUND_HALF_UP)
-            if abs(rounded) >= limit:
+            if rounded.copy_abs() >= limit:
                 raise ValueError(f"{field_name}超過可儲存範圍")
             if not round_to_scale and parsed != rounded:
                 raise ValueError(f"{field_name}最多允許{numeric_type.scale}位小數")
@@ -1015,6 +1015,29 @@ class BudgetManager:
 
         return TransactionCreationResult("交易新增成功", transaction_id)
 
+    def _same_split_request(self, transaction_id, payer_id, member_ids, allocations):
+        """Identify an unchanged split intent without revaluing historical shares."""
+        rows = self.db_session.execute(select(transaction_splits_table).where(
+            transaction_splits_table.c.transaction_id == transaction_id,
+        )).mappings().all()
+        if allocations:
+            requested = []
+            for allocation in allocations:
+                member = self._parse_optional_uuid(allocation.get("trip_member_id"), "trip_member_id")
+                amount = self._normalize_decimal(allocation.get("amount", "0"), "分攤金額")
+                if amount < 0:
+                    raise ValueError("分攤金額不可為負數")
+                if member and amount > 0:
+                    requested.append((member, amount))
+            return (bool(requested) and len(requested) == len(set(m for m, _ in requested))
+                    and all(row["split_method"] == "custom" for row in rows)
+                    and dict(requested) == {row["trip_member_id"]: row["share_amount"] for row in rows})
+        requested = {self._parse_optional_uuid(member, "split_member_id") for member in (member_ids or [])}
+        requested.discard(None)
+        requested.add(payer_id)
+        return (all(row["split_method"] == "equal" for row in rows)
+                and requested == {row["trip_member_id"] for row in rows})
+
     def update_transaction(
         self,
         user_id,
@@ -1077,9 +1100,24 @@ class BudgetManager:
         rate_value = (exchange_rate if exchange_rate is not None
                       else self._default_exchange_rate(transaction_currency, base_currency))
         parsed_exchange_rate = self._normalize_amount(rate_value, "exchange_rate ", RATE)
-        converted_amount = self._normalize_decimal(
-            parsed_amount * parsed_exchange_rate, "換算金額", round_to_scale=True,
+        preserve_financials = (
+            parsed_amount == existing["original_amount"]
+            and transaction_currency == existing["original_currency"]
+            and base_currency == existing["base_currency"]
+            and parsed_exchange_rate == existing["exchange_rate"]
+            and transaction_type == existing["type"]
+            and parsed_paid_by_member_id == existing["paid_by_member_id"]
+            and self._parse_optional_uuid(account_id, "account_id") == existing["account_id"]
         )
+        if preserve_financials and parsed_trip_id and transaction_type == "expense":
+            preserve_financials = self._same_split_request(
+                parsed_transaction_id, parsed_paid_by_member_id, split_member_ids, split_allocations,
+            )
+        # Stored rate and value may have been rounded independently by older versions.
+        # A metadata edit must preserve those values, not silently repair history.
+        converted_amount = (existing["converted_amount"] if preserve_financials else self._normalize_decimal(
+            parsed_amount * parsed_exchange_rate, "換算金額", round_to_scale=True,
+        ))
         movement_at = datetime.now(timezone.utc)
 
         if parsed_trip_id and account_id:
@@ -1154,35 +1192,36 @@ class BudgetManager:
                 )
             )
 
-            self.db_session.execute(
-                delete(transaction_splits_table).where(
-                    transaction_splits_table.c.transaction_id == parsed_transaction_id
+            if not preserve_financials:
+                self.db_session.execute(
+                    delete(transaction_splits_table).where(
+                        transaction_splits_table.c.transaction_id == parsed_transaction_id
+                    )
                 )
-            )
-            if parsed_trip_id and transaction_type == "expense":
-                if not split_allocations and not split_member_ids and parsed_paid_by_member_id:
-                    split_member_ids = [str(parsed_paid_by_member_id)]
-                if split_allocations:
-                    self.add_custom_splits(
-                        transaction_id=parsed_transaction_id,
-                        trip_id=parsed_trip_id,
-                        split_allocations=split_allocations,
-                        original_amount=parsed_amount,
-                        original_currency=transaction_currency,
-                        exchange_rate=parsed_exchange_rate,
-                        base_currency=base_currency,
-                    )
-                elif split_member_ids:
-                    self.add_equal_splits(
-                        transaction_id=parsed_transaction_id,
-                        trip_id=parsed_trip_id,
-                        payer_member_id=parsed_paid_by_member_id,
-                        split_member_ids=split_member_ids,
-                        original_amount=parsed_amount,
-                        original_currency=transaction_currency,
-                        exchange_rate=parsed_exchange_rate,
-                        base_currency=base_currency,
-                    )
+                if parsed_trip_id and transaction_type == "expense":
+                    if not split_allocations and not split_member_ids and parsed_paid_by_member_id:
+                        split_member_ids = [str(parsed_paid_by_member_id)]
+                    if split_allocations:
+                        self.add_custom_splits(
+                            transaction_id=parsed_transaction_id,
+                            trip_id=parsed_trip_id,
+                            split_allocations=split_allocations,
+                            original_amount=parsed_amount,
+                            original_currency=transaction_currency,
+                            exchange_rate=parsed_exchange_rate,
+                            base_currency=base_currency,
+                        )
+                    elif split_member_ids:
+                        self.add_equal_splits(
+                            transaction_id=parsed_transaction_id,
+                            trip_id=parsed_trip_id,
+                            payer_member_id=parsed_paid_by_member_id,
+                            split_member_ids=split_member_ids,
+                            original_amount=parsed_amount,
+                            original_currency=transaction_currency,
+                            exchange_rate=parsed_exchange_rate,
+                            base_currency=base_currency,
+                        )
 
         return True, "交易更新成功"
 
