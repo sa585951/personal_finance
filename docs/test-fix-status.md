@@ -140,3 +140,25 @@ fresh-context reviewer 檢查 d5257ab..a7d7056，發現 2 項 Important，無 Cr
 失敗後 commit 仍零副作用、同 key 跨使用者，以及三種 legacy 狀態回 409／本人既有 ID。
 沿用 0017 financial_commands，無新增 migration。
 S4.1 Web 持久恢復、公開入口 key 驗收仍未完成；S4.2～S6 不跳過。
+
+### S4.1 Backend 獨立審查與下一批驗收
+
+Fresh reviewer 核對 3069422..1631a3e、22 個案例與全部 Review Focus，無具體
+Critical／Important／Minor；task-done 再跑完整 **617 passed（51.85s）**。
+此結論只支持 Backend 批次，不等同完整 S4.1、公開門檻或部署通過。
+
+唯讀核對的後續 client 缺口（不是已完成）：
+
+| 原 ID／入口 | 現況證據 | 下一批必要驗收 |
+| --- | --- | --- |
+| N04/U03 日常新增 | UniversalAddView 只保存 RAM clientRequestId，TransactionForm 直接 POST | 送出前 owner-scoped 保存原 payload/key；逾時／500／401／409 不換 key，重整仍可核對／重試；不同 payload 不重複扣款 |
+| N04/U03 旅行新增 | TripsView.addTripExpense 沒帶 key | 每次新意圖帶 key；同筆連點／掉回應／重整只建立一次；trip 切換不能把舊 pending 套到另一旅行 |
+| N04/U03 Transfer／Settlement | 已使用 pendingFinancialCommand sessionStorage | 保留既有流程，重整回放、400 可修改、409 不自動換 key 回歸 |
+| N04/U03 LINE draft | 鎖草稿且以 draft UUID 提交 | 不呼叫 Provider 的合成確認回歸已隨617通過；真 LINE 尚未驗收 |
+| N04/U03 QR resolve | 鎖 receipt，linked 狀態回放；建立走同一 TransactionService | 重掃／重送只扣一次的合成回歸已通過；不能把服務層通過當手機相機驗收 |
+| N04/U03 公開相容性 | POST /api/transactions 仍 optional key | 同步 client 與必填／相容性切換驗收前，不宣告所有公開寫入具備冪等 |
+
+舊 key 回409後的 client「解除待確認狀態」尚需確認：建議只在使用者明確表示
+已核對既有紀錄後清除本機 pending，既有交易完全不變、不得自動換 key 或重送。
+已提出產品規格問題；未取得答案前不自行實作此業務分支。
+S4.2 旅行生命週期與其他交錯寫入、S5 正式資料／還原／隱私、S6 仍依原序待辦。
