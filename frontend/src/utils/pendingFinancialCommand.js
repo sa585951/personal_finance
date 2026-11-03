@@ -12,7 +12,7 @@ export async function openPendingCommand(scope) {
     throw new Error('上一筆提交資料無法讀取，請先核對紀錄，避免重複記帳。');
   }
   return {
-    scope, pending,
+    scope, pending, ownerId: userId,
     async verifyOwner() {
       const auth = await apiClient.get('/api/auth/me');
       if (auth.data?.data?.user_id !== userId) {

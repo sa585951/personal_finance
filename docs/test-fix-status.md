@@ -3,7 +3,7 @@
 更新日期：2026-11-03。保持 `codex/nomica-s3-fx-guard`，不 Push／Merge／建立 PR。
 本文件是既定 S1～S6 的測試追蹤，不重排開發範圍。
 
-最新本機驗收（2026-11-03）：完整後端 **617 passed**、零 skip；styles／lint／build／五尺寸深淺色 mock UI 重跑通過。獨立審查 2 項 Important 已各以 RED→GREEN 修補。
+最新本機驗收（2026-11-03）：完整後端 **620 passed**、零 skip；styles／lint／build／五尺寸深淺色 mock UI 重跑通過。獨立審查 2 項 Important 已各以 RED→GREEN 修補。
 下方 489／506／514／520 等數字是各批歷史證據，不代表最新總數。
 
 ## 已證實與已修復
@@ -183,3 +183,23 @@ Flask／Vite。臨時runner、cookie、synthetic evidence與截圖不進版控�
 冪等。已提出是否改必填的相容性決策（舊client將回400），未核定前不切換。其他
 財務建立入口／未持久化LINE相容流程仍按原計畫核對，不因兩個Web入口完成而
 宣告S4～S6或G1/G-AI/G2。
+
+### S4.1 client 審查修補（同輪 fix pass）
+
+獨立審查發現旅行在 auth await 後才讀表單；真 Vue 延遲回應已重現 clicked100
+卻 POST999／另一編輯交易7。改為驗證後、任何 await 前 JSON snapshot，重試仍用
+原 pending；欄位／編輯模式後續變更不修改原提交。
+另將 reviewer 未判定的 preflight→POST 換Cookie風險升為Important處理：新增可選
+X-Nomica-Request-Owner 與真正認證actor比對（只拒絕，不授權），不符409
+REQUEST_OWNER_CHANGED、零財務異動，client保留原pending並停止此帳號流程。
+已更新兩個Web入口；省略header的舊client相容保留，不宣稱那些client也有此保護。
+
+新增4組Chrome regression與3項API測試，先RED再GREEN；現在恢復案例29組，
+完整Backend **620 passed（53.09s）**、完整UI／styles／lint／build通過。
+實際HTTP再驗日常／旅行掉回應及legacy解除，另將A認證preflight後POST Cookie
+改B，真正API回409，B零交易；獨立SQL仍760、3交易／3movement／2command、
+reconciliation1 matched／0 mismatch。本輪獨立合成schema：`qa_s4_client_20261103_182068d1`。
+原schema及前輪臨時證據保留；既有scenario DB／正式資料未碰。無新增migration。
+
+使用者已核定公開交易POST必填key、部署前同步更新寫入client；接續Task3實作，
+目前此commit仍optional。不是未決產品規格，不再重複詢問。

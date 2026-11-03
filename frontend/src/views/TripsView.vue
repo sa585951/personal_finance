@@ -1483,9 +1483,12 @@ export default {
       let sent = false;
       let requestId;
       try {
+        let intent;
         if (editingId || !command?.pending) {
           const validationMessage = this.validateTripExpenseForm();
           if (validationMessage) { this.expenseMessage = validationMessage; return; }
+          // Freeze the validated click intent before any confirmation/auth await.
+          intent = JSON.parse(JSON.stringify(this.buildExpensePayload()));
           if (this.shouldConfirmExchangeRate()) {
             const result = await this.$swal.fire({
               title: "確認匯率？",
@@ -1494,23 +1497,25 @@ export default {
             });
             if (!result.isConfirmed) return;
           }
+        } else {
+          intent = JSON.parse(JSON.stringify(command.pending.payload));
         }
         if (this.selectedTrip?.id !== tripId) return;
         let payload;
-        if (editingId) payload = this.buildExpensePayload();
+        if (editingId) payload = intent;
         else {
           command = command || await openPendingCommand(`transaction:trip:${tripId}`);
           if (this.selectedTrip?.id !== tripId) return;
           this.expenseCommand = command;
           await command.verifyOwner();
           if (this.selectedTrip?.id !== tripId) return;
-          payload = command.prepare(command.pending?.payload || this.buildExpensePayload());
+          payload = command.prepare(intent);
           requestId = payload.client_request_id;
         }
         sent = true;
         const response = editingId
           ? await apiClient.put(`/api/transactions/${editingId}`, payload)
-          : await apiClient.post('/api/transactions', payload);
+          : await apiClient.post('/api/transactions', payload, { headers: { 'X-Nomica-Request-Owner': command.ownerId } });
         if (response.data?.success !== true) throw new Error('結果尚未確認');
         if (!editingId) command.clear(requestId);
         if (this.selectedTrip?.id !== tripId) return;
@@ -1529,8 +1534,8 @@ export default {
       } catch (error) {
         if (!editingId && sent && error.response?.status === 400) command?.clear(requestId);
         if (this.selectedTrip?.id !== tripId) return;
-        if (error.ownerChanged) {
-          this.expenseCommandError = error.message;
+        if (error.ownerChanged || error.response?.data?.code === 'REQUEST_OWNER_CHANGED') {
+          this.expenseCommandError = error.response?.data?.message || error.message;
         } else if (!editingId && command?.pending) {
           this.expenseMessage = error.response?.data?.message || '結果尚未確認，請以保留的原資料重試。';
           this.legacyExpenseId = error.response?.data?.code === 'LEGACY_REQUEST_UNVERIFIABLE'

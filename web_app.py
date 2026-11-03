@@ -1481,6 +1481,13 @@ def receipt_import(current_user_id, receipt_id=None):
 @app.route("/api/transactions", methods=["POST"])
 @token_required
 def add_transaction(current_user_id):
+    # Bind updated clients' original owner to the authenticated POST itself.
+    # This header never grants authority; a changed cookie/session must fail closed.
+    expected_owner = request.headers.get("X-Nomica-Request-Owner")
+    if expected_owner is not None and expected_owner != str(current_user_id):
+        db_session.rollback()
+        return jsonify({"success": False, "code": "REQUEST_OWNER_CHANGED",
+                        "message": "登入使用者已變更，本次未建立交易。請回到原帳號核對紀錄。"}), 409
     data = request.get_json()
     required_fields = ["date", "item", "amount", "type", "budget_category"]
     if not data or not all(k in data for k in required_fields):

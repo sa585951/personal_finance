@@ -103,3 +103,13 @@ payload/key；切換模式、返回或reload均不自動換 key。Trip 使用獨
 額外寫入。獨立SQL：1000－legacy40－daily100－trip100＝760，reconciliation
 1 matched／0 mismatch。Cookie/JWT/session為實際本機路徑，身份為合成建立；未驗真
 OAuth／LINE／Gemini或實機。無新增migration，沒有升級舊scenario／正式DB。
+
+### 審查補強：凍結點擊意圖與POST登入者綁定
+
+旅行驗證後在任何確認／auth await前建立JSON snapshot，後續欄位或編輯模式變更
+不影響此次提交。updated Web的POST另帶 `X-Nomica-Request-Owner`，Backend
+與token/session認證的current_user_id比較，不符409 `REQUEST_OWNER_CHANGED`且
+rollback，不以header選擇／授權另一owner。這封住preflight與POST之間換Cookie的
+競態；舊client省略header仍相容，不冒稱其具備同等保護。
+29組UI及620項Backend通過；真實本機A→B Cookie競態409，B零交易、原帳務不變。
+使用者已核定下一批將公開交易key改必填，部署前須同步client；此批尚未切換。

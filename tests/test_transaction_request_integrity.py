@@ -175,3 +175,35 @@ def test_changed_trip_context_or_split_members_are_conflicts(command_db, change)
         options['split_member_ids'].reverse()
         replay=create(session,data,key,**options);session.commit()
         assert replay['replayed'] and replay['transaction_id']==first['transaction_id']
+
+
+@pytest.mark.parametrize('actor', ['a', 'b'])
+def test_expected_owner_mismatch_rejects_before_any_financial_write(command_db, monkeypatch, actor):
+    engine, data = command_db
+    auth_data = {**data, 'a': data[actor]}
+    client, headers = api_client(monkeypatch, engine, auth_data)
+    other = data['b' if actor == 'a' else 'a']
+    headers['X-Nomica-Request-Owner'] = str(other)
+    with Session(engine) as session:
+        before = snapshot(session)
+    request = payload(data, uuid4()); request['account_id'] = None
+    response = client.post('/api/transactions', json=request, headers=headers)
+    assert response.status_code == 409
+    assert response.json['code'] == 'REQUEST_OWNER_CHANGED'
+    with Session(engine) as session:
+        assert snapshot(session) == before
+        assert command_count(session) == 0
+
+
+def test_matching_expected_owner_allows_original_request_replay(command_db, monkeypatch):
+    engine, data = command_db
+    client, headers = api_client(monkeypatch, engine, data)
+    headers['X-Nomica-Request-Owner'] = str(data['a'])
+    request = payload(data, uuid4())
+    first = client.post('/api/transactions', json=request, headers=headers)
+    replay = client.post('/api/transactions', json=request, headers=headers)
+    assert first.status_code == 201 and replay.status_code == 200
+    assert replay.json['replayed'] is True
+    assert first.json['data']['transaction_id'] == replay.json['data']['transaction_id']
+    with Session(engine) as session:
+        assert command_count(session) == 1

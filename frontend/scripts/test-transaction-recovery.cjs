@@ -249,5 +249,56 @@ module.exports = async function testTransactionRecovery(browser, base, installMo
       }
     } finally { await context.close(); }
   });
+  for (const change of ['amount', 'edit mode']) await check(`trip freezes clicked intent before delayed auth: ${change}`, async () => {
+    const context = await browser.newContext();
+    let release;
+    try {
+      const page = await context.newPage(); await setup(page);
+      const existing = { id: 'existing', date: '2026-11-03', category: 'Existing edit', amount: 7, currency: 'TWD', base_currency: 'TWD', converted_amount: 7, exchange_rate: 1,
+        budget_category: '伙食', paid_by_member_id: 'member', account_id: '', can_edit: true, can_delete: false, splits: [{ trip_member_id: 'member', share_amount: 7, split_method: 'equal' }] };
+      await page.route('**/api/trips/trip/overview', route => route.fulfill({ json: { success: true, data: { trip, transactions: [existing], transaction_summary: {}, split_summary: [], settlements: [] } } }));
+      await page.route('**/api/transactions/existing', route => route.fulfill({ json: { success: true, data: existing } }));
+      const sends = [];
+      await page.route('**/api/transactions', route => {
+        if (route.request().method() !== 'POST') return route.fallback();
+        sends.push(route.request().postDataJSON()); return route.abort('failed');
+      });
+      await page.goto(new URL('/trips/trip', base).href, { waitUntil: 'networkidle' }); await fill(page, 'trip');
+      let waiting; const entered = new Promise(resolve => { waiting = resolve; });
+      const gate = new Promise(resolve => { release = resolve; });
+      await page.route('**/api/auth/me', async route => { waiting(); await gate; return route.fulfill({ json: { success: true, data: { user_id: 'test' } } }); });
+      await page.locator('.expense-form button[type=submit]').click(); await entered;
+      if (change === 'amount') await page.locator('.expense-form input[type=number]').first().fill('999');
+      else {
+        await page.locator('.trip-tabs').getByRole('button', { name: '交易', exact: true }).click();
+        await page.getByTitle('編輯交易', { exact: true }).click();
+        await page.waitForFunction(() => document.querySelector('.expense-form input[type=text]')?.value === 'Existing edit');
+      }
+      release();
+      await page.waitForFunction(() => !document.querySelector('.expense-form button[type=submit]:disabled'));
+      assert.equal(sends.length, 1);
+      assert.equal(sends[0].amount, 100);
+      assert.equal(sends[0].item, 'Recovery expense');
+      assert.equal((await storage(page, 'trip')).payload.amount, 100);
+      if (change === 'edit mode') assert.equal(await page.locator('.expense-form input[type=text]').first().inputValue(), 'Existing edit');
+    } finally { release?.(); await context.close(); }
+  });
+  for (const kind of ['daily', 'trip']) await check(`${kind} POST binds expected owner to server auth`, async () => {
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage(); await setup(page);
+      let binding;
+      await page.route('**/api/transactions', route => {
+        if (route.request().method() !== 'POST') return route.fallback();
+        binding = route.request().headers()['x-nomica-request-owner'];
+        return route.fulfill({ status: 409, json: { success: false, code: 'REQUEST_OWNER_CHANGED', message: '本次未建立交易，請回原帳號核對紀錄。' } });
+      });
+      await page.goto(new URL(kind === 'daily' ? '/add' : '/trips/trip', base).href, { waitUntil: 'networkidle' }); await fill(page, kind);
+      await page.locator(kind === 'daily' ? '.form-container form button[type=submit]' : '.expense-form button[type=submit]').click();
+      await page.getByRole('alert').first().waitFor({ timeout: 3000 });
+      assert.equal(binding, 'test');
+      assert((await storage(page, kind))?.requestId);
+    } finally { await context.close(); }
+  });
   assert.deepEqual(failures, [], failures.join('\n'));
 };

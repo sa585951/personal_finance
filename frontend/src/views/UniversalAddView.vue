@@ -247,15 +247,15 @@ export default {
         const request = command.prepare(intent);
         requestId = request.client_request_id;
         sent = true;
-        const response = await apiClient.post('/api/transactions', request);
+        const response = await apiClient.post('/api/transactions', request, { headers: { 'X-Nomica-Request-Owner': command.ownerId } });
         if (response.data?.success !== true) throw new Error('結果尚未確認');
         command.clear(requestId);
         this.pendingMessage = '';
         this.legacyTransactionId = '';
         return response;
       } catch (error) {
-        if (error.ownerChanged) {
-          this.recoveryError = error.message;
+        if (error.ownerChanged || error.response?.data?.code === 'REQUEST_OWNER_CHANGED') {
+          this.recoveryError = error.response?.data?.message || error.message;
           error.recoveryHandled = true;
         } else if (sent && error.response?.status === 400) {
           command?.clear(requestId);

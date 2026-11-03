@@ -199,3 +199,8 @@ S4.1 Web client 現已在 POST 前保存 owner／daily或trip scope 的原payloa
 結果以原資料重試。收到 legacy 409 時顯示既有 ID，只有明確核對後才清本機pending，
 不對既有交易發出修改／刪除／再次建立。公開 API key 目前仍optional；必填切換待
 相容性決策與部署驗收，不能將已更新Web視為所有舊client均已更新。
+
+更新後Web另提供 `X-Nomica-Request-Owner`（來自該pending初始化的auth/me user ID）。
+Header存在且不同於真正token/session actor時，交易POST優先回409
+`REQUEST_OWNER_CHANGED`並rollback；header不授予任何身份或資源權限。
+無header的既有client仍相容，公開key必填已核定、待下一批切換與部署驗收。
