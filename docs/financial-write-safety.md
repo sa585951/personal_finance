@@ -55,3 +55,25 @@ LINE webhook不記錄原始body，parser失敗也不記錄可能包含輸入或t
 後續收尾將同一原則擴至54個AI解析、查詢、旅行管理、配置與分析入口，與前述17個寫入入口共用`_api_operation_error`。未預期錯誤一律rollback、回500並只記操作與例外類型；原有明確業務驗證400／404及配置的資源不存在語意維持。舊版部分入口將DB失敗回400／404，現在改為500，client應視為未知結果並保留原提交識別，而非自動當成資料無效重建請求。
 
 `tests/test_api_error_redaction.py`以Flask API與service邊界故障注入，逐一驗證這54個入口的DB例外、未知例外與驗證錯誤。這不是所有安全面的稽核；Auth/OAuth、framework層例外、provider SDK自身的logging，以及正式log保存政策不在本次API handler驗證範圍。沒有新增migration、改帳務計算或驗證正式部署／真實外部服務。
+
+## S4.1：一般／旅行交易原始請求（2026-11-03）
+
+BudgetManager.add_transaction 的帶 key 呼叫共用既有 financial_commands，operation 為
+`transaction.create`。同一 DB transaction 保存 payload SHA256、原始結果與帳務異動。
+不新增 migration；須先具備 0017 表（目前本地 chain head 0019），未更新任何既有 DB。
+
+Canonical v1 包含日期、項目、金額、type／category、description／merchant、account／
+trip／payer、original currency、顯式 rate 或省略標記、timezone、review status 與有效分攤意圖。
+UUID、Decimal 格式與成員／allocation 順序標準化；不將 parse_event_id 等非帳務輔助資料納入。
+省略的 rate／currency 保留省略語意，不在回放時重新查目前預設／旅行資料。指紋不可改用
+編輯後交易重建；未來改 canonical 必須考慮版本相容，不能自動覆寫已存 hash。
+
+同 key 不同意圖回 409 `REQUEST_PAYLOAD_CONFLICT`。舊 key 沒有原始 command 時回
+409 `LEGACY_REQUEST_UNVERIFIABLE`，`data.transaction_id` 為本人既有交易 ID，含軟刪除；
+需先核對，不能自動換 key、從現值猜指紋或再次寫入。混合舊／新 server 的 unique 衝突
+亦不會替舊交易補造原始意圖。已保存的新 key 回放原結果，不復活刪除紀錄、不再次扣款。
+
+Backend 本批保留公開 API 的 optional key 相容；無 key 不具重送保證。Web 日常 RAM key、
+旅行無 key 及重整後未知結果恢復尚待後續 client 批次，不能宣告 S4.1 全部完成或部署開放。
+LINE draft／QR 走同一 manager；現有草稿／receipt 鎖與原子確認仍保留，公開開關不改。
+新增 22 項真實合成 DB／Flask API 案例，完整後端 617 passed；Auth／Provider 為替身。

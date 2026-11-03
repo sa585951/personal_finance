@@ -185,3 +185,12 @@
 
 交易 ID／replayed 僅從該次建立結果取得。建立帳戶／預算不代表建立交易，
 相容 response 的 `data.transaction_id` 為 null，不用其他請求的結果確認 parse event。
+
+## S4.1：交易請求指紋（Backend 批次）
+
+`POST /api/transactions` 帶 client_request_id 時，首次成功 201、同原始意圖回放 200；
+`data.transaction_id`／replayed shape 不變。不同原始 payload 回 409 與
+`code=REQUEST_PAYLOAD_CONFLICT`；舊 key 無原始指紋回 409、
+`code=LEGACY_REQUEST_UNVERIFIABLE`、`data.transaction_id` 供核對（僅本人）。
+原交易可已被編輯／刪除，不以目前內容冒充原始請求，不自動產生新 key。
+本批 key 仍 optional；無 key 不承諾冪等。client 恢復與必填切換驗收尚未完成。

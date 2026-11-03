@@ -3,7 +3,7 @@
 更新日期：2026-11-03。保持 `codex/nomica-s3-fx-guard`，不 Push／Merge／建立 PR。
 本文件是既定 S1～S6 的測試追蹤，不重排開發範圍。
 
-最新本機驗收（2026-11-03）：完整後端 **595 passed**、零 skip；styles／lint／build／五尺寸深淺色 mock UI 重跑通過。獨立審查 2 項 Important 已各以 RED→GREEN 修補。
+最新本機驗收（2026-11-03）：完整後端 **617 passed**、零 skip；styles／lint／build／五尺寸深淺色 mock UI 重跑通過。獨立審查 2 項 Important 已各以 RED→GREEN 修補。
 下方 489／506／514／520 等數字是各批歷史證據，不代表最新總數。
 
 ## 已證實與已修復
@@ -131,3 +131,12 @@ fresh-context reviewer 檢查 d5257ab..a7d7056，發現 2 項 Important，無 Cr
 恢復原 QA 容器，未停止／刪除容器或 volume，未讀寫舊 scenario DB。
 審查未覆蓋的 account 累加溢位、其他 AssetManager 數值入口、生命週期併發、
 匯率市場有效性、正式資料／DDL 耗時及 Provider／實機驗收繼續列為未驗證風險。
+
+## S4.1 Backend 批次（2026-11-03）
+
+原始請求指紋與 legacy 409 已實作；19 regression 先 RED，新增旅行上下文／排序
+控制後共 22 項通過，完整後端 **617 passed（54.39s）**，零 skip。
+覆蓋跨 session、編輯／刪除後原意回放、不同 payload、4 worker 並發一次、
+失敗後 commit 仍零副作用、同 key 跨使用者，以及三種 legacy 狀態回 409／本人既有 ID。
+沿用 0017 financial_commands，無新增 migration。
+S4.1 Web 持久恢復、公開入口 key 驗收仍未完成；S4.2～S6 不跳過。

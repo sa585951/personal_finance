@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from config import DEFAULT_CURRENCY
 from .account_movement import record_account_movement
-from .idempotency import IdempotencyManager, money
+from .idempotency import IdempotencyManager, LegacyTransactionRequestConflict, money
 from .schema import (
     AMOUNT,
     RATE,
@@ -876,23 +876,115 @@ class BudgetManager:
         review_status="confirmed",
         client_request_id=None,
     ):
+        """Bind an original request intent and its result atomically to the ledger write."""
+        self.last_created_transaction_id = None
+        self.last_create_replayed = False
+        request = dict(
+            user_id=user_id,
+            date=date,
+            item=item,
+            amount=amount,
+            transaction_type=transaction_type,
+            budget_category=budget_category,
+            description=description,
+            account_id=account_id,
+            trip_id=trip_id,
+            paid_by_member_id=paid_by_member_id,
+            merchant=merchant,
+            original_currency=original_currency,
+            exchange_rate=exchange_rate,
+            timezone_name=timezone_name,
+            split_member_ids=split_member_ids,
+            split_allocations=split_allocations,
+            review_status=review_status,
+            client_request_id=client_request_id,
+        )
+        owner = self._parse_user_id(user_id)
+        key = self._parse_optional_uuid(client_request_id, "client_request_id")
+        if key is None:
+            return self._insert_transaction(**request)
+        canonical = self._canonical_transaction_request(request)
+
+        def apply():
+            existing_id = self.db_session.execute(select(transactions_table.c.id).where(
+                transactions_table.c.user_id == owner,
+                transactions_table.c.client_request_id == key,
+            )).scalar_one_or_none()
+            # Never infer the original intent from a row that may have been edited.
+            if existing_id:
+                raise LegacyTransactionRequestConflict(existing_id)
+            created = self._insert_transaction(**request)
+            return {"success": created[0], "message": created[1],
+                    "transaction_id": str(created.transaction_id)}
+
+        result = IdempotencyManager(self.db_session).execute(
+            owner, "transaction.create", key, canonical, apply,
+        )
+        transaction_id = UUID(result["transaction_id"])
+        self.last_created_transaction_id = transaction_id
+        self.last_create_replayed = result["replayed"]
+        return TransactionCreationResult(result["message"], transaction_id, replayed=result["replayed"])
+
+    def _canonical_transaction_request(self, request):
+        # Freeze supplied intent, including omitted defaults, before looking at mutable DB state.
+        canonical = {name: request[name] for name in (
+            "item", "transaction_type", "budget_category", "description", "merchant",
+            "timezone_name", "review_status",
+        )}
+        canonical["date"] = self._parse_date(request["date"]).isoformat()
+        canonical["amount"] = format(self._normalize_amount(request["amount"]).normalize(), "f")
+        canonical["original_currency"] = request["original_currency"] or None
+        rate = request["exchange_rate"]
+        canonical["exchange_rate"] = (None if rate is None else
+            format(self._normalize_amount(rate, "exchange_rate ", RATE).normalize(), "f"))
+        for name in ("account_id", "trip_id", "paid_by_member_id"):
+            value = self._parse_optional_uuid(request[name], name)
+            canonical[name] = str(value) if value else None
+        if request["split_allocations"]:
+            allocations = []
+            for allocation in request["split_allocations"]:
+                member = self._parse_optional_uuid(allocation.get("trip_member_id"), "trip_member_id")
+                amount = self._normalize_decimal(allocation.get("amount", "0"), "分攤金額")
+                if amount < 0:
+                    raise ValueError("分攤金額不可為負數")
+                if member and amount > 0:
+                    allocations.append({"trip_member_id": str(member), "amount": format(amount.normalize(), "f")})
+            canonical["split_allocations"] = sorted(allocations, key=lambda row: row["trip_member_id"])
+            canonical["split_member_ids"] = None
+        else:
+            members = [self._parse_optional_uuid(member, "split_member_id")
+                       for member in (request["split_member_ids"] or [])]
+            canonical["split_member_ids"] = sorted({str(member) for member in members if member})
+            canonical["split_allocations"] = None
+        return canonical
+
+    def _insert_transaction(
+        self,
+        user_id,
+        date,
+        item,
+        amount,
+        transaction_type,
+        budget_category,
+        description="",
+        account_id=None,
+        trip_id=None,
+        paid_by_member_id=None,
+        merchant=None,
+        original_currency=None,
+        exchange_rate=None,
+        timezone_name="Asia/Taipei",
+        split_member_ids=None,
+        split_allocations=None,
+        review_status="confirmed",
+        client_request_id=None,
+    ):
         """新增一筆交易紀錄。"""
         # Legacy compatibility only; production consumers use the returned result.
         self.last_created_transaction_id = None
         self.last_create_replayed = False
         parsed_user_id = self._parse_user_id(user_id)
         parsed_client_request_id = self._parse_optional_uuid(client_request_id, "client_request_id")
-        if parsed_client_request_id:
-            replayed_id = self.db_session.execute(
-                select(transactions_table.c.id).where(
-                    transactions_table.c.user_id == parsed_user_id,
-                    transactions_table.c.client_request_id == parsed_client_request_id,
-                )
-            ).scalar_one_or_none()
-            if replayed_id:
-                self.last_created_transaction_id = replayed_id
-                self.last_create_replayed = True
-                return TransactionCreationResult("交易已建立", replayed_id, replayed=True)
         parsed_amount = self._normalize_amount(amount)
         if transaction_type not in {"expense", "income"}:
             raise ValueError("交易類型僅支援 expense 或 income")
@@ -1009,9 +1101,7 @@ class BudgetManager:
                     transactions_table.c.client_request_id == parsed_client_request_id,
                 )
             ).scalar_one()
-            self.last_created_transaction_id = replayed_id
-            self.last_create_replayed = True
-            return TransactionCreationResult("交易已建立", replayed_id, replayed=True)
+            raise LegacyTransactionRequestConflict(replayed_id) from exc
 
         return TransactionCreationResult("交易新增成功", transaction_id)
 

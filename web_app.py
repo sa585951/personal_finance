@@ -1508,6 +1508,13 @@ def add_transaction(current_user_id):
             },
             "replayed": result["replayed"],
         }), 200 if result["replayed"] else 201
+    except IdempotencyConflict as e:
+        db_session.rollback()
+        response = {"success": False, "message": str(e),
+                    "code": getattr(e, "code", "REQUEST_PAYLOAD_CONFLICT")}
+        if getattr(e, "transaction_id", None):
+            response["data"] = {"transaction_id": str(e.transaction_id)}
+        return jsonify(response), 409
     except ValueError as e:
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
