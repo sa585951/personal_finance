@@ -73,7 +73,33 @@ UUID、Decimal 格式與成員／allocation 順序標準化；不將 parse_event
 需先核對，不能自動換 key、從現值猜指紋或再次寫入。混合舊／新 server 的 unique 衝突
 亦不會替舊交易補造原始意圖。已保存的新 key 回放原結果，不復活刪除紀錄、不再次扣款。
 
-Backend 本批保留公開 API 的 optional key 相容；無 key 不具重送保證。Web 日常 RAM key、
-旅行無 key 及重整後未知結果恢復尚待後續 client 批次，不能宣告 S4.1 全部完成或部署開放。
+Backend 本批保留公開 API 的 optional key 相容；無 key 不具重送保證。下述 client 批次已補日常／旅行持久恢復；公開必填 key 的相容性切換尚待決策與部署驗收，不能宣告 S4.1 全部完成或部署開放。
 LINE draft／QR 走同一 manager；現有草稿／receipt 鎖與原子確認仍保留，公開開關不改。
 新增 22 項真實合成 DB／Flask API 案例，完整後端 617 passed；Auth／Provider 為替身。
+
+## S4.1：Web 原資料恢復與明確核對解除（2026-11-03）
+
+日常與旅行支出在 POST 前使用既有 pendingFinancialCommand，按登入 user 與
+`transaction:daily`／`transaction:trip:<tripId>` 分隔 sessionStorage。原始 payload
+與 UUID 保存成功前不送出；reload 不自動提交，顯示凍結原資料並由使用者明確重試。
+新增前核對目前登入者，登入者變更／儲存不可用時 fail closed。JSON snapshot 脫離
+Vue 巢狀 reactive 資料；舊 view 不能覆寫新意圖，晚到回應只清除相符 request ID。
+
+成功才清除對應 pending；只有「交易 POST 本身確定回400」可解除並修改資料。
+認證 preflight 的400、401／409／500／網路失敗不冒充交易未提交。未確認時保留原
+payload/key；切換模式、返回或reload均不自動換 key。Trip 使用獨立 scope 並檢查
+切換後的 trip ID，避免舊回應清錯範圍。
+
+僅 `LEGACY_REQUEST_UNVERIFIABLE` 且有既有交易 ID 時顯示核對解除控制：
+先顯示 ID，勾選「我已核對既有紀錄」才能點「結束這次待確認請求」。這只清除
+本機 pending，不 POST、不修改／刪除既有交易，也不自動提交新的一筆。下一次新
+意圖仍需另填資料並明確送出。一般409／未知結果沒有此解除捷徑。
+
+25 組 Chrome 真實 Vue／mock API 案例及五尺寸深淺色、長字串、核對按鈕可操作性
+通過；styles／lint／build通過。截圖供目視，不是 golden-image 像素基準。
+另以真實 localhost Chrome→Flask→PostgreSQL（原授權 QA DB 的獨立 schema）驗證
+日常／旅行先實際201提交再丟回應，reload後相同payload/key回200／replayed，
+每個意圖只有一筆交易／一筆movement／一筆command。legacy回409後明確解除零
+額外寫入。獨立SQL：1000－legacy40－daily100－trip100＝760，reconciliation
+1 matched／0 mismatch。Cookie/JWT/session為實際本機路徑，身份為合成建立；未驗真
+OAuth／LINE／Gemini或實機。無新增migration，沒有升級舊scenario／正式DB。

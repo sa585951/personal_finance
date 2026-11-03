@@ -158,7 +158,28 @@ Critical／Important／Minor；task-done 再跑完整 **617 passed（51.85s）**
 | N04/U03 QR resolve | 鎖 receipt，linked 狀態回放；建立走同一 TransactionService | 重掃／重送只扣一次的合成回歸已通過；不能把服務層通過當手機相機驗收 |
 | N04/U03 公開相容性 | POST /api/transactions 仍 optional key | 同步 client 與必填／相容性切換驗收前，不宣告所有公開寫入具備冪等 |
 
-舊 key 回409後的 client「解除待確認狀態」尚需確認：建議只在使用者明確表示
-已核對既有紀錄後清除本機 pending，既有交易完全不變、不得自動換 key 或重送。
-已提出產品規格問題；未取得答案前不自行實作此業務分支。
+使用者已確認舊 key 409 的解除規則：明確核對既有紀錄後，才清除本機 pending；既有交易不變，不自動換 key 或重送。此 client 批次已實作，見下方本輪結果。
 S4.2 旅行生命週期與其他交錯寫入、S5 正式資料／還原／隱私、S6 仍依原序待辦。
+
+## S4.1 client 批次（2026-11-03）
+
+日常／旅行新增已接 owner/scope pending，保存原payload/key後才POST；reload原資料
+重試、legacy ID及明確核對解除、錯誤狀態與儲存失敗保護已完成。
+新增 test-transaction-recovery.cjs **25組** Chrome／mock API案例通過，含兩種入口的
+正常、丟回應、400／401／409／500、legacy解除、owner切換、storage讀寫失敗，
+reactive巢狀凍結、stale覆寫／late清除、auth400不得丟掉未知請求，以及5尺寸×深淺色
+長字串／按鈕可操作性。已觀察原失敗再修補；完整UI、styles／lint／build通過。
+完整後端617 passed（49.49s）；本批無Backend／schema變更。
+
+實際整合另外通過：Chrome→localhost實際API→同一授權QA DB的獨立schema
+`qa_s4_client_20261103_8ca3a33c`，不與public smoke schema共用資料表。
+每日／旅行各201提交後丟回應，reload同key回200，只寫一次；legacy409核對解除
+無額外POST。SQL獨立核對balance760=1000-40-100-100，三交易／三movement／
+兩command，reconciliation 1 matched／0 mismatch。合成身份走實際Cookie/session，
+不是Provider登入驗收。原scenario DB未讀寫，QA容器／volume保留；只停止本輪本機
+Flask／Vite。臨時runner、cookie、synthetic evidence與截圖不進版控。
+
+剩餘S4.1門檻：公開POST /api/transactions仍optional key，未宣告所有公開寫入皆
+冪等。已提出是否改必填的相容性決策（舊client將回400），未核定前不切換。其他
+財務建立入口／未持久化LINE相容流程仍按原計畫核對，不因兩個Web入口完成而
+宣告S4～S6或G1/G-AI/G2。

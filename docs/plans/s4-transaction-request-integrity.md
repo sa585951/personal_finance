@@ -27,3 +27,21 @@ Review Focus：原始請求指紋不依賴編輯後資料；未提供 rate／cur
 - Web 日常與旅行提交保存原 key／payload，未知提交後重整以原資料重試，沿用 pendingFinancialCommand，補原生表單／錯誤回歸與獨立 API／DB 驗證。
 - 核對公開 financial create 入口與相容性切換，不以局部交易修補宣告全部完成。
 - Transfer／Settlement／LINE draft／QR 現有保護回歸，真 Provider 仍不開放或呼叫。
+
+## Task 2: Web 日常／旅行未知提交恢復與人工核對解除
+
+Spec supplement：使用者已確認，legacy 409 顯示既有 ID、保留原 key，只有明確「我已核對既有紀錄」才清除本機 pending；不修改／重送既有交易，不自動產生新 key。
+Interfaces：pendingFinancialCommand 的 owner/scope storage → UniversalAddView／TripsView → 既有交易 POST；成功或確定400清除，401／409／500／網路未知保留。公開必填 key 切換仍獨立追蹤，這批不改 Backend 相容行為。
+
+1. 新增 Chrome 真實 Vue／mock API 行為案例：daily/trip 保存原 payload/key、提交後掉回應、reload 原 key 重試、正常成功、400可修改、401/500/409不換key、legacy ID及明確解除零寫入、跨owner/scope隔離、storage失敗不POST、旅行巢狀reactive payload可保存且不被後續變更污染。
+   Expected: 現碼無恢復／旅行無key／reactive structuredClone失敗，先RED；不使用source文字斷言。
+2. 最小共用 PendingTransactionRecovery 顯示凍結原資料／重試／legacy核對解除。daily與trip沿用openPendingCommand；不可因切換模式、返回、reload或trip切換自動換key。legacy只在確認409+ID後允許明確解除；reload可重試原請求以取得409，不猜測ID。
+   Expected: 新案例GREEN；401/409不自動再送，清除pending不POST、不改帳務。
+3. 對前端跑styles/lint/build、完整UI；專用DB runner完整Backend。
+   Expected: 全部通過，與真實後端／DB整合證據分開。
+4. 執行localhost Chrome→Flask API→已授權專用合成DB：daily/trip提交後丟回應、reload再送，API與DB獨立核對每個意圖只有一筆／餘額只扣一次；真Auth/Provider以替身隔離，不呼叫外網。
+   Expected: 實際整合通過，否則明確記錄阻塞，不冒稱完成。
+5. 更新契約／進度、git diff --check，commit、task-done；本批完成後fresh review，保留branch/worktree、不Push/Merge/PR。
+   Expected: verified bounded commit。
+
+Review Focus Task2：同一分頁owner與trip隔離；初始化storage失敗須fail closed；舊回應不得清除新scope的pending；400與未知失敗不同處理；legacy解除只清本機且必須明確核對；Vue reactive巢狀資料凍結；成功後清除不因刷新失敗再送。每項以可見狀態與實際送出payload驗證。

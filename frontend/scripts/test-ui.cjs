@@ -226,6 +226,7 @@ async function testDisabledAiKeepsManualEntry(browser) {
     }
     await ready();
     browser = await chromium.launch({ headless: true, ...(process.env.UI_BROWSER_CHANNEL ? { channel: process.env.UI_BROWSER_CHANNEL } : {}) });
+    await require('./test-transaction-recovery.cjs')(browser, base, installMocks);
     await testCurrencyDecimalInputs(browser);
     await testReportCurrencyRefusal(browser);
     await testUntrustedDialogs(browser);

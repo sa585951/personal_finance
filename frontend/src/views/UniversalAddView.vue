@@ -9,7 +9,18 @@
       <span aria-hidden="true"></span>
     </header>
 
-    <ReceiptEntryFlow v-if="stage === 'receipt'" @manual="openManual('expense')" @cancel="resetDraft" />
+    <p v-if="recoveryLoading" role="status">正在核對待確認請求…</p>
+    <p v-else-if="recoveryError" role="alert">{{ recoveryError }}</p>
+    <PendingTransactionRecovery
+      v-else-if="transactionCommand?.pending && (!sendingDaily || retryingDaily)"
+      :payload="transactionCommand.pending.payload"
+      :message="pendingMessage"
+      :transaction-id="legacyTransactionId"
+      :busy="retryingDaily"
+      @retry="retryDailyPending"
+      @acknowledge="acknowledgeDailyPending"
+    />
+    <ReceiptEntryFlow v-else-if="stage === 'receipt'" @manual="openManual('expense')" @cancel="resetDraft" />
     <template v-else-if="stage === 'input'">
       <button type="button" class="receipt-entry" @click="stage = 'receipt'"><Document aria-hidden="true" /><span>掃描發票記帳<small>掃描 QR Code，帶入日期與金額</small></span><ArrowRight aria-hidden="true" /></button>
       <AIQuickInput
@@ -75,6 +86,7 @@
         :missing-fields="missingFields"
         :expanded="expanded"
         :client-request-id="clientRequestId"
+        :external-submit="submitDailyTransaction"
         submit-label="確認新增"
         @transaction-added="handleAdded"
       />
@@ -92,6 +104,7 @@
         :key="clientRequestId"
         :type="activeType"
         :client-request-id="clientRequestId"
+        :external-submit="submitDailyTransaction"
         @transaction-added="handleAdded"
       />
     </template>
@@ -137,6 +150,8 @@
 <script>
 import AIQuickInput from "@/components/budgets/AIQuickInput.vue";
 import apiClient from "@/api";
+import { openPendingCommand } from '@/utils/pendingFinancialCommand';
+import PendingTransactionRecovery from '@/components/shared/PendingTransactionRecovery.vue';
 import ReceiptEntryFlow from "@/components/receipts/ReceiptEntryFlow.vue";
 import TransactionForm from "@/components/budgets/TransactionForm.vue";
 import AccountImpactCard from "@/components/shared/AccountImpactCard.vue";
@@ -145,6 +160,7 @@ import { BottomLeft, CircleCheckFilled, TopRight, Document, ArrowRight } from "@
 export default {
   name: "UniversalAddView",
   components: {
+    PendingTransactionRecovery,
     ReceiptEntryFlow,
     AIQuickInput,
     TransactionForm,
@@ -157,6 +173,14 @@ export default {
   },
   data() {
     return {
+      transactionCommand: null,
+      transactionCommandPromise: null,
+      recoveryLoading: true,
+      recoveryError: '',
+      pendingMessage: '',
+      legacyTransactionId: '',
+      sendingDaily: false,
+      retryingDaily: false,
       stage: this.$route.query.mode === "receipt" ? "receipt" : "input",
       preferredType: this.$route.query.type === "income" ? "income" : "expense",
       activeType: "expense",
@@ -171,6 +195,7 @@ export default {
     };
   },
   async mounted() {
+    this.ensureTransactionCommand().catch(() => {});
     try {
       const response = await apiClient.get('/api/capabilities');
       this.aiAvailable = response.data?.data?.ai_parse === true;
@@ -192,6 +217,81 @@ export default {
     },
   },
   methods: {
+    async ensureTransactionCommand() {
+      if (!this.transactionCommandPromise) {
+        this.transactionCommandPromise = openPendingCommand('transaction:daily').then(command => {
+          this.transactionCommand = command;
+          return this.transactionCommand;
+        }).catch(error => {
+          this.recoveryError = '無法讀取待確認請求，請先核對紀錄並確認瀏覽器儲存可用。';
+          throw error;
+        }).finally(() => { this.recoveryLoading = false; });
+      }
+      return this.transactionCommandPromise;
+    },
+    async submitDailyTransaction(payload) {
+      if (this.sendingDaily) {
+        const error = new Error('上一筆請求仍在處理中');
+        error.recoveryHandled = true;
+        throw error;
+      }
+      this.sendingDaily = true;
+      let command;
+      let sent = false;
+      let requestId;
+      try {
+        command = await this.ensureTransactionCommand();
+        await command.verifyOwner();
+        const intent = { ...payload };
+        delete intent.client_request_id;
+        const request = command.prepare(intent);
+        requestId = request.client_request_id;
+        sent = true;
+        const response = await apiClient.post('/api/transactions', request);
+        if (response.data?.success !== true) throw new Error('結果尚未確認');
+        command.clear(requestId);
+        this.pendingMessage = '';
+        this.legacyTransactionId = '';
+        return response;
+      } catch (error) {
+        if (error.ownerChanged) {
+          this.recoveryError = error.message;
+          error.recoveryHandled = true;
+        } else if (sent && error.response?.status === 400) {
+          command?.clear(requestId);
+          this.parseFailure = error.response?.data?.message || '交易未建立，請調整資料後重新提交。';
+        } else if (command?.pending) {
+          this.pendingMessage = error.response?.data?.message || '結果尚未確認，請以保留的原資料重試。';
+          this.legacyTransactionId = error.response?.data?.code === 'LEGACY_REQUEST_UNVERIFIABLE'
+            ? String(error.response.data.data?.transaction_id || '') : '';
+          error.recoveryHandled = true;
+        } else if (!sent) {
+          this.recoveryError = '無法保存待確認請求，未送出交易。請確認瀏覽器儲存可用後重試。';
+          error.recoveryHandled = true;
+        }
+        throw error;
+      } finally { this.sendingDaily = false; }
+    },
+    async retryDailyPending() {
+      if (this.retryingDaily || !this.transactionCommand?.pending) return;
+      this.retryingDaily = true;
+      const payload = this.transactionCommand.pending.payload;
+      try {
+        const response = await this.submitDailyTransaction(payload);
+        this.handleAdded({ type: payload.type, transactionId: response.data.data?.transaction_id,
+          replayed: response.data.replayed === true });
+      } catch { /* The pending panel retains the original intent and explains the failure. */ }
+      finally { this.retryingDaily = false; }
+    },
+    acknowledgeDailyPending() {
+      if (!this.legacyTransactionId || this.retryingDaily || !this.transactionCommand?.pending) return;
+      try {
+        this.transactionCommand.clear();
+        this.legacyTransactionId = '';
+        this.pendingMessage = '';
+        this.resetDraft();
+      } catch { this.recoveryError = '無法清除本機待確認狀態；既有交易未被修改，請確認瀏覽器儲存可用。'; }
+    },
     createRequestId() {
       return crypto.randomUUID();
     },

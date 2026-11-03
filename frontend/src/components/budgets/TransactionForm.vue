@@ -412,6 +412,7 @@ export default {
         });
         this.resetForm();
       } catch (error) {
+        if (error.recoveryHandled) return;
         console.error(this.isEditing ? "更新失敗:" : "新增失敗:", error);
         this.$swal.fire(
           this.isEditing ? "更新失敗" : "新增失敗",

@@ -194,3 +194,8 @@
 `code=LEGACY_REQUEST_UNVERIFIABLE`、`data.transaction_id` 供核對（僅本人）。
 原交易可已被編輯／刪除，不以目前內容冒充原始請求，不自動產生新 key。
 本批 key 仍 optional；無 key 不承諾冪等。client 恢復與必填切換驗收尚未完成。
+
+S4.1 Web client 現已在 POST 前保存 owner／daily或trip scope 的原payload/key，未知
+結果以原資料重試。收到 legacy 409 時顯示既有 ID，只有明確核對後才清本機pending，
+不對既有交易發出修改／刪除／再次建立。公開 API key 目前仍optional；必填切換待
+相容性決策與部署驗收，不能將已更新Web視為所有舊client均已更新。

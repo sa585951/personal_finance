@@ -13,21 +13,40 @@ export async function openPendingCommand(scope) {
   }
   return {
     scope, pending,
+    async verifyOwner() {
+      const auth = await apiClient.get('/api/auth/me');
+      if (auth.data?.data?.user_id !== userId) {
+        const error = new Error('登入使用者已變更，未送出交易，請重新載入頁面。');
+        error.ownerChanged = true;
+        throw error;
+      }
+    },
     prepare(payload) {
+      // Re-read shared tab storage: a restored/stale view cannot overwrite a newer intent.
+      const raw = sessionStorage.getItem(key);
+      const stored = raw ? JSON.parse(raw) : null;
+      if (stored) {
+        if (!stored.requestId || !stored.payload) throw new Error('待確認資料無法讀取，請先核對紀錄。');
+        this.pending = stored;
+      }
       if (this.pending && JSON.stringify(this.pending.payload) !== JSON.stringify(payload)) {
         throw new Error('上一筆提交結果尚未確認，請先以原資料重試。');
       }
       if (!this.pending) {
-        const record = { requestId: crypto.randomUUID(), payload: structuredClone(payload) };
+        // API payloads are JSON. Clone through JSON to detach nested Vue proxies.
+        const record = { requestId: crypto.randomUUID(), payload: JSON.parse(JSON.stringify(payload)) };
         // Store before HTTP; a storage failure must not send an untracked write.
         sessionStorage.setItem(key, JSON.stringify(record));
         this.pending = record;
       }
-      return { ...this.pending.payload, client_request_id: this.pending.requestId };
+      return { ...JSON.parse(JSON.stringify(this.pending.payload)), client_request_id: this.pending.requestId };
     },
-    clear() {
-      sessionStorage.removeItem(key);
-      this.pending = null;
+    clear(expectedRequestId = this.pending?.requestId) {
+      // A late response from an old view must never discard a newer intent.
+      const raw = sessionStorage.getItem(key);
+      const stored = raw ? JSON.parse(raw) : null;
+      if (expectedRequestId && stored?.requestId === expectedRequestId) sessionStorage.removeItem(key);
+      if (this.pending?.requestId === expectedRequestId) this.pending = null;
     },
   };
 }
