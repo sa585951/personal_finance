@@ -3,7 +3,7 @@
 更新日期：2026-11-03。保持 `codex/nomica-s3-fx-guard`，不 Push／Merge／建立 PR。
 本文件是既定 S1～S6 的測試追蹤，不重排開發範圍。
 
-最新本機驗收（2026-11-03）：完整後端 **639 passed**、零 skip；styles／lint／build／五尺寸深淺色 mock UI 重跑通過。獨立審查 2 項 Important 已各以 RED→GREEN 修補。
+最新本機驗收（2026-11-03）：完整後端 **640 passed**、零 skip；styles／lint／build／五尺寸深淺色 mock UI 重跑通過。獨立審查 2 項 Important 已各以 RED→GREEN 修補。
 下方 489／506／514／520 等數字是各批歷史證據，不代表最新總數。
 
 ## 已證實與已修復
@@ -220,3 +220,21 @@ reconciliation1 matched／0 mismatch。本輪獨立合成schema：`qa_s4_client_
 仍需依原N04/U03盤點：AccountForm沒有提交鎖／key，AssetManager.add_account
 每次INSERT帳戶及anchor；adjustment API仍optional key，這些未在本批修復或宣告
 可靠性完成。預算軟刪除後重設R08亦仍待原序驗證，不跳過進S4.2。
+
+### Task3 最終驗證與獨立審查
+
+Task-done 全套 **640 passed（60.02s），零skip**；其後唯讀SQL再次確認獨立
+scenario schema仍760、3交易／3movement／2command、B零交易、recon匹配。
+Fresh reviewer審查d75d0e8..a27dcc9，無Critical／Important／Minor；另以純AST
+方法驗21種不合法JSON/key、owner409優先與合法key通過，沒有載入app或寫DB。
+原Task1/2已各自審查／TDD修補，不因此宣告全生命週期與正式部署通過。
+
+下一原N04入口的受控診斷：真Vue AccountForm單次double-click送兩個完全相同
+POST /api/assets，皆無key。所有API攔截，**未寫DB**；確認的是重複送出Bug，
+不冒稱已實測重複帳戶／anchor。程式上add_account每次INSERT的資料影響仍須
+後續合成DB重現與驗收。調整API仍optional key，尚未完成原payload比對回歸。
+已詢問新增帳戶／餘額校正是否同步採必填公開契約；本次交易API授權不擅自擴成
+其他API行為變更。等相容性決策後接續，不跳過原序進S4.2。R08亦仍待驗證。
+
+本輪commits：bb78f13（Web恢復／legacy核對）、d75d0e8（凍結點擊／POST actor綁定）、
+a27dcc9（公開交易key必填）。沒有Push／Merge／PR或正式DB升級。

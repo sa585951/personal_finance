@@ -121,8 +121,12 @@ rollback且不產生交易或command reservation。internal manager無key呼叫�
 不因此宣稱那些呼叫具備重送保證。owner mismatch仍先409。
 新增20個真實DB/API案例（含owner優先與internal控制）；10 regression先RED，
 其他控制通過後修補。原數值、parse event與錯誤遮蔽測試補有效key，維持原意圖。
-完整Backend639 passed（新增owner優先控制另隨20項通過，task-done將記最後總數），
+最終task-done完整Backend640 passed（60.02s），
 完整29組恢復案例／原UI及styles/lint/build通過。
 實際localhostAPI缺key400，正常daily/trip掉回應重整原key回放與legacy解除、
 A→B Cookie409及獨立SQL回歸通過。部署前須同步所有寫入client、確認實際DBrevision，
 過渡期不開放未更新client寫入。無新migration，未部署、未改正式資料。
+
+公開交易key批次fresh review無新增Critical／Important／Minor。其他公開財務入口
+仍未因此獲得相同保證：新增帳戶double-click已在攔截API的UI診斷觀察到兩次無key
+POST；校正原始payload一致性／預算R08待原序驗收。沒有改這些API的相容行為。
