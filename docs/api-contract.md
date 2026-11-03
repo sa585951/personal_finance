@@ -186,21 +186,30 @@
 交易 ID／replayed 僅從該次建立結果取得。建立帳戶／預算不代表建立交易，
 相容 response 的 `data.transaction_id` 為 null，不用其他請求的結果確認 parse event。
 
-## S4.1：交易請求指紋（Backend 批次）
+## S4.1：交易請求指紋與公開 key 門檻（現行）
 
-`POST /api/transactions` 帶 client_request_id 時，首次成功 201、同原始意圖回放 200；
+`POST /api/transactions` 必填 UUID 字串 `client_request_id`，首次成功 201、同原始意圖回放 200；
 `data.transaction_id`／replayed shape 不變。不同原始 payload 回 409 與
 `code=REQUEST_PAYLOAD_CONFLICT`；舊 key 無原始指紋回 409、
 `code=LEGACY_REQUEST_UNVERIFIABLE`、`data.transaction_id` 供核對（僅本人）。
 原交易可已被編輯／刪除，不以目前內容冒充原始請求，不自動產生新 key。
-本批 key 仍 optional；無 key 不承諾冪等。client 恢復與必填切換驗收尚未完成。
+公開 HTTP 缺少／空白／非字串／不合法 UUID key 回 400 且零財務寫入，不由伺服器產生 key。
+internal manager 保留無 key 相容呼叫，不承諾該路徑冪等。Web 恢復與必填切換已有本機證據，正式部署驗收未完成。
 
 S4.1 Web client 現已在 POST 前保存 owner／daily或trip scope 的原payload/key，未知
 結果以原資料重試。收到 legacy 409 時顯示既有 ID，只有明確核對後才清本機pending，
-不對既有交易發出修改／刪除／再次建立。公開 API key 目前仍optional；必填切換待
-相容性決策與部署驗收，不能將已更新Web視為所有舊client均已更新。
+不對既有交易發出修改／刪除／再次建立。公開 API key 已切為必填；部署前須協調
+所有寫入client。不能將已更新Web視為所有部署中的舊client均已更新。
 
 更新後Web另提供 `X-Nomica-Request-Owner`（來自該pending初始化的auth/me user ID）。
 Header存在且不同於真正token/session actor時，交易POST優先回409
 `REQUEST_OWNER_CHANGED`並rollback；header不授予任何身份或資源權限。
-無header的既有client仍相容，公開key必填已核定、待下一批切換與部署驗收。
+無header的既有client仍相容；公開key必填已實作，部署驗收尚未完成。
+
+### 部署相容性：必填交易key
+
+本批HTTP契約改變，舊client缺key將得到400，不能由Backend自動補key來偽裝冪等。
+先確認DB已有financial_commands（0017；目前本機chain head0019），協調發布帶key
+的Web／其他寫入client，再切換Backend並驗收。過渡期間維持財務寫入關閉或限制於
+已確認的新client；沒有在本輪操作正式部署、DB升級或對外開放。此批不新增migration。
+owner header不符的409優先於missing-key400，避免誤把原帳號的未知請求解除。

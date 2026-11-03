@@ -45,3 +45,21 @@ Interfaces：pendingFinancialCommand 的 owner/scope storage → UniversalAddVie
    Expected: verified bounded commit。
 
 Review Focus Task2：同一分頁owner與trip隔離；初始化storage失敗須fail closed；舊回應不得清除新scope的pending；400與未知失敗不同處理；legacy解除只清本機且必須明確核對；Vue reactive巢狀資料凍結；成功後清除不因刷新失敗再送。每項以可見狀態與實際送出payload驗證。
+
+## Task 3: 公開交易POST必填key相容切換
+
+Spec supplement：使用者已核定 POST /api/transactions 必填 client_request_id，缺少回400且零寫入，部署前同步更新寫入client；internal manager無key呼叫保留。expected-owner不符仍先409保護原帳號意圖。
+Interfaces：已更新Web daily/trip request → authenticated POST guard → 共用TransactionService/Manager；QR/LINE內部由既有伺服器key保護，iOS目前唯讀。
+
+1. 新增實際合成DB／Flask API的missing/null/empty/非字串/invalid UUID拒絕矩陣，日常／旅行各驗證commit後零財務副作用；internal無key正常控制。
+   Expected: 現碼missing key仍201、object/list可能500，先RED；internal控制維持成功。
+2. 最小HTTP guard要求非空字串key，再沿既有UUID驗證；不改internal/schema，也不開放AI/LINE。
+   Expected: 全矩陣400／零異動，正常同key回放不變。
+3. 完整Backend回歸；既有route failure／numeric測試補入有效key以維持原測試目的，不以缺key400冒充原錯誤驗收。
+   Expected: 全通過、零skip；缺key測試仍保留獨立覆蓋。
+4. 現有完整UI／styles/lint/build，實際localhost API/DB確認缺key400與正常Web掉回應重整回放、legacy解除及owner綁定回歸。
+   Expected: 兩種Web入口均帶key；不將local切換稱正式部署已完成。
+5. 更新契約、部署前置與追蹤，commit／task-done，fresh final review。
+   Expected: verified bounded commit，保留branch/worktree，不Push/Merge/PR。
+
+Review Focus Task3：key guard不能被array/object輸入繞過變500；零寫入包含command reservation；internal無key相容仍存在；舊client未更新須明確400而非自動產生key；owner mismatch409不得被missingkey400誤清；所有既有異常測試仍驗證原意圖。

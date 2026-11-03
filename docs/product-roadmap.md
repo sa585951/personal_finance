@@ -19,6 +19,7 @@
 - 2026-11-03：S2／S3 獨立審查的舊匯率精度與極大 Decimal 指數兩項 Important 已修補；18 項新增案例、完整 Backend 595 passed，styles／lint／build 與五尺寸深淺色 mock UI 重跑通過。S4.1 舊 key 規則已確認：無原始指紋回 409 並附既有交易 ID，不換 key 或重寫；實作待接續，不宣告 S4～S6 或公開門檻通過。
 - 2026-11-03 S4.1 Backend：交易原始指紋、不同意圖／legacy 409、原始結果回放已修補；22 項案例與完整 Backend 617 passed。沿用 0017 命令表，無新 migration；Web 持久恢復及公開寫入入口驗收未完成。
 - 2026-11-03 S4.1 Web：日常／旅行原payload/key持久恢復、legacy明確核對解除已實作；25組mock恢復案例、完整UI及styles/lint/build通過。另有真實localhost API/DB掉回應重整回放與SQL對帳證據；公開必填key相容切換仍待決策，S4.1及發布門檻未全通過。
+- 2026-11-03 S4.1公開交易POST已依核定改必填key，缺少／格式錯誤400零財務寫入，internal相容保留；20項門檻案例及完整Backend639 passed，29組UI／完整前端檢查與真實localhost/SQL通過。最終task-done總數另記；部署client同步及其他financial create盤點未完成，不宣告整個S4.1或發布通過。
 - 本批新增 migration `20261021_0018`（短效 OAuth state）；Web 改同源 Cookie，部署前須協調 API/OAuth proxy、LINE callback 及 production 設定。AI 與 LINE 互動預設停用，LINE Login、手動記帳與 QR 不受此入口設定影響；不代表已完成正式部署或 G1/G-AI/G2。
 - 帳期與共用分頁批次狀態：本地第一版、migration chain、DB smoke 與 390／430px 操作驗收已完成；正式環境仍須套用 `20260925_0015` 並做部署後驗收，不視為已上線
 

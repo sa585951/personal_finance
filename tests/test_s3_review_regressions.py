@@ -1,5 +1,6 @@
 """Independent review regressions: extreme Decimal inputs and legacy FX precision."""
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
@@ -25,7 +26,7 @@ def test_extreme_finite_exponent_is_a_validation_error(value):
 def test_extreme_exponent_api_rejects_without_financial_writes(command_db, monkeypatch, operation, field):
     engine, data = command_db
     payload = dict(date='2026-10-01', item='Extreme', amount=1, type='expense',
-                   budget_category='伙食', account_id=data['cash'])
+                   budget_category='伙食', account_id=data['cash'], client_request_id=str(uuid4()))
     with Session(engine) as session:
         created = BudgetManager(session).add_transaction(data['a'], '2026-10-01', 'Original', 1,
             'expense', '伙食', account_id=data['cash'])

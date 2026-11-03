@@ -848,6 +848,7 @@ def test_add_transaction_confirms_parse_event_when_present(monkeypatch):
             "type": "expense",
             "budget_category": "伙食",
             "description": "AI 套用",
+            "client_request_id": "44444444-4444-4444-4444-444444444444",
             "parse_event_id": "11111111-1111-1111-1111-111111111111",
         },
         headers=_auth_headers(),

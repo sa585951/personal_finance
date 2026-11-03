@@ -1490,8 +1490,12 @@ def add_transaction(current_user_id):
                         "message": "登入使用者已變更，本次未建立交易。請回到原帳號核對紀錄。"}), 409
     data = request.get_json()
     required_fields = ["date", "item", "amount", "type", "budget_category"]
-    if not data or not all(k in data for k in required_fields):
-        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+    # Public creates need a client-owned stable key; never manufacture one after a retry.
+    if (not isinstance(data, dict) or not all(k in data for k in required_fields)
+            or not isinstance(data.get("client_request_id"), str)
+            or not data["client_request_id"].strip()):
+        db_session.rollback()
+        return jsonify({"success": False, "message": "缺少必要欄位或有效的 client_request_id"}), 400
 
     try:
         result = get_transaction_service().create_transaction(current_user_id, data)

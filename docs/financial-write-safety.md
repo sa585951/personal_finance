@@ -73,7 +73,7 @@ UUID、Decimal 格式與成員／allocation 順序標準化；不將 parse_event
 需先核對，不能自動換 key、從現值猜指紋或再次寫入。混合舊／新 server 的 unique 衝突
 亦不會替舊交易補造原始意圖。已保存的新 key 回放原結果，不復活刪除紀錄、不再次扣款。
 
-Backend 本批保留公開 API 的 optional key 相容；無 key 不具重送保證。下述 client 批次已補日常／旅行持久恢復；公開必填 key 的相容性切換尚待決策與部署驗收，不能宣告 S4.1 全部完成或部署開放。
+Backend 初批曾保留公開 API 的 optional key 相容；此歷史狀態已由下述公開必填切換取代。日常／旅行持久恢復與本機必填驗收已完成；正式部署同步、其他入口盤點仍未完成，不能宣告全部S4或部署開放。
 LINE draft／QR 走同一 manager；現有草稿／receipt 鎖與原子確認仍保留，公開開關不改。
 新增 22 項真實合成 DB／Flask API 案例，完整後端 617 passed；Auth／Provider 為替身。
 
@@ -112,4 +112,17 @@ OAuth／LINE／Gemini或實機。無新增migration，沒有升級舊scenario／
 rollback，不以header選擇／授權另一owner。這封住preflight與POST之間換Cookie的
 競態；舊client省略header仍相容，不冒稱其具備同等保護。
 29組UI及620項Backend通過；真實本機A→B Cookie競態409，B零交易、原帳務不變。
-使用者已核定下一批將公開交易key改必填，部署前須同步client；此批尚未切換。
+使用者已核定公開交易key改必填；下述批次已實作，正式部署前仍須同步client。
+
+### 公開交易key必填切換（已核定並本機實作）
+
+POST /api/transactions拒絕missing/null/empty/非字串與invalid UUID key，回400、
+rollback且不產生交易或command reservation。internal manager無key呼叫仍相容，
+不因此宣稱那些呼叫具備重送保證。owner mismatch仍先409。
+新增20個真實DB/API案例（含owner優先與internal控制）；10 regression先RED，
+其他控制通過後修補。原數值、parse event與錯誤遮蔽測試補有效key，維持原意圖。
+完整Backend639 passed（新增owner優先控制另隨20項通過，task-done將記最後總數），
+完整29組恢復案例／原UI及styles/lint/build通過。
+實際localhostAPI缺key400，正常daily/trip掉回應重整原key回放與legacy解除、
+A→B Cookie409及獨立SQL回歸通過。部署前須同步所有寫入client、確認實際DBrevision，
+過渡期不開放未更新client寫入。無新migration，未部署、未改正式資料。

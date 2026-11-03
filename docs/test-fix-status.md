@@ -3,7 +3,7 @@
 更新日期：2026-11-03。保持 `codex/nomica-s3-fx-guard`，不 Push／Merge／建立 PR。
 本文件是既定 S1～S6 的測試追蹤，不重排開發範圍。
 
-最新本機驗收（2026-11-03）：完整後端 **620 passed**、零 skip；styles／lint／build／五尺寸深淺色 mock UI 重跑通過。獨立審查 2 項 Important 已各以 RED→GREEN 修補。
+最新本機驗收（2026-11-03）：完整後端 **639 passed**、零 skip；styles／lint／build／五尺寸深淺色 mock UI 重跑通過。獨立審查 2 項 Important 已各以 RED→GREEN 修補。
 下方 489／506／514／520 等數字是各批歷史證據，不代表最新總數。
 
 ## 已證實與已修復
@@ -203,3 +203,20 @@ reconciliation1 matched／0 mismatch。本輪獨立合成schema：`qa_s4_client_
 
 使用者已核定公開交易POST必填key、部署前同步更新寫入client；接續Task3實作，
 目前此commit仍optional。不是未決產品規格，不再重複詢問。
+
+## S4.1 公開交易key門檻（Task3）
+
+已依使用者核定改成必填UUID字串；missing/null/empty/非字串/invalid UUID400，
+零交易／帳戶／split／movement／command寫入。18拒絕案例加internal與owner優先
+控制，共20項通過。先RED10 failed／9 passed，最小HTTP guard後修補。
+完整Backend639 passed（56.63s），新增優先控制另隨target20通過；最終task-done
+總數另記。完整前端檢查與29組恢復／原UI通過。
+原錯誤遮蔽、數值、parse event測試提供有效key繼續驗原目的，沒有用新400遮蓋舊錯誤。
+無新增migration；internal無key相容仍存在且不保證冪等。
+實際HTTP新缺key400、所有正常回放／legacy解除／owner race409及SQL對帳通過；
+最後獨立schema：`qa_s4_client_20261103_de14ab0b`。
+
+本機規則完成不等於舊client已更新、正式DB已升級或G1通過。其他已開放帳務入口
+仍需依原N04/U03盤點：AccountForm沒有提交鎖／key，AssetManager.add_account
+每次INSERT帳戶及anchor；adjustment API仍optional key，這些未在本批修復或宣告
+可靠性完成。預算軟刪除後重設R08亦仍待原序驗證，不跳過進S4.2。

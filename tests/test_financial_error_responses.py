@@ -12,7 +12,7 @@ from tests.test_ai_parse_api import FakeDBSession, _auth_headers, _load_web_app
 from tests.test_financial_command_idempotency import command_db
 
 
-TRANSACTION = dict(date='2026-10-01', item='Lunch', amount=91, type='expense', budget_category='伙食')
+TRANSACTION = dict(date='2026-10-01', item='Lunch', amount=91, type='expense', budget_category='伙食', client_request_id=str(uuid4()))
 TRANSFER = dict(source_id='cash', dest_id='bank', amount=100, client_request_id=str(uuid4()))
 CASES = [
     ('POST', '/api/assets', dict(bank_name='cash', account_type='cash', balance=100), 'asset_manager', 'add_account', 400),
