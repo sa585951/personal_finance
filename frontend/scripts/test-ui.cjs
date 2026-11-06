@@ -104,6 +104,41 @@ async function testCurrencyDecimalInputs(browser) {
   } finally { await context.close(); }
 }
 
+async function testPrivateTripShareClassification(browser) {
+  const page = await browser.newPage();
+  try {
+    await installMocks(page);
+    await page.goto(new URL('/login', base).href);
+    const result = await page.evaluate(async () => {
+      const { default: Home } = await import('/src/views/HomeView.vue');
+      const { default: Analysis } = await import('/src/views/AnalysisView.vue');
+      const transactions = [
+        { type: 'expense', converted_amount: 50 },
+        { type: 'expense', trip_id: 'visible', converted_amount: 200 },
+        { type: 'expense', is_trip_share: true, converted_amount: 500 },
+      ];
+      const home = { monthTransactions: transactions, includeTripsInHome: true,
+        monthlyReportAmount: row => row.converted_amount };
+      const analysis = { transactions, includeTrips: true, tripNameMap: new Map([['visible', 'Visible trip']]),
+        transactionAmount: row => row.converted_amount };
+      return {
+        daily: Home.computed.monthlyDailyExpense.call(home),
+        travel: Home.computed.monthlyTravelExpense.call(home),
+        analysis: Analysis.computed.monthlyTravelExpense.call(analysis),
+        groups: Analysis.computed.monthlyTripRows.call(analysis),
+      };
+    });
+    assert.deepEqual(result, {
+      daily: 50, travel: 700, analysis: 700,
+      groups: [
+        { id: null, name: '已刪除旅行的個人分攤', amount: 500 },
+        { id: 'visible', name: 'Visible trip', amount: 200 },
+      ],
+    });
+    console.log('R11 private travel shares preserve daily/travel classification');
+  } finally { await page.close(); }
+}
+
 async function testReportCurrencyRefusal(browser) {
   const context = await browser.newContext();
   try {
@@ -230,6 +265,7 @@ async function testDisabledAiKeepsManualEntry(browser) {
       await require('./test-adjustment-recovery.cjs')(browser, base, installMocks);
       return;
     }
+    await testPrivateTripShareClassification(browser);
     await require('./test-account-recovery.cjs')(browser, base, installMocks);
     if (process.env.ASSET_RECOVERY_ONLY === 'true') return;
     await require('./test-adjustment-recovery.cjs')(browser, base, installMocks);

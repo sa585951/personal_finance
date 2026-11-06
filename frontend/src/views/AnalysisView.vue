@@ -102,7 +102,7 @@
           </div>
           <div>
             <span>旅行帳本</span>
-            <strong>{{ monthlyTripRows.length }} 個</strong>
+            <strong>{{ monthlyTripRows.filter(trip => trip.id !== null).length }} 個</strong>
           </div>
           <div>
             <span>進行中</span>
@@ -110,7 +110,7 @@
           </div>
         </div>
         <div v-if="includeTrips && monthlyTripRows.length > 0" class="trip-list">
-          <div v-for="trip in monthlyTripRows.slice(0, 3)" :key="trip.id">
+          <div v-for="trip in monthlyTripRows.slice(0, 3)" :key="trip.id ?? 'deleted-trip-shares'">
             <span>{{ trip.name }}</span>
             <strong>{{ formatMoney(trip.amount) }}</strong>
           </div>
@@ -264,7 +264,7 @@ export default {
     monthlyTravelExpense() {
       if (!this.includeTrips) return 0;
       return this.transactions
-        .filter((transaction) => transaction.type === "expense" && transaction.trip_id)
+        .filter((transaction) => transaction.type === "expense" && (transaction.trip_id || transaction.is_trip_share))
         .reduce((sum, transaction) => sum + this.transactionAmount(transaction), 0);
     },
     tripNameMap() {
@@ -273,13 +273,14 @@ export default {
     monthlyTripRows() {
       const totals = new Map();
       this.transactions
-        .filter((transaction) => transaction.type === "expense" && transaction.trip_id)
+        .filter((transaction) => transaction.type === "expense" && (transaction.trip_id || transaction.is_trip_share))
         .forEach((transaction) => {
-          const current = totals.get(transaction.trip_id) || 0;
-          totals.set(transaction.trip_id, current + this.transactionAmount(transaction));
+          const tripId = transaction.trip_id ?? null;
+          const current = totals.get(tripId) || 0;
+          totals.set(tripId, current + this.transactionAmount(transaction));
         });
       return Array.from(totals.entries())
-        .map(([id, amount]) => ({ id, name: this.tripNameMap.get(id) || "旅行帳本", amount }))
+        .map(([id, amount]) => ({ id, name: id === null ? "已刪除旅行的個人分攤" : (this.tripNameMap.get(id) || "旅行帳本"), amount }))
         .sort((left, right) => right.amount - left.amount);
     },
     activeTripCount() {

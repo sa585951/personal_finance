@@ -7,7 +7,7 @@ from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal, InvalidOperation
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, delete, func, insert, or_, select, update
+from sqlalchemy import and_, case, delete, func, insert, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
@@ -356,7 +356,17 @@ class BudgetManager:
         exchange_rate_column = transactions_table.c.exchange_rate
         converted_amount_column = transactions_table.c.converted_amount
         base_currency_column = transactions_table.c.base_currency
+        cursor_created_at_column = transactions_table.c.created_at
+        cursor_id_column = transactions_table.c.id
         if monthly_report:
+            trip_deleted = trips_table.c.deleted_at.isnot(None)
+            cursor_created_at_column = case(
+                (trip_deleted, datetime(1970, 1, 1, tzinfo=timezone.utc)),
+                else_=transactions_table.c.created_at,
+            )
+            cursor_id_column = case(
+                (trip_deleted, transaction_splits_table.c.id), else_=transactions_table.c.id,
+            )
             amount_column = func.coalesce(
                 transaction_splits_table.c.share_amount,
                 transactions_table.c.original_amount,
@@ -422,8 +432,8 @@ class BudgetManager:
             .where(transactions_table.c.deleted_at.is_(None))
             .order_by(
                 transactions_table.c.transaction_date.desc(),
-                transactions_table.c.created_at.desc(),
-                transactions_table.c.id.desc(),
+                cursor_created_at_column.desc(),
+                cursor_id_column.desc(),
             )
         )
         if parsed_trip_id:
@@ -434,7 +444,12 @@ class BudgetManager:
             stmt = stmt.where(transactions_table.c.trip_id == parsed_trip_id)
         elif monthly_report:
             stmt = (
-                stmt.outerjoin(trips_table, transactions_table.c.trip_id == trips_table.c.id)
+                stmt.add_columns(
+                    trip_deleted.label("trip_deleted"),
+                    cursor_created_at_column.label("report_cursor_created_at"),
+                    cursor_id_column.label("report_cursor_id"),
+                )
+                .outerjoin(trips_table, transactions_table.c.trip_id == trips_table.c.id)
                 .outerjoin(
                     trip_members_table,
                     and_(
@@ -460,6 +475,7 @@ class BudgetManager:
                         and_(
                             trip_members_table.c.monthly_report_preference == "include",
                             transaction_splits_table.c.id.isnot(None),
+                            transactions_table.c.type == "expense",
                         ),
                     )
                 )
@@ -474,9 +490,12 @@ class BudgetManager:
                             transactions_table.c.trip_id.is_(None),
                             transactions_table.c.user_id == parsed_user_id,
                         ),
-                        or_(
-                            trips_table.c.owner_user_id == parsed_user_id,
-                            trips_table.c.id.in_(member_trip_ids),
+                        and_(
+                            trips_table.c.deleted_at.is_(None),
+                            or_(
+                                trips_table.c.owner_user_id == parsed_user_id,
+                                trips_table.c.id.in_(member_trip_ids),
+                            ),
                         ),
                     )
                 )
@@ -520,12 +539,12 @@ class BudgetManager:
                     transactions_table.c.transaction_date < cursor_date,
                     and_(
                         transactions_table.c.transaction_date == cursor_date,
-                        transactions_table.c.created_at < cursor_created_at,
+                        cursor_created_at_column < cursor_created_at,
                     ),
                     and_(
                         transactions_table.c.transaction_date == cursor_date,
-                        transactions_table.c.created_at == cursor_created_at,
-                        transactions_table.c.id < cursor_id,
+                        cursor_created_at_column == cursor_created_at,
+                        cursor_id_column < cursor_id,
                     ),
                 )
             )
@@ -544,6 +563,27 @@ class BudgetManager:
             transaction = dict(row._mapping)
             if monthly_report:
                 self._require_twd_report_currency(transaction["base_currency"])
+                trip_deleted = transaction.pop("trip_deleted")
+                transaction.pop("report_cursor_created_at")
+                report_id = transaction.pop("report_cursor_id")
+                if trip_deleted:
+                    # A deleted shared ledger grants access only to the caller's report share.
+                    amount = float(transaction["converted_amount"])
+                    transactions.append({
+                        "id": str(report_id),
+                        "is_trip_share": True,
+                        "date": transaction["date"].isoformat(),
+                        "type": "expense",
+                        "category": transaction["budget_category"],
+                        "budget_category": transaction["budget_category"],
+                        "amount": amount,
+                        "converted_amount": amount,
+                        "currency": "TWD",
+                        "base_currency": "TWD",
+                        "can_edit": False,
+                        "can_delete": False,
+                    })
+                    continue
             transaction["id"] = str(transaction["id"])
             if parsed_trip_id and current_trip_member:
                 can_manage = (
@@ -584,8 +624,8 @@ class BudgetManager:
             last_row = rows[-1]._mapping
             next_cursor = self._encode_transaction_cursor(
                 last_row["date"],
-                last_row["created_at"],
-                last_row["id"],
+                last_row["report_cursor_created_at" if monthly_report else "created_at"],
+                last_row["report_cursor_id" if monthly_report else "id"],
             )
         return {
             "items": transactions,

@@ -240,13 +240,13 @@ export default {
     },
     monthlyDailyExpense() {
       return this.monthTransactions
-        .filter((transaction) => transaction.type === "expense" && !transaction.trip_id)
+        .filter((transaction) => transaction.type === "expense" && !transaction.trip_id && !transaction.is_trip_share)
         .reduce((sum, transaction) => sum + this.monthlyReportAmount(transaction), 0);
     },
     monthlyTravelExpense() {
       if (!this.includeTripsInHome) return 0;
       return this.monthTransactions
-        .filter((transaction) => transaction.type === "expense" && transaction.trip_id)
+        .filter((transaction) => transaction.type === "expense" && (transaction.trip_id || transaction.is_trip_share))
         .reduce((sum, transaction) => sum + this.monthlyReportAmount(transaction), 0);
     },
     primaryExpenseSource() {
