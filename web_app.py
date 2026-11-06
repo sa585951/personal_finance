@@ -8,7 +8,8 @@ from flask import Flask, jsonify, request, redirect, g
 from flask_cors import CORS
 from sqlalchemy import select, func
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.webhooks import MessageEvent, PostbackEvent, TextMessageContent
+from linebot.v3.messaging import TextMessage
+from linebot.v3.webhooks import MessageEvent, PostbackEvent, TextMessageContent, UserSource
 import os
 import requests
 import jwt
@@ -1736,6 +1737,24 @@ def line_webhook():
         # Parser exceptions may embed the original webhook text or tokens.
         app.logger.error("LINE webhook parsing failed")
         return 'Error parsing request', 400
+
+    if OPTIONAL_ACCESS.line_help_user_ids:
+        for event in events:
+            if (isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent)
+                    and isinstance(event.source, UserSource)
+                    and event.source.user_id in OPTIONAL_ACCESS.line_help_user_ids
+                    and event.mode == "active" and event.reply_token
+                    and event.message.text.strip() == "幫助"):
+                try:
+                    linebot_manager.reply_message_flex(
+                        event.reply_token,
+                        TextMessage(text="請到 Nomica Web 的新增頁面手動記帳。LINE 目前提供操作說明。"),
+                        raise_on_error=True,
+                    )
+                except Exception:
+                    app.logger.warning("LINE help reply failed")
+                    return 'Reply failed; retry later', 503
+        return 'OK', 200
 
     if not OPTIONAL_ACCESS.line_interactions:
         # Acknowledge valid deliveries without profile calls, persistence or writes.
