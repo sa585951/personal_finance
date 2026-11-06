@@ -2,15 +2,15 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://personal-finance-x1hy.onrender.com/api/:path*"
+      "destination": "https://moneytravel.onrender.com/api/:path*"
     },
     {
       "source": "/line-login-start",
-      "destination": "https://personal-finance-x1hy.onrender.com/line-login-start"
+      "destination": "https://moneytravel.onrender.com/line-login-start"
     },
     {
       "source": "/line-login-callback",
-      "destination": "https://personal-finance-x1hy.onrender.com/line-login-callback"
+      "destination": "https://moneytravel.onrender.com/line-login-callback"
     },
     {
       "source": "/(.*)",
