@@ -1,8 +1,11 @@
 <template>
-  <section class="pending-transaction app-card" role="status" aria-label="待確認交易">
-    <h3>上一筆交易結果尚未確認</h3>
-    <p>已保留原始資料，請勿另外建立相同交易。</p>
-    <dl>
+  <section class="pending-transaction app-card" role="status" :aria-label="panelLabel">
+    <h3>{{ heading }}</h3>
+    <p>{{ explanation }}</p>
+    <dl v-if="details">
+      <div v-for="detail in details" :key="detail.label"><dt>{{ detail.label }}</dt><dd>{{ detail.value }}</dd></div>
+    </dl>
+    <dl v-else>
       <div><dt>項目</dt><dd>{{ payload.item }}</dd></div>
       <div><dt>日期</dt><dd>{{ payload.date }}</dd></div>
       <div><dt>金額</dt><dd>{{ payload.amount }} {{ payload.original_currency || '依原提交幣別' }}</dd></div>
@@ -25,6 +28,10 @@ export default {
   props: {
     payload: { type: Object, required: true },
     message: { type: String, default: '' },
+    panelLabel: { type: String, default: '待確認交易' },
+    heading: { type: String, default: '上一筆交易結果尚未確認' },
+    explanation: { type: String, default: '已保留原始資料，請勿另外建立相同交易。' },
+    details: { type: Array, default: null },
     transactionId: { type: String, default: '' },
     busy: { type: Boolean, default: false },
   },

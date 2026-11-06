@@ -450,12 +450,19 @@ def get_dashboard_overview(current_user_id):
 @app.route("/api/assets", methods=["POST"])
 @token_required
 def add_asset(current_user_id):
+    # Compare the original request owner with the authenticated actor, never grant authority by header.
+    expected_owner = request.headers.get("X-Nomica-Request-Owner")
+    if expected_owner is not None and expected_owner != str(current_user_id):
+        db_session.rollback()
+        return jsonify({"success": False, "code": "REQUEST_OWNER_CHANGED", "message": "登入使用者已變更，本次未建立帳戶。請回原帳號核對紀錄。"}), 409
     data = request.get_json()
-    if not data or not all(k in data for k in ["bank_name", "account_type", "balance"]):
-        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+    if (not isinstance(data, dict) or not all(k in data for k in ["bank_name", "account_type", "balance"])
+            or not isinstance(data.get("client_request_id"), str) or not data["client_request_id"].strip()):
+        db_session.rollback()
+        return jsonify({"success": False, "message": "缺少必要欄位或有效的 client_request_id"}), 400
     
     try:
-        success, message = asset_manager.add_account(
+        created = asset_manager.add_account(
             current_user_id,
             data["bank_name"],
             data["account_type"],
@@ -464,7 +471,11 @@ def add_asset(current_user_id):
             icon_key=data.get("icon_key"),
             color_key=data.get("color_key"),
             credit_card_billing=data.get("credit_card_billing"),
+            client_request_id=data["client_request_id"],
         )
+        success, message = created
+        replayed = getattr(created, "replayed", False)
+        account_id = getattr(created, "account_id", None)
         if success:
             db_session.commit()
         return jsonify({
@@ -472,8 +483,13 @@ def add_asset(current_user_id):
             "message": message,
             "data": {
                 "transaction_id": None,
+                "account_id": str(account_id) if account_id else None,
             },
-        }), 201
+            "replayed": replayed,
+        }), (200 if replayed else 201) if success else 400
+    except IdempotencyConflict as e:
+        db_session.rollback()
+        return jsonify({"success": False, "code": "REQUEST_PAYLOAD_CONFLICT", "message": str(e)}), 409
     except ValueError as e:
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400

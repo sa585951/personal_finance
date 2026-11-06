@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -11,6 +11,7 @@ from .account_movement import record_account_movement
 from .idempotency import IdempotencyManager, money
 from .credit_card_billing import billing_schedule, normalize_billing
 from .schema import (
+    AMOUNT,
     account_adjustments_table,
     account_balance_anchors_table,
     accounts_table,
@@ -101,6 +102,15 @@ DEFAULT_ACCOUNT_APPEARANCE = {
     "investment": ("investment", "teal"),
     "other": ("other", "slate"),
 }
+
+
+class AccountCreationResult(tuple):
+    """Two-value legacy compatibility, with a request-local account identity."""
+    def __new__(cls, success, message, account_id=None, replayed=False):
+        result = super().__new__(cls, (success, message))
+        result.account_id = account_id
+        result.replayed = replayed
+        return result
 
 
 class AssetManager:
@@ -370,6 +380,54 @@ class AssetManager:
         icon_key=None,
         color_key=None,
         credit_card_billing=None,
+        client_request_id=None,
+    ):
+        request = dict(user_id=user_id, bank_name=bank_name, account_type=account_type,
+                       balance=balance, currency=currency, icon_key=icon_key, color_key=color_key,
+                       credit_card_billing=credit_card_billing)
+        if client_request_id is None:
+            with self.db_session.begin_nested():
+                return self._insert_account(**request)
+        owner = self._parse_user_id(user_id)
+        key = self._parse_uuid(client_request_id, "client_request_id")
+        billing = normalize_billing(credit_card_billing)  # Do not re-evaluate today's date on replay.
+        if billing:
+            billing = {name: value.isoformat() if isinstance(value, date) else value
+                       for name, value in billing.items()}
+        canonical = dict(bank_name=bank_name, account_type=self._normalize_account_type(account_type),
+                         balance=self._command_balance(balance),
+                         currency=self._normalize_currency(currency) if currency else None,
+                         icon_key=str(icon_key).strip().lower() if icon_key else None,
+                         color_key=str(color_key).strip().lower() if color_key else None,
+                         credit_card_billing=billing)
+
+        def apply():
+            created = self._insert_account(**request)
+            return {"success": created[0], "message": created[1],
+                    "account_id": str(created.account_id) if created.account_id else None}
+
+        result = IdempotencyManager(self.db_session).execute(owner, 'account.create', key, canonical, apply)
+        return AccountCreationResult(result['success'], result['message'], UUID(result['account_id']), result['replayed'])
+
+    def _command_balance(self, value):
+        amount = self._normalize_balance_value(value)
+        limit = Decimal(10) ** (AMOUNT.precision - AMOUNT.scale)
+        if amount.copy_abs() >= limit:
+            raise ValueError("餘額超過可儲存範圍")
+        if amount != amount.quantize(Decimal(1).scaleb(-AMOUNT.scale)):
+            raise ValueError(f"餘額最多允許{AMOUNT.scale}位小數")
+        return format(amount.normalize(), 'f')
+
+    def _insert_account(
+        self,
+        user_id,
+        bank_name,
+        account_type,
+        balance,
+        currency=None,
+        icon_key=None,
+        color_key=None,
+        credit_card_billing=None,
     ):
         """新增帳戶。"""
         normalized_type = self._normalize_account_type(account_type)
@@ -381,7 +439,7 @@ class AssetManager:
         )
         account_balance = self._normalize_balance_value(balance)
         if account_balance < 0 and not self._allows_negative_balance(normalized_type):
-            return False, "餘額不能為負數"
+            return AccountCreationResult(False, "餘額不能為負數")
 
         parsed_user_id = self._parse_user_id(user_id)
         normalized_currency = self._normalize_currency(currency)
@@ -409,7 +467,7 @@ class AssetManager:
                 source="account_created",
             )
         )
-        return True, "成功新增帳戶"
+        return AccountCreationResult(True, "成功新增帳戶", account_id)
 
     def adjust_asset_balance(self, user_id, account_key, amount_change):
         """調整指定帳戶餘額。"""

@@ -142,6 +142,7 @@
 import apiClient from "../api";
 import AccountForm from "../components/assets/AccountForm.vue";
 import AccountImpactCard from "../components/shared/AccountImpactCard.vue";
+import { openPendingCommand } from "@/utils/pendingFinancialCommand";
 import AppStatePanel from "../components/shared/AppStatePanel.vue";
 import AssetsTable from "../components/assets/AssetsTable.vue";
 import TotalCards from "../components/assets/TotalCards.vue";
@@ -275,8 +276,17 @@ export default {
   created() {
     this.fetchAssets();
     this.fetchRecentTransfers();
+    if (!this.activeAction) this.restorePendingAccountCreate();
   },
   methods: {
+    async restorePendingAccountCreate() {
+      try {
+        const command = await openPendingCommand("account:create");
+        if (command.pending && !this.activeAction) this.activeAction = "account";
+      } catch {
+        // Opening the form shows its recovery error if storage or auth is unavailable.
+      }
+    },
     toggleAction(action) {
       this.activeAction = this.activeAction === action ? null : action;
       if (this.activeAction === "transfer") {

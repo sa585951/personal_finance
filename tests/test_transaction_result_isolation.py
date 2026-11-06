@@ -68,7 +68,7 @@ def test_nontransaction_creation_never_returns_prior_transaction_id(command_db,m
     event=events.record_parse_event(data['a'],'web','Synthetic draft',{},'success',result_type='expense')
     app.db_session.commit()
     if kind=='account':
-        path='/api/assets';body=dict(bank_name='Fresh',account_type='cash',balance=0)
+        path='/api/assets';body=dict(bank_name='Fresh',account_type='cash',balance=0,client_request_id=str(uuid4()))
     else:
         path='/api/budgets';body=dict(month='2026-10',category='伙食',amount=100)
     body.update(parse_event_id=str(event['id']),type='expense')

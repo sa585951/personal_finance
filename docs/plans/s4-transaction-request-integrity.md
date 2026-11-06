@@ -63,3 +63,38 @@ Interfaces：已更新Web daily/trip request → authenticated POST guard → �
    Expected: verified bounded commit，保留branch/worktree，不Push/Merge/PR。
 
 Review Focus Task3：key guard不能被array/object輸入繞過變500；零寫入包含command reservation；internal無key相容仍存在；舊client未更新須明確400而非自動產生key；owner mismatch409不得被missingkey400誤清；所有既有異常測試仍驗證原意圖。
+
+## Task 4: N04 新增帳戶原始意圖與恢復
+
+Spec supplement：使用者已核定新增帳戶／餘額校正沿用必填key、原始意圖核對、未知結果原key重試，部署前同步client；internal無key相容保留。此Task先完成新增帳戶，不重做已完成交易。
+Interfaces：AccountForm／assets新增API → AssetManager.add_account → existing financial_commands(account.create)／account／anchor／billing；pending scope account:create。
+
+1. 真實合成DB/API RED：順序與並行重送只一account+anchor；同key不同名稱／balance／currency／type／billing拒絕409；失敗rollback含command/billing；跨owner分隔；missing/invalidkey400零寫入；internal無key控制。
+   Expected: 現碼同key重複或不支援key，RED。既有schema/帳務語意不變。
+2. 最小使用既有IdempotencyManager與request-local tuple-compatible建立結果，原子新增account/anchor/billing；canonical凍結省略defaults與可序列化有效billing，zero/信用卡負值可用、數值界限在fingerprint前驗證；owner header比對與公開key guard同交易契約。
+   Expected: GREEN，穩定account_id/replayed，不讀共享last_*；不加migration。
+3. Chrome 真Vue/mock API RED→GREEN：連點、auth延遲改欄位、掉回應reload同payload/key、400修改、401/409/500保留、storage/owner失敗零POST、跨scope隔離。最小pending顯示帳戶資料，不偽稱收入支出；新增頁reload可找到待確認帳戶。
+   Expected: shared pending helper原樣沿用，unknown不自動換key；成功後刷新失敗不再新增。
+4. 全Backend、styles/lint/build/完整UI與localhost實際Cookie/API/獨立合成schema的response-loss/reload/SQL核對oneaccount+anchor+billing通過；內部舊呼叫與原錯誤測試仍維持目的。
+   Expected: 所有實跑綠；Provider/production未驗證照實列出。
+5. 更新契約/追蹤，commit/task-done；再依序進Task5校正。兩項完後fresh review，保留branch/worktree，不push/merge/PR。
+   Expected: 範圍明確commit。
+
+Review Focus Task4：billing日期重送不可因今日已變而重算；zero及信用卡負opening balance不能被money()正數規則誤拒；失敗不留半個account/anchor；回放不復活刪除帳戶或覆寫後續餘額；非同步snapshot與owner綁定；相同名稱不同key不猜測去重。
+
+本機驗收：新增 30 個 PostgreSQL/API 案例與 11 個 Chrome 受控案例，後端全量 670 通過，styles/lint/build 與完整 Chrome UI 通過。實際 Cookie/Flask 情境在專用合成 schema 驗證缺 key 400、首次 201 掉回應、重整零 POST、原 key 回放 200 及同帳戶 ID。唯讀 SQL 確認只新增一個帳戶、一個開戶錨點（-30 TWD）、一組帳期、一筆命令，沒有新增交易或 movement，對帳 2/2。部署前仍須同步更新寫入 client。
+
+## Task 5: N04 餘額校正原始意圖與恢復
+
+Interfaces：AssetsTable確認 → AssetsOverview → adjustment API → immutable adjustment／account snapshot／financial_commands(account.adjust)；pending scope account:adjust:<accountId>。
+
+1. 真實DB/API RED同key不同target/reason/note/account、跨session回放、same/different account並行、失敗後commit零副作用與重試、public必填guard、internal無key與既存immutable key控制。
+   Expected: 現碼改target仍回放、不同account並行可能unique失敗，先重現。
+2. 沿用現有append-only adjustment原始欄位核對既存key（以DB Decimal而非序列化float比較），不能從目前balance猜原意；新key用existing command reservation原子包住校正，保持既有account lock/reconciliation；API衝突409，owner與必填key同公開契約。
+   Expected: 原target重試不再次校正、不覆寫後續movement；舊原始資料完整可核對才回放，缺證據則409/保留。
+3. client持久pending、送出前snapshot、owner/scope核對，reload原target重試；UI不再每開dialog新建RAM key；共享pending展示用校正語意，不改交易/轉帳/結算。
+   Expected: 異常/邊界/mock及實際API/SQL通過，unknown不換key。
+4. 全Backend/front檢查/完整UI與實際HTTP DB交叉核對、契約/部署/狀態，commit/task-done；fresh review僅此兩項完整批次，Critical/Important單輪TDD修補。
+   Expected: 無未處理阻擋才標本批完成；仍不宣告S4～S6或正式門檻。
+
+Review Focus Task5：immutable舊原target與目前balance不同不可再套一次；metadata原值不因float失真而誤判；相同key異account串行而非unique500；request原子性與account鎖順序；新登入者不能承接舊pending；校正不計income/expense或重複movement。

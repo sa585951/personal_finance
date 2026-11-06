@@ -64,6 +64,15 @@
 
 `today` 是後端依使用者 timezone 計算排程時採用的日期；`next_due_date_source` 目前為 `estimated` 或 `user_set`。帳期資料不代表本期應繳金額、繳款狀態或逾期判定。
 
+### `POST /api/assets`
+
+公開新增帳戶必須傳 `client_request_id` UUID，並帶上 `bank_name`、`account_type`、`balance`。缺少有效 key 回 400，無帳務寫入。
+
+- 首次成功回 201。相同使用者、key 與原始資料重送回 200，並帶原始 `data.account_id` 和 `replayed: true`。`data.transaction_id` 為 `null`。
+- 相同 key 改用於不同資料回 409 `REQUEST_PAYLOAD_CONFLICT`。已提交資料包含開戶餘額、幣別、樣式及信用卡帳期設定。回放只回傳原結果，保留之後的編輯或刪除。
+- Web 送出前先保存原始資料與 key。結果不明時只以原資料重試。Web 同時傳原使用者的 `X-Nomica-Request-Owner`，若與實際登入者不同，回 409 `REQUEST_OWNER_CHANGED`。
+- 部署前同步更新所有新增帳戶的 client，缺 key 的舊版會收到 400。此變更沿用既有 `financial_commands` schema。
+
 ### `GET /api/assets/:accountId/activity`
 
 使用 page pagination：

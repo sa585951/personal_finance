@@ -1,6 +1,19 @@
 <template>
   <div class="account-form">
-    <form @submit.prevent="addAccount">
+    <p v-if="loading" role="status">讀取待確認帳戶…</p>
+    <p v-else-if="recoveryError" role="alert">{{ recoveryError }}</p>
+    <PendingTransactionRecovery
+      v-else-if="command?.pending"
+      :payload="command.pending.payload"
+      :details="pendingDetails"
+      panel-label="待確認帳戶"
+      heading="帳戶新增結果尚未確認"
+      explanation="已保留原始資料，請勿另外建立相同帳戶。"
+      :message="submitMessage"
+      :busy="submitting"
+      @retry="addAccount"
+    />
+    <form v-else @submit.prevent="addAccount">
       <div class="form-group">
         <label for="bankName">帳戶名稱</label>
         <input
@@ -65,21 +78,23 @@
         v-model:color-key="newAccount.color_key"
       />
 
-      <button type="submit">新增</button>
+      <button type="submit" :disabled="submitting">新增</button>
     </form>
-    <div v-if="submitMessage" class="message">{{ submitMessage }}</div>
+    <div v-if="submitMessage && !command?.pending && !recoveryError" class="message" role="status">{{ submitMessage }}</div>
   </div>
 </template>
 
 <script>
 import apiClient from "../../api";
+import PendingTransactionRecovery from "../shared/PendingTransactionRecovery.vue";
+import { openPendingCommand } from "@/utils/pendingFinancialCommand";
 import AccountAppearancePicker from "./AccountAppearancePicker.vue";
 import CreditCardBillingFields from "./CreditCardBillingFields.vue";
 import { defaultAccountAppearance } from "@/constants/accountAppearance";
 
 export default {
   name: "AccountForm",
-  components: { AccountAppearancePicker, CreditCardBillingFields },
+  components: { AccountAppearancePicker, CreditCardBillingFields, PendingTransactionRecovery },
   data() {
     const defaultAppearance = defaultAccountAppearance("bank");
     return {
@@ -104,12 +119,40 @@ export default {
         { value: "other", label: "其他" },
       ],
       submitMessage: "",
+      recoveryError: "",
+      command: null,
+      loading: true,
+      submitting: false,
     };
+  },
+  computed: {
+    pendingDetails() {
+      const payload = this.command.pending.payload;
+      return [
+        { label: "帳戶", value: payload.bank_name },
+        { label: "類型", value: this.accountTypes.find(type => type.value === payload.account_type)?.label },
+        { label: "餘額", value: `${payload.balance} ${payload.currency}` },
+      ];
+    },
+  },
+  async created() {
+    try {
+      this.command = await openPendingCommand("account:create");
+    } catch {
+      this.recoveryError = "無法讀取待確認帳戶，請先核對紀錄並確認瀏覽器儲存可用。";
+    } finally {
+      this.loading = false;
+    }
   },
   methods: {
     async addAccount() {
+      if (!this.command || this.recoveryError || this.submitting) return;
+      this.submitting = true;
+      this.submitMessage = "";
+      const command = this.command;
+      let requestId;
       try {
-        const payload = {
+        const payload = this.newAccount.account_type === "credit_card" ? this.newAccount : {
           bank_name: this.newAccount.bank_name,
           account_type: this.newAccount.account_type,
           balance: this.newAccount.balance,
@@ -117,14 +160,16 @@ export default {
           icon_key: this.newAccount.icon_key,
           color_key: this.newAccount.color_key,
         };
-        if (this.newAccount.account_type === "credit_card") {
-          payload.credit_card_billing = this.newAccount.credit_card_billing;
-        }
-
-        const response = await apiClient.post(`/api/assets`, payload);
+        const intent = command.pending?.payload ?? JSON.parse(JSON.stringify(payload));
+        await command.verifyOwner();
+        const request = command.prepare(intent);
+        requestId = request.client_request_id;
+        const response = await apiClient.post("/api/assets", request, {
+          headers: { "X-Nomica-Request-Owner": command.ownerId },
+        });
+        if (response.data?.success !== true) throw new Error("結果尚未確認");
+        command.clear(requestId);
         this.submitMessage = response.data.message;
-        if (!response.data.success) return;
-
         this.$emit("account-added");
 
         this.newAccount.bank_name = "";
@@ -133,12 +178,24 @@ export default {
         this.newAccount.currency = "TWD";
         this.newAccount.credit_card_billing = null;
         this.resetAppearance();
-      } catch (err) {
-        if (err.response) {
-          this.submitMessage = `新增失敗：${err.response.data.message}`;
+      } catch (error) {
+        const response = error.response;
+        if (error.ownerChanged || response?.data?.code === "REQUEST_OWNER_CHANGED") {
+          this.recoveryError = "登入使用者已變更，請重新載入頁面後核對帳戶。";
+        } else if (requestId && response?.status === 400) {
+          try {
+            command.clear(requestId);
+            this.submitMessage = response.data?.message || "帳戶未建立，請調整資料後重試。";
+          } catch {
+            this.submitMessage = "無法清除本機待確認狀態，請確認瀏覽器儲存可用。";
+          }
+        } else if (command.pending) {
+          this.submitMessage = response?.data?.message || "結果尚未確認，請以保留的原資料重試。";
         } else {
-          this.submitMessage = "無法連接到後端伺服器。";
+          this.recoveryError = "無法確認登入或保存待確認帳戶，未送出新增請求。";
         }
+      } finally {
+        this.submitting = false;
       }
     },
     resetAppearance() {
