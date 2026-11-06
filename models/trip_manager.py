@@ -91,7 +91,7 @@ class TripManager:
         invite.pop("token_hash", None)
         return invite
 
-    def _ensure_trip_access(self, user_id, trip_id, include_deleted=False):
+    def _ensure_trip_access(self, user_id, trip_id, include_deleted=False, *, for_write=False):
         parsed_user_id = self._parse_user_id(user_id)
         parsed_trip_id = self._parse_uuid(trip_id, "trip_id")
         member_trip_ids = select(trip_members_table.c.trip_id).where(
@@ -109,9 +109,10 @@ class TripManager:
         if not include_deleted:
             conditions.append(trips_table.c.deleted_at.is_(None))
 
-        stmt = select(trips_table).where(
-            *conditions
-        )
+        stmt = select(trips_table).where(*conditions)
+        if for_write:
+            # Keep the trip active through the ledger write; soft-delete/restore updates must wait.
+            stmt = stmt.with_for_update(read=True)
         row = self.db_session.execute(stmt).first()
         if not row:
             raise ValueError("找不到旅行或權限不足")
@@ -199,8 +200,8 @@ class TripManager:
             })
         return trips
 
-    def get_trip(self, user_id, trip_id):
-        trip = self._ensure_trip_access(user_id, trip_id)
+    def get_trip(self, user_id, trip_id, *, for_write=False):
+        trip = self._ensure_trip_access(user_id, trip_id, for_write=for_write)
         members = self._list_trip_members_for_trip(trip["id"])
         parsed_user_id = self._parse_user_id(user_id)
         current_member = next(

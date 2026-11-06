@@ -882,7 +882,7 @@ class BudgetManager:
             return None, None, None
 
         trip_manager = TripManager(self.db_session)
-        trip = trip_manager.get_trip(user_id, parsed_trip_id)
+        trip = trip_manager.get_trip(user_id, parsed_trip_id, for_write=True)
         members = trip["members"]
         if parsed_paid_by_member_id:
             payer = next((member for member in members if member["id"] == str(parsed_paid_by_member_id)), None)
