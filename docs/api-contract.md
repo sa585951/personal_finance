@@ -73,6 +73,12 @@
 - Web 送出前先保存原始資料與 key。結果不明時只以原資料重試。Web 同時傳原使用者的 `X-Nomica-Request-Owner`，若與實際登入者不同，回 409 `REQUEST_OWNER_CHANGED`。
 - 部署前同步更新所有新增帳戶的 client，缺 key 的舊版會收到 400。此變更沿用既有 `financial_commands` schema。
 
+### `PUT /api/assets/:accountId`
+
+可編輯帳戶名稱、類型、樣式和信用卡帳期。傳入既有幣別可正常編輯，變更幣別回 400。
+若含 `balance` 或 `new_balance`（包含零或 `null`），整筆回 400，基本資料與帳務均不寫入。
+舊 client 須將餘額校正改走下列 POST 並傳入 `client_request_id`。
+
 ### `POST /api/assets/:accountId/adjustments`
 
 公開餘額校正必須傳 `client_request_id` UUID、`new_balance`（目標餘額）及 `reason`，可選 `note`。缺少有效 key 或無法儲存的金額／差額回 400，無帳務寫入。

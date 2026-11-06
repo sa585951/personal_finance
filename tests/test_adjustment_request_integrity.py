@@ -203,3 +203,51 @@ def test_unstorable_adjustment_delta_is_definitive_400_and_no_effect(command_db,
     assert response.status_code == 400
     with Session(engine) as session:
         assert account_snapshot(session) == before
+
+
+@pytest.mark.parametrize("legacy_changes", [
+    {"balance": 1200},
+    {"new_balance": 0},
+    {"bank_name": "Do not rename", "balance": 1200},
+    {"bank_name": "Do not rename", "new_balance": None},
+    {"balance": 1200, "new_balance": 1250},
+])
+def test_public_account_edit_rejects_legacy_balance_write_atomically(command_db, monkeypatch, legacy_changes):
+    engine, data = command_db
+    client, headers = asset_client(monkeypatch, engine, data)
+    account_id = data["cash"]
+    command = payload(uuid4(), new_balance=1300)
+    adjustment = send(client, headers, account_id, command)
+    assert adjustment.status_code == 201
+    with Session(engine) as session:
+        before = account_snapshot(session)
+
+    rejected = client.put(f"/api/assets/{account_id}", json=legacy_changes, headers=headers)
+    with Session(engine) as session:
+        assert account_snapshot(session) == before
+    assert rejected.status_code == 400
+    assert "POST /api/assets/:accountId/adjustments" in rejected.json["message"]
+
+    replay = send(client, headers, account_id, command)
+    assert replay.status_code == 200 and replay.json["replayed"] is True
+    assert replay.json["data"]["id"] == adjustment.json["data"]["id"]
+    with Session(engine) as session:
+        assert account_snapshot(session) == before
+
+
+def test_public_account_edit_still_accepts_profile_and_preserves_ledger(command_db, monkeypatch):
+    engine, data = command_db
+    client, headers = asset_client(monkeypatch, engine, data)
+    account_id = data["cash"]
+    with Session(engine) as session:
+        before = account_snapshot(session)
+    edited = client.put(f"/api/assets/{account_id}", json={
+        "bank_name": "Renamed cash", "currency": "TWD", "color_key": "amber",
+    }, headers=headers)
+    assert edited.status_code == 200 and edited.json["success"] is True
+    with Session(engine) as session:
+        account = session.execute(select(accounts_table).where(accounts_table.c.id == account_id)).one()
+        assert (account.name, account.currency, account.color_key, account.balance) == (
+            "Renamed cash", "TWD", "amber", Decimal("1000"),
+        )
+        assert account_snapshot(session)[1:] == before[1:]

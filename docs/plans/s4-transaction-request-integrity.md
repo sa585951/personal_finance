@@ -98,3 +98,11 @@ Interfaces：AssetsTable確認 → AssetsOverview → adjustment API → immutab
    Expected: 無未處理阻擋才標本批完成；仍不宣告S4～S6或正式門檻。
 
 Review Focus Task5：immutable舊原target與目前balance不同不可再套一次；metadata原值不因float失真而誤判；相同key異account串行而非unique500；request原子性與account鎖順序；新登入者不能承接舊pending；校正不計income/expense或重複movement。
+
+## Task 6: N04 公開 PUT 停用餘額寫入
+
+使用者已確認帳戶 PUT 僅編輯基本資料。含 `balance` 或 `new_balance` 的請求整筆回 400，提示使用校正 POST。內部 manager 的相容呼叫保留。
+
+1. 合成 PostgreSQL／Flask RED：先透過校正 POST 設定餘額 1300，再送舊 PUT 要求 1200。測試兩種餘額欄位、混合基本資料、零／null，驗證拒絕後帳戶及財務資料完全一致。
+2. 僅在公開 route 檢查餘額欄位是否存在，拒絕整筆請求。確認基本資料編輯、R07 幣別固定、校正 POST 原 key 回放維持既有行為。
+3. 更新 API 契約與狀態，執行全量回歸並提交。接續 R08 驗證，若重新設定預算需改變既有資料生命週期，先確認產品規則。

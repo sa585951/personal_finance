@@ -259,3 +259,13 @@ a27dcc9（公開交易key必填）。沒有Push／Merge／PR或正式DB升級。
   這些情境只使用本機合成資料與 Session。
   沒有新增 migration。部署前須確認既有 DB revision 並同步更新寫入 client。
   R08 仍依原順序接續，S4.2～S6 的驗收條件維持。
+
+### S4.1 N04 停用舊 PUT 的餘額寫入
+
+舊 `PUT /api/assets/:accountId` 在合成 QA 重現 1200 → 1300 → 1200。最後一次
+是舊 PUT 重送，覆蓋了較新的校正。已依確認規格封住此入口：含 `balance` 或
+`new_balance` 時整筆回 400，提示使用帶 key 的校正 POST。基本資料 PUT 仍可使用。
+合成 DB 測試涵蓋兩種欄位、零／null、混合基本資料、零資料異動與校正 POST 回放。
+現行 Web 已走校正 POST。仍透過 PUT 校正的舊 client 須在部署前更新。
+此變更無 migration。
+全量合成 PostgreSQL 回歸 697 項通過，完整受控 Chrome UI 回歸通過。

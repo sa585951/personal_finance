@@ -500,17 +500,22 @@ def add_asset(current_user_id):
 @token_required
 def update_asset_balance(current_user_id, account_key):
     data = request.get_json()
+    # Reject the whole legacy write so a retry cannot overwrite a newer correction.
+    if isinstance(data, dict) and ("balance" in data or "new_balance" in data):
+        return jsonify({
+            "success": False,
+            "message": "請使用 POST /api/assets/:accountId/adjustments 校正餘額",
+        }), 400
+
     allowed_fields = {
         "bank_name",
         "account_type",
         "currency",
         "icon_key",
         "color_key",
-        "balance",
-        "new_balance",
         "credit_card_billing",
     }
-    if not data or not any(field in data for field in allowed_fields):
+    if not isinstance(data, dict) or allowed_fields.isdisjoint(data):
         return jsonify({"success": False, "message": "缺少可更新欄位"}), 400
 
     try:
