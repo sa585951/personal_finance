@@ -13,6 +13,14 @@ class IdempotencyConflict(ValueError):
     pass
 
 
+class LegacyTransactionRequestConflict(IdempotencyConflict):
+    """A historical key has no trustworthy record of its original intent."""
+    def __init__(self, transaction_id):
+        super().__init__('此舊請求無法驗證原始資料，請先核對既有交易，勿重新建立請求')
+        self.transaction_id = transaction_id
+        self.code = 'LEGACY_REQUEST_UNVERIFIABLE'
+
+
 def money(value):
     try:
         amount = Decimal(str(value))

@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -8,14 +8,16 @@ from sqlalchemy import delete, desc, insert, or_, select, update
 
 from config import DEFAULT_CURRENCY
 from .account_movement import record_account_movement
-from .idempotency import IdempotencyManager, money
+from .idempotency import IdempotencyConflict, IdempotencyManager, money
 from .credit_card_billing import billing_schedule, normalize_billing
 from .schema import (
+    AMOUNT,
     account_adjustments_table,
     account_balance_anchors_table,
     accounts_table,
     categories_table,
     credit_card_billing_profiles_table,
+    financial_commands_table,
     holding_cost_entries_table,
     settlement_account_entries_table,
     settlements_table,
@@ -101,6 +103,15 @@ DEFAULT_ACCOUNT_APPEARANCE = {
     "investment": ("investment", "teal"),
     "other": ("other", "slate"),
 }
+
+
+class AccountCreationResult(tuple):
+    """Two-value legacy compatibility, with a request-local account identity."""
+    def __new__(cls, success, message, account_id=None, replayed=False):
+        result = super().__new__(cls, (success, message))
+        result.account_id = account_id
+        result.replayed = replayed
+        return result
 
 
 class AssetManager:
@@ -370,6 +381,54 @@ class AssetManager:
         icon_key=None,
         color_key=None,
         credit_card_billing=None,
+        client_request_id=None,
+    ):
+        request = dict(user_id=user_id, bank_name=bank_name, account_type=account_type,
+                       balance=balance, currency=currency, icon_key=icon_key, color_key=color_key,
+                       credit_card_billing=credit_card_billing)
+        if client_request_id is None:
+            with self.db_session.begin_nested():
+                return self._insert_account(**request)
+        owner = self._parse_user_id(user_id)
+        key = self._parse_uuid(client_request_id, "client_request_id")
+        billing = normalize_billing(credit_card_billing)  # Do not re-evaluate today's date on replay.
+        if billing:
+            billing = {name: value.isoformat() if isinstance(value, date) else value
+                       for name, value in billing.items()}
+        canonical = dict(bank_name=bank_name, account_type=self._normalize_account_type(account_type),
+                         balance=self._command_balance(balance),
+                         currency=self._normalize_currency(currency) if currency else None,
+                         icon_key=str(icon_key).strip().lower() if icon_key else None,
+                         color_key=str(color_key).strip().lower() if color_key else None,
+                         credit_card_billing=billing)
+
+        def apply():
+            created = self._insert_account(**request)
+            return {"success": created[0], "message": created[1],
+                    "account_id": str(created.account_id) if created.account_id else None}
+
+        result = IdempotencyManager(self.db_session).execute(owner, 'account.create', key, canonical, apply)
+        return AccountCreationResult(result['success'], result['message'], UUID(result['account_id']), result['replayed'])
+
+    def _command_balance(self, value, label="餘額"):
+        amount = self._normalize_balance_value(value)
+        limit = Decimal(10) ** (AMOUNT.precision - AMOUNT.scale)
+        if amount.copy_abs() >= limit:
+            raise ValueError(f"{label}超過可儲存範圍")
+        if amount != amount.quantize(Decimal(1).scaleb(-AMOUNT.scale)):
+            raise ValueError(f"{label}最多允許{AMOUNT.scale}位小數")
+        return format(amount.normalize(), 'f') if amount else '0'
+
+    def _insert_account(
+        self,
+        user_id,
+        bank_name,
+        account_type,
+        balance,
+        currency=None,
+        icon_key=None,
+        color_key=None,
+        credit_card_billing=None,
     ):
         """新增帳戶。"""
         normalized_type = self._normalize_account_type(account_type)
@@ -381,7 +440,7 @@ class AssetManager:
         )
         account_balance = self._normalize_balance_value(balance)
         if account_balance < 0 and not self._allows_negative_balance(normalized_type):
-            return False, "餘額不能為負數"
+            return AccountCreationResult(False, "餘額不能為負數")
 
         parsed_user_id = self._parse_user_id(user_id)
         normalized_currency = self._normalize_currency(currency)
@@ -409,11 +468,12 @@ class AssetManager:
                 source="account_created",
             )
         )
-        return True, "成功新增帳戶"
+        return AccountCreationResult(True, "成功新增帳戶", account_id)
 
     def adjust_asset_balance(self, user_id, account_key, amount_change):
         """調整指定帳戶餘額。"""
-        account = self._get_account(user_id, account_key)
+        # Keep relative corrections atomic with transactions and transfers.
+        account = self._get_account(user_id, account_key, for_update=True)
         if not account:
             raise ValueError("找不到此帳戶或權限不足")
         if not account["track_balance"]:
@@ -458,59 +518,72 @@ class AssetManager:
         """以 append-only Adjustment 校正帳戶餘額快照。"""
         parsed_user_id = self._parse_user_id(user_id)
         parsed_account_id = self._parse_uuid(account_key)
-        parsed_client_request_id = (
-            self._parse_uuid(client_request_id, "client_request_id")
-            if client_request_id
-            else None
-        )
         normalized_reason = str(reason or "").strip()
         if normalized_reason not in ADJUSTMENT_REASONS:
             raise ValueError("餘額校正原因不正確")
         normalized_note = self._normalize_adjustment_note(note)
 
-        if parsed_client_request_id:
-            replayed = self._get_adjustment_by_request_id(parsed_user_id, parsed_client_request_id)
-            if replayed:
-                if replayed["account_id"] != str(parsed_account_id):
-                    raise ValueError("client_request_id 已用於其他帳戶")
-                replayed["replayed"] = True
-                return replayed
+        if client_request_id is None:
+            with self.db_session.begin_nested():
+                return self._insert_balance_adjustment(
+                    parsed_user_id, parsed_account_id, self._normalize_balance_value(new_balance),
+                    normalized_reason, normalized_note, None,
+                )
 
-        account = self._get_account(parsed_user_id, account_key, for_update=True)
+        key = self._parse_uuid(client_request_id, "client_request_id")
+        target = self._command_balance(new_balance)
+        balance_after = Decimal(target)
+        original = self._get_legacy_adjustment_by_request_id(parsed_user_id, key)
+        if original:
+            # Old adjustments are append-only. Compare the original exact target and metadata.
+            if (original["account_id"], original["balance_after"], original["reason"], original["note"]) != (
+                    parsed_account_id, balance_after, normalized_reason, normalized_note):
+                raise IdempotencyConflict("同一請求識別碼不可用於不同校正資料，請先確認原提交結果")
+            return {**self._serialize_adjustment(original), "replayed": True}
+
+        intent = dict(account_id=str(parsed_account_id), new_balance=target,
+                      reason=normalized_reason, note=normalized_note)
+
+        def apply():
+            adjustment = self._insert_balance_adjustment(
+                parsed_user_id, parsed_account_id, balance_after, normalized_reason, normalized_note, key,
+            )
+            return {"success": True, "adjustment": adjustment}
+
+        result = IdempotencyManager(self.db_session).execute(parsed_user_id, "account.adjust", key, intent, apply)
+        return {**result["adjustment"], "replayed": result["replayed"]}
+
+    def _insert_balance_adjustment(self, user_id, account_id, balance_after, reason, note, client_request_id):
+        account = self._get_account(user_id, account_id, for_update=True)
         if not account:
             raise ValueError("找不到此帳戶或權限不足")
         if not account["track_balance"]:
             raise ValueError("此帳戶未啟用餘額追蹤")
 
-        if parsed_client_request_id:
-            replayed = self._get_adjustment_by_request_id(parsed_user_id, parsed_client_request_id)
-            if replayed:
-                if replayed["account_id"] != str(parsed_account_id):
-                    raise ValueError("client_request_id 已用於其他帳戶")
-                replayed["replayed"] = True
-                return replayed
-
         balance_before = Decimal(str(account["balance"] or 0))
-        balance_after = self._normalize_balance_value(new_balance)
         if balance_after < 0 and not self._allows_negative_balance(account):
             raise ValueError("餘額不能為負數")
         amount_delta = balance_after - balance_before
         if amount_delta == 0:
             raise ValueError("新餘額與目前相同，無需校正")
+        if client_request_id is not None:
+            self._command_balance(amount_delta, label="餘額差額")
 
         now = datetime.now(timezone.utc)
-        self._ensure_balance_anchor(account, anchored_at=now)
+        if self._ensure_balance_anchor(account, anchored_at=now):
+            # Reconciliation includes changes strictly after the pre-adjustment anchor.
+            now += timedelta(microseconds=1)
         adjustment_id = self.db_session.execute(
             insert(account_adjustments_table)
             .values(
-                user_id=parsed_user_id,
+                user_id=user_id,
                 account_id=account["id"],
-                client_request_id=parsed_client_request_id,
+                client_request_id=client_request_id,
                 amount_delta=amount_delta,
                 balance_before=balance_before,
                 balance_after=balance_after,
-                reason=normalized_reason,
-                note=normalized_note,
+                reason=reason,
+                note=note,
                 adjusted_at=now,
             )
             .returning(account_adjustments_table.c.id)
@@ -520,7 +593,7 @@ class AssetManager:
             .where(accounts_table.c.id == account["id"])
             .values(balance=balance_after, updated_at=now)
         )
-        adjustment = self._get_adjustment(parsed_user_id, adjustment_id)
+        adjustment = self._get_adjustment(user_id, adjustment_id)
         adjustment["replayed"] = False
         return adjustment
 
@@ -550,7 +623,7 @@ class AssetManager:
             .limit(1)
         ).first()
         if existing_anchor:
-            return
+            return False
         self.db_session.execute(
             insert(account_balance_anchors_table).values(
                 user_id=account["user_id"],
@@ -561,6 +634,7 @@ class AssetManager:
                 anchored_at=anchored_at,
             )
         )
+        return True
 
     def _get_adjustment(self, user_id, adjustment_id):
         row = self.db_session.execute(
@@ -573,14 +647,19 @@ class AssetManager:
             raise ValueError("找不到餘額校正紀錄")
         return self._serialize_adjustment(dict(row._mapping))
 
-    def _get_adjustment_by_request_id(self, user_id, client_request_id):
-        row = self.db_session.execute(
+    def _get_legacy_adjustment_by_request_id(self, user_id, client_request_id):
+        command = select(financial_commands_table.c.id).where(
+            financial_commands_table.c.user_id == user_id,
+            financial_commands_table.c.operation == "account.adjust",
+            financial_commands_table.c.request_id == client_request_id,
+        )
+        return self.db_session.execute(
             select(account_adjustments_table).where(
                 account_adjustments_table.c.user_id == user_id,
                 account_adjustments_table.c.client_request_id == client_request_id,
+                ~command.exists(),
             )
-        ).first()
-        return self._serialize_adjustment(dict(row._mapping)) if row else None
+        ).mappings().first()
 
     def _serialize_adjustment(self, adjustment):
         return {
@@ -602,7 +681,7 @@ class AssetManager:
 
     def update_account(self, user_id, account_key, **changes):
         """更新帳戶基本資料。"""
-        account = self._get_account(user_id, account_key)
+        account = self._get_account(user_id, account_key, for_update=True)
         if not account:
             raise ValueError("找不到此帳戶或權限不足")
 
@@ -630,7 +709,11 @@ class AssetManager:
         )
 
         if "currency" in changes:
-            values["currency"] = self._normalize_currency(changes.get("currency"))
+            currency = self._normalize_currency(changes.get("currency"))
+            # Opening anchors already record the currency, even for a zero balance.
+            if currency != account["currency"]:
+                raise ValueError("帳戶建立後幣別固定，請另建正確幣別的帳戶；原始資料已保留")
+            values["currency"] = currency
 
         appearance_type = values.get("type", account["type"])
         if "icon_key" in changes:
@@ -665,7 +748,7 @@ class AssetManager:
 
     def delete_account(self, user_id, account_key):
         """兩段式刪除帳戶。"""
-        account = self._get_account(user_id, account_key)
+        account = self._get_account(user_id, account_key, for_update=True)
         if not account:
             raise ValueError("找不到要刪除的帳戶或權限不足")
 

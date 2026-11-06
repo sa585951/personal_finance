@@ -57,6 +57,8 @@
         <input
           type="number"
           id="transactionAmount"
+          :min="amountStep"
+          :step="amountStep"
           v-model.number="newTransaction.amount"
           :readonly="lockedReceiptFields"
           required
@@ -192,6 +194,9 @@ export default {
     };
   },
   computed: {
+    amountStep() {
+      return ["USD", "EUR"].includes(this.newTransaction.original_currency) ? "0.01" : "1";
+    },
     isEditing() {
       return Boolean(this.editingTransaction?.id);
     },
@@ -407,6 +412,7 @@ export default {
         });
         this.resetForm();
       } catch (error) {
+        if (error.recoveryHandled) return;
         console.error(this.isEditing ? "更新失敗:" : "新增失敗:", error);
         this.$swal.fire(
           this.isEditing ? "更新失敗" : "新增失敗",

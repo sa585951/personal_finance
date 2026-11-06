@@ -55,3 +55,92 @@ LINE webhook不記錄原始body，parser失敗也不記錄可能包含輸入或t
 後續收尾將同一原則擴至54個AI解析、查詢、旅行管理、配置與分析入口，與前述17個寫入入口共用`_api_operation_error`。未預期錯誤一律rollback、回500並只記操作與例外類型；原有明確業務驗證400／404及配置的資源不存在語意維持。舊版部分入口將DB失敗回400／404，現在改為500，client應視為未知結果並保留原提交識別，而非自動當成資料無效重建請求。
 
 `tests/test_api_error_redaction.py`以Flask API與service邊界故障注入，逐一驗證這54個入口的DB例外、未知例外與驗證錯誤。這不是所有安全面的稽核；Auth/OAuth、framework層例外、provider SDK自身的logging，以及正式log保存政策不在本次API handler驗證範圍。沒有新增migration、改帳務計算或驗證正式部署／真實外部服務。
+
+## S4.1：一般／旅行交易原始請求（2026-11-03）
+
+BudgetManager.add_transaction 的帶 key 呼叫共用既有 financial_commands，operation 為
+`transaction.create`。同一 DB transaction 保存 payload SHA256、原始結果與帳務異動。
+不新增 migration；須先具備 0017 表（目前本地 chain head 0019），未更新任何既有 DB。
+
+Canonical v1 包含日期、項目、金額、type／category、description／merchant、account／
+trip／payer、original currency、顯式 rate 或省略標記、timezone、review status 與有效分攤意圖。
+UUID、Decimal 格式與成員／allocation 順序標準化；不將 parse_event_id 等非帳務輔助資料納入。
+省略的 rate／currency 保留省略語意，不在回放時重新查目前預設／旅行資料。指紋不可改用
+編輯後交易重建；未來改 canonical 必須考慮版本相容，不能自動覆寫已存 hash。
+
+同 key 不同意圖回 409 `REQUEST_PAYLOAD_CONFLICT`。舊 key 沒有原始 command 時回
+409 `LEGACY_REQUEST_UNVERIFIABLE`，`data.transaction_id` 為本人既有交易 ID，含軟刪除；
+需先核對，不能自動換 key、從現值猜指紋或再次寫入。混合舊／新 server 的 unique 衝突
+亦不會替舊交易補造原始意圖。已保存的新 key 回放原結果，不復活刪除紀錄、不再次扣款。
+
+Backend 初批曾保留公開 API 的 optional key 相容；此歷史狀態已由下述公開必填切換取代。日常／旅行持久恢復與本機必填驗收已完成；正式部署同步、其他入口盤點仍未完成，不能宣告全部S4或部署開放。
+LINE draft／QR 走同一 manager；現有草稿／receipt 鎖與原子確認仍保留，公開開關不改。
+新增 22 項真實合成 DB／Flask API 案例，完整後端 617 passed；Auth／Provider 為替身。
+
+## S4.1：Web 原資料恢復與明確核對解除（2026-11-03）
+
+日常與旅行支出在 POST 前使用既有 pendingFinancialCommand，按登入 user 與
+`transaction:daily`／`transaction:trip:<tripId>` 分隔 sessionStorage。原始 payload
+與 UUID 保存成功前不送出；reload 不自動提交，顯示凍結原資料並由使用者明確重試。
+新增前核對目前登入者，登入者變更／儲存不可用時 fail closed。JSON snapshot 脫離
+Vue 巢狀 reactive 資料；舊 view 不能覆寫新意圖，晚到回應只清除相符 request ID。
+
+成功才清除對應 pending；只有「交易 POST 本身確定回400」可解除並修改資料。
+認證 preflight 的400、401／409／500／網路失敗不冒充交易未提交。未確認時保留原
+payload/key；切換模式、返回或reload均不自動換 key。Trip 使用獨立 scope 並檢查
+切換後的 trip ID，避免舊回應清錯範圍。
+
+僅 `LEGACY_REQUEST_UNVERIFIABLE` 且有既有交易 ID 時顯示核對解除控制：
+先顯示 ID，勾選「我已核對既有紀錄」才能點「結束這次待確認請求」。這只清除
+本機 pending，不 POST、不修改／刪除既有交易，也不自動提交新的一筆。下一次新
+意圖仍需另填資料並明確送出。一般409／未知結果沒有此解除捷徑。
+
+25 組 Chrome 真實 Vue／mock API 案例及五尺寸深淺色、長字串、核對按鈕可操作性
+通過；styles／lint／build通過。截圖供目視，不是 golden-image 像素基準。
+另以真實 localhost Chrome→Flask→PostgreSQL（原授權 QA DB 的獨立 schema）驗證
+日常／旅行先實際201提交再丟回應，reload後相同payload/key回200／replayed，
+每個意圖只有一筆交易／一筆movement／一筆command。legacy回409後明確解除零
+額外寫入。獨立SQL：1000－legacy40－daily100－trip100＝760，reconciliation
+1 matched／0 mismatch。Cookie/JWT/session為實際本機路徑，身份為合成建立；未驗真
+OAuth／LINE／Gemini或實機。無新增migration，沒有升級舊scenario／正式DB。
+
+### 審查補強：凍結點擊意圖與POST登入者綁定
+
+旅行驗證後在任何確認／auth await前建立JSON snapshot，後續欄位或編輯模式變更
+不影響此次提交。updated Web的POST另帶 `X-Nomica-Request-Owner`，Backend
+與token/session認證的current_user_id比較，不符409 `REQUEST_OWNER_CHANGED`且
+rollback，不以header選擇／授權另一owner。這封住preflight與POST之間換Cookie的
+競態；舊client省略header仍相容，不冒稱其具備同等保護。
+29組UI及620項Backend通過；真實本機A→B Cookie競態409，B零交易、原帳務不變。
+使用者已核定公開交易key改必填；下述批次已實作，正式部署前仍須同步client。
+
+### 公開交易key必填切換（已核定並本機實作）
+
+POST /api/transactions拒絕missing/null/empty/非字串與invalid UUID key，回400、
+rollback且不產生交易或command reservation。internal manager無key呼叫仍相容，
+不因此宣稱那些呼叫具備重送保證。owner mismatch仍先409。
+新增20個真實DB/API案例（含owner優先與internal控制）；10 regression先RED，
+其他控制通過後修補。原數值、parse event與錯誤遮蔽測試補有效key，維持原意圖。
+最終task-done完整Backend640 passed（60.02s），
+完整29組恢復案例／原UI及styles/lint/build通過。
+實際localhostAPI缺key400，正常daily/trip掉回應重整原key回放與legacy解除、
+A→B Cookie409及獨立SQL回歸通過。部署前須同步所有寫入client、確認實際DBrevision，
+過渡期不開放未更新client寫入。無新migration，未部署、未改正式資料。
+
+公開交易key批次fresh review無新增Critical／Important／Minor。其他公開財務入口
+仍未因此獲得相同保證：新增帳戶double-click已在攔截API的UI診斷觀察到兩次無key
+POST；校正原始payload一致性／預算R08待原序驗收。沒有改這些API的相容行為。
+
+
+### 公開新增帳戶與餘額校正（已核定並本機實作）
+
+`POST /api/assets` 與 `POST /api/assets/:accountId/adjustments` 必須帶有效 UUID
+`client_request_id`。兩個 Web 入口都在寫入前保存登入者、原始資料與 key，收到未知
+結果可重整再用原資料重試。後端驗證登入者、操作與原意圖，確保首次寫入及命令結果
+同時提交。新增帳戶保護 opening anchor 與信用卡帳期。餘額校正保護 Adjustment、
+可能補建的 anchor 與帳戶快照。舊校正可用不可編輯的原始資料核對，回放不再次校正。
+兩個 API 的舊 client 需要在部署前同步更新，內部 manager 保留原無 key 呼叫。
+此批沿用既有 `financial_commands` schema。
+
+舊帳戶首次補建 anchor 時，校正記錄時間必須嚴格晚於 anchor，避免對帳漏算該筆。
+這次修補適用新寫入。正式資料中的歷史同時刻情形尚未查證或回填。

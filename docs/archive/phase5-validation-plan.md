@@ -1,3 +1,5 @@
+> 歷史文件，2026-10-30 封存。描述當時的計畫／進度，不代表目前功能、登入安全或發布資格。現況請依 `docs/product-roadmap.md`、`docs/security-boundary-hardening.md` 與 `docs/deployment-checklist.md`。
+
 # Phase 5 Validation Plan
 
 此階段目標不是繼續堆功能，而是用接近真實出國的情境驗證產品是否真的好用，並判斷哪些功能值得保留、簡化或商品化。

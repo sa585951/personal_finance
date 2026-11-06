@@ -112,8 +112,26 @@
         />
       </section>
 
+      <p v-if="adjustmentError" role="alert">{{ adjustmentError }}</p>
+      <template v-if="adjustmentGroup">
+        <template v-for="(command, accountId) in adjustmentCommands" :key="accountId">
+          <PendingTransactionRecovery
+            v-if="command.pending"
+            :payload="command.pending.payload"
+            :details="adjustmentDetails(accountId, command.pending.payload)"
+            panel-label="待確認校正"
+            heading="餘額校正結果尚未確認"
+            explanation="已保留原始資料，請以原資料核對這次校正。"
+            :message="adjustmentMessages[accountId]"
+            :busy="Boolean(adjustmentBusy[accountId])"
+            @retry="adjustBalance(accountId)"
+          />
+        </template>
+      </template>
+
       <AssetsTable
         :assets="assets"
+        :adjustment-disabled="isAdjustmentDisabled"
         :account-activities="accountActivities"
         :account-activity-loading="accountActivityLoading"
         :account-activity-errors="accountActivityErrors"
@@ -142,12 +160,22 @@
 import apiClient from "../api";
 import AccountForm from "../components/assets/AccountForm.vue";
 import AccountImpactCard from "../components/shared/AccountImpactCard.vue";
+import { openPendingCommand, openPendingCommandGroup } from "@/utils/pendingFinancialCommand";
+import PendingTransactionRecovery from "../components/shared/PendingTransactionRecovery.vue";
 import AppStatePanel from "../components/shared/AppStatePanel.vue";
 import AssetsTable from "../components/assets/AssetsTable.vue";
 import TotalCards from "../components/assets/TotalCards.vue";
 import TransferForm from "../components/assets/TransferForm.vue";
 import TransferHistory from "../components/assets/TransferHistory.vue";
 import { ArrowRight, TrendCharts } from "@element-plus/icons-vue";
+
+const ADJUSTMENT_SCOPE = "account:adjust:";
+const ADJUSTMENT_REASON_LABELS = {
+  statement_reconciliation: "與帳單或實際餘額核對",
+  balance_correction: "修正先前輸入",
+  opening_balance: "補登期初餘額",
+  other: "其他",
+};
 
 export default {
   name: "AssetsOverview",
@@ -156,6 +184,7 @@ export default {
     AccountImpactCard,
     AppStatePanel,
     AssetsTable,
+    PendingTransactionRecovery,
     TotalCards,
     TransferForm,
     TransferHistory,
@@ -177,6 +206,11 @@ export default {
       accountActivityErrors: {},
       accountActivityPagination: {},
       accountActivityRequests: {},
+      adjustmentGroup: null,
+      adjustmentCommands: Object.create(null),
+      adjustmentBusy: Object.create(null),
+      adjustmentMessages: Object.create(null),
+      adjustmentError: "",
     };
   },
   computed: {
@@ -275,8 +309,18 @@ export default {
   created() {
     this.fetchAssets();
     this.fetchRecentTransfers();
+    if (!this.activeAction) this.restorePendingAccountCreate();
+    this.restorePendingAdjustments();
   },
   methods: {
+    async restorePendingAccountCreate() {
+      try {
+        const command = await openPendingCommand("account:create");
+        if (command.pending && !this.activeAction) this.activeAction = "account";
+      } catch {
+        // Opening the form shows its recovery error if storage or auth is unavailable.
+      }
+    },
     toggleAction(action) {
       this.activeAction = this.activeAction === action ? null : action;
       if (this.activeAction === "transfer") {
@@ -470,32 +514,83 @@ export default {
         console.error("刪除失敗", err);
       }
     },
+    async restorePendingAdjustments() {
+      try {
+        const group = await openPendingCommandGroup(ADJUSTMENT_SCOPE);
+        for (const command of group.commands) {
+          this.adjustmentCommands[command.scope.slice(ADJUSTMENT_SCOPE.length)] = command;
+        }
+        this.adjustmentGroup = group;
+      } catch {
+        this.adjustmentError = "無法讀取待確認校正，請核對紀錄並確認登入及瀏覽器儲存可用。";
+      }
+    },
+    isAdjustmentDisabled(accountId) {
+      return !this.adjustmentGroup || Boolean(
+        this.adjustmentBusy[accountId] || this.adjustmentCommands[accountId]?.pending
+      );
+    },
+    adjustmentDetails(accountId, intent) {
+      const account = this.assets[accountId];
+      return [
+        { label: "帳戶", value: account?.bank_name || accountId },
+        { label: "餘額", value: `${intent.new_balance} ${account?.currency || ""}` },
+        { label: "原因", value: ADJUSTMENT_REASON_LABELS[intent.reason] },
+        { label: "備註", value: intent.note || "—" },
+      ];
+    },
     async adjustBalance(accountId, adjustment) {
-      if (!adjustment || adjustment.new_balance === null || adjustment.new_balance === undefined) {
+      if (!this.adjustmentGroup || this.adjustmentBusy[accountId]) return;
+      if (adjustment && this.isAdjustmentDisabled(accountId)) return;
+      this.adjustmentBusy[accountId] = true;
+      this.adjustmentError = "";
+      this.adjustmentMessages[accountId] = "";
+      let command;
+      let requestId;
+      try {
+        if (!this.adjustmentCommands[accountId]) {
+          this.adjustmentCommands[accountId] = this.adjustmentGroup.open(ADJUSTMENT_SCOPE + accountId);
+        }
+        command = this.adjustmentCommands[accountId];
+        // Capture confirmed values before awaiting authentication.
+        const intent = adjustment ? { ...adjustment } : command.pending?.payload;
+        if (!intent) return;
+        await command.verifyOwner();
+        const request = command.prepare(intent);
+        requestId = request.client_request_id;
+        const response = await apiClient.post(`/api/assets/${accountId}/adjustments`, request, {
+          headers: { "X-Nomica-Request-Owner": command.ownerId },
+        });
+        if (response.data?.success !== true) throw new Error("結果尚未確認");
+        command.clear(requestId);
+      } catch (error) {
+        const response = error.response;
+        if (error.ownerChanged || response?.data?.code === "REQUEST_OWNER_CHANGED") {
+          this.adjustmentGroup = null;
+          this.adjustmentError = "登入使用者已變更，請重新載入後核對餘額校正紀錄。";
+        } else if (requestId && response?.status === 400) {
+          try {
+            command.clear(requestId);
+            this.$swal.fire("校正失敗", response.data?.message || "請調整資料後重試。", "error");
+          } catch {
+            this.adjustmentMessages[accountId] = "無法清除本機待確認狀態，請確認瀏覽器儲存可用。";
+          }
+        } else if (command?.pending) {
+          this.adjustmentMessages[accountId] = response?.data?.message || "結果尚未確認，請以保留的原資料重試。";
+        } else {
+          this.adjustmentError = "無法保存待確認校正或確認登入，未送出校正請求。";
+        }
         return;
+      } finally {
+        this.adjustmentBusy[accountId] = false;
       }
 
-      try {
-        const activityRequest = this.accountActivityRequests[accountId] || {
-          page: 1,
-          filter: "all",
-        };
-        await apiClient.post(`/api/assets/${accountId}/adjustments`, adjustment);
-        await this.fetchAssets();
-        await this.fetchAccountActivity(
-          accountId,
-          activityRequest.page || 1,
-          activityRequest.filter || "all"
-        );
-        this.$swal.fire("校正完成", "帳戶餘額已更新，且不會列入收入或支出。", "success");
-      } catch (err) {
-        console.error("校正失敗", err);
-        this.$swal.fire(
-          "校正失敗",
-          err.response?.data?.message || "請稍後再試。",
-          "error"
-        );
+      await this.fetchAssets();
+      if (this.assets[accountId]) {
+        const activity = this.accountActivityRequests[accountId];
+        await this.fetchAccountActivity(accountId, activity?.page || 1, activity?.filter || "all");
       }
+      this.$swal.fire("校正完成", "帳戶餘額已更新，且不會列入收入或支出。", "success");
     },
     async updateAccount(accountId, payload, onComplete) {
       try {

@@ -12,12 +12,12 @@ from tests.test_ai_parse_api import FakeDBSession, _auth_headers, _load_web_app
 from tests.test_financial_command_idempotency import command_db
 
 
-TRANSACTION = dict(date='2026-10-01', item='Lunch', amount=91, type='expense', budget_category='伙食')
+TRANSACTION = dict(date='2026-10-01', item='Lunch', amount=91, type='expense', budget_category='伙食', client_request_id=str(uuid4()))
 TRANSFER = dict(source_id='cash', dest_id='bank', amount=100, client_request_id=str(uuid4()))
 CASES = [
-    ('POST', '/api/assets', dict(bank_name='cash', account_type='cash', balance=100), 'asset_manager', 'add_account', 400),
+    ('POST', '/api/assets', dict(bank_name='cash', account_type='cash', balance=100, client_request_id=str(uuid4())), 'asset_manager', 'add_account', 400),
     ('PUT', '/api/assets/cash', dict(bank_name='Cash'), 'asset_manager', 'update_account', 400),
-    ('POST', '/api/assets/cash/adjustments', dict(new_balance=100, reason='test'), 'asset_manager', 'create_balance_adjustment', 400),
+    ('POST', '/api/assets/cash/adjustments', dict(new_balance=100, reason='test', client_request_id='33333333-3333-3333-3333-333333333333'), 'asset_manager', 'create_balance_adjustment', 400),
     ('DELETE', '/api/assets/cash', {}, 'asset_manager', 'delete_account', 404),
     ('POST', '/api/transfer', TRANSFER, 'asset_manager', 'create_transfer', 400),
     ('PUT', '/api/transfers/transfer-1', TRANSFER, 'asset_manager', 'update_transfer', 400),

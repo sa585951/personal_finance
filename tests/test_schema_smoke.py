@@ -25,6 +25,7 @@ from models.schema import (
 )
 from models.ai_parse_event_manager import AIParseEventManager
 from models.budget_manager import BudgetManager
+from models.idempotency import IdempotencyConflict
 from models.asset_manager import AssetManager
 from models.seed_data import seed_reference_data
 from models.trip_manager import TripManager
@@ -516,8 +517,9 @@ def test_mvp_schema_can_create_core_records():
         replayed_adjustment = asset_manager.create_balance_adjustment(
             user_id,
             source_account_id,
-            Decimal("12000"),
+            Decimal("9900"),
             reason="statement_reconciliation",
+            note="依帳單核對",
             client_request_id=adjustment_request_id,
         )
         assert first_adjustment["replayed"] is False
@@ -917,8 +919,8 @@ def test_transaction_client_request_id_is_idempotent_per_user():
         second_result = manager.add_transaction(
             user_id=first_user["id"],
             date="2026-08-19",
-            item="不同內容仍回放第一筆",
-            amount=Decimal("999"),
+            item="午餐",
+            amount=Decimal("100.0000"),
             transaction_type="expense",
             budget_category="伙食",
             account_id=account_id,
@@ -928,7 +930,13 @@ def test_transaction_client_request_id_is_idempotent_per_user():
         assert first_result[0] is True
         assert second_result[0] is True
         assert manager.last_create_replayed is True
-        assert manager.last_created_transaction_id == first_transaction_id
+        with pytest.raises(IdempotencyConflict):
+            manager.add_transaction(
+                user_id=first_user["id"], date="2026-08-19", item="不同內容不可回放",
+                amount=Decimal("999"), transaction_type="expense", budget_category="伙食",
+                account_id=account_id, client_request_id=client_request_id,
+            )
+        assert second_result.transaction_id == first_transaction_id
         assert connection.execute(
             select(func.count()).select_from(transactions_table).where(
                 transactions_table.c.user_id == first_user["id"]

@@ -1,3 +1,4 @@
+from models.budget_manager import TransactionCreationResult
 import importlib
 import sys
 import uuid
@@ -122,7 +123,7 @@ class FakeBudgetManager:
             "description": description,
             **kwargs,
         }
-        return True, "交易新增成功"
+        return TransactionCreationResult("交易新增成功", self.last_created_transaction_id, self.last_create_replayed)
 
     def get_all_transactions(self, user_id, **kwargs):
         self.last_list_request = {"user_id": user_id, **kwargs}
@@ -847,6 +848,7 @@ def test_add_transaction_confirms_parse_event_when_present(monkeypatch):
             "type": "expense",
             "budget_category": "伙食",
             "description": "AI 套用",
+            "client_request_id": "44444444-4444-4444-4444-444444444444",
             "parse_event_id": "11111111-1111-1111-1111-111111111111",
         },
         headers=_auth_headers(),
@@ -1084,7 +1086,6 @@ def test_update_asset_api_accepts_account_profile_changes(monkeypatch):
             "currency": "TWD",
             "icon_key": "deposit",
             "color_key": "amber",
-            "balance": 30000,
         },
         headers=_auth_headers(),
     )
@@ -1099,7 +1100,6 @@ def test_update_asset_api_accepts_account_profile_changes(monkeypatch):
         "currency": "TWD",
         "icon_key": "deposit",
         "color_key": "amber",
-        "balance": 30000,
     }
     assert fake_db_session.commits == 1
 

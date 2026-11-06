@@ -1,3 +1,4 @@
+from models.budget_manager import TransactionCreationResult
 from models.linebot.message_handler import MessageHandler
 
 
@@ -26,7 +27,7 @@ class FakeBudgetManager:
             "description": description,
             **kwargs,
         }
-        return True, "交易新增成功"
+        return TransactionCreationResult("交易新增成功", None)
 
 
 class FakeAssetManager:

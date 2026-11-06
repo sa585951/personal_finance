@@ -240,13 +240,13 @@ export default {
     },
     monthlyDailyExpense() {
       return this.monthTransactions
-        .filter((transaction) => transaction.type === "expense" && !transaction.trip_id)
+        .filter((transaction) => transaction.type === "expense" && !transaction.trip_id && !transaction.is_trip_share)
         .reduce((sum, transaction) => sum + this.monthlyReportAmount(transaction), 0);
     },
     monthlyTravelExpense() {
       if (!this.includeTripsInHome) return 0;
       return this.monthTransactions
-        .filter((transaction) => transaction.type === "expense" && transaction.trip_id)
+        .filter((transaction) => transaction.type === "expense" && (transaction.trip_id || transaction.is_trip_share))
         .reduce((sum, transaction) => sum + this.monthlyReportAmount(transaction), 0);
     },
     primaryExpenseSource() {
@@ -486,7 +486,7 @@ export default {
         this.fetchAssets(),
         this.fetchBudgetSummary(),
       ]);
-      if (!results[0]) {
+      if (!results[0] && !this.loadError) {
         this.loadError = "無法取得本月收支資料，請確認網路後再試一次。";
       }
       this.isLoading = false;
@@ -501,6 +501,9 @@ export default {
         return true;
       } catch (error) {
         console.error("無法載入首頁資料", error);
+        if (error.response?.data?.code === "REPORT_CURRENCY_UNSUPPORTED") {
+          this.loadError = error.response.data.message;
+        }
         this.transactions = [];
         this.monthlyReportTransactions = [];
         this.trips = [];

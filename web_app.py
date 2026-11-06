@@ -21,7 +21,7 @@ from models.auth_session_manager import AuthSessionManager
 from models.oauth_login_state_manager import OAuthLoginStateManager
 from models.security_settings import load_security_settings
 from models.optional_access import load_optional_access
-from models.budget_manager import BudgetManager
+from models.budget_manager import BudgetManager, ReportCurrencyError
 from models.linebot.manager import LineBotManager
 from models.app_state import AppStateManager
 from models.database import db_session 
@@ -107,6 +107,8 @@ def shutdown_session(exception=None):
 
 def _api_operation_error(error, operation, validation_status=None):
     db_session.rollback()
+    if isinstance(error, ReportCurrencyError):
+        return jsonify({"success": False, "code": "REPORT_CURRENCY_UNSUPPORTED", "message": str(error)}), 400
     if validation_status is not None and isinstance(error, ValueError):
         return jsonify({"success": False, "message": str(error)}), validation_status
     # DB exception strings include SQL and bound financial data. Log only the
@@ -448,12 +450,19 @@ def get_dashboard_overview(current_user_id):
 @app.route("/api/assets", methods=["POST"])
 @token_required
 def add_asset(current_user_id):
+    # Compare the original request owner with the authenticated actor, never grant authority by header.
+    expected_owner = request.headers.get("X-Nomica-Request-Owner")
+    if expected_owner is not None and expected_owner != str(current_user_id):
+        db_session.rollback()
+        return jsonify({"success": False, "code": "REQUEST_OWNER_CHANGED", "message": "登入使用者已變更，本次未建立帳戶。請回原帳號核對紀錄。"}), 409
     data = request.get_json()
-    if not data or not all(k in data for k in ["bank_name", "account_type", "balance"]):
-        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+    if (not isinstance(data, dict) or not all(k in data for k in ["bank_name", "account_type", "balance"])
+            or not isinstance(data.get("client_request_id"), str) or not data["client_request_id"].strip()):
+        db_session.rollback()
+        return jsonify({"success": False, "message": "缺少必要欄位或有效的 client_request_id"}), 400
     
     try:
-        success, message = asset_manager.add_account(
+        created = asset_manager.add_account(
             current_user_id,
             data["bank_name"],
             data["account_type"],
@@ -462,25 +471,25 @@ def add_asset(current_user_id):
             icon_key=data.get("icon_key"),
             color_key=data.get("color_key"),
             credit_card_billing=data.get("credit_card_billing"),
+            client_request_id=data["client_request_id"],
         )
+        success, message = created
+        replayed = getattr(created, "replayed", False)
+        account_id = getattr(created, "account_id", None)
         if success:
-            parse_event_id = data.get("parse_event_id")
-            created_transaction_id = getattr(budget_manager, "last_created_transaction_id", None)
-            if parse_event_id and created_transaction_id:
-                linebot_manager.ai_parse_event_manager.confirm_event(
-                    current_user_id,
-                    parse_event_id,
-                    data["type"],
-                    created_transaction_id,
-                )
             db_session.commit()
         return jsonify({
             "success": success,
             "message": message,
             "data": {
-                "transaction_id": str(getattr(budget_manager, "last_created_transaction_id", "")) or None,
+                "transaction_id": None,
+                "account_id": str(account_id) if account_id else None,
             },
-        }), 201
+            "replayed": replayed,
+        }), (200 if replayed else 201) if success else 400
+    except IdempotencyConflict as e:
+        db_session.rollback()
+        return jsonify({"success": False, "code": "REQUEST_PAYLOAD_CONFLICT", "message": str(e)}), 409
     except ValueError as e:
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
@@ -491,17 +500,22 @@ def add_asset(current_user_id):
 @token_required
 def update_asset_balance(current_user_id, account_key):
     data = request.get_json()
+    # Reject the whole legacy write so a retry cannot overwrite a newer correction.
+    if isinstance(data, dict) and ("balance" in data or "new_balance" in data):
+        return jsonify({
+            "success": False,
+            "message": "請使用 POST /api/assets/:accountId/adjustments 校正餘額",
+        }), 400
+
     allowed_fields = {
         "bank_name",
         "account_type",
         "currency",
         "icon_key",
         "color_key",
-        "balance",
-        "new_balance",
         "credit_card_billing",
     }
-    if not data or not any(field in data for field in allowed_fields):
+    if not isinstance(data, dict) or allowed_fields.isdisjoint(data):
         return jsonify({"success": False, "message": "缺少可更新欄位"}), 400
 
     try:
@@ -552,9 +566,16 @@ def get_asset_adjustments(current_user_id, account_key):
 @app.route("/api/assets/<string:account_key>/adjustments", methods=["POST"])
 @token_required
 def create_asset_adjustment(current_user_id, account_key):
-    data = request.get_json(silent=True) or {}
-    if "new_balance" not in data or not data.get("reason"):
-        return jsonify({"success": False, "message": "缺少新餘額或校正原因"}), 400
+    # A stale tab must not submit its pending adjustment under a different authenticated actor.
+    expected_owner = request.headers.get("X-Nomica-Request-Owner")
+    if expected_owner is not None and expected_owner != str(current_user_id):
+        db_session.rollback()
+        return jsonify({"success": False, "code": "REQUEST_OWNER_CHANGED", "message": "登入使用者已變更，本次未校正餘額。請回原帳號核對紀錄。"}), 409
+    data = request.get_json(silent=True)
+    if (not isinstance(data, dict) or "new_balance" not in data or not data.get("reason")
+            or not isinstance(data.get("client_request_id"), str) or not data["client_request_id"].strip()):
+        db_session.rollback()
+        return jsonify({"success": False, "message": "缺少新餘額、校正原因或有效的 client_request_id"}), 400
 
     try:
         adjustment = asset_manager.create_balance_adjustment(
@@ -563,7 +584,7 @@ def create_asset_adjustment(current_user_id, account_key):
             data["new_balance"],
             reason=data["reason"],
             note=data.get("note"),
-            client_request_id=data.get("client_request_id"),
+            client_request_id=data["client_request_id"],
         )
         db_session.commit()
         replayed = adjustment.pop("replayed", False)
@@ -573,6 +594,9 @@ def create_asset_adjustment(current_user_id, account_key):
             "data": adjustment,
             "replayed": replayed,
         }), 200 if replayed else 201
+    except IdempotencyConflict as e:
+        db_session.rollback()
+        return jsonify({"success": False, "code": "REQUEST_PAYLOAD_CONFLICT", "message": str(e)}), 409
     except ValueError as e:
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
@@ -1386,16 +1410,8 @@ def set_budget(current_user_id):
         success, message = budget_manager.set_budget(
             current_user_id, data["month"], data["category"], data["amount"], data.get("notes", "")
         )
-        created_transaction_id = getattr(budget_manager, "last_created_transaction_id", None)
+        created_transaction_id = None
         if success:
-            parse_event_id = data.get("parse_event_id")
-            if parse_event_id and created_transaction_id:
-                linebot_manager.ai_parse_event_manager.confirm_event(
-                    current_user_id,
-                    parse_event_id,
-                    data["type"],
-                    created_transaction_id,
-                )
             db_session.commit()
         return jsonify({
             "success": success,
@@ -1496,10 +1512,21 @@ def receipt_import(current_user_id, receipt_id=None):
 @app.route("/api/transactions", methods=["POST"])
 @token_required
 def add_transaction(current_user_id):
+    # Bind updated clients' original owner to the authenticated POST itself.
+    # This header never grants authority; a changed cookie/session must fail closed.
+    expected_owner = request.headers.get("X-Nomica-Request-Owner")
+    if expected_owner is not None and expected_owner != str(current_user_id):
+        db_session.rollback()
+        return jsonify({"success": False, "code": "REQUEST_OWNER_CHANGED",
+                        "message": "登入使用者已變更，本次未建立交易。請回到原帳號核對紀錄。"}), 409
     data = request.get_json()
     required_fields = ["date", "item", "amount", "type", "budget_category"]
-    if not data or not all(k in data for k in required_fields):
-        return jsonify({"success": False, "message": "缺少必要欄位"}), 400
+    # Public creates need a client-owned stable key; never manufacture one after a retry.
+    if (not isinstance(data, dict) or not all(k in data for k in required_fields)
+            or not isinstance(data.get("client_request_id"), str)
+            or not data["client_request_id"].strip()):
+        db_session.rollback()
+        return jsonify({"success": False, "message": "缺少必要欄位或有效的 client_request_id"}), 400
 
     try:
         result = get_transaction_service().create_transaction(current_user_id, data)
@@ -1523,6 +1550,13 @@ def add_transaction(current_user_id):
             },
             "replayed": result["replayed"],
         }), 200 if result["replayed"] else 201
+    except IdempotencyConflict as e:
+        db_session.rollback()
+        response = {"success": False, "message": str(e),
+                    "code": getattr(e, "code", "REQUEST_PAYLOAD_CONFLICT")}
+        if getattr(e, "transaction_id", None):
+            response["data"] = {"transaction_id": str(e.transaction_id)}
+        return jsonify(response), 409
     except ValueError as e:
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
@@ -1634,7 +1668,7 @@ def get_income_expense_summary(current_user_id):
     month = request.args.get("month")
     try:
         income, expense = 0, 0
-        transactions = budget_manager.get_all_transactions(current_user_id, monthly_report=True)
+        transactions = budget_manager.get_all_transactions(current_user_id, monthly_report=True, month=month)
         for transaction in transactions:
             if month and not str(transaction.get("date", "")).startswith(month):
                 continue

@@ -68,6 +68,102 @@ async function installMocks(page) {
   return errors;
 }
 
+async function testCurrencyDecimalInputs(browser) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await installMocks(page);
+    await page.goto(`${base.origin}/login`, { waitUntil: 'networkidle' });
+    await page.evaluate(async () => {
+      const { createApp } = await import('/node_modules/.vite/deps/vue.js');
+      const { default: Daily } = await import('/src/components/budgets/TransactionForm.vue');
+      const { default: Trip } = await import('/src/components/trips/TripExpensePanel.vue');
+      const dailyRoot = document.createElement('div'); dailyRoot.id = 'money-daily'; document.body.append(dailyRoot);
+      const tripRoot = document.createElement('div'); tripRoot.id = 'money-trip'; document.body.append(tripRoot);
+      const daily = createApp(Daily, { draft: { currency: 'USD', amount: 1.23, type: 'expense' } }).mount(dailyRoot);
+      const trip = createApp(Trip, { expense: { item: 'Test', amount: 1.23, original_currency: 'USD',
+        exchange_rate: 32, split_mode: 'custom', split_member_ids: ['m'], split_allocations: { m: 1.23 } },
+        members: [{ id: 'm', display_name: 'Test' }] }).mount(tripRoot);
+      window.moneyInputTest = { daily, trip };
+    });
+    await page.waitForFunction(() => window.moneyInputTest.daily.assetsLoaded && window.moneyInputTest.daily.budgetCategoriesLoaded);
+    const daily = page.locator('#money-daily #transactionAmount');
+    const trip = page.locator('#money-trip .expense-form input[type=number]').first();
+    const share = page.locator('#money-trip .custom-split-row input');
+    const valid = async (input, value) => { await input.fill(value); return input.evaluate(el => el.checkValidity()); };
+    assert.deepEqual([await valid(daily, '1.23'), await valid(trip, '0.01'), await valid(share, '1.23')], [true, true, true]);
+    assert.equal(await valid(share, '0'), true);
+    assert.equal(await valid(daily, '0.001'), false);
+    assert.equal(await valid(trip, '-1'), false);
+    assert.equal(await valid(daily, '0'), false);
+    await page.evaluate(() => { window.moneyInputTest.daily.newTransaction.original_currency = 'JPY'; });
+    assert.equal(await valid(daily, '1.23'), false);
+    assert.equal(await valid(daily, '1'), true);
+    await page.evaluate(() => { window.moneyInputTest.daily.newTransaction.original_currency = 'EUR'; });
+    assert.equal(await valid(daily, '0.01'), true);
+  } finally { await context.close(); }
+}
+
+async function testPrivateTripShareClassification(browser) {
+  const page = await browser.newPage();
+  try {
+    await installMocks(page);
+    await page.goto(new URL('/login', base).href);
+    const result = await page.evaluate(async () => {
+      const { default: Home } = await import('/src/views/HomeView.vue');
+      const { default: Analysis } = await import('/src/views/AnalysisView.vue');
+      const transactions = [
+        { type: 'expense', converted_amount: 50 },
+        { type: 'expense', trip_id: 'visible', converted_amount: 200 },
+        { type: 'expense', is_trip_share: true, converted_amount: 500 },
+      ];
+      const home = { monthTransactions: transactions, includeTripsInHome: true,
+        monthlyReportAmount: row => row.converted_amount };
+      const analysis = { transactions, includeTrips: true, tripNameMap: new Map([['visible', 'Visible trip']]),
+        transactionAmount: row => row.converted_amount };
+      return {
+        daily: Home.computed.monthlyDailyExpense.call(home),
+        travel: Home.computed.monthlyTravelExpense.call(home),
+        analysis: Analysis.computed.monthlyTravelExpense.call(analysis),
+        groups: Analysis.computed.monthlyTripRows.call(analysis),
+      };
+    });
+    assert.deepEqual(result, {
+      daily: 50, travel: 700, analysis: 700,
+      groups: [
+        { id: null, name: '已刪除旅行的個人分攤', amount: 500 },
+        { id: 'visible', name: 'Visible trip', amount: 200 },
+      ],
+    });
+    console.log('R11 private travel shares preserve daily/travel classification');
+  } finally { await page.close(); }
+}
+
+async function testReportCurrencyRefusal(browser) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await installMocks(page);
+    const message = '目前個人報表僅支援 TWD；原始資料已保留，請勿直接更改歷史幣別';
+    const reject = route => route.fulfill({ status: 400, json: {
+      success: false, code: 'REPORT_CURRENCY_UNSUPPORTED', message,
+    } });
+    await page.route('**/api/dashboard/overview', reject);
+    await page.route('**/api/transactions*', route => {
+      return new URL(route.request().url()).searchParams.get('monthly_report') === 'true'
+        ? reject(route) : route.fallback();
+    });
+    await page.goto(`${base.origin}/`, { waitUntil: 'networkidle' });
+    const homeHasReason = (await page.locator('body').innerText()).includes(message);
+    await page.goto(`${base.origin}/analysis`, { waitUntil: 'networkidle' });
+    assert((await page.locator('.state-message.error').innerText()).includes(message));
+    const analysisHidesTotals = await page.locator('.summary-card').count() === 0;
+    assert.deepEqual({ homeHasReason, analysisHidesTotals }, { homeHasReason: true, analysisHidesTotals: true });
+  } finally {
+    await context.close();
+  }
+}
+
 async function testUntrustedDialogs(browser) {
   const context = await browser.newContext();
   try {
@@ -165,6 +261,17 @@ async function testDisabledAiKeepsManualEntry(browser) {
     }
     await ready();
     browser = await chromium.launch({ headless: true, ...(process.env.UI_BROWSER_CHANNEL ? { channel: process.env.UI_BROWSER_CHANNEL } : {}) });
+    if (process.env.ADJUSTMENT_RECOVERY_ONLY === 'true') {
+      await require('./test-adjustment-recovery.cjs')(browser, base, installMocks);
+      return;
+    }
+    await testPrivateTripShareClassification(browser);
+    await require('./test-account-recovery.cjs')(browser, base, installMocks);
+    if (process.env.ASSET_RECOVERY_ONLY === 'true') return;
+    await require('./test-adjustment-recovery.cjs')(browser, base, installMocks);
+    await require('./test-transaction-recovery.cjs')(browser, base, installMocks);
+    await testCurrencyDecimalInputs(browser);
+    await testReportCurrencyRefusal(browser);
     await testUntrustedDialogs(browser);
     await testCookieAuthNavigation(browser);
     await testDisabledAiKeepsManualEntry(browser);

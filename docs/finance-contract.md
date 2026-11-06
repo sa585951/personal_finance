@@ -145,6 +145,25 @@ Daily Expense = type=expense、trip_id IS NULL 的 converted_amount
 
 納入金額為該使用者的 `converted_share_amount`，不是 Payment 全額。
 
+### 旅行帳本軟刪除與復原（R11）
+
+軟刪除期間關閉共享帳本和一般交易列表的共享明細。個人月報依既有成員資格與納入偏好，
+保留本人分攤。明細只提供本人日期、分類與 TWD 分攤金額，並以分攤 ID 識別，不提供來源
+帳本或交易 ID、共享備註、商家、付款人或其他旅伴資料。
+
+擁有者復原原帳本後，既有權限與封存狀態依原紀錄生效，個人月報仍只計入同一筆分攤。
+復原不建立交易、不重算歷史匯率，也不重新入帳。訂閱額度與唯讀降級另行規劃。
+
+### V1 個人報表幣別（R04）
+
+V1 個人報表固定為 TWD。交易原幣、旅行結算幣別及個人報表幣別分開解讀：
+原幣 JPY／USD 經交易匯率換成 TWD 的分攤可納入；應納入分攤的 base_currency
+不是 TWD 時，整個請求明確拒絕，不能混加、默默排除或改標籤。
+月份／日期／類型篩選先決定範圍，再驗證幣別；分頁／cursor 不得隱藏異幣。
+未納入、無本人 split、非 active member 或已刪除的資料不造成拒絕。
+一般帳本與旅行原幣仍可查閱；不回填或修改任何歷史交易。
+這不提供歷史報表換匯，亦不要求使用者直接更改歷史幣別來修正報表。
+
 ### 永不納入月報
 
 - Transfer。
@@ -232,3 +251,38 @@ Expected Balance
 ## 實作邊界
 
 M0 已建立共同語言與 characterization tests；M3A 至 M3D 已新增 Anchor、Adjustment、Settlement Account Entry、Transaction／Transfer movement ledger 與 read-only Expected Balance CLI。M3E 已關閉 legacy Goals 執行入口並完成舊 schema 第一輪盤點；保留資料但不再允許產品流程讀寫，詳見 `docs/legacy-schema-inventory.md`。
+
+## R05：編輯交易的歷史匯率
+
+未明確傳入新 exchange_rate，且交易原幣與換算本幣未變時，沿用該交易已儲存的
+歷史匯率，包含改標題、日期或金額；不重新取預設表。顯式新匯率仍按既有驗證
+重算，換幣別則按既有新 pair 規則。旅行 split 與帳戶反轉／套用共用所選匯率。
+
+## R06：換算分攤的尾差
+
+原幣均分的最小單位尾差規則不變。換算後以現行四位小數儲存：交易原幣總額
+乘匯率後 ROUND_HALF_UP 為目標；各既有 share 先向下至四位，再把剩餘 0.0001
+依小數餘數由大到小分配，同餘數依成員 UUID 字串固定排序。
+只分配給既有分攤者，不替未分攤的付款人新增負擔；原幣數額及成員集合不變。
+這是新寫入／明確編輯共用的計算規則，沒有自動回填任何歷史資料。
+
+## R07：帳戶幣別固定
+
+使用者確認 V1 帳戶建立後幣別固定，包含零餘額／尚無後續帳務的帳戶。
+填錯時另建正確幣別帳戶；不重標 opening anchor、movement、交易或餘額。
+同幣別可照常更新名稱等欄位；換幣請求整體拒絕，不執行同次其他欄位／校正。
+
+## R09：成員身份與容量
+
+每個 trip/user 只保存一個 member 身份，包含 removed／soft-deleted；重新加入恢復
+同一 member ID，不抹除歷史。外部旅伴 user_id=NULL，不以同名猜測去重。
+每個 transaction/member 僅能有一個 split。active 成員上限 15，包含 owner、
+登入成員與外部旅伴，所有加入入口共用旅行 row lock 後再計數／新增。
+
+## R06：輸入與儲存邊界
+
+交易金額／自訂 share 必須 finite、可精確表示於既有 Numeric(18,4)；匯率必須
+finite、正值且可精確表示於 Numeric(18,8)。金額仍正數、自訂 share 仍可0。
+超輸入精度／範圍直接拒絕，不交 DB 靜默捨入。計算出的換算額按四位 HALF_UP，
+並在寫入前檢查範圍；這不是新的原幣商業精度規則，旅行既有 minor-unit 限制不變。
+JSON number 契約維持，沒有歷史數值回填。

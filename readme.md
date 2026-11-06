@@ -1,3 +1,5 @@
+> 現行文件入口：[`docs/README.md`](docs/README.md)。本 README 保留部分歷史功能介紹；目前安全、進度與部署限制以文件入口所列現行合約為準。
+
 # Nomica
 
 Nomica 是一個手機優先的個人財務工具，目前整合日常記帳、帳戶、旅行與使用者自行維護的資產配置，協助使用者掌握資金位置與自己制定的配置策略。
@@ -318,11 +320,11 @@ Phase 3 到此先不再擴大旅行頁功能。後續若沒有實測發現阻塞
 
 驗證文件：
 
-- `docs/phase5-validation-plan.md`
+- `docs/archive/phase5-validation-plan.md`
 - `docs/phase5-simulation-test-script.md`
-- `docs/multi-user-login-rollout-plan.md`
+- `docs/archive/multi-user-login-rollout-plan.md`
 - `docs/deployment-checklist.md`
-- `docs/phase5-5-roadmap.md`
+- `docs/archive/phase5-5-roadmap.md`
 
 驗證重點：
 

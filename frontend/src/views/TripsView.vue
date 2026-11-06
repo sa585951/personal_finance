@@ -142,8 +142,19 @@
           @update-new-member="newMember = { ...newMember, ...$event }"
         />
 
+        <p v-if="expenseCommandError && activeSection === 'expense'" role="alert">{{ expenseCommandError }}</p>
+        <PendingTransactionRecovery
+          v-if="expenseCommand?.pending && activeSection === 'expense' && !editingTransactionId"
+          :key="selectedTrip.id"
+          :payload="expenseCommand.pending.payload"
+          :message="expenseMessage"
+          :transaction-id="legacyExpenseId"
+          :busy="submittingExpense"
+          @retry="addTripExpense"
+          @acknowledge="acknowledgeExpensePending"
+        />
         <TripExpensePanel
-          v-if="canCreateTripTransaction"
+          v-if="canCreateTripTransaction && !expenseCommandError && (!expenseCommand?.pending || editingTransactionId)"
           v-show="activeSection === 'expense'"
           :expense="newExpense"
           :quick-currencies="quickCurrencies"
@@ -158,7 +169,7 @@
           :show-member-options="showSplitMemberOptions"
           :show-advanced="showExpenseAdvanced"
           :editing-transaction-id="editingTransactionId || ''"
-          :submitting="submittingExpense"
+          :submitting="submittingExpense || expenseCommandLoading"
           :message="expenseMessage"
           @update-expense="newExpense = { ...newExpense, ...$event }"
           @set-split-mode="setSplitMode"
@@ -246,6 +257,7 @@ import { copyDialogOptions } from "@/utils/safeDialogs";
 import { Calendar, List, Location, Money, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
 import apiClient from "@/api";
 import { openPendingCommand } from '@/utils/pendingFinancialCommand';
+import PendingTransactionRecovery from '@/components/shared/PendingTransactionRecovery.vue';
 import TripExpensePanel from "@/components/trips/TripExpensePanel.vue";
 import TripManagementPanel from "@/components/trips/TripManagementPanel.vue";
 import TripMembersPanel from "@/components/trips/TripMembersPanel.vue";
@@ -264,6 +276,7 @@ import {
 export default {
   name: "TripsView",
   components: {
+    PendingTransactionRecovery,
     Calendar,
     List,
     Location,
@@ -286,6 +299,11 @@ export default {
       loading: true,
       submittingMember: false,
       submittingExpense: false,
+      expenseCommand: null,
+      expenseCommandLoading: true,
+      expenseCommandError: '',
+      legacyExpenseId: '',
+      expenseCommandEpoch: 0,
       submittingInvite: false,
       updatingTripSettings: false,
       showTripSwitcher: false,
@@ -854,6 +872,11 @@ export default {
       this.showTripManagement = false;
       this.normalizeActiveSection();
       this.prepareExpenseDefaults();
+      this.expenseCommand = null;
+      this.legacyExpenseId = '';
+      this.expenseCommandError = '';
+      this.expenseMessage = '';
+      this.restoreExpenseCommand();
       this.memberMessage = "";
       if (this.activeInvite) {
         this.inviteStatusLoaded = true;
@@ -1426,63 +1449,103 @@ export default {
       this.showSplitMemberOptions = false;
       this.prepareExpenseDefaults();
     },
-    async addTripExpense() {
-      if (!this.selectedTrip) return;
-
-      const validationMessage = this.validateTripExpenseForm();
-      if (validationMessage) {
-        this.expenseMessage = validationMessage;
-        return;
-      }
-
-      if (this.shouldConfirmExchangeRate()) {
-        const result = await this.$swal.fire({
-          title: "確認匯率？",
-          text: `${this.newExpense.original_currency} 與 ${this.selectedTrip.base_currency} 不同，但目前匯率為 1。請確認是否仍要送出。`,
-          icon: "warning",
-          showCancelButton: true,
-          confirmButtonText: "仍要送出",
-          cancelButtonText: "返回修改",
-        });
-        if (!result.isConfirmed) return;
-      }
-
-      this.submittingExpense = true;
-      this.expenseMessage = "";
+    async restoreExpenseCommand() {
+      const tripId = this.selectedTrip?.id;
+      const epoch = ++this.expenseCommandEpoch;
+      this.expenseCommandLoading = true;
       try {
-        const payload = this.buildExpensePayload();
-        const response = this.editingTransactionId
-          ? await apiClient.put(`/api/transactions/${this.editingTransactionId}`, payload)
-          : await apiClient.post("/api/transactions", payload);
+        const command = await openPendingCommand(`transaction:trip:${tripId}`);
+        if (this.selectedTrip?.id !== tripId || epoch !== this.expenseCommandEpoch) return;
+        this.expenseCommand = command;
+      } catch {
+        if (this.selectedTrip?.id === tripId && epoch === this.expenseCommandEpoch) {
+          this.expenseCommandError = '無法讀取待確認請求，請先核對紀錄並確認瀏覽器儲存可用。';
+        }
+      } finally {
+        if (this.selectedTrip?.id === tripId && epoch === this.expenseCommandEpoch) this.expenseCommandLoading = false;
+      }
+    },
+    acknowledgeExpensePending() {
+      if (!this.legacyExpenseId || this.submittingExpense || !this.expenseCommand?.pending) return;
+      try {
+        this.expenseCommand.clear();
+        this.legacyExpenseId = '';
+        this.expenseMessage = '';
+        this.resetExpenseForm();
+      } catch { this.expenseCommandError = '無法清除本機待確認狀態；既有交易未被修改，請確認瀏覽器儲存可用。'; }
+    },
+    async addTripExpense() {
+      if (this.submittingExpense || this.expenseCommandLoading || this.expenseCommandError || !this.selectedTrip) return;
+      this.submittingExpense = true;
+      const tripId = this.selectedTrip.id;
+      const editingId = this.editingTransactionId;
+      let command = this.expenseCommand;
+      let sent = false;
+      let requestId;
+      try {
+        let intent;
+        if (editingId || !command?.pending) {
+          const validationMessage = this.validateTripExpenseForm();
+          if (validationMessage) { this.expenseMessage = validationMessage; return; }
+          // Freeze the validated click intent before any confirmation/auth await.
+          intent = JSON.parse(JSON.stringify(this.buildExpensePayload()));
+          if (this.shouldConfirmExchangeRate()) {
+            const result = await this.$swal.fire({
+              title: "確認匯率？",
+              text: `${this.newExpense.original_currency} 與 ${this.selectedTrip.base_currency} 不同，但目前匯率為 1。請確認是否仍要送出。`,
+              icon: "warning", showCancelButton: true, confirmButtonText: "仍要送出", cancelButtonText: "返回修改",
+            });
+            if (!result.isConfirmed) return;
+          }
+        } else {
+          intent = JSON.parse(JSON.stringify(command.pending.payload));
+        }
+        if (this.selectedTrip?.id !== tripId) return;
+        let payload;
+        if (editingId) payload = intent;
+        else {
+          command = command || await openPendingCommand(`transaction:trip:${tripId}`);
+          if (this.selectedTrip?.id !== tripId) return;
+          this.expenseCommand = command;
+          await command.verifyOwner();
+          if (this.selectedTrip?.id !== tripId) return;
+          payload = command.prepare(intent);
+          requestId = payload.client_request_id;
+        }
+        sent = true;
+        const response = editingId
+          ? await apiClient.put(`/api/transactions/${editingId}`, payload)
+          : await apiClient.post('/api/transactions', payload, { headers: { 'X-Nomica-Request-Owner': command.ownerId } });
+        if (response.data?.success !== true) throw new Error('結果尚未確認');
+        if (!editingId) command.clear(requestId);
+        if (this.selectedTrip?.id !== tripId) return;
+        this.legacyExpenseId = '';
         this.expenseMessage = response.data.message;
         this.resetExpenseForm();
-        if (this.activeSection === "split") {
-          await Promise.all([
-            this.fetchTripTransactions(),
-            this.fetchSplitState(),
-            this.fetchAssets(),
-          ]);
+        if (this.activeSection === 'split') {
+          await Promise.all([this.fetchTripTransactions(), this.fetchSplitState(), this.fetchAssets()]);
         } else {
-          await Promise.all([
-            this.fetchTripTransactions(),
-            this.fetchSplitSummary(),
-            this.fetchAssets(),
-          ]);
+          await Promise.all([this.fetchTripTransactions(), this.fetchSplitSummary(), this.fetchAssets()]);
           this.invalidateSplitDetails();
         }
-        if (this.selectedTransactionDetail) {
-          await this.loadTransactionDetail(this.selectedTransactionDetail.id, { force: true });
-        }
-        this.activeSection = "transactions";
+        if (this.selectedTrip?.id !== tripId) return;
+        if (this.selectedTransactionDetail) await this.loadTransactionDetail(this.selectedTransactionDetail.id, { force: true });
+        this.activeSection = 'transactions';
       } catch (error) {
-        this.$swal.fire(
-          this.editingTransactionId ? "更新失敗" : "新增失敗",
-          error.response?.data?.message || "旅行支出儲存失敗，請稍後再試。",
-          "error"
-        );
-      } finally {
-        this.submittingExpense = false;
-      }
+        if (!editingId && sent && error.response?.status === 400) command?.clear(requestId);
+        if (this.selectedTrip?.id !== tripId) return;
+        if (error.ownerChanged || error.response?.data?.code === 'REQUEST_OWNER_CHANGED') {
+          this.expenseCommandError = error.response?.data?.message || error.message;
+        } else if (!editingId && command?.pending) {
+          this.expenseMessage = error.response?.data?.message || '結果尚未確認，請以保留的原資料重試。';
+          this.legacyExpenseId = error.response?.data?.code === 'LEGACY_REQUEST_UNVERIFIABLE'
+            ? String(error.response.data.data?.transaction_id || '') : '';
+        } else if (!editingId && !sent) {
+          this.expenseCommandError = '無法保存待確認請求，未送出交易。請確認瀏覽器儲存可用後重試。';
+        } else {
+          this.$swal.fire(editingId ? '更新失敗' : '新增失敗', error.response?.data?.message || '旅行支出儲存失敗，請稍後再試。', 'error');
+        }
+      } finally { this.submittingExpense = false; }
     },
     validateTripExpenseForm() {
       if (!this.newExpense.paid_by_member_id) {

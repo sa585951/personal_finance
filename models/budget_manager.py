@@ -3,17 +3,20 @@ import binascii
 import json
 from calendar import monthrange
 from datetime import date, datetime, time, timedelta, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal, InvalidOperation
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, delete, func, insert, or_, select, update
+from sqlalchemy import and_, case, delete, func, insert, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
 from config import DEFAULT_CURRENCY
 from .account_movement import record_account_movement
-from .idempotency import IdempotencyManager, money
+from .idempotency import IdempotencyManager, LegacyTransactionRequestConflict, money
 from .schema import (
+    AMOUNT,
+    RATE,
     accounts_table,
     budgets_table,
     categories_table,
@@ -71,6 +74,20 @@ DEFAULT_EXCHANGE_RATES = {
 }
 
 
+class ReportCurrencyError(ValueError):
+    """Expected refusal to aggregate unsupported personal-report currencies."""
+
+
+class TransactionCreationResult(tuple):
+    """Request-local identity while retaining legacy (success, message) unpacking."""
+
+    def __new__(cls, message, transaction_id, replayed=False):
+        result = super().__new__(cls, (True, message))
+        result.transaction_id = transaction_id
+        result.replayed = replayed
+        return result
+
+
 class BudgetManager:
     """管理交易與預算。
 
@@ -96,8 +113,26 @@ class BudgetManager:
         end = start.replace(day=monthrange(start.year, start.month)[1])
         return start, end
 
-    def _normalize_amount(self, amount, field_name="金額"):
-        parsed_amount = Decimal(str(amount))
+    def _normalize_decimal(self, value, field_name, numeric_type=AMOUNT, *, round_to_scale=False):
+        try:
+            parsed = Decimal(str(value))
+            if not parsed.is_finite():
+                raise ValueError(f"{field_name}格式不正確")
+            limit = Decimal(10) ** (numeric_type.precision - numeric_type.scale)
+            if parsed.copy_abs() >= limit:
+                raise ValueError(f"{field_name}超過可儲存範圍")
+            unit = Decimal(1).scaleb(-numeric_type.scale)
+            rounded = parsed.quantize(unit, rounding=ROUND_HALF_UP)
+            if rounded.copy_abs() >= limit:
+                raise ValueError(f"{field_name}超過可儲存範圍")
+            if not round_to_scale and parsed != rounded:
+                raise ValueError(f"{field_name}最多允許{numeric_type.scale}位小數")
+            return rounded if round_to_scale else parsed
+        except (InvalidOperation, TypeError) as exc:
+            raise ValueError(f"{field_name}格式不正確") from exc
+
+    def _normalize_amount(self, amount, field_name="金額", numeric_type=AMOUNT):
+        parsed_amount = self._normalize_decimal(amount, field_name, numeric_type)
         if parsed_amount <= 0:
             raise ValueError(f"{field_name}必須大於0")
         return parsed_amount
@@ -153,7 +188,7 @@ class BudgetManager:
                 accounts_table.c.id == parsed_account_id,
                 accounts_table.c.user_id == user_id,
                 accounts_table.c.deleted_at.is_(None),
-            )
+            ).with_for_update()  # Serialize balance reads with every account writer.
         ).first()
         if not row:
             raise ValueError("找不到付款帳戶或權限不足")
@@ -213,7 +248,16 @@ class BudgetManager:
     def _default_exchange_rate(self, original_currency, base_currency):
         if original_currency == base_currency:
             return Decimal("1")
-        return DEFAULT_EXCHANGE_RATES.get((original_currency, base_currency), Decimal("1"))
+        rate = DEFAULT_EXCHANGE_RATES.get((original_currency, base_currency))
+        if rate is None:
+            # Never reinterpret different currencies as equal when a rate is missing.
+            raise ValueError("缺少跨幣別匯率，請提供 exchange_rate")
+        return rate
+
+    @staticmethod
+    def _require_twd_report_currency(currency):
+        if currency != "TWD":
+            raise ReportCurrencyError("目前個人報表僅支援 TWD，含有非 TWD 金額，無法產生報表；原始資料已保留，請勿直接更改歷史幣別")
 
     def _accessible_trip_ids_for_user(self, user_id):
         return select(trip_members_table.c.trip_id).where(
@@ -312,7 +356,17 @@ class BudgetManager:
         exchange_rate_column = transactions_table.c.exchange_rate
         converted_amount_column = transactions_table.c.converted_amount
         base_currency_column = transactions_table.c.base_currency
+        cursor_created_at_column = transactions_table.c.created_at
+        cursor_id_column = transactions_table.c.id
         if monthly_report:
+            trip_deleted = trips_table.c.deleted_at.isnot(None)
+            cursor_created_at_column = case(
+                (trip_deleted, datetime(1970, 1, 1, tzinfo=timezone.utc)),
+                else_=transactions_table.c.created_at,
+            )
+            cursor_id_column = case(
+                (trip_deleted, transaction_splits_table.c.id), else_=transactions_table.c.id,
+            )
             amount_column = func.coalesce(
                 transaction_splits_table.c.share_amount,
                 transactions_table.c.original_amount,
@@ -378,8 +432,8 @@ class BudgetManager:
             .where(transactions_table.c.deleted_at.is_(None))
             .order_by(
                 transactions_table.c.transaction_date.desc(),
-                transactions_table.c.created_at.desc(),
-                transactions_table.c.id.desc(),
+                cursor_created_at_column.desc(),
+                cursor_id_column.desc(),
             )
         )
         if parsed_trip_id:
@@ -390,7 +444,12 @@ class BudgetManager:
             stmt = stmt.where(transactions_table.c.trip_id == parsed_trip_id)
         elif monthly_report:
             stmt = (
-                stmt.outerjoin(trips_table, transactions_table.c.trip_id == trips_table.c.id)
+                stmt.add_columns(
+                    trip_deleted.label("trip_deleted"),
+                    cursor_created_at_column.label("report_cursor_created_at"),
+                    cursor_id_column.label("report_cursor_id"),
+                )
+                .outerjoin(trips_table, transactions_table.c.trip_id == trips_table.c.id)
                 .outerjoin(
                     trip_members_table,
                     and_(
@@ -416,6 +475,7 @@ class BudgetManager:
                         and_(
                             trip_members_table.c.monthly_report_preference == "include",
                             transaction_splits_table.c.id.isnot(None),
+                            transactions_table.c.type == "expense",
                         ),
                     )
                 )
@@ -430,9 +490,12 @@ class BudgetManager:
                             transactions_table.c.trip_id.is_(None),
                             transactions_table.c.user_id == parsed_user_id,
                         ),
-                        or_(
-                            trips_table.c.owner_user_id == parsed_user_id,
-                            trips_table.c.id.in_(member_trip_ids),
+                        and_(
+                            trips_table.c.deleted_at.is_(None),
+                            or_(
+                                trips_table.c.owner_user_id == parsed_user_id,
+                                trips_table.c.id.in_(member_trip_ids),
+                            ),
                         ),
                     )
                 )
@@ -452,6 +515,16 @@ class BudgetManager:
         if parsed_transaction_date:
             stmt = stmt.where(transactions_table.c.transaction_date == parsed_transaction_date)
 
+        if monthly_report:
+            # Validate the entire filtered report before cursor/limit can hide foreign amounts.
+            report_scope = stmt.order_by(None).subquery()
+            unsupported = self.db_session.execute(
+                select(report_scope.c.base_currency)
+                .where(report_scope.c.base_currency.is_distinct_from("TWD")).limit(1)
+            ).first()
+            if unsupported is not None:
+                self._require_twd_report_currency(unsupported.base_currency)
+
         total_count = None
         if return_pagination:
             count_stmt = select(func.count()).select_from(
@@ -466,12 +539,12 @@ class BudgetManager:
                     transactions_table.c.transaction_date < cursor_date,
                     and_(
                         transactions_table.c.transaction_date == cursor_date,
-                        transactions_table.c.created_at < cursor_created_at,
+                        cursor_created_at_column < cursor_created_at,
                     ),
                     and_(
                         transactions_table.c.transaction_date == cursor_date,
-                        transactions_table.c.created_at == cursor_created_at,
-                        transactions_table.c.id < cursor_id,
+                        cursor_created_at_column == cursor_created_at,
+                        cursor_id_column < cursor_id,
                     ),
                 )
             )
@@ -488,6 +561,29 @@ class BudgetManager:
         transactions = []
         for row in rows:
             transaction = dict(row._mapping)
+            if monthly_report:
+                self._require_twd_report_currency(transaction["base_currency"])
+                trip_deleted = transaction.pop("trip_deleted")
+                transaction.pop("report_cursor_created_at")
+                report_id = transaction.pop("report_cursor_id")
+                if trip_deleted:
+                    # A deleted shared ledger grants access only to the caller's report share.
+                    amount = float(transaction["converted_amount"])
+                    transactions.append({
+                        "id": str(report_id),
+                        "is_trip_share": True,
+                        "date": transaction["date"].isoformat(),
+                        "type": "expense",
+                        "category": transaction["budget_category"],
+                        "budget_category": transaction["budget_category"],
+                        "amount": amount,
+                        "converted_amount": amount,
+                        "currency": "TWD",
+                        "base_currency": "TWD",
+                        "can_edit": False,
+                        "can_delete": False,
+                    })
+                    continue
             transaction["id"] = str(transaction["id"])
             if parsed_trip_id and current_trip_member:
                 can_manage = (
@@ -528,8 +624,8 @@ class BudgetManager:
             last_row = rows[-1]._mapping
             next_cursor = self._encode_transaction_cursor(
                 last_row["date"],
-                last_row["created_at"],
-                last_row["id"],
+                last_row["report_cursor_created_at" if monthly_report else "created_at"],
+                last_row["report_cursor_id" if monthly_report else "id"],
             )
         return {
             "items": transactions,
@@ -786,7 +882,7 @@ class BudgetManager:
             return None, None, None
 
         trip_manager = TripManager(self.db_session)
-        trip = trip_manager.get_trip(user_id, parsed_trip_id)
+        trip = trip_manager.get_trip(user_id, parsed_trip_id, for_write=True)
         members = trip["members"]
         if parsed_paid_by_member_id:
             payer = next((member for member in members if member["id"] == str(parsed_paid_by_member_id)), None)
@@ -821,22 +917,115 @@ class BudgetManager:
         review_status="confirmed",
         client_request_id=None,
     ):
+        """Bind an original request intent and its result atomically to the ledger write."""
+        self.last_created_transaction_id = None
+        self.last_create_replayed = False
+        request = dict(
+            user_id=user_id,
+            date=date,
+            item=item,
+            amount=amount,
+            transaction_type=transaction_type,
+            budget_category=budget_category,
+            description=description,
+            account_id=account_id,
+            trip_id=trip_id,
+            paid_by_member_id=paid_by_member_id,
+            merchant=merchant,
+            original_currency=original_currency,
+            exchange_rate=exchange_rate,
+            timezone_name=timezone_name,
+            split_member_ids=split_member_ids,
+            split_allocations=split_allocations,
+            review_status=review_status,
+            client_request_id=client_request_id,
+        )
+        owner = self._parse_user_id(user_id)
+        key = self._parse_optional_uuid(client_request_id, "client_request_id")
+        if key is None:
+            return self._insert_transaction(**request)
+        canonical = self._canonical_transaction_request(request)
+
+        def apply():
+            existing_id = self.db_session.execute(select(transactions_table.c.id).where(
+                transactions_table.c.user_id == owner,
+                transactions_table.c.client_request_id == key,
+            )).scalar_one_or_none()
+            # Never infer the original intent from a row that may have been edited.
+            if existing_id:
+                raise LegacyTransactionRequestConflict(existing_id)
+            created = self._insert_transaction(**request)
+            return {"success": created[0], "message": created[1],
+                    "transaction_id": str(created.transaction_id)}
+
+        result = IdempotencyManager(self.db_session).execute(
+            owner, "transaction.create", key, canonical, apply,
+        )
+        transaction_id = UUID(result["transaction_id"])
+        self.last_created_transaction_id = transaction_id
+        self.last_create_replayed = result["replayed"]
+        return TransactionCreationResult(result["message"], transaction_id, replayed=result["replayed"])
+
+    def _canonical_transaction_request(self, request):
+        # Freeze supplied intent, including omitted defaults, before looking at mutable DB state.
+        canonical = {name: request[name] for name in (
+            "item", "transaction_type", "budget_category", "description", "merchant",
+            "timezone_name", "review_status",
+        )}
+        canonical["date"] = self._parse_date(request["date"]).isoformat()
+        canonical["amount"] = format(self._normalize_amount(request["amount"]).normalize(), "f")
+        canonical["original_currency"] = request["original_currency"] or None
+        rate = request["exchange_rate"]
+        canonical["exchange_rate"] = (None if rate is None else
+            format(self._normalize_amount(rate, "exchange_rate ", RATE).normalize(), "f"))
+        for name in ("account_id", "trip_id", "paid_by_member_id"):
+            value = self._parse_optional_uuid(request[name], name)
+            canonical[name] = str(value) if value else None
+        if request["split_allocations"]:
+            allocations = []
+            for allocation in request["split_allocations"]:
+                member = self._parse_optional_uuid(allocation.get("trip_member_id"), "trip_member_id")
+                amount = self._normalize_decimal(allocation.get("amount", "0"), "分攤金額")
+                if amount < 0:
+                    raise ValueError("分攤金額不可為負數")
+                if member and amount > 0:
+                    allocations.append({"trip_member_id": str(member), "amount": format(amount.normalize(), "f")})
+            canonical["split_allocations"] = sorted(allocations, key=lambda row: row["trip_member_id"])
+            canonical["split_member_ids"] = None
+        else:
+            members = [self._parse_optional_uuid(member, "split_member_id")
+                       for member in (request["split_member_ids"] or [])]
+            canonical["split_member_ids"] = sorted({str(member) for member in members if member})
+            canonical["split_allocations"] = None
+        return canonical
+
+    def _insert_transaction(
+        self,
+        user_id,
+        date,
+        item,
+        amount,
+        transaction_type,
+        budget_category,
+        description="",
+        account_id=None,
+        trip_id=None,
+        paid_by_member_id=None,
+        merchant=None,
+        original_currency=None,
+        exchange_rate=None,
+        timezone_name="Asia/Taipei",
+        split_member_ids=None,
+        split_allocations=None,
+        review_status="confirmed",
+        client_request_id=None,
+    ):
         """新增一筆交易紀錄。"""
+        # Legacy compatibility only; production consumers use the returned result.
         self.last_created_transaction_id = None
         self.last_create_replayed = False
         parsed_user_id = self._parse_user_id(user_id)
         parsed_client_request_id = self._parse_optional_uuid(client_request_id, "client_request_id")
-        if parsed_client_request_id:
-            replayed_id = self.db_session.execute(
-                select(transactions_table.c.id).where(
-                    transactions_table.c.user_id == parsed_user_id,
-                    transactions_table.c.client_request_id == parsed_client_request_id,
-                )
-            ).scalar_one_or_none()
-            if replayed_id:
-                self.last_created_transaction_id = replayed_id
-                self.last_create_replayed = True
-                return True, "交易已建立"
         parsed_amount = self._normalize_amount(amount)
         if transaction_type not in {"expense", "income"}:
             raise ValueError("交易類型僅支援 expense 或 income")
@@ -854,16 +1043,12 @@ class BudgetManager:
             raise ValueError("目前角色不可新增旅行交易")
         transaction_currency = original_currency or (trip["default_currency"] if trip else DEFAULT_CURRENCY)
         base_currency = trip["base_currency"] if trip else DEFAULT_CURRENCY
-        parsed_exchange_rate = Decimal(
-            str(
-                exchange_rate
-                if exchange_rate is not None
-                else self._default_exchange_rate(transaction_currency, base_currency)
-            )
+        rate_value = (exchange_rate if exchange_rate is not None
+                      else self._default_exchange_rate(transaction_currency, base_currency))
+        parsed_exchange_rate = self._normalize_amount(rate_value, "exchange_rate ", RATE)
+        converted_amount = self._normalize_decimal(
+            parsed_amount * parsed_exchange_rate, "換算金額", round_to_scale=True,
         )
-        if parsed_exchange_rate <= 0:
-            raise ValueError("exchange_rate 必須大於0")
-        converted_amount = parsed_amount * parsed_exchange_rate
         if parsed_trip_id and account_id:
             payer = next(
                 (member for member in trip["members"] if member["id"] == str(parsed_paid_by_member_id)),
@@ -957,11 +1142,32 @@ class BudgetManager:
                     transactions_table.c.client_request_id == parsed_client_request_id,
                 )
             ).scalar_one()
-            self.last_created_transaction_id = replayed_id
-            self.last_create_replayed = True
-            return True, "交易已建立"
+            raise LegacyTransactionRequestConflict(replayed_id) from exc
 
-        return True, "交易新增成功"
+        return TransactionCreationResult("交易新增成功", transaction_id)
+
+    def _same_split_request(self, transaction_id, payer_id, member_ids, allocations):
+        """Identify an unchanged split intent without revaluing historical shares."""
+        rows = self.db_session.execute(select(transaction_splits_table).where(
+            transaction_splits_table.c.transaction_id == transaction_id,
+        )).mappings().all()
+        if allocations:
+            requested = []
+            for allocation in allocations:
+                member = self._parse_optional_uuid(allocation.get("trip_member_id"), "trip_member_id")
+                amount = self._normalize_decimal(allocation.get("amount", "0"), "分攤金額")
+                if amount < 0:
+                    raise ValueError("分攤金額不可為負數")
+                if member and amount > 0:
+                    requested.append((member, amount))
+            return (bool(requested) and len(requested) == len(set(m for m, _ in requested))
+                    and all(row["split_method"] == "custom" for row in rows)
+                    and dict(requested) == {row["trip_member_id"]: row["share_amount"] for row in rows})
+        requested = {self._parse_optional_uuid(member, "split_member_id") for member in (member_ids or [])}
+        requested.discard(None)
+        requested.add(payer_id)
+        return (all(row["split_method"] == "equal" for row in rows)
+                and requested == {row["trip_member_id"] for row in rows})
 
     def update_transaction(
         self,
@@ -996,7 +1202,7 @@ class BudgetManager:
             select(transactions_table).where(
                 transactions_table.c.id == parsed_transaction_id,
                 transactions_table.c.deleted_at.is_(None),
-            )
+            ).with_for_update()  # Read the latest transaction before reversing it.
         ).first()
         if not existing_row:
             raise ValueError("找不到要更新的交易或權限不足")
@@ -1018,16 +1224,31 @@ class BudgetManager:
 
         transaction_currency = original_currency or existing["original_currency"]
         base_currency = trip["base_currency"] if trip else existing["base_currency"]
-        parsed_exchange_rate = Decimal(
-            str(
-                exchange_rate
-                if exchange_rate is not None
-                else self._default_exchange_rate(transaction_currency, base_currency)
-            )
+        # Omitted rates must not reinterpret an unchanged historical currency pair.
+        if (exchange_rate is None and transaction_currency == existing["original_currency"]
+                and base_currency == existing["base_currency"]):
+            exchange_rate = existing["exchange_rate"]
+        rate_value = (exchange_rate if exchange_rate is not None
+                      else self._default_exchange_rate(transaction_currency, base_currency))
+        parsed_exchange_rate = self._normalize_amount(rate_value, "exchange_rate ", RATE)
+        preserve_financials = (
+            parsed_amount == existing["original_amount"]
+            and transaction_currency == existing["original_currency"]
+            and base_currency == existing["base_currency"]
+            and parsed_exchange_rate == existing["exchange_rate"]
+            and transaction_type == existing["type"]
+            and parsed_paid_by_member_id == existing["paid_by_member_id"]
+            and self._parse_optional_uuid(account_id, "account_id") == existing["account_id"]
         )
-        if parsed_exchange_rate <= 0:
-            raise ValueError("exchange_rate 必須大於0")
-        converted_amount = parsed_amount * parsed_exchange_rate
+        if preserve_financials and parsed_trip_id and transaction_type == "expense":
+            preserve_financials = self._same_split_request(
+                parsed_transaction_id, parsed_paid_by_member_id, split_member_ids, split_allocations,
+            )
+        # Stored rate and value may have been rounded independently by older versions.
+        # A metadata edit must preserve those values, not silently repair history.
+        converted_amount = (existing["converted_amount"] if preserve_financials else self._normalize_decimal(
+            parsed_amount * parsed_exchange_rate, "換算金額", round_to_scale=True,
+        ))
         movement_at = datetime.now(timezone.utc)
 
         if parsed_trip_id and account_id:
@@ -1039,6 +1260,10 @@ class BudgetManager:
                 raise ValueError("只有自己付款時才可連動自己的帳戶")
 
         with self.db_session.begin_nested():
+            # Match Transfer's UUID order to avoid opposite-account edit deadlocks.
+            for key in sorted({str(self._parse_optional_uuid(key, "account_id"))
+                               for key in (existing["account_id"], account_id) if key}):
+                self._get_account_for_balance_update(parsed_user_id, key)
             old_account = self._get_account_for_balance_update(parsed_user_id, existing["account_id"])
             if old_account:
                 old_account_amount = self._resolve_account_delta_amount(
@@ -1098,35 +1323,36 @@ class BudgetManager:
                 )
             )
 
-            self.db_session.execute(
-                delete(transaction_splits_table).where(
-                    transaction_splits_table.c.transaction_id == parsed_transaction_id
+            if not preserve_financials:
+                self.db_session.execute(
+                    delete(transaction_splits_table).where(
+                        transaction_splits_table.c.transaction_id == parsed_transaction_id
+                    )
                 )
-            )
-            if parsed_trip_id and transaction_type == "expense":
-                if not split_allocations and not split_member_ids and parsed_paid_by_member_id:
-                    split_member_ids = [str(parsed_paid_by_member_id)]
-                if split_allocations:
-                    self.add_custom_splits(
-                        transaction_id=parsed_transaction_id,
-                        trip_id=parsed_trip_id,
-                        split_allocations=split_allocations,
-                        original_amount=parsed_amount,
-                        original_currency=transaction_currency,
-                        exchange_rate=parsed_exchange_rate,
-                        base_currency=base_currency,
-                    )
-                elif split_member_ids:
-                    self.add_equal_splits(
-                        transaction_id=parsed_transaction_id,
-                        trip_id=parsed_trip_id,
-                        payer_member_id=parsed_paid_by_member_id,
-                        split_member_ids=split_member_ids,
-                        original_amount=parsed_amount,
-                        original_currency=transaction_currency,
-                        exchange_rate=parsed_exchange_rate,
-                        base_currency=base_currency,
-                    )
+                if parsed_trip_id and transaction_type == "expense":
+                    if not split_allocations and not split_member_ids and parsed_paid_by_member_id:
+                        split_member_ids = [str(parsed_paid_by_member_id)]
+                    if split_allocations:
+                        self.add_custom_splits(
+                            transaction_id=parsed_transaction_id,
+                            trip_id=parsed_trip_id,
+                            split_allocations=split_allocations,
+                            original_amount=parsed_amount,
+                            original_currency=transaction_currency,
+                            exchange_rate=parsed_exchange_rate,
+                            base_currency=base_currency,
+                        )
+                    elif split_member_ids:
+                        self.add_equal_splits(
+                            transaction_id=parsed_transaction_id,
+                            trip_id=parsed_trip_id,
+                            payer_member_id=parsed_paid_by_member_id,
+                            split_member_ids=split_member_ids,
+                            original_amount=parsed_amount,
+                            original_currency=transaction_currency,
+                            exchange_rate=parsed_exchange_rate,
+                            base_currency=base_currency,
+                        )
 
         return True, "交易更新成功"
 
@@ -1192,6 +1418,7 @@ class BudgetManager:
                 }
             )
 
+        self._allocate_converted_split_remainder(split_rows, original_amount, exchange_rate)
         self.db_session.execute(insert(transaction_splits_table), split_rows)
 
     def add_custom_splits(
@@ -1208,7 +1435,7 @@ class BudgetManager:
         allocations = []
         for allocation in split_allocations:
             member_id = self._parse_optional_uuid(allocation.get("trip_member_id"), "trip_member_id")
-            share_amount = Decimal(str(allocation.get("amount", "0")))
+            share_amount = self._normalize_decimal(allocation.get("amount", "0"), "分攤金額")
             if share_amount < 0:
                 raise ValueError("分攤金額不可為負數")
             allocations.append({"member_id": member_id, "share_amount": share_amount})
@@ -1264,7 +1491,24 @@ class BudgetManager:
                 }
             )
 
+        self._allocate_converted_split_remainder(split_rows, original_amount, exchange_rate)
         self.db_session.execute(insert(transaction_splits_table), split_rows)
+
+    @staticmethod
+    def _allocate_converted_split_remainder(rows, original_amount, exchange_rate):
+        # Match Numeric(18, 4) once for the total, then preserve that total across shares.
+        step = Decimal("0.0001")
+        target = (original_amount * exchange_rate).quantize(step, rounding=ROUND_HALF_UP)
+        raw = [row["converted_share_amount"] for row in rows]
+        rounded = [amount.quantize(step, rounding=ROUND_DOWN) for amount in raw]
+        remaining = int((target - sum(rounded)) / step)
+        ranked = sorted(range(len(rows)), key=lambda i: (
+            -(raw[i] - rounded[i]), str(rows[i]["trip_member_id"]),
+        ))
+        for i in ranked[:remaining]:
+            rounded[i] += step
+        for row, amount in zip(rows, rounded):
+            row["converted_share_amount"] = amount
 
     def _amount_to_minor_units(self, amount, scale, field_name):
         decimal_units = amount / scale
@@ -1769,7 +2013,7 @@ class BudgetManager:
             ).where(
                 transactions_table.c.id == parsed_transaction_id,
                 transactions_table.c.deleted_at.is_(None),
-            )
+            ).with_for_update()  # A competing delete must not reverse the same row twice.
         ).first()
         if not transaction:
             raise ValueError("找不到要刪除的交易或權限不足")
@@ -1845,35 +2089,34 @@ class BudgetManager:
         period_start, period_end = self._month_range(month)
         category_id = self._get_category_id(parsed_user_id, category, "expense")
 
-        existing_stmt = select(budgets_table.c.id).where(
-            budgets_table.c.user_id == parsed_user_id,
-            budgets_table.c.scope == "monthly",
-            budgets_table.c.trip_id.is_(None),
-            budgets_table.c.category_id == category_id,
-            budgets_table.c.period_start == period_start,
-            budgets_table.c.period_end == period_end,
-            budgets_table.c.deleted_at.is_(None),
+        stmt = pg_insert(budgets_table).values(
+            user_id=parsed_user_id,
+            scope="monthly",
+            period_start=period_start,
+            period_end=period_end,
+            category_id=category_id,
+            amount=parsed_amount,
+            currency=DEFAULT_CURRENCY,
+            notes=notes,
         )
-        budget_id = self.db_session.execute(existing_stmt).scalar_one_or_none()
-        if budget_id:
-            self.db_session.execute(
-                update(budgets_table)
-                .where(budgets_table.c.id == budget_id)
-                .values(amount=parsed_amount, notes=notes, updated_at=datetime.now(timezone.utc))
-            )
-        else:
-            self.db_session.execute(
-                insert(budgets_table).values(
-                    user_id=parsed_user_id,
-                    scope="monthly",
-                    period_start=period_start,
-                    period_end=period_end,
-                    category_id=category_id,
-                    amount=parsed_amount,
-                    currency=DEFAULT_CURRENCY,
-                    notes=notes,
-                )
-            )
+        # The existing partial unique index also covers soft-deleted budgets.
+        self.db_session.execute(stmt.on_conflict_do_update(
+            index_elements=[
+                budgets_table.c.user_id,
+                budgets_table.c.scope,
+                budgets_table.c.period_start,
+                budgets_table.c.period_end,
+                budgets_table.c.category_id,
+            ],
+            index_where=budgets_table.c.trip_id.is_(None) & budgets_table.c.category_id.isnot(None),
+            set_={
+                "amount": stmt.excluded.amount,
+                "notes": stmt.excluded.notes,
+                "deleted_at": None,
+                "purge_after": None,
+                "updated_at": datetime.now(timezone.utc),
+            },
+        ))
 
         return True, "預算設定成功"
 
@@ -1952,7 +2195,7 @@ class BudgetManager:
         parsed_user_id = self._parse_user_id(user_id)
         period_start, period_end = self._month_range(year_month)
         daily_stmt = (
-            select(categories_table.c.name, func.sum(transactions_table.c.converted_amount).label("total_spent"))
+            select(categories_table.c.name, transactions_table.c.base_currency, func.sum(transactions_table.c.converted_amount).label("total_spent"))
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
             .where(
                 transactions_table.c.user_id == parsed_user_id,
@@ -1962,13 +2205,17 @@ class BudgetManager:
                 transactions_table.c.transaction_date >= period_start,
                 transactions_table.c.transaction_date <= period_end,
             )
-            .group_by(categories_table.c.name)
+            .group_by(categories_table.c.name, transactions_table.c.base_currency)
         )
-        totals = {row.name: row.total_spent for row in self.db_session.execute(daily_stmt)}
+        totals = {}
+        for row in self.db_session.execute(daily_stmt):
+            self._require_twd_report_currency(row.base_currency)
+            totals[row.name] = row.total_spent
 
         trip_stmt = (
             select(
                 categories_table.c.name,
+                transaction_splits_table.c.base_currency,
                 func.sum(transaction_splits_table.c.converted_share_amount).label("total_spent"),
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
@@ -1985,9 +2232,10 @@ class BudgetManager:
                 transactions_table.c.transaction_date >= period_start,
                 transactions_table.c.transaction_date <= period_end,
             )
-            .group_by(categories_table.c.name)
+            .group_by(categories_table.c.name, transaction_splits_table.c.base_currency)
         )
         for row in self.db_session.execute(trip_stmt):
+            self._require_twd_report_currency(row.base_currency)
             totals[row.name] = totals.get(row.name, Decimal("0")) + (row.total_spent or Decimal("0"))
 
         return totals
@@ -2040,6 +2288,7 @@ class BudgetManager:
             select(
                 time_period,
                 categories_table.c.name.label("category"),
+                transactions_table.c.base_currency,
                 func.sum(transactions_table.c.converted_amount).label("total_spent"),
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
@@ -2049,12 +2298,13 @@ class BudgetManager:
                 transactions_table.c.type == "expense",
                 transactions_table.c.deleted_at.is_(None),
             )
-            .group_by(time_period, categories_table.c.name)
+            .group_by(time_period, categories_table.c.name, transactions_table.c.base_currency)
             .order_by(time_period.asc(), categories_table.c.name.asc())
         )
 
         data = {}
         for row in self.db_session.execute(daily_stmt):
+            self._require_twd_report_currency(row.base_currency)
             period, category, spent = row.time_period, row.category, float(row.total_spent)
             data.setdefault(period, {})[category] = spent
 
@@ -2062,6 +2312,7 @@ class BudgetManager:
             select(
                 time_period,
                 categories_table.c.name.label("category"),
+                transaction_splits_table.c.base_currency,
                 func.sum(transaction_splits_table.c.converted_share_amount).label("total_spent"),
             )
             .join(categories_table, transactions_table.c.category_id == categories_table.c.id)
@@ -2076,10 +2327,11 @@ class BudgetManager:
                 transactions_table.c.type == "expense",
                 transactions_table.c.deleted_at.is_(None),
             )
-            .group_by(time_period, categories_table.c.name)
+            .group_by(time_period, categories_table.c.name, transaction_splits_table.c.base_currency)
             .order_by(time_period.asc(), categories_table.c.name.asc())
         )
         for row in self.db_session.execute(trip_stmt):
+            self._require_twd_report_currency(row.base_currency)
             period, category, spent = row.time_period, row.category, float(row.total_spent)
             data.setdefault(period, {})[category] = data.setdefault(period, {}).get(category, 0) + spent
 

@@ -1,3 +1,5 @@
+> 歷史文件，2026-10-30 封存。描述當時的計畫／進度，不代表目前功能、登入安全或發布資格。現況請依 `docs/product-roadmap.md`、`docs/security-boundary-hardening.md` 與 `docs/deployment-checklist.md`。
+
 # Phase 5.5 Roadmap
 
 Phase 5.5 是 Phase 5 MVP 可用性初步通過後的收斂階段。此階段不追求大功能堆疊，而是驗證使用者是否有理由持續打開 Nomica，並降低日常記帳、帳戶核對與旅行支出追查的操作摩擦。

@@ -302,6 +302,7 @@ trip_members_table = Table(
     Column("removed_at", DateTime(timezone=True)),
     Column("deleted_at", DateTime(timezone=True)),
     Column("purge_after", DateTime(timezone=True)),
+    UniqueConstraint("trip_id", "user_id", name="uq_trip_members_trip_user"),
     CheckConstraint("role in ('owner', 'editor', 'viewer')", name="ck_trip_members_role"),
     CheckConstraint("status in ('active', 'invited', 'removed')", name="ck_trip_members_status"),
     CheckConstraint(
@@ -411,6 +412,7 @@ transaction_splits_table = Table(
     Column("base_currency", String(3), ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    UniqueConstraint("transaction_id", "trip_member_id", name="uq_transaction_splits_transaction_member"),
     CheckConstraint("split_method in ('equal', 'custom')", name="ck_transaction_splits_method"),
     CheckConstraint("share_amount >= 0", name="ck_transaction_splits_share_amount_non_negative"),
     CheckConstraint("exchange_rate > 0", name="ck_transaction_splits_exchange_rate_positive"),
