@@ -269,3 +269,11 @@ a27dcc9（公開交易key必填）。沒有Push／Merge／PR或正式DB升級。
 現行 Web 已走校正 POST。仍透過 PUT 校正的舊 client 須在部署前更新。
 此變更無 migration。
 全量合成 PostgreSQL 回歸 697 項通過，完整受控 Chrome UI 回歸通過。
+
+### S4.1 R08 軟刪除後重新設定月度預算
+
+合成 QA 重現建立 201、軟刪除 200、同月同分類重設 500。已依確認規格復用原 ID
+與建立時間，更新金額與備註並清除 `deleted_at`、`purge_after`。沿用現有唯一索引
+原子寫入，無 migration。四個 PostgreSQL 案例涵蓋摘要回復、其他預算及帳務隔離、
+無效金額保留軟刪除狀態，以及並行首次設定／重新設定只留一列。
+全量合成 PostgreSQL 回歸 701 項通過，完整受控 Chrome UI 回歸通過。

@@ -205,6 +205,12 @@
 原幣不是 TWD 但已換為 TWD 不受阻擋；一般／旅行帳本不套此限制。
 月份篩選在驗證前套用，cursor／limit 在驗證後套用。原始帳務不變。
 
+## Monthly budgets
+
+`POST /api/budgets` 設定指定月份及分類的預算。重新設定已軟刪除的預算時，沿用同使用者、
+同月份及同分類的原預算 ID，套用新金額及備註，並清除 `deleted_at` 與 `purge_after`。
+成功仍回 201，`data.transaction_id` 為 `null`。預算摘要恢復顯示新設定。
+
 ## R16：建立結果隔離
 
 交易 ID／replayed 僅從該次建立結果取得。建立帳戶／預算不代表建立交易，

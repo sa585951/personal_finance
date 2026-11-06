@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, delete, func, insert, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
 from config import DEFAULT_CURRENCY
@@ -2048,35 +2049,34 @@ class BudgetManager:
         period_start, period_end = self._month_range(month)
         category_id = self._get_category_id(parsed_user_id, category, "expense")
 
-        existing_stmt = select(budgets_table.c.id).where(
-            budgets_table.c.user_id == parsed_user_id,
-            budgets_table.c.scope == "monthly",
-            budgets_table.c.trip_id.is_(None),
-            budgets_table.c.category_id == category_id,
-            budgets_table.c.period_start == period_start,
-            budgets_table.c.period_end == period_end,
-            budgets_table.c.deleted_at.is_(None),
+        stmt = pg_insert(budgets_table).values(
+            user_id=parsed_user_id,
+            scope="monthly",
+            period_start=period_start,
+            period_end=period_end,
+            category_id=category_id,
+            amount=parsed_amount,
+            currency=DEFAULT_CURRENCY,
+            notes=notes,
         )
-        budget_id = self.db_session.execute(existing_stmt).scalar_one_or_none()
-        if budget_id:
-            self.db_session.execute(
-                update(budgets_table)
-                .where(budgets_table.c.id == budget_id)
-                .values(amount=parsed_amount, notes=notes, updated_at=datetime.now(timezone.utc))
-            )
-        else:
-            self.db_session.execute(
-                insert(budgets_table).values(
-                    user_id=parsed_user_id,
-                    scope="monthly",
-                    period_start=period_start,
-                    period_end=period_end,
-                    category_id=category_id,
-                    amount=parsed_amount,
-                    currency=DEFAULT_CURRENCY,
-                    notes=notes,
-                )
-            )
+        # The existing partial unique index also covers soft-deleted budgets.
+        self.db_session.execute(stmt.on_conflict_do_update(
+            index_elements=[
+                budgets_table.c.user_id,
+                budgets_table.c.scope,
+                budgets_table.c.period_start,
+                budgets_table.c.period_end,
+                budgets_table.c.category_id,
+            ],
+            index_where=budgets_table.c.trip_id.is_(None) & budgets_table.c.category_id.isnot(None),
+            set_={
+                "amount": stmt.excluded.amount,
+                "notes": stmt.excluded.notes,
+                "deleted_at": None,
+                "purge_after": None,
+                "updated_at": datetime.now(timezone.utc),
+            },
+        ))
 
         return True, "預算設定成功"
 
