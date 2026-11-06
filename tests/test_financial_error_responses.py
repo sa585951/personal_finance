@@ -17,7 +17,7 @@ TRANSFER = dict(source_id='cash', dest_id='bank', amount=100, client_request_id=
 CASES = [
     ('POST', '/api/assets', dict(bank_name='cash', account_type='cash', balance=100, client_request_id=str(uuid4())), 'asset_manager', 'add_account', 400),
     ('PUT', '/api/assets/cash', dict(bank_name='Cash'), 'asset_manager', 'update_account', 400),
-    ('POST', '/api/assets/cash/adjustments', dict(new_balance=100, reason='test'), 'asset_manager', 'create_balance_adjustment', 400),
+    ('POST', '/api/assets/cash/adjustments', dict(new_balance=100, reason='test', client_request_id='33333333-3333-3333-3333-333333333333'), 'asset_manager', 'create_balance_adjustment', 400),
     ('DELETE', '/api/assets/cash', {}, 'asset_manager', 'delete_account', 404),
     ('POST', '/api/transfer', TRANSFER, 'asset_manager', 'create_transfer', 400),
     ('PUT', '/api/transfers/transfer-1', TRANSFER, 'asset_manager', 'update_transfer', 400),

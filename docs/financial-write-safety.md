@@ -130,3 +130,17 @@ A→B Cookie409及獨立SQL回歸通過。部署前須同步所有寫入client�
 公開交易key批次fresh review無新增Critical／Important／Minor。其他公開財務入口
 仍未因此獲得相同保證：新增帳戶double-click已在攔截API的UI診斷觀察到兩次無key
 POST；校正原始payload一致性／預算R08待原序驗收。沒有改這些API的相容行為。
+
+
+### 公開新增帳戶與餘額校正（已核定並本機實作）
+
+`POST /api/assets` 與 `POST /api/assets/:accountId/adjustments` 必須帶有效 UUID
+`client_request_id`。兩個 Web 入口都在寫入前保存登入者、原始資料與 key，收到未知
+結果可重整再用原資料重試。後端驗證登入者、操作與原意圖，確保首次寫入及命令結果
+同時提交。新增帳戶保護 opening anchor 與信用卡帳期。餘額校正保護 Adjustment、
+可能補建的 anchor 與帳戶快照。舊校正可用不可編輯的原始資料核對，回放不再次校正。
+兩個 API 的舊 client 需要在部署前同步更新，內部 manager 保留原無 key 呼叫。
+此批沿用既有 `financial_commands` schema。
+
+舊帳戶首次補建 anchor 時，校正記錄時間必須嚴格晚於 anchor，避免對帳漏算該筆。
+這次修補適用新寫入。正式資料中的歷史同時刻情形尚未查證或回填。

@@ -238,3 +238,24 @@ POST /api/assets，皆無key。所有API攔截，**未寫DB**；確認的是重�
 
 本輪commits：bb78f13（Web恢復／legacy核對）、d75d0e8（凍結點擊／POST actor綁定）、
 a27dcc9（公開交易key必填）。沒有Push／Merge／PR或正式DB升級。
+
+
+### S4.1 N04 新增帳戶與餘額校正
+
+使用者已確認兩個公開 API 必填 key。新增帳戶已提交 `48531bd`。本機 QA 重現
+新增帳戶的重複資料、餘額校正同 key 異意圖成功回放，以及併發唯一約束和中途失敗
+可能留下校正異動。另重現舊帳戶首次補錨點時，對帳排除同時刻的校正。
+
+- 新增帳戶 30 個 PostgreSQL/API 案例與 11 個 Chrome 受控案例。真實本機 HTTP
+  201 掉回應後重整、原 key 200 回同一帳戶。SQL 核對一個新帳戶、一筆 -30 TWD
+  opening anchor、一組信用卡帳期、一筆命令，對帳 2/2。
+- 校正新增 21 個 PostgreSQL/API 案例與 9 個 Chrome 受控案例。涵蓋舊 key 的
+  Decimal 核對、同／異帳戶併發、例外回滾、缺 key、原 owner、重整與儲存失敗。
+  真實本機 HTTP 驗證 201 掉回應後原 key 200 回同一校正，同 key 改金額回 409。
+  SQL 核對 1000 − 40 − 147.75 = 812.25 TWD，只有一筆校正與命令，對帳 1/1。
+- 正負零統一比對。超出現有欄位範圍的校正差額回 400，讓使用者能修正資料。
+  舊帳戶的新校正時間晚於補建的 anchor。既有資料中可能存在的同時刻記錄仍待查證。
+- 最終合成 PostgreSQL 全量 691 項通過。完整 Chrome UI、styles、lint、build 通過。
+  這些情境只使用本機合成資料與 Session。
+  沒有新增 migration。部署前須確認既有 DB revision 並同步更新寫入 client。
+  R08 仍依原順序接續，S4.2～S6 的驗收條件維持。

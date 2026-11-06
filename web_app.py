@@ -561,9 +561,16 @@ def get_asset_adjustments(current_user_id, account_key):
 @app.route("/api/assets/<string:account_key>/adjustments", methods=["POST"])
 @token_required
 def create_asset_adjustment(current_user_id, account_key):
-    data = request.get_json(silent=True) or {}
-    if "new_balance" not in data or not data.get("reason"):
-        return jsonify({"success": False, "message": "缺少新餘額或校正原因"}), 400
+    # A stale tab must not submit its pending adjustment under a different authenticated actor.
+    expected_owner = request.headers.get("X-Nomica-Request-Owner")
+    if expected_owner is not None and expected_owner != str(current_user_id):
+        db_session.rollback()
+        return jsonify({"success": False, "code": "REQUEST_OWNER_CHANGED", "message": "登入使用者已變更，本次未校正餘額。請回原帳號核對紀錄。"}), 409
+    data = request.get_json(silent=True)
+    if (not isinstance(data, dict) or "new_balance" not in data or not data.get("reason")
+            or not isinstance(data.get("client_request_id"), str) or not data["client_request_id"].strip()):
+        db_session.rollback()
+        return jsonify({"success": False, "message": "缺少新餘額、校正原因或有效的 client_request_id"}), 400
 
     try:
         adjustment = asset_manager.create_balance_adjustment(
@@ -572,7 +579,7 @@ def create_asset_adjustment(current_user_id, account_key):
             data["new_balance"],
             reason=data["reason"],
             note=data.get("note"),
-            client_request_id=data.get("client_request_id"),
+            client_request_id=data["client_request_id"],
         )
         db_session.commit()
         replayed = adjustment.pop("replayed", False)
@@ -582,6 +589,9 @@ def create_asset_adjustment(current_user_id, account_key):
             "data": adjustment,
             "replayed": replayed,
         }), 200 if replayed else 201
+    except IdempotencyConflict as e:
+        db_session.rollback()
+        return jsonify({"success": False, "code": "REQUEST_PAYLOAD_CONFLICT", "message": str(e)}), 409
     except ValueError as e:
         db_session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400

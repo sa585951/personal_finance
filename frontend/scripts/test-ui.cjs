@@ -226,8 +226,13 @@ async function testDisabledAiKeepsManualEntry(browser) {
     }
     await ready();
     browser = await chromium.launch({ headless: true, ...(process.env.UI_BROWSER_CHANNEL ? { channel: process.env.UI_BROWSER_CHANNEL } : {}) });
+    if (process.env.ADJUSTMENT_RECOVERY_ONLY === 'true') {
+      await require('./test-adjustment-recovery.cjs')(browser, base, installMocks);
+      return;
+    }
     await require('./test-account-recovery.cjs')(browser, base, installMocks);
     if (process.env.ASSET_RECOVERY_ONLY === 'true') return;
+    await require('./test-adjustment-recovery.cjs')(browser, base, installMocks);
     await require('./test-transaction-recovery.cjs')(browser, base, installMocks);
     await testCurrencyDecimalInputs(browser);
     await testReportCurrencyRefusal(browser);

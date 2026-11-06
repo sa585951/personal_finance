@@ -126,7 +126,7 @@
               <button class="edit-btn" @click="startEdit(account)">
                 編輯帳戶
               </button>
-              <button class="update-btn" @click="promptUpdate(account)">
+              <button class="update-btn" :disabled="adjustmentDisabled(account.key)" @click="promptUpdate(account)">
                 校正餘額
               </button>
               <button class="delete-btn" @click="promptDelete(account.key)">
@@ -231,6 +231,7 @@ export default {
     AccountIcon,
   },
   props: {
+    adjustmentDisabled: { type: Function, required: true },
     assets: {
       type: Object,
       required: true,
@@ -452,7 +453,6 @@ export default {
       });
     },
     async promptUpdate(account) {
-      const requestId = globalThis.crypto?.randomUUID?.();
       const { value: adjustment } = await this.$swal.fire({
         title: "校正帳戶餘額",
         input: "number",
@@ -498,7 +498,6 @@ export default {
             new_balance: parseFloat(value),
             reason,
             note: note || null,
-            client_request_id: requestId || null,
           };
         },
       });

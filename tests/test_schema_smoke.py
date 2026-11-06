@@ -517,8 +517,9 @@ def test_mvp_schema_can_create_core_records():
         replayed_adjustment = asset_manager.create_balance_adjustment(
             user_id,
             source_account_id,
-            Decimal("12000"),
+            Decimal("9900"),
             reason="statement_reconciliation",
+            note="依帳單核對",
             client_request_id=adjustment_request_id,
         )
         assert first_adjustment["replayed"] is False

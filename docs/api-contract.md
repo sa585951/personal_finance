@@ -73,6 +73,15 @@
 - Web 送出前先保存原始資料與 key。結果不明時只以原資料重試。Web 同時傳原使用者的 `X-Nomica-Request-Owner`，若與實際登入者不同，回 409 `REQUEST_OWNER_CHANGED`。
 - 部署前同步更新所有新增帳戶的 client，缺 key 的舊版會收到 400。此變更沿用既有 `financial_commands` schema。
 
+### `POST /api/assets/:accountId/adjustments`
+
+公開餘額校正必須傳 `client_request_id` UUID、`new_balance`（目標餘額）及 `reason`，可選 `note`。缺少有效 key 或無法儲存的金額／差額回 400，無帳務寫入。
+
+- 首次成功回 201。相同使用者、key、帳戶、原目標餘額、原因及備註回 200，並帶原校正 ID 和 `replayed: true`。重試只回傳原結果，保留此後的餘額異動。
+- 同 key 不同資料回 409 `REQUEST_PAYLOAD_CONFLICT`。舊 key 僅在不可編輯的校正紀錄能核對相同原目標餘額、原因、備註及帳戶時回放。
+- Web 依登入者及帳戶保存待確認校正，重整或結果不明時可用原資料重試。`X-Nomica-Request-Owner` 與實際登入者不同回 409 `REQUEST_OWNER_CHANGED`。
+- 校正更新帳戶快照並記錄 Adjustment，不列入收入或支出。部署前同步更新所有寫入 client，缺 key 的舊版會收到 400。此變更沿用既有 schema。
+
 ### `GET /api/assets/:accountId/activity`
 
 使用 page pagination：

@@ -50,7 +50,7 @@ def test_api_same_key_creates_exactly_one_account_and_opening_anchor(command_db,
     client,headers=asset_client(monkeypatch,engine,data)
     body=account_payload(key);body.update(account_type=account_type,balance=balance,currency=currency)
     first=client.post('/api/assets',json=body,headers=headers)
-    body['balance']=format(Decimal(str(balance)),'.4f')
+    body['balance'] = '-0.0000' if balance == 0 else format(Decimal(str(balance)), '.4f')
     replay=client.post('/api/assets',json=body,headers=headers)
     with Session(engine) as session:
         rows=matching_accounts(session)

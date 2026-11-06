@@ -1,10 +1,32 @@
 import apiClient from '@/api';
 
-// Preserve the original intent across lost responses/reloads, scoped by owner.
-export async function openPendingCommand(scope) {
+async function getPendingOwner() {
   const auth = await apiClient.get('/api/auth/me');
   const userId = auth.data?.data?.user_id;
   if (!userId) throw new Error('無法確認登入狀態，請重新登入後再試。');
+  return userId;
+}
+
+// Preserve the original intent across lost responses/reloads, scoped by owner.
+export async function openPendingCommand(scope) {
+  return pendingCommand(await getPendingOwner(), scope);
+}
+
+export async function openPendingCommandGroup(scopePrefix) {
+  const ownerId = await getPendingOwner();
+  const ownerPrefix = `nomica-pending:${ownerId}:`;
+  const commands = [];
+  for (let index = 0; index < sessionStorage.length; index++) {
+    const key = sessionStorage.key(index);
+    if (key?.startsWith(ownerPrefix + scopePrefix)) {
+      const command = pendingCommand(ownerId, key.slice(ownerPrefix.length));
+      if (command.pending) commands.push(command);
+    }
+  }
+  return { commands, open: scope => pendingCommand(ownerId, scope) };
+}
+
+function pendingCommand(userId, scope) {
   const key = `nomica-pending:${userId}:${scope}`;
   const raw = sessionStorage.getItem(key);
   const pending = raw ? JSON.parse(raw) : null;
