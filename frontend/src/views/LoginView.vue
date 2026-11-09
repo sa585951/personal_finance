@@ -19,7 +19,7 @@
         <button type="button" @click="lineLogin" class="login-button">
           使用 LINE 繼續
         </button>
-        <small>登入即會前往 LINE 完成驗證。</small>
+        <small>登入即會前往 LINE 完成驗證，並表示你同意<router-link to="/terms">服務條款</router-link>與<router-link to="/privacy">隱私權政策</router-link>。</small>
       </div>
     </div>
   </div>

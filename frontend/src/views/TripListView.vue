@@ -2,7 +2,7 @@
   <div class="trip-list-view">
     <header class="page-header">
       <div>
-        <h1>旅行帳本</h1>
+        <h1>旅行</h1>
       </div>
       <div class="header-actions">
         <button class="icon-button" type="button" title="重新整理" @click="fetchTrips">
@@ -18,7 +18,6 @@
     <section v-if="showCreateTrip || (!loading && trips.length === 0)" class="create-panel app-surface">
       <div class="section-heading">
         <div>
-          <span>新旅行</span>
           <h2>新增旅行</h2>
         </div>
         <p>建立後再到旅行詳情記錄支出、分帳與邀請旅伴。</p>
@@ -78,60 +77,39 @@
       <button class="secondary-action" type="button" @click="fetchTrips">重新整理</button>
     </div>
     <section v-else class="list-section" aria-label="旅行帳本列表">
-      <div class="list-heading">
-        <div>
-          <span>全部旅行</span>
-          <strong>{{ trips.length }} 本帳本</strong>
-        </div>
-        <button class="quiet-action" type="button" @click="toggleTripManagement">
-          {{ showTripManagement ? "收合管理" : "管理帳本" }}
-        </button>
-      </div>
-
       <div v-if="trips.length === 0" class="empty-state">
         <strong>尚未建立旅行帳本</strong>
         <span>建立第一趟旅行後，就能集中記錄外幣支出與旅伴分帳。</span>
       </div>
       <div v-else class="trip-groups">
         <section v-for="group in visibleTripGroups" :key="group.key" class="trip-group">
-          <div class="trip-group-heading">
-            <div>
-              <span>{{ group.eyebrow }}</span>
-              <strong>{{ group.label }}</strong>
-            </div>
-            <span>{{ group.trips.length }} 趟</span>
-          </div>
-          <div class="trip-grid">
-            <button
-              v-for="trip in group.trips"
-              :key="trip.id"
-              class="trip-card app-surface"
-              type="button"
-              @click="openTrip(trip.id)"
-            >
-              <div class="card-topline">
-                <span class="report-badge" :class="tripReportPreferenceClass(trip)">
-                  {{ tripReportLabel(trip) }}
-                </span>
-                <span>{{ tripDays(trip) }} 天</span>
-              </div>
+          <h2 class="group-title">{{ group.label }}<span>{{ group.trips.length }} 趟</span></h2>
+          <button
+            v-for="trip in group.trips"
+            :key="trip.id"
+            class="trip-card"
+            type="button"
+            @click="openTrip(trip.id)"
+          >
+            <span class="trip-row-main">
               <strong>{{ trip.name }}</strong>
-              <span>{{ trip.destination || "未設定地點" }}</span>
-              <small>{{ formatRange(trip) }}</small>
-              <div class="card-meta">
-                <span>{{ trip.members?.length || 0 }} 人</span>
-                <span>{{ trip.default_currency }} / {{ trip.base_currency }}</span>
-              </div>
-            </button>
-          </div>
+              <small>
+                {{ trip.destination || "未設定地點" }} · {{ formatRange(trip) }} · {{ tripDays(trip) }} 天 ·
+                {{ trip.members?.length || 0 }} 人 · {{ trip.default_currency }}
+              </small>
+            </span>
+            <ArrowRight aria-hidden="true" />
+          </button>
         </section>
       </div>
+      <button class="text-button manage-link" type="button" @click="toggleTripManagement">
+        {{ showTripManagement ? "收合封存與刪除的旅行" : "封存與刪除的旅行" }}
+      </button>
     </section>
 
     <section v-if="showTripManagement" class="management-panel app-surface">
       <div class="section-heading">
         <div>
-          <span>ARCHIVE</span>
           <h2>旅行管理</h2>
         </div>
         <p>封存資料會保留；軟刪除帳本可在 30 天內復原。</p>
@@ -173,12 +151,12 @@
 </template>
 
 <script>
-import { Plus, Refresh } from "@element-plus/icons-vue";
+import { ArrowRight, Plus, Refresh } from "@element-plus/icons-vue";
 import apiClient from "@/api";
 
 export default {
   name: "TripListView",
-  components: { Plus, Refresh },
+  components: { ArrowRight, Plus, Refresh },
   data() {
     const today = new Date().toISOString().slice(0, 10);
     return {
@@ -217,9 +195,9 @@ export default {
         .sort((left, right) => right.end_date.localeCompare(left.end_date));
 
       return [
-        { key: "ongoing", eyebrow: "ONGOING", label: "進行中", trips: ongoing },
-        { key: "upcoming", eyebrow: "UPCOMING", label: "即將出發", trips: upcoming },
-        { key: "past", eyebrow: "PAST", label: "過往旅行", trips: past },
+        { key: "ongoing", label: "進行中", trips: ongoing },
+        { key: "upcoming", label: "即將出發", trips: upcoming },
+        { key: "past", label: "過往旅行", trips: past },
       ].filter((group) => group.trips.length > 0);
     },
     archivedManagedTrips() {
@@ -742,5 +720,62 @@ h2 {
   .managed-row .quiet-action {
     width: 100%;
   }
+}
+.group-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 20px 0 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--light-text-color);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+#app .trip-list-view .trip-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 0;
+  color: var(--text-color);
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+  transform: none;
+}
+
+.trip-row-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.trip-row-main small {
+  color: var(--light-text-color);
+  font-size: 0.82rem;
+}
+
+.trip-card svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--light-text-color);
+}
+
+.manage-link {
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 0;
+  color: var(--light-text-color);
+  background: transparent;
+  border: 0;
+  font-weight: 600;
 }
 </style>

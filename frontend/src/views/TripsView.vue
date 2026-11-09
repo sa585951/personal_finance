@@ -1,17 +1,18 @@
 <template>
   <div class="trips-page">
-    <header class="trips-header">
-      <div>
-        <h1>旅行詳情</h1>
-      </div>
-      <div class="header-actions">
-        <button class="icon-button" type="button" @click="fetchTrips" title="重新整理">
-          <Refresh />
-        </button>
-        <button class="quiet-action" type="button" @click="returnToTripList">
-          旅行列表
-        </button>
-      </div>
+    <header class="trip-head">
+      <button class="back-link" type="button" @click="returnToTripList">
+        <ArrowLeft aria-hidden="true" />旅行
+      </button>
+      <template v-if="selectedTrip">
+        <h1>{{ selectedTrip.name }}</h1>
+        <p class="trip-meta">
+          {{ selectedTrip.destination || "未設定地點" }} · {{ formatRange(selectedTrip) }} ·
+          {{ selectedTrip.members.length }} 人 · {{ selectedTrip.default_currency }}
+          <span v-if="tripReportLabel(selectedTrip)"> · {{ tripReportLabel(selectedTrip) }}</span>
+        </p>
+      </template>
+      <h1 v-else>旅行</h1>
     </header>
 
     <div v-if="loading" class="loading-state">載入中...</div>
@@ -22,35 +23,6 @@
     </div>
     <section v-else class="trips-layout">
       <article v-if="selectedTrip" class="trip-detail">
-        <div class="current-trip-card">
-          <div>
-            <span class="trip-state-badge" :class="tripReportPreferenceClass(selectedTrip)">
-              {{ tripReportLabel(selectedTrip) }}
-            </span>
-            <strong>{{ selectedTrip.name }}</strong>
-            <span>{{ selectedTrip.destination || "未設定地點" }} · {{ formatRange(selectedTrip) }}</span>
-            <div class="trip-compact-meta">
-              <span>{{ tripDays(selectedTrip) }} 天</span>
-              <span>{{ selectedTrip.members.length }} 人</span>
-              <span>{{ selectedTrip.default_currency }} / {{ selectedTrip.base_currency }}</span>
-            </div>
-          </div>
-          <div class="current-trip-actions">
-            <button
-              v-if="currentMemberMonthlyReportPreference !== 'pending'"
-              class="quiet-action"
-              type="button"
-              :disabled="updatingTripSettings"
-              @click="toggleSelectedTripReportScope"
-            >
-              {{ currentMemberMonthlyReportPreference === "include" ? "不納入我的月報" : "納入我的月報" }}
-            </button>
-            <button class="secondary-action" type="button" @click="showTripSwitcher = true">
-              切換旅行
-            </button>
-          </div>
-        </div>
-
         <section
           v-if="currentMemberMonthlyReportPreference === 'pending'"
           class="monthly-preference-panel"
@@ -88,10 +60,16 @@
           </div>
         </section>
 
-        <TripStatusCenter
-          :cards="tripStatusCards"
-          @select="handleTripStatusAction"
-        />
+        <button
+          v-for="alert in tripAlerts"
+          :key="alert.key"
+          type="button"
+          class="trip-alert"
+          @click="activeSection = alert.section"
+        >
+          <span>{{ alert.text }}</span>
+          <ArrowRight aria-hidden="true" />
+        </button>
 
         <nav class="trip-tabs" aria-label="旅行操作">
           <button
@@ -107,6 +85,7 @@
         </nav>
 
         <TripSummaryPanel
+          v-show="activeSection === 'transactions'"
           :currency="selectedTrip.base_currency"
           :my-share-amount="myTripShareAmount"
           :expense-total="tripExpenseTotal"
@@ -141,6 +120,9 @@
           @update-new-member="newMember = { ...newMember, ...$event }"
         />
 
+        <div v-if="activeSection === 'expense' && !editingTransactionId" class="expense-form-head">
+          <button type="button" class="text-button" @click="activeSection = 'transactions'">收起</button>
+        </div>
         <p v-if="expenseCommandError && activeSection === 'expense'" role="alert">{{ expenseCommandError }}</p>
         <PendingTransactionRecovery
           v-if="expenseCommand?.pending && activeSection === 'expense' && !editingTransactionId"
@@ -227,19 +209,49 @@
           @void="deleteSettlement"
         />
 
-        <TripManagementPanel
-          v-if="isTripOwner"
-          :expanded="showTripManagement"
-          :archived-trips="archivedManagedTrips"
-          :deleted-trips="deletedManagedTrips"
-          @toggle="toggleTripManagement"
-          @archive="archiveSelectedTrip"
-          @delete="deleteSelectedTrip"
-          @unarchive="unarchiveTrip"
-          @restore="restoreTrip"
+        <section v-show="activeSection === 'settings'" class="trip-settings" aria-label="旅行設定">
+          <div class="settings-row">
+            <span>
+              <strong>個人月報</strong>
+              <small>{{ currentMemberMonthlyReportPreference === "include" ? "你的分攤會計入首頁、分析與預算" : "只保留在旅行帳本" }}</small>
+            </span>
+            <button
+              v-if="currentMemberMonthlyReportPreference !== 'pending'"
+              class="quiet-action"
+              type="button"
+              :disabled="updatingTripSettings"
+              @click="toggleSelectedTripReportScope"
+            >
+              {{ currentMemberMonthlyReportPreference === "include" ? "改為不納入" : "改為納入" }}
+            </button>
+          </div>
+          <div class="settings-row">
+            <span><strong>切換旅行</strong></span>
+            <button class="quiet-action" type="button" @click="showTripSwitcher = true">選擇</button>
+          </div>
+          <TripManagementPanel
+            v-if="isTripOwner"
+            :expanded="showTripManagement"
+            :archived-trips="archivedManagedTrips"
+            :deleted-trips="deletedManagedTrips"
+            @toggle="toggleTripManagement"
+            @archive="archiveSelectedTrip"
+            @delete="deleteSelectedTrip"
+            @unarchive="unarchiveTrip"
+            @restore="restoreTrip"
         />
+        </section>
       </article>
     </section>
+
+    <button
+      v-if="selectedTrip && canCreateTripTransaction && activeSection !== 'expense'"
+      type="button"
+      class="trip-fab"
+      @click="openExpenseForm"
+    >
+      <Plus aria-hidden="true" />記一筆旅行支出
+    </button>
 
     <TripSwitcherModal
       v-if="showTripSwitcher"
@@ -253,7 +265,7 @@
 
 <script>
 import { copyDialogOptions } from "@/utils/safeDialogs";
-import { Calendar, List, Location, Money, Refresh, TrendCharts, User } from "@element-plus/icons-vue";
+import { ArrowLeft, ArrowRight, Calendar, List, Location, Money, Plus, Refresh, Setting, TrendCharts, User } from "@element-plus/icons-vue";
 import apiClient from "@/api";
 import { openPendingCommand } from '@/utils/pendingFinancialCommand';
 import PendingTransactionRecovery from '@/components/shared/PendingTransactionRecovery.vue';
@@ -261,10 +273,10 @@ import TripExpensePanel from "@/components/trips/TripExpensePanel.vue";
 import TripManagementPanel from "@/components/trips/TripManagementPanel.vue";
 import TripMembersPanel from "@/components/trips/TripMembersPanel.vue";
 import TripSettlementPanel from "@/components/trips/TripSettlementPanel.vue";
-import TripStatusCenter from "@/components/trips/TripStatusCenter.vue";
 import TripSummaryPanel from "@/components/trips/TripSummaryPanel.vue";
 import TripSwitcherModal from "@/components/trips/TripSwitcherModal.vue";
 import TripTransactionsPanel from "@/components/trips/TripTransactionsPanel.vue";
+import { defaultAccountId, rememberLastAccount } from "@/utils/lastAccount";
 import {
   createCursorPager,
   cursorForPage,
@@ -276,17 +288,20 @@ export default {
   name: "TripsView",
   components: {
     PendingTransactionRecovery,
+    ArrowLeft,
+    ArrowRight,
     Calendar,
     List,
     Location,
     Money,
+    Plus,
     Refresh,
+    Setting,
     TrendCharts,
     TripExpensePanel,
     TripManagementPanel,
     TripMembersPanel,
     TripSettlementPanel,
-    TripStatusCenter,
     TripSummaryPanel,
     TripSwitcherModal,
     TripTransactionsPanel,
@@ -385,15 +400,12 @@ export default {
       return this.$route.params.tripId || "";
     },
     operationTabs() {
-      const tabs = [
-        { key: "expense", label: "記支出", icon: "Money" },
-        { key: "transactions", label: "交易", icon: "List" },
+      return [
+        { key: "transactions", label: "支出", icon: "List" },
         { key: "split", label: "分帳", icon: "TrendCharts" },
         { key: "members", label: "旅伴", icon: "User" },
+        { key: "settings", label: "設定", icon: "Setting" },
       ];
-      return this.canCreateTripTransaction
-        ? tabs
-        : tabs.filter((tab) => tab.key !== "expense");
     },
     quickCurrencies() {
       if (!this.selectedTrip) {
@@ -465,63 +477,17 @@ export default {
         },
       ];
     },
-    tripStatusCards() {
-      const monthlyPreference = this.currentMemberMonthlyReportPreference || "legacy";
-      const monthlyPreferenceHints = {
-        include: "你的分攤金額會進入首頁、收支分析與預算。",
-        exclude: "這趟旅行只保留在旅行帳本，不進個人月報。",
-        pending: "請先決定是否納入，避免月報口徑不清楚。",
-        legacy: "尚未讀到個人偏好，建議重新整理或檢查成員狀態。",
-      };
-      const monthlyPreferenceTone = {
-        include: "success",
-        exclude: "neutral",
-        pending: "warning",
-        legacy: "neutral",
-      };
-      const missingSplitCount = this.tripTransactionSummary.missing_split_count;
-      const expenseCount = this.tripTransactionSummary.expense_count;
-
-      return [
-        {
-          key: "monthly",
-          label: "個人月報",
-          value: this.tripReportLabel(this.selectedTrip),
-          hint: monthlyPreferenceHints[monthlyPreference] || monthlyPreferenceHints.legacy,
-          tone: monthlyPreferenceTone[monthlyPreference] || "neutral",
-          action: monthlyPreference === "pending" ? "preference" : "transactions",
-        },
-        {
-          key: "split",
-          label: "分攤完整度",
-          value: missingSplitCount > 0 ? `${missingSplitCount} 筆待補` : "已完成",
-          hint: missingSplitCount > 0
-            ? "缺少分攤的支出不會納入個人月報。"
-            : "目前旅行支出都有分攤資料。",
-          tone: missingSplitCount > 0 ? "warning" : "success",
-          action: "transactions",
-        },
-        {
-          key: "settlement",
-          label: "待收待付",
-          value: this.settlementSuggestions.length > 0 ? `${this.settlementSuggestions.length} 筆待結算` : "已平衡",
-          hint: this.settlementSuggestions.length > 0
-            ? "可到分帳頁確認誰要給誰。"
-            : "目前沒有需要處理的結算建議。",
-          tone: this.settlementSuggestions.length > 0 ? "warning" : "success",
-          action: "split",
-        },
-        {
-          key: "category",
-          label: "類別比例",
-          value: expenseCount > 0 ? `${expenseCount} 筆支出` : "尚無資料",
-          hint: expenseCount > 0
-            ? "可展開查看這趟旅行花在哪些類別。"
-            : "新增旅行支出後會產生類別比例。",
-          tone: expenseCount > 0 ? "info" : "neutral",
-          action: "summary",
-        },
-      ];
+    tripAlerts() {
+      // Only states that need action; nothing is shown when the trip is fine or empty.
+      const alerts = [];
+      const missing = this.tripTransactionSummary.missing_split_count || 0;
+      if (missing > 0) {
+        alerts.push({ key: "split", text: `${missing} 筆支出還沒分攤`, section: "transactions" });
+      }
+      if ((this.tripTransactionSummary.expense_count || 0) > 0 && this.settlementSuggestions.length > 0) {
+        alerts.push({ key: "settle", text: `${this.settlementSuggestions.length} 筆待結算`, section: "split" });
+      }
+      return alerts;
     },
     tripSwitcherItems() {
       return this.trips.map((trip) => ({
@@ -781,6 +747,7 @@ export default {
       );
     },
     normalizeActiveSection() {
+      if (this.activeSection === "expense" && this.canCreateTripTransaction) return;
       if (!this.operationTabs.some((tab) => tab.key === this.activeSection)) {
         this.activeSection = this.operationTabs[0]?.key || "transactions";
       }
@@ -824,6 +791,9 @@ export default {
       try {
         const response = await apiClient.get(`/api/trips/${tripId}/overview`);
         this.applyTripOverview(response.data.data);
+        // An empty trip opens on the form; otherwise the expense list comes first.
+        this.activeSection = this.canCreateTripTransaction && !(this.tripTransactionSummary.total_count > 0)
+          ? "expense" : "transactions";
         await this.ensureActiveSectionData(this.activeSection);
       } catch (error) {
         console.error("無法載入旅行明細", error);
@@ -942,24 +912,6 @@ export default {
         );
       } finally {
         this.updatingTripSettings = false;
-      }
-    },
-    handleTripStatusAction(action) {
-      if (action === "preference") {
-        this.$nextTick(() => {
-          this.$refs.monthlyPreferencePanel?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        });
-        return;
-      }
-      if (action === "summary") {
-        this.showTripSummary = true;
-        return;
-      }
-      if (["expense", "transactions", "split", "members"].includes(action)) {
-        this.activeSection = action;
       }
     },
     async addMember() {
@@ -1407,8 +1359,17 @@ export default {
       ) {
         this.newExpense.account_id = "";
       }
+      if (!this.newExpense.account_id && this.isCurrentUserPayer) {
+        this.newExpense.account_id = defaultAccountId("trip", this.compatibleTripAccounts, {
+          requiredCurrency: this.newExpense.original_currency,
+        });
+      }
       this.newExpense.split_member_ids = this.getDefaultSplitMemberIds();
       this.initializeCustomSplitAllocations();
+    },
+    openExpenseForm() {
+      this.activeSection = "expense";
+      window.scrollTo({ top: 0, behavior: "smooth" });
     },
     buildExpensePayload() {
       const splitAllocations = Object.entries(this.newExpense.split_allocations || {})
@@ -1517,6 +1478,9 @@ export default {
           : await apiClient.post('/api/transactions', payload, { headers: { 'X-Nomica-Request-Owner': command.ownerId } });
         if (response.data?.success !== true) throw new Error('結果尚未確認');
         if (!editingId) command.clear(requestId);
+        if (!editingId && payload.paid_by_member_id === this.selectedTrip?.current_member_id) {
+          rememberLastAccount("trip", payload.account_id);
+        }
         if (this.selectedTrip?.id !== tripId) return;
         this.legacyExpenseId = '';
         this.expenseMessage = response.data.message;
@@ -2157,7 +2121,8 @@ export default {
   max-width: 720px;
   margin: 0 auto;
   min-height: calc(100vh - 80px);
-  padding: 24px 16px calc(var(--app-bottom-nav-height) + 22px);
+  /* Room for the floating add button above the bottom navigation. */
+  padding: 24px 16px calc(var(--app-bottom-nav-height) + 88px);
   color: var(--text-color);
 }
 
@@ -2237,12 +2202,6 @@ h1 {
   background: var(--primary-soft);
 }
 
-.trip-detail {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 16px;
-}
 
 :deep(.swal-copy-textarea) {
   width: 100%;
@@ -2556,5 +2515,119 @@ h1 {
     font-size: 0.78rem;
   }
 
+}
+.trip-head {
+  margin-bottom: 16px;
+}
+
+.trip-head h1 {
+  margin: 4px 0 2px;
+  font-size: 1.6rem;
+  line-height: 1.25;
+}
+
+.back-link,
+.text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0;
+  color: var(--light-text-color);
+  background: transparent;
+  border: 0;
+  font-weight: 600;
+}
+
+.back-link svg {
+  width: 16px;
+  height: 16px;
+}
+
+.trip-meta {
+  margin: 0;
+  color: var(--light-text-color);
+  font-size: 0.88rem;
+}
+
+.trip-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 10px;
+  padding: 0 14px;
+  border: 1px solid var(--warning-color);
+  border-radius: 10px;
+  color: var(--warning-text);
+  background: var(--warning-soft);
+  font-weight: 600;
+  text-align: left;
+}
+
+.trip-alert svg {
+  width: 16px;
+  height: 16px;
+}
+
+.expense-form-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -40px;
+}
+
+.trip-settings {
+  display: grid;
+  margin-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.settings-row span {
+  display: grid;
+  gap: 2px;
+}
+
+.settings-row small {
+  color: var(--light-text-color);
+  font-size: 0.82rem;
+}
+
+.trip-fab {
+  position: fixed;
+  right: 16px;
+  bottom: calc(var(--app-bottom-nav-height) + 8px);
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--on-primary);
+  background: var(--primary-color);
+  font-weight: 700;
+}
+
+.trip-fab svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (min-width: 1024px) {
+  .trip-fab {
+    bottom: 24px;
+  }
 }
 </style>

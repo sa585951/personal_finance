@@ -16,6 +16,7 @@ const AllocationDetail = () => import("../views/AllocationDetail.vue");
 const UniversalAddView = () => import("../views/UniversalAddView.vue");
 const AnalysisView = () => import("../views/AnalysisView.vue");
 const MeView = () => import("../views/MeView.vue");
+const PolicyView = () => import("../views/PolicyView.vue");
 
 const routes = [
   {
@@ -104,6 +105,18 @@ const routes = [
     name: "AccountSettings",
     component: AccountSettings,
     meta: { requiresAuth: true, tab: "me" },
+  },
+  {
+    path: "/privacy",
+    name: "Privacy",
+    component: PolicyView,
+    props: { kind: "privacy" },
+  },
+  {
+    path: "/terms",
+    name: "Terms",
+    component: PolicyView,
+    props: { kind: "terms" },
   },
   {
     path: '/auth-callback',

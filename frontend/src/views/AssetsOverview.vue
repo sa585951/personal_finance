@@ -1,7 +1,7 @@
 <template>
   <div class="assets-screen">
     <header class="assets-header">
-      <h1>帳戶總覽</h1>
+      <h1>帳戶</h1>
     </header>
 
     <AppStatePanel
@@ -21,37 +21,10 @@
     <div v-else class="assets-content">
       <TotalCards :totals="totals" />
 
-      <router-link class="allocation-entry" to="/allocation">
-        <span class="allocation-entry-icon" aria-hidden="true">
-          <TrendCharts />
-        </span>
-        <span class="allocation-entry-copy">
-          <strong>資產配置</strong>
-          <small>管理投資標的、投入成本與手動資產快照</small>
-        </span>
-        <ArrowRight class="allocation-entry-arrow" aria-hidden="true" />
-      </router-link>
-
-      <section class="account-health-panel app-surface" aria-label="帳戶健康度">
-        <div class="section-heading">
-          <h2>帳戶健康度</h2>
-          <span>{{ accountHealthSummary }}</span>
-        </div>
-        <div class="health-card-grid">
-          <article
-            v-for="card in accountHealthCards"
-            :key="card.key"
-            class="health-card"
-            :class="card.tone"
-          >
-            <div>
-              <span>{{ card.label }}</span>
-              <strong>{{ card.value }}</strong>
-            </div>
-            <p>{{ card.hint }}</p>
-          </article>
-        </div>
-      </section>
+      <p v-for="card in accountAlerts" :key="card.key" class="account-alert" role="status">
+        <strong>{{ card.label }}：{{ card.value }}</strong>
+        <span>{{ card.hint }}</span>
+      </p>
 
       <section class="action-panel app-surface">
         <div class="action-tabs" aria-label="帳戶操作">
@@ -166,7 +139,6 @@ import AssetsTable from "../components/assets/AssetsTable.vue";
 import TotalCards from "../components/assets/TotalCards.vue";
 import TransferForm from "../components/assets/TransferForm.vue";
 import TransferHistory from "../components/assets/TransferHistory.vue";
-import { ArrowRight, TrendCharts } from "@element-plus/icons-vue";
 
 const ADJUSTMENT_SCOPE = "account:adjust:";
 const ADJUSTMENT_REASON_LABELS = {
@@ -187,8 +159,6 @@ export default {
     TotalCards,
     TransferForm,
     TransferHistory,
-    ArrowRight,
-    TrendCharts,
   },
   data() {
     return {
@@ -219,11 +189,9 @@ export default {
     assetList() {
       return Object.values(this.assets || {});
     },
-    accountHealthSummary() {
-      const attentionCount = this.accountHealthCards.filter((card) => card.tone !== "success").length;
-      if (this.assetCount === 0) return "尚無帳戶";
-      if (attentionCount === 0) return "狀態良好";
-      return `${attentionCount} 項需留意`;
+    accountAlerts() {
+      // Only states that need action. A credit card owing money is normal, not an alert.
+      return this.accountHealthCards.filter((card) => card.tone === "danger");
     },
     accountHealthCards() {
       if (this.assetCount === 0) {
@@ -978,5 +946,20 @@ h1 {
 .quiet-button:hover {
   transform: none;
   box-shadow: none;
+}
+.account-alert {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--expense-color);
+  border-radius: 10px;
+  color: var(--expense-color);
+  background: var(--expense-soft);
+}
+
+.account-alert span {
+  color: var(--text-color);
+  font-size: 0.88rem;
 }
 </style>

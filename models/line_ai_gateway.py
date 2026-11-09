@@ -1,5 +1,7 @@
 """Budget, consent and the only outbound Gemini path for LINE bookkeeping."""
+import logging
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
@@ -32,6 +34,13 @@ class AIRequestBlocked(Exception):
 
 # Applies when NOMICA_LINE_AI_MONTHLY_USD is unset; set "0" to turn LINE AI off.
 DEFAULT_MONTHLY_USD = Decimal("5")
+# Per-person AI requests per Taipei calendar day; keeps one account from using up
+# the shared monthly budget. Rule-based entries never reach the gateway.
+DEFAULT_DAILY_PER_USER = 30
+ALERT_RATIO = Decimal("0.8")
+LOCAL_TZ = ZoneInfo("Asia/Taipei")
+# Attempts that never reached the provider do not count toward the daily cap.
+UNSENT_STATUSES = ("rejected",)
 
 
 def read_line_ai_budget(env):
@@ -46,6 +55,17 @@ def read_line_ai_budget(env):
     return value if value.is_finite() and 0 < value <= 1_000_000 else None
 
 
+def read_line_ai_daily_limit(env):
+    raw = (env.get("NOMICA_LINE_AI_DAILY_PER_USER") or "").strip()
+    if not raw:
+        return DEFAULT_DAILY_PER_USER
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    return value if 0 < value <= 10_000 else None
+
+
 def set_line_ai_consent(session, owner, consented):
     values = dict(version=CONSENT_VERSION, consented=consented, updated_at=func.now())
     session.execute(insert(line_ai_consents).values(user_id=UUID(str(owner)), **values)
@@ -57,10 +77,13 @@ def _valid_token_count(value):
 
 
 class LineAIGateway:
-    def __init__(self, sessions, models, budget):
+    def __init__(self, sessions, models, budget, *, daily_limit=DEFAULT_DAILY_PER_USER, notify=None):
         self.sessions = sessions
         self.models = models
         self.budget = budget
+        self.daily_limit = daily_limit
+        # Best-effort admin notice; called after the reservation commits.
+        self.notify = notify
 
     def _check_consent(self, session, owner, *, lock=False):
         query = select(line_ai_consents.c.consented).where(
@@ -78,13 +101,21 @@ class LineAIGateway:
     def _reserve(self, owner, event_id):
         now = datetime.now(timezone.utc)
         month = now.date().replace(day=1)
+        local_midnight = now.astimezone(LOCAL_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
         attempts = line_ai_attempts
+        alert = None
         with self.sessions.begin() as session:
             # One shared row serializes reservations across workers. Release it before I/O.
             self._check_switch(session, lock=True)
             self._check_consent(session, owner)
             if session.scalar(select(attempts.c.event_id).where(attempts.c.event_id == event_id)):
                 raise AIRequestBlocked("這則 AI 記帳已受理。請查看先前回覆，或另傳一則訊息。")
+            today = session.scalar(select(func.count()).select_from(attempts).where(
+                attempts.c.user_id == owner, attempts.c.created_at >= local_midnight,
+                attempts.c.status.not_in(UNSENT_STATUSES),
+            ))
+            if today >= self.daily_limit:
+                raise AIRequestBlocked("今天的 AI 解析次數已用完，明天恢復。可先用「午餐 120」或到 Nomica Web 記帳。")
             recent = select(attempts.c.event_id).where(
                 attempts.c.user_id == owner, attempts.c.created_at > now - timedelta(seconds=5),
             ).limit(1)
@@ -98,6 +129,20 @@ class LineAIGateway:
                 event_id=event_id, user_id=owner, month=month, model=MODEL,
                 created_at=now, status="reserved", charge_usd=RESERVE,
             ))
+            projected = used + RESERVE
+            if projected >= self.budget * ALERT_RATIO:
+                # The control row is locked above, so only one worker records this month's alert.
+                sent_for = session.scalar(select(line_ai_control.c.alert_month).where(line_ai_control.c.id == 1))
+                if sent_for != month:
+                    session.execute(update(line_ai_control).where(line_ai_control.c.id == 1)
+                                    .values(alert_month=month))
+                    alert = (f"Nomica LINE AI 本月用量已達 {projected / self.budget:.0%}"
+                             f"（約 {projected:.4f} / {self.budget} USD）。到上限後會自動改用規則記帳。")
+        if alert and self.notify:
+            try:
+                self.notify(alert)
+            except Exception:
+                logging.getLogger(__name__).warning("LINE AI budget alert failed")
 
     def _authorize(self, owner, event_id, stage):
         with self.sessions.begin() as session:

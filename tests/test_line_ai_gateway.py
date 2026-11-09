@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from threading import Event
 from types import SimpleNamespace
@@ -7,7 +8,10 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
-from models.line_ai_gateway import AIRequestBlocked, LineAIGateway, read_line_ai_budget, set_line_ai_consent
+from models.line_ai_gateway import (
+    LOCAL_TZ, RESERVE, AIRequestBlocked, LineAIGateway, read_line_ai_budget, read_line_ai_daily_limit,
+    set_line_ai_consent,
+)
 from models.schema import line_ai_attempts, line_ai_control
 from tests.test_line_durable_confirmation import command_db, line_db  # noqa: F401
 
@@ -200,3 +204,69 @@ def test_withdrawal_after_reservation_blocks_token_count(gate, monkeypatch):
     with pytest.raises(AIRequestBlocked, match="同意 AI"):
         gateway.generate(data["a"], "revoke-before-count", "test")
     assert provider.calls == []
+
+
+@pytest.mark.parametrize("env,expected", [
+    ({}, 30), ({"NOMICA_LINE_AI_DAILY_PER_USER": ""}, 30), ({"NOMICA_LINE_AI_DAILY_PER_USER": "5"}, 5),
+    ({"NOMICA_LINE_AI_DAILY_PER_USER": "0"}, None), ({"NOMICA_LINE_AI_DAILY_PER_USER": "-1"}, None),
+    ({"NOMICA_LINE_AI_DAILY_PER_USER": "typo"}, None),
+])
+def test_daily_limit_setting_fails_closed(env, expected):
+    assert read_line_ai_daily_limit(env) == expected
+
+
+def _past_attempts(engine, owner, statuses, when):
+    with engine.begin() as conn:
+        for i, status in enumerate(statuses):
+            conn.execute(line_ai_attempts.insert().values(
+                event_id=f"past-{status}-{i}-{when.timestamp()}", user_id=owner, month=when.date().replace(day=1),
+                model="m", created_at=when, status=status, charge_usd=0))
+
+
+def test_daily_cap_counts_sent_requests_since_local_midnight(line_db):
+    engine, data = line_db
+    with engine.begin() as conn:
+        conn.execute(line_ai_control.insert().values(id=1, enabled=True))
+    gateway = LineAIGateway(sessionmaker(bind=engine), Provider(), Decimal("1"), daily_limit=2)
+    consent(gateway, data["a"])
+    now = datetime.now(timezone.utc)
+    midnight = now.astimezone(LOCAL_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
+    # Yesterday's requests and requests that never reached the provider do not count.
+    _past_attempts(engine, data["a"], ["completed", "completed"], midnight - timedelta(minutes=1))
+    _past_attempts(engine, data["a"], ["rejected", "rejected"], now - timedelta(minutes=1))
+    _past_attempts(engine, data["a"], ["completed"], now - timedelta(minutes=1))
+    gateway.generate(data["a"], "today-2", "private text")
+    with pytest.raises(AIRequestBlocked, match="今天的 AI 解析次數已用完"):
+        gateway.generate(data["a"], "today-3", "private text")
+    # The cap is per person.
+    consent(gateway, data["b"])
+    gateway.generate(data["b"], "other-person", "private text")
+
+
+def test_budget_alert_is_sent_once_per_month(line_db):
+    engine, data = line_db
+    with engine.begin() as conn:
+        conn.execute(line_ai_control.insert().values(id=1, enabled=True))
+    sent = []
+    # One reservation already passes 80% of this budget.
+    gateway = LineAIGateway(sessionmaker(bind=engine), Provider(), RESERVE * Decimal("1.1"), notify=sent.append)
+    for role in ("a", "b"):
+        consent(gateway, data[role])
+    gateway.generate(data["a"], "first", "private text")
+    gateway.generate(data["b"], "second", "private text")
+    assert len(sent) == 1 and "本月用量已達" in sent[0]
+    assert "private text" not in sent[0]
+
+
+def test_alert_failure_does_not_block_the_request(line_db):
+    engine, data = line_db
+    with engine.begin() as conn:
+        conn.execute(line_ai_control.insert().values(id=1, enabled=True))
+
+    def broken(text):
+        raise RuntimeError("push failed")
+    gateway = LineAIGateway(sessionmaker(bind=engine), Provider(), RESERVE, notify=broken)
+    consent(gateway, data["a"])
+    gateway.generate(data["a"], "first", "private text")
+    with engine.connect() as conn:
+        assert conn.execute(select(line_ai_attempts.c.status)).scalar_one() == "completed"

@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
 from sqlalchemy import desc, insert, select, update
@@ -59,7 +59,31 @@ class AIParseEventManager:
             error_message="; ".join(errors) if errors else None,
         )
 
-    def confirm_event(self, user_id, event_id, result_type, result_id):
+    @staticmethod
+    def draft_unchanged(parsed_payload, submitted):
+        """True when the saved entry matches every field the parser filled in."""
+        draft = (parsed_payload or {}).get("transaction") or {}
+
+        def same_amount(left, right):
+            try:
+                return Decimal(str(left)) == Decimal(str(right))
+            except (InvalidOperation, TypeError, ValueError):
+                return False
+
+        checks = []
+        if draft.get("amount") not in (None, ""):
+            checks.append(same_amount(draft["amount"], submitted.get("amount")))
+        if draft.get("budget_category"):
+            checks.append(draft["budget_category"] == submitted.get("budget_category"))
+        if draft.get("title"):
+            checks.append(draft["title"] == submitted.get("item"))
+        if draft.get("date"):
+            checks.append(draft["date"] == submitted.get("date"))
+        if draft.get("account_id"):
+            checks.append(str(draft["account_id"]) == str(submitted.get("account_id") or ""))
+        return bool(checks) and all(checks)
+
+    def confirm_event(self, user_id, event_id, result_type, result_id, *, unchanged=None):
         stmt = (
             update(ai_parse_events_table)
             .where(
@@ -70,6 +94,7 @@ class AIParseEventManager:
                 status="confirmed",
                 result_type=result_type,
                 result_id=UUID(str(result_id)),
+                confirmed_unchanged=unchanged,
             )
             .returning(ai_parse_events_table)
         )
@@ -77,6 +102,14 @@ class AIParseEventManager:
         if not row:
             raise ValueError("找不到可確認的 AI 解析紀錄")
         return dict(row._mapping)
+
+    def parsed_payload(self, user_id, event_id):
+        try:
+            key = UUID(str(event_id))
+        except ValueError:
+            return None
+        return self.db_session.scalar(select(ai_parse_events_table.c.parsed_payload).where(
+            ai_parse_events_table.c.id == key, ai_parse_events_table.c.user_id == UUID(str(user_id))))
 
     def list_recent_events(self, user_id, limit=20):
         safe_limit = max(1, min(int(limit or 20), 100))
