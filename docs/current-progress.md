@@ -1,6 +1,6 @@
 # Nomica 目前進度
 
-快照：2026-11-10，分支 `codex/beta-readiness`（基於 main `bac4c14`）。長期方向見 [product-roadmap.md](product-roadmap.md)。
+快照：2026-11-11，分支 `codex/trip-covers`（基於 main `d69eb59`，`codex/beta-readiness` 已合併）。長期方向見 [product-roadmap.md](product-roadmap.md)。
 
 ## 已在 main（已部署）
 
@@ -23,9 +23,16 @@
 
 本機結果：後端 774 passed（含 PostgreSQL）；端對端、mock UI、lint、check-styles、build 通過。
 
+## 旅行封面與登入頁（`codex/trip-covers`）
+
+- 旅行可選 8 種預設封面；旅行列表、旅行詳情頂端、邀請頁使用封面，並顯示「第 N／M 天」「N 天後」「已結束」與已花金額
+- 旅行擁有者可在旅行「設定」更換封面
+- 登入頁改為說明定位與三個使用情境
+- migration `20261111_0022`（`trips.cover_theme`）
+
 ## 開始封閉測試前
 
-依 [deployment-checklist.md](deployment-checklist.md)「封閉測試 → 開始前」逐項完成：備份 → migration 到 `20261110_0021` → 部署 → 環境變數 → 清除排程 → 填政策頁與上手說明的營運者與聯絡方式 → 實機驗收。
+依 [deployment-checklist.md](deployment-checklist.md)「封閉測試 → 開始前」逐項完成：備份 → migration 到 `20261111_0022` → 部署 → 環境變數 → 清除排程 → 填政策頁與上手說明的營運者與聯絡方式 → 實機驗收。
 
 ## 尚未完成
 

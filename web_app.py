@@ -1072,6 +1072,7 @@ def create_trip(current_user_id):
             base_currency=data.get("base_currency", "TWD"),
             default_currency=data.get("default_currency", data.get("base_currency", "TWD")),
             include_in_monthly_report=bool(data.get("include_in_monthly_report", False)),
+            cover_theme=data.get("cover_theme"),
         )
         db_session.commit()
         return jsonify({"success": True, "message": "旅行建立成功", "data": trip}), 201
@@ -1090,8 +1091,8 @@ def get_trip(current_user_id, trip_id):
 @app.route("/api/trips/<string:trip_id>", methods=["PATCH"])
 @token_required
 def update_trip(current_user_id, trip_id):
-    data = request.get_json()
-    if not data or "include_in_monthly_report" not in data:
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not ({"include_in_monthly_report", "cover_theme"} & set(data)):
         return jsonify({"success": False, "message": "缺少可更新欄位"}), 400
 
     try:
@@ -1099,6 +1100,7 @@ def update_trip(current_user_id, trip_id):
             current_user_id,
             trip_id,
             include_in_monthly_report=data.get("include_in_monthly_report"),
+            cover_theme=data.get("cover_theme"),
         )
         db_session.commit()
         return jsonify({"success": True, "message": "旅行設定已更新", "data": trip}), 200

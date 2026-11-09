@@ -6,7 +6,7 @@
 ## 本機到 staging
 
 1. 先確認目標環境、DB 身分與備份；核對實際 migration head。
-   本地目前 chain head 為 `20261110_0021`，不可直接拿測試 runner 連 staging／production。
+   本地目前 chain head 為 `20261111_0022`，不可直接拿測試 runner 連 staging／production。
 2. migration 前核對可還原備份及適用版本；0018 新增短效 OAuth state，
    不授權刪除舊帳務或自動 downgrade。升級不代表歷史不平帳已修復。
 3. Backend 設 `NOMICA_ENV=production`、`DEV_AUTH_BYPASS=false`、`FLASK_DEBUG=false`。
@@ -69,7 +69,7 @@ AI 如要開放，另通過 G-AI；這次停用不等於已完成額度或預算
 | 項目 | 怎麼做 | 完成 |
 | --- | --- | --- |
 | 資料庫備份 | Supabase：確認自動備份已開啟，並在升級前手動建立一次備份 | [ ] |
-| Migration | `DATABASE_URL='…' alembic current` 確認版本，再 `alembic upgrade head`，結果應為 `20261110_0021 (head)` | [ ] |
+| Migration | `DATABASE_URL='…' alembic current` 確認版本，再 `alembic upgrade head`，結果應為 `20261111_0022 (head)` | [ ] |
 | 部署 | Render 部署對應的 main；Vercel 前端同步 | [ ] |
 | 環境變數 | `GEMINI_API_KEY`、`NOMICA_LINE_AI_PAID_PROJECT_VERIFIED=true`；建議設 `NOMICA_ADMIN_LINE_USER_ID`（80% 用量通知）；`NOMICA_LINE_AI_DAILY_PER_USER` 不設即每人每日 30 次 | [ ] |
 | 清除排程 | 每天執行 `python -m scripts.purge_deleted_users --apply`（例如 Render Cron Job，使用同一組 `DATABASE_URL`） | [ ] |
@@ -111,7 +111,7 @@ DATABASE_URL='…' python -m scripts.beta_metrics --weeks 4
 | --- | --- |
 | LINE AI 回覆異常或費用異常 | 停用 AI：在資料庫執行 `UPDATE line_ai_control SET enabled = false WHERE id = 1;`（立即生效，改回 `true` 恢復）。或把 `NOMICA_LINE_AI_MONTHLY_USD` 設為 `0` 後重新部署。規則記帳不受影響 |
 | LINE 回覆整體異常 | 設 `NOMICA_LINE_MODE=disabled` 後重新部署，LINE 停止回應，Web 不受影響 |
-| 新版本有問題 | Render 回退到上一個部署；Vercel 回退到上一個 Production 部署。本批 migration（0021）只新增欄位與資料表，回退程式時不需降版資料庫 |
+| 新版本有問題 | Render 回退到上一個部署；Vercel 回退到上一個 Production 部署。0021、0022 只新增欄位與資料表，回退程式時不需降版資料庫 |
 | 帳戶餘額看起來不對 | 唯讀檢查：`python -m scripts.reconcile_accounts --fail-on-issues`；不要直接改資料庫餘額 |
 | 試用者要刪除資料 | 請本人在「我的 → 帳號與隱私」刪除帳號；30 天後由清除排程永久刪除 |
 | 資料毀損 | 從 Supabase 備份還原到新資料庫、核對後再切換；清除排程刪掉的資料只能從備份找回 |
