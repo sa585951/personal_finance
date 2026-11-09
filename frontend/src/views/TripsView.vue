@@ -4,14 +4,15 @@
       <button class="back-link" type="button" @click="returnToTripList">
         <ArrowLeft aria-hidden="true" />旅行
       </button>
-      <template v-if="selectedTrip">
+      <div v-if="selectedTrip" class="trip-cover" :style="{ background: tripCover(selectedTrip).color }">
+        <span class="cover-tag">{{ tripTimeLabel(selectedTrip, today) }}</span>
         <h1>{{ selectedTrip.name }}</h1>
         <p class="trip-meta">
           {{ selectedTrip.destination || "未設定地點" }} · {{ formatRange(selectedTrip) }} ·
           {{ selectedTrip.members.length }} 人 · {{ selectedTrip.default_currency }}
           <span v-if="tripReportLabel(selectedTrip)"> · {{ tripReportLabel(selectedTrip) }}</span>
         </p>
-      </template>
+      </div>
       <h1 v-else>旅行</h1>
     </header>
 
@@ -225,6 +226,14 @@
               {{ currentMemberMonthlyReportPreference === "include" ? "改為不納入" : "改為納入" }}
             </button>
           </div>
+          <div v-if="isTripOwner" class="settings-row settings-row--stack">
+            <CoverPicker
+              :model-value="tripCover(selectedTrip).key"
+              label="封面"
+              :disabled="updatingTripSettings"
+              @update:model-value="updateCoverTheme"
+            />
+          </div>
           <div class="settings-row">
             <span><strong>切換旅行</strong></span>
             <button class="quiet-action" type="button" @click="showTripSwitcher = true">選擇</button>
@@ -277,6 +286,9 @@ import TripSummaryPanel from "@/components/trips/TripSummaryPanel.vue";
 import TripSwitcherModal from "@/components/trips/TripSwitcherModal.vue";
 import TripTransactionsPanel from "@/components/trips/TripTransactionsPanel.vue";
 import { defaultAccountId, rememberLastAccount } from "@/utils/lastAccount";
+import { localDateKey } from "@/utils/money";
+import { tripCover, tripTimeLabel } from "@/constants/tripCovers";
+import CoverPicker from "@/components/trips/CoverPicker.vue";
 import {
   createCursorPager,
   cursorForPage,
@@ -288,6 +300,7 @@ export default {
   name: "TripsView",
   components: {
     PendingTransactionRecovery,
+    CoverPicker,
     ArrowLeft,
     ArrowRight,
     Calendar,
@@ -323,6 +336,7 @@ export default {
       showTripSwitcher: false,
       showTripManagement: false,
       activeSection: "expense",
+      today: localDateKey(),
       trips: [],
       managedTrips: [],
       selectedTrip: null,
@@ -1366,6 +1380,22 @@ export default {
       }
       this.newExpense.split_member_ids = this.getDefaultSplitMemberIds();
       this.initializeCustomSplitAllocations();
+    },
+    tripCover,
+    tripTimeLabel,
+    async updateCoverTheme(theme) {
+      if (!this.selectedTrip || this.updatingTripSettings || theme === this.selectedTrip.cover_theme) return;
+      const previous = this.selectedTrip.cover_theme;
+      this.selectedTrip.cover_theme = theme;
+      this.updatingTripSettings = true;
+      try {
+        await apiClient.patch(`/api/trips/${this.selectedTrip.id}`, { cover_theme: theme });
+      } catch (error) {
+        this.selectedTrip.cover_theme = previous;
+        this.$swal.fire("封面更新失敗", error.response?.data?.message || "請稍後再試。", "error");
+      } finally {
+        this.updatingTripSettings = false;
+      }
     },
     openExpenseForm() {
       this.activeSection = "expense";
@@ -2520,10 +2550,41 @@ h1 {
   margin-bottom: 16px;
 }
 
-.trip-head h1 {
-  margin: 4px 0 2px;
+.trip-cover {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+  padding: 40px 16px 16px;
+  border-radius: 14px;
+  color: #ffffff;
+}
+
+.trip-cover h1 {
+  margin: 0;
   font-size: 1.6rem;
   line-height: 1.25;
+}
+
+.trip-cover .trip-meta {
+  color: #ffffff;
+  opacity: 0.92;
+}
+
+.cover-tag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.settings-row--stack {
+  display: block;
+  padding: 12px 2px;
 }
 
 .back-link,

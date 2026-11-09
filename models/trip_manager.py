@@ -16,6 +16,18 @@ from .schema import (
 )
 
 
+
+# Preset cover colours for trips; the frontend maps each key to its palette.
+COVER_THEMES = ("ocean", "sunset", "forest", "night", "sakura", "sand", "alpine", "stone")
+
+
+def _cover_theme(value):
+    if value in (None, ""):
+        return None
+    if value not in COVER_THEMES:
+        raise ValueError("不支援的封面主題")
+    return value
+
 class TripManager:
     """管理旅行帳本與旅伴。"""
 
@@ -185,9 +197,22 @@ class TripManager:
         if not include_archived:
             stmt = stmt.where(trips_table.c.status == "active")
 
+        rows = self.db_session.execute(stmt).all()
+        # One query for every listed trip's expense total, in each trip's base currency.
+        totals = dict(self.db_session.execute(
+            select(transactions_table.c.trip_id, func.coalesce(func.sum(transactions_table.c.converted_amount), 0))
+            .where(
+                transactions_table.c.trip_id.in_([row.id for row in rows]),
+                transactions_table.c.type == "expense",
+                transactions_table.c.deleted_at.is_(None),
+                transactions_table.c.voided_at.is_(None),
+            )
+            .group_by(transactions_table.c.trip_id)
+        ).all()) if rows else {}
         trips = []
-        for row in self.db_session.execute(stmt):
+        for row in rows:
             trip = self._to_trip_dict(row._mapping)
+            trip["expense_total"] = format(totals.get(row.id, 0), "f")
             members = self._list_trip_members_for_trip(trip["id"])
             current_member = next(
                 (member for member in members if member.get("user_id") == str(parsed_user_id)),
@@ -236,8 +261,10 @@ class TripManager:
         base_currency="TWD",
         default_currency="TWD",
         include_in_monthly_report=False,
+        cover_theme=None,
     ):
         parsed_user_id = self._parse_user_id(user_id)
+        cover_theme = _cover_theme(cover_theme)
         if not str(name).strip():
             raise ValueError("旅行名稱不可為空")
         parsed_start_date = self._parse_date(start_date, "start_date")
@@ -256,6 +283,7 @@ class TripManager:
                 timezone=timezone_name,
                 base_currency=base_currency,
                 default_currency=default_currency,
+                cover_theme=cover_theme,
                 include_in_monthly_report=include_in_monthly_report,
             )
             .returning(trips_table)
@@ -274,11 +302,13 @@ class TripManager:
         )
         return self.get_trip(parsed_user_id, trip["id"])
 
-    def update_trip(self, user_id, trip_id, include_in_monthly_report=None):
+    def update_trip(self, user_id, trip_id, include_in_monthly_report=None, cover_theme=None):
         trip = self._ensure_owner(user_id, trip_id)
         parsed_user_id = self._parse_user_id(user_id)
         values = {}
         member_preference = None
+        if cover_theme is not None:
+            values["cover_theme"] = _cover_theme(cover_theme)
         if include_in_monthly_report is not None:
             include_flag = bool(include_in_monthly_report)
             values["include_in_monthly_report"] = include_flag

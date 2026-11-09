@@ -277,6 +277,7 @@ trips_table = Table(
     Column("default_currency", String(3), ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False),
     Column("status", String(20), nullable=False, server_default=text("'active'")),
     Column("include_in_monthly_report", Boolean, nullable=False, server_default=text("false")),
+    Column("cover_theme", String(20)),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
     Column("deleted_at", DateTime(timezone=True)),

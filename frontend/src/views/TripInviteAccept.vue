@@ -1,6 +1,10 @@
 <template>
   <main class="invite-page">
     <section class="invite-card">
+      <div v-if="trip" class="invite-cover" :style="{ background: cover.color }">
+        <small>{{ trip.destination || "旅行" }}</small>
+        <strong>{{ trip.name }}</strong>
+      </div>
       <h1>加入旅行帳本</h1>
       <p class="invite-message">{{ message }}</p>
 
@@ -8,7 +12,7 @@
         v-if="tripId"
         class="primary-action app-primary-action"
         type="button"
-        @click="$router.replace({ name: 'Trips', query: { trip_id: tripId } })"
+        @click="openTrip"
       >
         前往帳本
       </button>
@@ -21,6 +25,7 @@
 
 <script>
 import apiClient from "@/api";
+import { tripCover } from "@/constants/tripCovers";
 
 export default {
   name: "TripInviteAccept",
@@ -28,8 +33,14 @@ export default {
     return {
       message: "正在確認邀請連結...",
       tripId: "",
+      trip: null,
       redirectTimer: null,
     };
+  },
+  computed: {
+    cover() {
+      return tripCover(this.trip);
+    },
   },
   async created() {
     await this.acceptInvite();
@@ -40,6 +51,10 @@ export default {
     }
   },
   methods: {
+    openTrip() {
+      if (this.redirectTimer) window.clearTimeout(this.redirectTimer);
+      this.$router.replace({ name: "TripDetail", params: { tripId: this.tripId } });
+    },
     async acceptInvite() {
       const token = this.$route.params.token;
       if (!token) {
@@ -51,13 +66,12 @@ export default {
         const response = await apiClient.post(`/api/trip-invites/${token}/accept`);
         const result = response.data.data || {};
         this.tripId = result.trip?.id || "";
+        this.trip = result.trip || null;
         this.message = result.already_joined
           ? "你已經在這個旅行帳本中，正在前往帳本..."
           : "已成功加入旅行帳本，正在前往帳本...";
         if (this.tripId) {
-          this.redirectTimer = window.setTimeout(() => {
-            this.$router.replace({ name: "Trips", query: { trip_id: this.tripId } });
-          }, 1000);
+          this.redirectTimer = window.setTimeout(() => this.openTrip(), 1500);
         }
       } catch (error) {
         this.message = error.response?.data?.message || "邀請連結無法使用，可能已過期或已關閉。";
@@ -91,6 +105,19 @@ export default {
   font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
+}
+
+.invite-cover {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 16px;
+  padding: 36px 16px 16px;
+  border-radius: 12px;
+  color: #ffffff;
+}
+
+.invite-cover strong {
+  font-size: 1.3rem;
 }
 
 h1 {

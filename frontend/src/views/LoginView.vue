@@ -1,44 +1,58 @@
 <template>
   <div class="login-container">
-    <ThemeToggle class="login-theme-toggle" show-label />
-    <div class="login-layout">
-      <div class="login-intro">
-        <div class="brand"><img class="brand-mark" src="/nomica-mark.svg" alt="" /><span>Nomica</span></div>
-        <p class="eyebrow">把日常與旅程，放進同一本帳</p>
-        <h1>每一筆生活，<br><em>都更有方向。</em></h1>
-        <p class="intro-copy">清楚記錄日常收支、帳戶與旅行分攤，從今天開始掌握自己的財務節奏。</p>
-        <div class="feature-list" aria-label="產品功能">
-          <span>日常收支</span><span>帳戶總覽</span><span>旅行分攤</span>
-        </div>
-      </div>
-      <div class="login-box">
-        <img class="login-icon" src="/nomica-mark.svg" alt="" />
-        <h2>歡迎回來</h2>
-        <p v-if="$route.query.deleted === '1'" class="login-notice" role="status">帳號已刪除。資料會在 30 天後永久清除。</p>
-        <p v-else>登入後繼續查看你的 Nomica 帳本。</p>
-        <button type="button" @click="lineLogin" class="login-button">
-          使用 LINE 繼續
-        </button>
-        <small>登入即會前往 LINE 完成驗證，並表示你同意<router-link to="/terms">服務條款</router-link>與<router-link to="/privacy">隱私權政策</router-link>。</small>
-      </div>
-    </div>
+    <header class="login-top">
+      <div class="brand"><img class="brand-mark" src="/nomica-mark.svg" alt="" /><span>Nomica</span></div>
+      <ThemeToggle show-label />
+    </header>
+
+    <main class="login-main">
+      <section class="hero" aria-label="Nomica 是什麼">
+        <h1>在 LINE 說一句話記帳<br>旅行分帳，自動回到帳本</h1>
+      </section>
+
+      <ol class="steps">
+        <li v-for="step in steps" :key="step.title">
+          <component :is="step.icon" aria-hidden="true" />
+          <span>
+            <strong>{{ step.title }}</strong>
+            <small>{{ step.detail }}</small>
+          </span>
+        </li>
+      </ol>
+
+      <p v-if="$route.query.deleted === '1'" class="login-notice" role="status">帳號已刪除。資料會在 30 天後永久清除。</p>
+      <button type="button" class="login-button" @click="lineLogin">使用 LINE 開始</button>
+      <small class="legal">
+        登入即表示你同意<router-link to="/terms">服務條款</router-link>與<router-link to="/privacy">隱私權政策</router-link>。
+      </small>
+    </main>
   </div>
 </template>
 
 <script>
+import { ChatLineRound, Notebook, User } from "@element-plus/icons-vue";
 import ThemeToggle from "@/components/shared/ThemeToggle.vue";
 import { safeRedirectPath } from "@/utils/authNavigation";
 
 export default {
-  name: 'LoginView',
-  components: { ThemeToggle },
+  name: "LoginView",
+  components: { ChatLineRound, Notebook, ThemeToggle, User },
+  data() {
+    return {
+      steps: [
+        { icon: "ChatLineRound", title: "「午餐 120 刷玉山卡」", detail: "說完就是一筆草稿，確認才入帳" },
+        { icon: "User", title: "和旅伴共用一本旅行帳", detail: "誰付、誰欠，自動算好" },
+        { icon: "Notebook", title: "回國後，你的那份進月報", detail: "不用再手動對帳" },
+      ],
+    };
+  },
   methods: {
     safeRedirectPath(value) {
       return safeRedirectPath(value);
     },
     lineLogin() {
-      const backendBaseUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_APP_API_URL || '');
-      const redirectPath = this.safeRedirectPath(this.$route.query.redirect || '/');
+      const backendBaseUrl = import.meta.env.PROD ? "" : (import.meta.env.VITE_APP_API_URL || "");
+      const redirectPath = this.safeRedirectPath(this.$route.query.redirect || "/");
       const params = new URLSearchParams({ redirect: redirectPath });
       window.location.href = `${backendBaseUrl}/line-login-start?${params.toString()}`;
     },
@@ -48,55 +62,123 @@ export default {
 
 <style scoped>
 .login-container {
-  display: grid;
   min-height: 100dvh;
-  place-items: center;
-  padding: 32px 20px;
+  padding: max(16px, env(safe-area-inset-top)) 16px 32px;
+  color: var(--text-color);
   background: var(--page-bg);
 }
-.login-theme-toggle { position: fixed; top: max(16px, env(safe-area-inset-top)); right: 20px; z-index: 2; }
-.login-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 390px); align-items: center; gap: clamp(32px, 8vw, 110px); width: min(100%, 1060px); }
-.brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text-color); font-size: 1.3rem; font-weight: 850; letter-spacing: -0.04em; }
-.brand-mark { width: 39px; height: 39px; border-radius: 13px; }
-.eyebrow { margin: 64px 0 14px; color: var(--primary-color); font-size: 0.83rem; font-weight: 800; letter-spacing: 0.09em; }
-h1 { margin: 0; color: var(--text-color); font-size: clamp(2.8rem, 6vw, 5rem); font-weight: 850; letter-spacing: -0.07em; line-height: 1.18; }
-h1 em { color: var(--primary-color); font-style: normal; }
-.intro-copy { max-width: 460px; margin: 24px 0 28px; color: var(--light-text-color); font-size: 1.05rem; line-height: 1.8; }
-.feature-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.feature-list span { padding: 7px 12px; color: var(--primary-color); background: var(--primary-soft); border-radius: 999px; font-size: 0.8rem; font-weight: 750; }
-.feature-list span:last-child { color: var(--travel-color); background: var(--travel-soft); }
-.login-box {
-  padding: clamp(28px, 5vw, 42px);
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  box-shadow: var(--surface-shadow);
+
+.login-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 440px;
+  margin: 0 auto;
 }
-.login-icon { display: block; width: 48px; height: 48px; margin-bottom: 30px; border-radius: 14px; }
-h2 { margin: 0 0 8px; color: var(--text-color); font-size: 1.65rem; letter-spacing: -0.04em; }
-.login-box p { margin: 0 0 30px; color: var(--light-text-color); }
-.login-button {
+
+.brand {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 10px;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.login-main {
+  display: grid;
+  gap: 18px;
+  max-width: 440px;
+  margin: 24px auto 0;
+}
+
+.hero {
+  display: flex;
+  align-items: flex-end;
+  min-height: 190px;
+  padding: 20px;
+  border-radius: 18px;
+  color: #ffffff;
+  background: #1f5a73;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+.steps {
+  display: grid;
+  gap: 14px;
+  margin: 4px 0 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.steps svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  color: var(--light-text-color);
+}
+
+.steps span {
+  display: grid;
+  gap: 2px;
+}
+
+.steps small,
+.legal {
+  color: var(--light-text-color);
+  font-size: 0.85rem;
+}
+
+.login-notice {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--secondary-color);
+}
+
+.login-button {
   width: 100%;
   min-height: 54px;
-  padding: 10px 20px;
   border-radius: 14px;
   color: var(--on-primary);
   background: var(--primary-color);
   font-size: 1rem;
   font-weight: 800;
 }
-.login-button:hover { background: var(--primary-hover); }
-.login-box small { display: block; margin-top: 16px; color: var(--light-text-color); font-size: 0.75rem; text-align: center; }
-@media (max-width: 740px) {
-  .login-container { align-items: start; padding: max(34px, env(safe-area-inset-top)) 20px 36px; }
-  .login-layout { max-width: 470px; grid-template-columns: 1fr; gap: 32px; }
-  .eyebrow { margin-top: 38px; }
-  .intro-copy { margin: 16px 0 20px; font-size: 0.95rem; }
-  .login-box { border-radius: 16px; }
-  .login-icon { display: none; }
+
+.legal {
+  text-align: center;
+}
+
+.legal a {
+  color: var(--text-color);
+}
+
+@media (min-width: 900px) {
+  .hero {
+    min-height: 240px;
+  }
+
+  .hero h1 {
+    font-size: 1.9rem;
+  }
 }
 </style>

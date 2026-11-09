@@ -55,6 +55,7 @@
             </option>
           </select>
         </label>
+        <CoverPicker v-model="newTrip.cover_theme" class="full-row" />
         <label class="toggle-row full-row">
           <input v-model="newTrip.include_in_monthly_report" type="checkbox" />
           納入我的月報
@@ -89,16 +90,12 @@
             :key="trip.id"
             class="trip-card"
             type="button"
+            :style="{ background: tripCover(trip).color }"
             @click="openTrip(trip.id)"
           >
-            <span class="trip-row-main">
-              <strong>{{ trip.name }}</strong>
-              <small>
-                {{ trip.destination || "未設定地點" }} · {{ formatRange(trip) }} · {{ tripDays(trip) }} 天 ·
-                {{ trip.members?.length || 0 }} 人 · {{ trip.default_currency }}
-              </small>
-            </span>
-            <ArrowRight aria-hidden="true" />
+            <span class="cover-tag">{{ tripTimeLabel(trip, today) }}</span>
+            <strong>{{ trip.name }}</strong>
+            <small>{{ coverMeta(trip) }}</small>
           </button>
         </section>
       </div>
@@ -151,12 +148,15 @@
 </template>
 
 <script>
-import { ArrowRight, Plus, Refresh } from "@element-plus/icons-vue";
+import { Plus, Refresh } from "@element-plus/icons-vue";
+import CoverPicker from "@/components/trips/CoverPicker.vue";
+import { TRIP_COVERS, tripCover, tripTimeLabel } from "@/constants/tripCovers";
+import { formatAmount, localDateKey } from "@/utils/money";
 import apiClient from "@/api";
 
 export default {
   name: "TripListView",
-  components: { ArrowRight, Plus, Refresh },
+  components: { CoverPicker, Plus, Refresh },
   data() {
     const today = new Date().toISOString().slice(0, 10);
     return {
@@ -178,7 +178,9 @@ export default {
         base_currency: "TWD",
         default_currency: "JPY",
         include_in_monthly_report: false,
+        cover_theme: TRIP_COVERS[Math.floor(Math.random() * TRIP_COVERS.length)].key,
       },
+      today: localDateKey(),
     };
   },
   computed: {
@@ -304,6 +306,14 @@ export default {
       if (preference === "exclude") return "不計入我的月報";
       if (preference === "pending") return "尚未決定";
       return trip.include_in_monthly_report ? "計入月報" : "不計入月報";
+    },
+    tripCover,
+    tripTimeLabel,
+    coverMeta(trip) {
+      const parts = [trip.destination || "未設定地點", `${trip.members?.length || 0} 人`];
+      const spent = Number(trip.expense_total || 0);
+      parts.push(spent > 0 ? `已花 ${trip.base_currency} ${formatAmount(spent, trip.base_currency)}` : trip.default_currency);
+      return parts.join(" · ");
     },
     tripDays(trip) {
       const start = new Date(`${trip.start_date}T00:00:00`);
@@ -556,11 +566,6 @@ h2 {
   gap: 12px;
 }
 
-.trip-group + .trip-group {
-  padding-top: 14px;
-  border-top: 1px solid var(--border-color);
-}
-
 .trip-group-heading {
   display: flex;
   align-items: end;
@@ -734,39 +739,44 @@ h2 {
 }
 
 #app .trip-list-view .trip-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  position: relative;
+  display: grid;
+  align-content: end;
+  gap: 2px;
   width: 100%;
-  min-height: 64px;
-  padding: 10px 2px;
+  min-height: 104px;
+  margin-top: 10px;
+  padding: 14px 16px;
   border: 0;
-  border-bottom: 1px solid var(--border-color);
-  border-radius: 0;
-  color: var(--text-color);
-  background: transparent;
+  border-radius: 14px;
+  color: #ffffff;
   box-shadow: none;
   text-align: left;
-  transform: none;
 }
 
-.trip-row-main {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
+#app .trip-list-view .trip-card strong,
+#app .trip-list-view .trip-card small,
+#app .trip-list-view .trip-card .cover-tag {
+  color: #ffffff;
 }
 
-.trip-row-main small {
-  color: var(--light-text-color);
+#app .trip-list-view .trip-card strong {
+  font-size: 1.15rem;
+}
+
+#app .trip-list-view .trip-card small {
   font-size: 0.82rem;
 }
 
-.trip-card svg {
-  width: 16px;
-  height: 16px;
-  flex: none;
-  color: var(--light-text-color);
+.cover-tag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .manage-link {
