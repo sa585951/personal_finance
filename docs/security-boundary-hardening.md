@@ -65,7 +65,7 @@ Cookie 為 host-only、HttpOnly、production Secure、SameSite=Lax；寫入仍�
 
 ## AI-01 / AI-02：未驗收入口的暫停與設定盤點
 
-`NOMICA_AI_MODE`、`NOMICA_LINE_MODE` 預設 `disabled`。`synthetic` 必須在明確的
+`NOMICA_AI_MODE` 預設 `disabled`。`synthetic` 必須在明確的
 loopback development/testing 環境使用。公開環境不能藉旗標
 開啟未完成的 AI。synthetic 只供合成資料與替身流程，仍禁止共用 Adapter 呼叫
 雲端模型，也不建立持有正式 Key 的 Gemini client。
@@ -79,10 +79,9 @@ loopback development/testing 環境使用。公開環境不能藉旗標
 
 這是 S1 的 containment，**不是**共用額度、預算 Reservation、即時 Kill Switch
 或 Usage 帳本。對外啟用仍須另完成 G-AI，不能只把模式改名為 public。
-LINE 可另外設定 `NOMICA_LINE_MODE=help_only`，並透過 `NOMICA_LINE_HELP_USER_IDS`
-指定以逗號分隔的 LINE 測試使用者 ID。此模式只對名單內的一對一「幫助」訊息回覆固定操作說明，
-不處理選單、草稿、帳務或 AI。保持 `NOMICA_AI_MODE=disabled`。
-上線試用時，用名單內外的帳號各傳一次「幫助」，並驗證一般記帳文字不觸發寫入。
+LINE 的預設模式為 `oral_pilot`，部署時若沿用舊值 `help_only` 也會進入同一條記帳流程。
+經驗簽的一對一訊息可以取得操作說明。已連結的 Nomica 帳號可以建立草稿並由本人確認入帳。
+要暫停 LINE 訊息互動時，可設 `NOMICA_LINE_MODE=disabled`。
 既有解析歷史未在本批刪除，其保存及資料控制仍接 S5。
 
 2026-10-21 本機唯讀盤點：Backend `.env` 存在 Key（未輸出），目前 Git 索引

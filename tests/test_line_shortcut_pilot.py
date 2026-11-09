@@ -21,14 +21,6 @@ from tests.test_ai_parse_api import _load_web_app
 from tests.test_line_durable_confirmation import command_db, event, event_dict, line_db, manager  # noqa: F401
 
 
-def pilot():
-    return load_optional_access({
-        "NOMICA_ENV": "testing", "NOMICA_LINE_MODE": "oral_pilot",
-        "FRONTEND_BASE_URL": "http://localhost:5173", "VITE_BACKEND_BASE_URL": "http://localhost:5173",
-        "NOMICA_LINE_HELP_USER_IDS": "U-fix-a,U-fix-b,U-fix-unknown",
-    })
-
-
 def lunch(eid="shortcut", text="午餐 120", **changes):
     payload = event_dict(eid)
     payload["message"]["text"] = text
@@ -61,7 +53,7 @@ def webhook(line_db, monkeypatch):
     bot.line_bot_api.reply_message = replies.append
     monkeypatch.setattr(app, "db_session", db)
     monkeypatch.setattr(app, "linebot_manager", bot)
-    monkeypatch.setattr(app, "OPTIONAL_ACCESS", pilot())
+    monkeypatch.setattr(app, "OPTIONAL_ACCESS", load_optional_access({"NOMICA_ENV": "production"}))
 
     def send(*events, valid=True):
         body = json.dumps({"events": events}).encode()
@@ -82,20 +74,6 @@ def counts(engine, data):
         )
 
 
-def test_shortcut_policy_stays_outside_ai():
-    access = pilot()
-    assert access.line_oral_pilot and not access.ai_parse and not access.cloud_ai and not access.line_interactions
-    with pytest.raises(ValueError, match="僅允許本機測試"):
-        load_optional_access({
-            "NOMICA_LINE_MODE": "oral_pilot", "NOMICA_ENV": "production",
-            "FRONTEND_BASE_URL": "https://nomica.example", "VITE_BACKEND_BASE_URL": "https://nomica.example",
-            "NOMICA_LINE_HELP_USER_IDS": "U-fix-a",
-        })
-    with pytest.raises(ValueError, match="NOMICA_LINE_HELP_USER_IDS"):
-        load_optional_access({"NOMICA_LINE_MODE": "oral_pilot", "NOMICA_ENV": "testing",
-                              "FRONTEND_BASE_URL": "http://localhost:5173", "VITE_BACKEND_BASE_URL": "http://localhost:5173"})
-
-
 def test_signed_shortcut_filters_recipient_and_reports_correctable_errors(webhook):
     send, replies, engine, data = webhook
     with Session(engine) as session:
@@ -108,7 +86,7 @@ def test_signed_shortcut_filters_recipient_and_reports_correctable_errors(webhoo
         session.commit()
     assert send(lunch(), valid=False).status_code == 400
     assert send(lunch(source={"type": "group", "groupId": "C-group", "userId": "U-fix-a"}),
-                lunch(source={"type": "user", "userId": "U-not-allowed"})).status_code == 200
+                lunch(mode="standby")).status_code == 200
     assert replies == []
     for i, (message, fragment) in enumerate([
         ("幫助", "午餐"),

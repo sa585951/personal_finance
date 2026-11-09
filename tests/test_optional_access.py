@@ -8,9 +8,14 @@ from models.optional_access import OptionalAccess, load_optional_access
 from tests.test_ai_parse_api import FakeDBSession, _auth_headers, _load_web_app
 
 
-def test_public_defaults_disable_all_unverified_optional_entries():
-    policy = load_optional_access({})
-    assert not policy.ai_parse and not policy.line_interactions and not policy.cloud_ai
+@pytest.mark.parametrize("mode", [None, "oral_pilot", "help_only"])
+def test_deployed_line_bookkeeping_works_without_a_tester_list(mode):
+    env = {"NOMICA_ENV": "production"}
+    if mode is not None:
+        env["NOMICA_LINE_MODE"] = mode
+    policy = load_optional_access(env)
+    assert policy.line_oral_pilot
+    assert not policy.ai_parse and not policy.cloud_ai
 
 
 @pytest.mark.parametrize("key", ["NOMICA_AI_MODE", "NOMICA_LINE_MODE"])
@@ -60,7 +65,7 @@ def test_disabled_web_parse_does_not_parse_or_persist(monkeypatch):
 
 def test_disabled_line_acknowledges_only_after_signature_validation(monkeypatch):
     app = _load_web_app(monkeypatch)
-    monkeypatch.setattr(app, "OPTIONAL_ACCESS", OptionalAccess(False, False))
+    monkeypatch.setattr(app, "OPTIONAL_ACCESS", load_optional_access({"NOMICA_LINE_MODE": "disabled"}))
     def forbidden(*args, **kwargs):
         pytest.fail("disabled LINE must not process an event, profile, draft or ledger")
     # A controlled SDK boundary establishes valid vs invalid signatures.

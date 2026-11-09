@@ -8,7 +8,6 @@ from flask import Flask, jsonify, request, redirect, g
 from flask_cors import CORS
 from sqlalchemy import select, func
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import TextMessage
 from linebot.v3.webhooks import MessageEvent, PostbackEvent, TextMessageContent, UserSource
 import os
 import requests
@@ -359,7 +358,7 @@ def get_auth_account(user_id):
 def get_capabilities(current_user_id):
     response = jsonify({"success": True, "data": {
         "ai_parse": OPTIONAL_ACCESS.ai_parse,
-        "line_interactions": OPTIONAL_ACCESS.line_interactions,
+        "line_interactions": OPTIONAL_ACCESS.line_interactions or OPTIONAL_ACCESS.line_oral_pilot,
     }})
     response.headers["Cache-Control"] = "no-store"
     return response
@@ -1738,35 +1737,18 @@ def line_webhook():
         app.logger.error("LINE webhook parsing failed")
         return 'Error parsing request', 400
 
-    if not (OPTIONAL_ACCESS.line_help_user_ids or OPTIONAL_ACCESS.line_interactions):
+    if not (OPTIONAL_ACCESS.line_oral_pilot or OPTIONAL_ACCESS.line_interactions):
         return 'LINE interaction is paused', 200
-
-    if OPTIONAL_ACCESS.line_help_user_ids:
-        events = [
-            event for event in events
-            if isinstance(getattr(event, 'source', None), UserSource)
-            and event.source.user_id in OPTIONAL_ACCESS.line_help_user_ids
-            and event.mode == "active" and event.reply_token
-        ]
-
-    if OPTIONAL_ACCESS.line_help_user_ids and not OPTIONAL_ACCESS.line_oral_pilot:
-        for event in events:
-            if (isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent)
-                    and event.message.text.strip() == "幫助"):
-                try:
-                    linebot_manager.reply_message_flex(
-                        event.reply_token,
-                        TextMessage(text="請到 Nomica Web 的新增頁面手動記帳。LINE 目前提供操作說明。"),
-                        raise_on_error=True,
-                    )
-                except Exception:
-                    app.logger.warning("LINE help reply failed")
-                    return 'Reply failed; retry later', 503
-        return 'OK', 200
 
     handler = (linebot_manager.process_oral_event if OPTIONAL_ACCESS.line_oral_pilot
                else linebot_manager.process_event)
     for event in events:
+        # Only authenticated one-to-one deliveries may enter the bookkeeping flow.
+        if OPTIONAL_ACCESS.line_oral_pilot and not (
+            isinstance(getattr(event, 'source', None), UserSource)
+            and event.source.user_id and event.mode == "active" and event.reply_token
+        ):
+            continue
         if not ((isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent))
                 or isinstance(event, PostbackEvent)):
             continue

@@ -17,9 +17,9 @@
 5. 核對 `frontend/vercel.json` 的 backend 目的地；其他平台須配置等效
    `/api/*`、`/line-login-start`、`/line-login-callback` 同源代理。
    前端正式 build 使用相對 API；不能沿用舊版跨站 localStorage Token 流程。
-6. `NOMICA_AI_MODE=disabled`、`NOMICA_LINE_MODE=disabled`。LINE Login 與
-   LINE 訊息互動分開。可用 `help_only` 讓指定測試帳號試用固定回覆，設定見
-   `security-boundary-hardening.md`。聊天記帳仍須通過 G-AI／入口驗收。
+6. LINE 記帳預設啟用，既有 `NOMICA_LINE_MODE=help_only` 也會進入記帳。
+   記帳者須先用同一 LINE 帳號登入 Nomica。要暫停 LINE 訊息互動，可設
+   `NOMICA_LINE_MODE=disabled`。Gemini 維持 `NOMICA_AI_MODE=disabled`。
 7. 憑證只存部署平台秘密設定；範例可版控，真實 `.env`、DB dump、Token 不可版控。
    依需求配置 JWT、DB、LINE Login 憑證；停用 AI 不需要為了部署加入 Gemini Key。
 8. 協調 frontend/backend 版本與回退方案。回退不得直接刪除 state、命令或去重資料表。
