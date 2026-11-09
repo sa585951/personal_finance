@@ -694,6 +694,8 @@ line_ai_control = Table(
     "line_ai_control", metadata,
     Column("id", Integer, primary_key=True),
     Column("enabled", Boolean, nullable=False),
+    # Month (first day) for which the 80% budget alert was already sent.
+    Column("alert_month", Date),
     CheckConstraint("id = 1", name="ck_line_ai_control_singleton"),
 )
 

@@ -14,7 +14,7 @@ from ..user_manager import UserManager
 from .transaction_drafts import LineTransactionDrafts
 from .webhook_events import LineWebhookEvents
 from ..optional_access import load_optional_access
-from ..line_ai_gateway import LineAIGateway, read_line_ai_budget
+from ..line_ai_gateway import LineAIGateway, read_line_ai_budget, read_line_ai_daily_limit
 from linebot.v3 import WebhookParser
 from linebot.v3.messaging import (
     ApiClient,
@@ -78,13 +78,18 @@ class LineBotManager:
 
         self.line_ai_gateway = None
         budget = read_line_ai_budget(os.environ)
+        daily_limit = read_line_ai_daily_limit(os.environ)
         paid_project_verified = os.getenv("NOMICA_LINE_AI_PAID_PROJECT_VERIFIED") == "true"
-        if budget is not None and gemini_api_key and paid_project_verified and load_optional_access(os.environ).line_oral_pilot:
+        admin_line_user = (os.getenv("NOMICA_ADMIN_LINE_USER_ID") or "").strip()
+        if (budget is not None and daily_limit is not None and gemini_api_key and paid_project_verified
+                and load_optional_access(os.environ).line_oral_pilot):
             # Provider retries could charge twice for one reservation.
             client = genai.Client(api_key=gemini_api_key, vertexai=False, http_options=types.HttpOptions(
                 timeout=8_000, retry_options=types.HttpRetryOptions(attempts=1),
             ))
-            self.line_ai_gateway = LineAIGateway(sessionmaker(bind=db_session.get_bind()), client.models, budget)
+            notify = (lambda text: self.push_message_flex(admin_line_user, text)) if admin_line_user else None
+            self.line_ai_gateway = LineAIGateway(sessionmaker(bind=db_session.get_bind()), client.models, budget,
+                                                 daily_limit=daily_limit, notify=notify)
 
         self.user_state_manager = UserStateManager()
         self.user_manager = UserManager(self.db_session)
