@@ -1,40 +1,34 @@
 # Nomica 目前進度
 
-快照：2026-11-09，分支 `codex/line-shortcut-pilot`。長期方向見 [product-roadmap.md](product-roadmap.md)。
+快照：2026-11-10，分支 `codex/beta-readiness`（基於 main `bac4c14`）。長期方向見 [product-roadmap.md](product-roadmap.md)。
 
-## 這個分支包含的改動
+## 已在 main（已部署）
 
-| Commit | 內容 | 驗證 |
-| --- | --- | --- |
-| `1569661`、`72fe7e4` | LINE 一句話記帳草稿，預設啟用；確認前不入帳 | 本機與替身 |
-| `dbe631c` | LINE Gemini：使用者同意與撤回、月費用上限、限流、即時停用；migration `20261109_0020` | 本機與替身 |
-| `511cb0a` | LINE AI 月上限預設 5 USD；仍需付費專案確認 | 單元測試 |
-| `4cd4b4c` | 修正 dev bypass 下 Web 寫入一律失敗 | 單元與端對端 |
-| `9b06d69` | 新增收支預設上次用過的帳戶 | 端對端 |
-| `73025a8` | 匯出資料、登出所有裝置、刪除帳號 | PostgreSQL 與端對端 |
-| `a6539cb` | Web 一句話記帳（本機規則，不呼叫模型） | 單元與端對端 |
-| `572937b` | Web 改版：今天、記一筆、明細、我的；黑白灰配色 | mock UI（5 尺寸、深淺色）、對比檢查、端對端 |
-| `94be605` | GitHub Actions CI：後端全量、前端檢查、端對端 | 待第一次在 PR 上執行 |
+- P0：CI（後端全量、前端、端對端）、帳戶預設上次使用、匯出／刪除帳號／登出所有裝置
+- Web 帳簿式改版（今天、記一筆、明細、我的）、Web 一句話記帳（本機規則）
+- LINE：一句話記帳、Gemini（同意、月上限預設 5 USD）、帳戶選擇依使用頻率排序並可翻頁與打字選擇
+- 正式資料庫已升級到 `20261109_0020`
 
-本機最新結果：後端 751 passed（含 PostgreSQL smoke）；端對端、mock UI、lint、check-styles、build 通過。
+## 這個分支（封閉測試前準備）
 
-## 部署前
+| Commit | 內容 |
+| --- | --- |
+| `8a09570` | LINE AI 每人每日上限（預設 30 次）與 80% 用量 LINE 通知；migration `20261110_0021` |
+| `aab8f54` | 刪除帳號 30 天後永久清除（`scripts/purge_deleted_users`）；隱私權政策與服務條款頁 |
+| `85d7616` | 旅行列表改為列表；旅行詳情以支出為主、浮動「記一筆旅行支出」、設定分頁、旅行支出預設帳戶 |
+| `a5ebec3` | 帳戶、預算、分析頁整理；移除信用卡誤報與錯誤的旅行數；預算用詞一致 |
+| `6ab45d3` | 今天頁：每日可花、預算引導、情境卡（旅行中／信用卡繳款）；量測事件與 `scripts/beta_metrics`；migration `20261110_0022` |
+| 本次 | [試用者上手說明](beta-tester-guide.md)、[封閉測試營運手冊](beta-runbook.md) |
 
-1. 核對 Render 監聽的分支與正式 DB 的 migration revision，先備份。
-2. 套用 migration 至 `20261109_0020`；若 `0019` 尚未套用，依 [deployment-checklist.md](deployment-checklist.md) 先核對重複資料。
-3. 環境變數：可移除 `NOMICA_LINE_HELP_USER_IDS`（已不讀取）；`NOMICA_LINE_MODE` 可不設（預設記帳模式）。啟用 LINE AI 需 `GEMINI_API_KEY` 與 `NOMICA_LINE_AI_PAID_PROJECT_VERIFIED=true`。
-4. 部署後確認：LINE 登入、Web 記一筆、LINE 規則記帳與 AI 同意流程。
+本機結果：後端 774 passed（含 PostgreSQL）；端對端、mock UI、lint、check-styles、build 通過。
+
+## 開始封閉測試前
+
+依 [beta-runbook.md](beta-runbook.md)「開始前」逐項完成：備份 → migration 到 `20261110_0022` → 部署 → 環境變數 → 清除排程 → 填政策頁與上手說明的營運者與聯絡方式 → 實機驗收。
 
 ## 尚未完成
 
-- 刪除帳號後 30 天的永久清除排程。
-- Web 一句話記帳接上 Gemini（共用 AI gateway 與同意，P1-10／P1-11）。
-- 旅行、帳戶、預算、分析頁的版面重排；桌面表格版面。
-- PWA 圖示與 LINE 頭像仍為舊藍色標誌。
-- 舊 LINE 流程程式（約 6,900 行，只在本機 synthetic 模式可達）尚未移除。
-
-## 下一步
-
-1. 部署並以 5～10 位會一起旅行的使用者進行四週封閉 Beta。
-2. 量測每週記帳天數、一句話記帳成功率、旅行帳本帶來的新使用者與付費意願點擊率。
-3. 依結果決定 Gemini 共用解析、旅行口語記帳（M7）與 iOS（M6）的先後。
+- Web 一句話記帳接 Gemini 與共用額度（排在測試第 1～2 週）
+- 帳戶、預算、分析的完整重排；桌面表格；PWA 圖示與 LINE 頭像
+- 隱私權政策與服務條款的法務審閱
+- 舊 LINE 程式（約 6,900 行）移除、大檔拆分、OpenAPI、監控擴充

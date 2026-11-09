@@ -6,7 +6,7 @@
 ## 本機到 staging
 
 1. 先確認目標環境、DB 身分與備份；核對實際 migration head。
-   本地目前 chain head 為 `20261109_0020`，不可直接拿測試 runner 連 staging／production。
+   本地目前 chain head 為 `20261110_0022`，不可直接拿測試 runner 連 staging／production。
 2. migration 前核對可還原備份及適用版本；0018 新增短效 OAuth state，
    不授權刪除舊帳務或自動 downgrade。升級不代表歷史不平帳已修復。
 3. Backend 設 `NOMICA_ENV=production`、`DEV_AUTH_BYPASS=false`、`FLASK_DEBUG=false`。

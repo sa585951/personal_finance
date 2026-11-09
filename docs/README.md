@@ -5,6 +5,7 @@
 | 類型 | 文件 | 用途 |
 | --- | --- | --- |
 | 目前進度 | [current-progress.md](current-progress.md) | 已完成、待驗收與下一步 |
+| 封閉測試 | [beta-runbook.md](beta-runbook.md)、[beta-tester-guide.md](beta-tester-guide.md) | 測試前準備、每週例行、停用與回退；給試用者的上手說明 |
 | 產品方向 | [product-roadmap.md](product-roadmap.md) | Milestone、平台分工與收費假設 |
 | 財務與 API 合約 | [finance-contract.md](finance-contract.md)、[api-contract.md](api-contract.md) | 隨行為變更更新 |
 | 寫入安全 | [financial-write-safety.md](financial-write-safety.md)、[s2-ledger-concurrency.md](s2-ledger-concurrency.md)、[s3-fx-correctness.md](s3-fx-correctness.md) | 冪等、併發、匯率與數值規則 |
