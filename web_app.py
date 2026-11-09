@@ -1738,12 +1738,20 @@ def line_webhook():
         app.logger.error("LINE webhook parsing failed")
         return 'Error parsing request', 400
 
+    if not (OPTIONAL_ACCESS.line_help_user_ids or OPTIONAL_ACCESS.line_interactions):
+        return 'LINE interaction is paused', 200
+
     if OPTIONAL_ACCESS.line_help_user_ids:
+        events = [
+            event for event in events
+            if isinstance(getattr(event, 'source', None), UserSource)
+            and event.source.user_id in OPTIONAL_ACCESS.line_help_user_ids
+            and event.mode == "active" and event.reply_token
+        ]
+
+    if OPTIONAL_ACCESS.line_help_user_ids and not OPTIONAL_ACCESS.line_oral_pilot:
         for event in events:
             if (isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent)
-                    and isinstance(event.source, UserSource)
-                    and event.source.user_id in OPTIONAL_ACCESS.line_help_user_ids
-                    and event.mode == "active" and event.reply_token
                     and event.message.text.strip() == "幫助"):
                 try:
                     linebot_manager.reply_message_flex(
@@ -1756,16 +1764,14 @@ def line_webhook():
                     return 'Reply failed; retry later', 503
         return 'OK', 200
 
-    if not OPTIONAL_ACCESS.line_interactions:
-        # Acknowledge valid deliveries without profile calls, persistence or writes.
-        return 'LINE interaction is paused', 200
-
+    handler = (linebot_manager.process_oral_event if OPTIONAL_ACCESS.line_oral_pilot
+               else linebot_manager.process_event)
     for event in events:
         if not ((isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent))
                 or isinstance(event, PostbackEvent)):
             continue
         try:
-            response = linebot_manager.process_event(event)
+            response = handler(event)
             # Commit the inbox result and ledger before sending the external
             # reply. A lost reply/HTTP response is safe to redeliver and replay.
             db_session.commit()

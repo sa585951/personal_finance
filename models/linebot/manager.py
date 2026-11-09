@@ -4,6 +4,7 @@ import os
 import logging
 from google import genai
 from .message_handler import MessageHandler
+from .oral_pilot import LineOralPilot
 from .message_parser import MessageParser
 from .user_state_manager import UserStateManager
 from ..ai_parse_event_manager import AIParseEventManager
@@ -135,6 +136,10 @@ class LineBotManager:
     def process_event(self, event):
         handler = self.build_message_response if getattr(event, 'message', None) is not None else self.build_postback_response
         return LineWebhookEvents(self.db_session).process(event, handler)
+
+    def process_oral_event(self, event):
+        pilot = LineOralPilot(self.db_session, self.message_parser.ai_parse_service)
+        return LineWebhookEvents(self.db_session).process(event, pilot.handle)
 
     def handle_message_flex(self, event):
         response = self.build_message_response(event)
