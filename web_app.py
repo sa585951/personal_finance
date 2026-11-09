@@ -184,21 +184,28 @@ def _decode_auth_payload():
     except jwt.InvalidTokenError:
         return None, jsonify({'message': 'Token is invalid!'}), 401
 
+def _dev_bypass_user():
+    """Resolve the loopback-only dev user to the same internal id every route sees."""
+    provider_user_id = request.headers.get("X-Dev-User", "local-dev-user")
+    if provider_user_id not in DEV_AUTH_USERS:
+        provider_user_id = "local-dev-user"
+    dev_user = DEV_AUTH_USERS[provider_user_id]
+    user = user_manager.get_or_create_user_for_identity(
+        provider="dev",
+        provider_user_id=provider_user_id,
+        display_name=dev_user["display_name"],
+        provider_email=dev_user["provider_email"],
+    )
+    db_session.commit()
+    return user
+
+
 def token_required(f):
     """Token 驗證裝飾器"""
     @wraps(f)
     def decorated(*args, **kwargs):
         if DEV_AUTH_BYPASS:
-            provider_user_id = request.headers.get("X-Dev-User", "local-dev-user")
-            dev_user = DEV_AUTH_USERS.get(provider_user_id, DEV_AUTH_USERS["local-dev-user"])
-            user = user_manager.get_or_create_user_for_identity(
-                provider="dev",
-                provider_user_id=provider_user_id if provider_user_id in DEV_AUTH_USERS else "local-dev-user",
-                display_name=dev_user["display_name"],
-                provider_email=dev_user["provider_email"],
-            )
-            db_session.commit()
-            return f(str(user["id"]), *args, **kwargs)
+            return f(str(_dev_bypass_user()["id"]), *args, **kwargs)
 
         data, error_response, status_code = _decode_auth_payload()
         if error_response is not None:
@@ -288,14 +295,16 @@ def home():
 @app.route("/api/auth/me", methods=["GET"])
 def get_current_auth_user():
     if DEV_AUTH_BYPASS:
-        provider_user_id = request.headers.get("X-Dev-User", "local-dev-user")
-        dev_user = DEV_AUTH_USERS.get(provider_user_id, DEV_AUTH_USERS["local-dev-user"])
+        # Must equal the id token_required hands to routes: clients bind
+        # financial writes to it through X-Nomica-Request-Owner.
+        user = _dev_bypass_user()
         return jsonify(
             {
                 "success": True,
                 "data": {
-                    "user_id": provider_user_id,
-                    "name": dev_user["display_name"],
+                    "user_id": str(user["id"]),
+                    "name": user["display_name"] or "",
+                    "provider": "dev",
                 },
             }
         )
