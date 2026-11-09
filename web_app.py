@@ -424,48 +424,72 @@ def get_capabilities(current_user_id):
     response.headers["Cache-Control"] = "no-store"
     return response
 
+def _read_parse_text():
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return None, (jsonify({"success": False, "message": "輸入必須為 JSON object"}), 400)
+    text = data.get("text") or data.get("message") or ""
+    if not isinstance(text, str) or len(text) > 1000:
+        return None, (jsonify({"success": False, "message": "text 必須為 1000 字元以內的文字"}), 400)
+    text = text.strip()
+    if not text:
+        return None, (jsonify({"success": False, "message": "缺少 text 欄位"}), 400)
+    return text, None
+
+
+def _parse_response(current_user_id, text, parse):
+    parse_result = parse(text)
+    transaction = parse_result.get("transaction")
+    if transaction and transaction.get("account_hint"):
+        matched_account = asset_manager.find_asset_by_name(
+            current_user_id,
+            transaction["account_hint"],
+            currency=transaction.get("currency"),
+            context_text=text,
+        )
+        transaction["account_id"] = matched_account["account_key"] if matched_account else None
+        transaction["account_name"] = matched_account["bank_name"] if matched_account else None
+    parse_event = linebot_manager.ai_parse_event_manager.record_from_parse_result(
+        current_user_id,
+        "web",
+        parse_result,
+    )
+    db_session.commit()
+    return jsonify({
+        "success": True,
+        "data": {
+            "parse_event_id": str(parse_event["id"]),
+            "parse_result": parse_result,
+        },
+    }), 200
+
+
 @app.route("/api/ai/parse", methods=["POST"])
 @token_required
 def parse_ai_input(current_user_id):
     if not OPTIONAL_ACCESS.ai_parse:
         return jsonify({"success": False, "code": "AI_DISABLED", "message": "解析暫停開放，請使用手動輸入或發票 QR"}), 503
-    data = request.get_json(silent=True) or {}
-    if not isinstance(data, dict):
-        return jsonify({"success": False, "message": "輸入必須為 JSON object"}), 400
-    text = data.get("text") or data.get("message") or ""
-    if not isinstance(text, str) or len(text) > 1000:
-        return jsonify({"success": False, "message": "text 必須為 1000 字元以內的文字"}), 400
-    text = text.strip()
-    if not text:
-        return jsonify({"success": False, "message": "缺少 text 欄位"}), 400
-
+    text, error = _read_parse_text()
+    if error:
+        return error
     try:
-        parse_result = linebot_manager.message_parser.parse_shared(text)
-        transaction = parse_result.get("transaction")
-        if transaction and transaction.get("account_hint"):
-            matched_account = asset_manager.find_asset_by_name(
-                current_user_id,
-                transaction["account_hint"],
-                currency=transaction.get("currency"),
-                context_text=text,
-            )
-            transaction["account_id"] = matched_account["account_key"] if matched_account else None
-            transaction["account_name"] = matched_account["bank_name"] if matched_account else None
-        parse_event = linebot_manager.ai_parse_event_manager.record_from_parse_result(
-            current_user_id,
-            "web",
-            parse_result,
-        )
-        db_session.commit()
-        return jsonify({
-            "success": True,
-            "data": {
-                "parse_event_id": str(parse_event["id"]),
-                "parse_result": parse_result,
-            },
-        }), 200
+        return _parse_response(current_user_id, text, linebot_manager.message_parser.parse_shared)
     except Exception as error:
         return _api_operation_error(error, "parse_ai_input")
+
+
+@app.route("/api/parse/local", methods=["POST"])
+@token_required
+def parse_local_input(current_user_id):
+    """Speak-to-record on the Web with local rules only; no text leaves Nomica."""
+    text, error = _read_parse_text()
+    if error:
+        return error
+    try:
+        return _parse_response(current_user_id, text,
+                               linebot_manager.message_parser.ai_parse_service.parse_local)
+    except Exception as error:
+        return _api_operation_error(error, "parse_local_input")
 
 @app.route("/api/ai/parse-events", methods=["GET"])
 @token_required
