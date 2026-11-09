@@ -19,7 +19,8 @@
    前端正式 build 使用相對 API；不能沿用舊版跨站 localStorage Token 流程。
 6. LINE 記帳預設啟用，既有 `NOMICA_LINE_MODE=help_only` 也會進入記帳。
    記帳者須先用同一 LINE 帳號登入 Nomica。要暫停 LINE 訊息互動，可設
-   `NOMICA_LINE_MODE=disabled`。Gemini 維持 `NOMICA_AI_MODE=disabled`。
+   `NOMICA_LINE_MODE=disabled`。LINE Gemini 有獨立啟用步驟與費用上限，
+   見 [LINE AI 試用](line-ai-pilot.md)。Web AI 仍使用 `NOMICA_AI_MODE=disabled`。
 7. 憑證只存部署平台秘密設定；範例可版控，真實 `.env`、DB dump、Token 不可版控。
    依需求配置 JWT、DB、LINE Login 憑證；停用 AI 不需要為了部署加入 Gemini Key。
 8. 協調 frontend/backend 版本與回退方案。回退不得直接刪除 state、命令或去重資料表。

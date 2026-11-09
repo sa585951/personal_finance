@@ -34,7 +34,9 @@ def forbidden(*args, **kwargs):
 def safe_manager(session):
     bot = manager(session)
     bot.message_parser.parse_shared = forbidden
-    bot.message_parser.ai_parse_service.gemini_parser.parse = lambda text: {
+    parser = bot.message_parser.ai_parse_service.gemini_parser
+    provider_parse = parser.parse
+    parser.parse = lambda text, **kwargs: provider_parse(text, **kwargs) if kwargs else {
         "type": "expense", "category": "午餐", "budget_category": "伙食", "amount": 120,
         "currency": "TWD", "target_asset": next((name for name in ("國泰卡", "Duplicate", "B cash") if name in text), None),
     }
@@ -287,3 +289,55 @@ def test_uncertain_fields_are_not_frozen(message, parsed, field):
     parser._today = lambda: date(2026, 11, 9)
     fields = oral_payload(parser, message, {"type": "expense", **parsed}, money)
     assert fields[field] is None
+
+
+def test_signed_oral_ai_requests_consent_and_only_sends_when_needed(webhook, monkeypatch):
+    from sqlalchemy.orm import sessionmaker
+    from models.line_ai_gateway import LineAIGateway
+    from models.linebot.manager import LineBotManager
+    from models.schema import line_ai_attempts, line_ai_control
+    from tests.test_line_ai_gateway import Provider
+
+    send, replies, engine, data = webhook
+    with engine.begin() as conn:
+        conn.execute(line_ai_control.insert().values(id=1, enabled=True))
+    with Session(engine) as session:
+        card_account = AssetManager(session).add_account(data["a"], "國泰信用卡", "credit_card", 500)
+        session.commit()
+    provider = Provider()
+    provider.text = ('{"type":"expense","category":"午餐","budget_category":"伙食",'
+                     '"amount":120,"currency":"TWD","target_asset":"國泰卡"}')
+    gateway = LineAIGateway(sessionmaker(bind=engine), provider, Decimal("1"))
+    monkeypatch.setattr(LineBotManager, "line_ai_gateway", gateway, raising=False)
+
+    spoken = "昨天跟同事吃午餐，刷國泰卡 120"
+    assert send(lunch("needs-consent", spoken)).status_code == 200
+    assert "同意 AI" in str(replies[-1].messages[0].to_dict())
+    assert not provider.calls
+    assert send(lunch("consent", "同意 AI")).status_code == 200
+    assert "Google Gemini" in str(replies[-1].messages[0].to_dict())
+    assert send(lunch("quick", "午餐 120 現金")).status_code == 200
+    assert send(lunch("greeting", "你好")).status_code == 200
+    assert send(lunch("secret", "午餐 120，卡號 4111 1111 1111 1111")).status_code == 200
+    assert "請移除" in str(replies[-1].messages[0].to_dict())
+    assert not provider.calls
+    assert send(lunch("spoken", spoken)).status_code == 200
+    card = replies[-1].messages[0].to_dict()["contents"]
+    confirm = card["footer"]["contents"][0]["action"]["data"]
+    assert confirm.startswith("nomica.oral.confirm:")
+    assert "國泰信用卡" in str(card)
+    assert send(lunch("spoken", spoken)).status_code == 200
+    assert len(provider.calls) == 2
+    assert counts(engine, data) == (1, 0, 1000)
+    assert send(event_dict("confirm-ai", postback=confirm)).status_code == 200
+    assert send(event_dict("confirm-ai-again", postback=confirm)).status_code == 200
+    assert send(lunch("withdraw", "撤回 AI")).status_code == 200
+    assert send(lunch("after-withdraw", spoken)).status_code == 200
+    assert "同意 AI" in str(replies[-1].messages[0].to_dict())
+    assert len(provider.calls) == 2
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(line_ai_attempts)) == 1
+        assert session.scalar(select(accounts_table.c.balance).where(
+            accounts_table.c.id == card_account.account_id,
+        )) == 380
+    assert counts(engine, data) == (2, 1, 1000)

@@ -1,4 +1,4 @@
-"""Local LINE pilot for natural-language drafts and explicit account selection."""
+"""LINE pilot for natural-language drafts and explicit account selection."""
 import re
 from collections import Counter
 from datetime import date, datetime, timezone
@@ -9,6 +9,7 @@ from sqlalchemy import select, update
 
 from ..asset_manager import ACCOUNT_TYPE_LABELS
 from ..budget_manager import DEFAULT_CURRENCY
+from ..line_ai_gateway import AIRequestBlocked, CONSENT_NOTICE, set_line_ai_consent
 from ..schema import accounts_table, ai_parse_events_table, categories_table
 from ..user_manager import UserManager
 from .line_sdk import FlexSendMessage
@@ -34,11 +35,18 @@ EXPLICIT_CURRENCIES = {
     "EUR": re.compile(r"(?<![A-Za-z])EUR(?![A-Za-z])|歐元|€", re.I | re.ASCII),
     "KRW": re.compile(r"(?<![A-Za-z])KRW(?![A-Za-z])|韓元|韓幣|₩", re.I | re.ASCII),
 }
+SENSITIVE_TEXT = re.compile(
+    r"密碼|驗證碼|身分證|身份證|卡號|(?i:\b(?:cvv|cvc|otp|password|api[ -]?key)\b)"
+    r"|(?<!\d)(?:\d[ -]?){13,19}(?!\d)"
+)
+BOOKKEEPING_TEXT = re.compile(
+    r"(?:[0-9]|[一二兩三四五六七八九十百千萬]+[十百千萬元塊])"
+)
 GUIDE = "可傳「昨天午餐刷卡 120」或「午餐 120」。請核對草稿後確認，其他操作請到 Nomica Web。"
 NO_DRAFT = "找不到可操作的收支草稿，請重新輸入。"
 
 
-def parse_oral(parser, message):
+def parse_oral(parser, message, *, generate=None):
     """Use local rules only for a complete, unambiguous pattern."""
     text = normalize("NFKC", message).strip()
     quick = MEAL.fullmatch(text)
@@ -46,7 +54,7 @@ def parse_oral(parser, message):
         item, amount, account = quick.groups()
         return {"type": "expense", "category": item, "budget_category": "伙食",
                 "amount": amount.replace(",", ""), "target_asset": account}, "rule"
-    parsed = parser.parse(text)
+    parsed = parser.parse(text, generate=generate)
     if parsed["source"] == "local_fallback":
         return {}, "unavailable"
     return parsed["legacy"], parsed["source"]
@@ -84,9 +92,10 @@ def oral_payload(parser, message, parsed, validate_amount):
 
 
 class LineOralPilot:
-    def __init__(self, session, parser):
+    def __init__(self, session, parser, gateway=None):
         self.session = session
         self.parser = parser
+        self.gateway = gateway
         self.drafts = LineTransactionDrafts(session)
 
     def handle(self, event):
@@ -96,15 +105,41 @@ class LineOralPilot:
             return GUIDE
         user = UserManager(self.session).get_user_by_identity("line", event.source.user_id)
         if not user:
-            return "請先以同一個 LINE 帳號登入 Nomica Web。"
+            return "請先用你目前傳訊息的 LINE 帳號登入 Nomica Web。"
         owner = user["id"]
         if not message:
             return self._postback(owner, event.postback.data)
+        command = " ".join(text.upper().split())
+        if command == "AI 說明":
+            return CONSENT_NOTICE if self.gateway else "AI 解析目前暫停。"
+        if command == "撤回 AI":
+            set_line_ai_consent(self.session, owner, False)
+            return ("已撤回 AI 同意。系統會停止授權新的請求，已獲准處理的請求可能仍會送出。"
+                    "規則記帳和既有草稿仍可使用。")
+        if command == "同意 AI":
+            if not self.gateway:
+                return "AI 解析目前暫停。"
+            set_line_ai_consent(self.session, owner, True)
+            return ("已開啟 AI 口語記帳。規則無法處理的記帳文字會傳給 Google Gemini。"
+                    "請再傳一筆記帳文字，隨時可回「撤回 AI」。")
         if text.startswith(("補金額 ", "補日期 ")):
             return self._clarify(owner, text)
         if len(text) > 1000:
             return "訊息太長，請簡短描述一筆收支。"
-        parsed, _ = parse_oral(self.parser, text)
+        try:
+            if self.gateway:
+                def generate(prompt):
+                    normalized = normalize("NFKC", text)
+                    if SENSITIVE_TEXT.search(normalized):
+                        raise AIRequestBlocked("請移除卡號、密碼或驗證資訊，再傳送記帳文字。")
+                    if not (BOOKKEEPING_TEXT.search(normalized) and re.search(r"[一-鿿a-zA-Z]", normalized)):
+                        raise AIRequestBlocked(GUIDE)
+                    return self.gateway.generate(owner, event.webhook_event_id, prompt)
+                parsed, _ = parse_oral(self.parser, text, generate=generate)
+            else:
+                parsed, _ = parse_oral(self.parser, text)
+        except AIRequestBlocked as blocked:
+            return str(blocked)
         if parsed.get("type") not in {"expense", "income"}:
             return GUIDE
 

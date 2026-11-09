@@ -55,10 +55,17 @@ def test_alembic_can_upgrade_an_empty_database_to_head(monkeypatch):
             index["name"] for index in inspector.get_indexes("credit_card_billing_profiles")
         }
         revision = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+        ai_tables_with_rls = set(connection.scalars(text(
+            "SELECT relname FROM pg_class WHERE relrowsecurity AND relname IN "
+            "('line_ai_attempts', 'line_ai_consents', 'line_ai_control')"
+        )))
+        line_ai_enabled = connection.scalar(text("SELECT enabled FROM line_ai_control WHERE id = 1"))
 
     verification_engine.dispose()
 
-    assert revision == "20261030_0019"
+    assert revision == "20261109_0020"
+    assert ai_tables_with_rls == {"line_ai_attempts", "line_ai_consents", "line_ai_control"}
+    assert line_ai_enabled is True
     assert "oauth_login_states" in table_names
     assert {'financial_commands', 'line_webhook_events'}.issubset(table_names)
     assert "receipt_documents" in table_names
@@ -97,7 +104,7 @@ def test_alembic_can_upgrade_an_empty_database_to_head(monkeypatch):
         before_balances = connection.execute(text('SELECT id,balance FROM accounts ORDER BY id')).all()
     command.upgrade(alembic_config, 'head')
     with verification_engine.connect() as connection:
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '20261030_0019'
+        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '20261109_0020'
         for table, count in before.items():
             assert connection.execute(text('SELECT count(*) FROM '+table)).scalar_one() == count
         assert connection.execute(text('SELECT id,balance FROM accounts ORDER BY id')).all() == before_balances

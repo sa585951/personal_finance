@@ -3,6 +3,8 @@
 import os
 import logging
 from google import genai
+from google.genai import types
+from sqlalchemy.orm import sessionmaker
 from .message_handler import MessageHandler
 from .oral_pilot import LineOralPilot
 from .message_parser import MessageParser
@@ -12,6 +14,7 @@ from ..user_manager import UserManager
 from .transaction_drafts import LineTransactionDrafts
 from .webhook_events import LineWebhookEvents
 from ..optional_access import load_optional_access
+from ..line_ai_gateway import LineAIGateway, read_line_ai_budget
 from linebot.v3 import WebhookParser
 from linebot.v3.messaging import (
     ApiClient,
@@ -72,6 +75,16 @@ class LineBotManager:
             if self.gemini_client
             else MissingGeminiModel()
         )
+
+        self.line_ai_gateway = None
+        budget = read_line_ai_budget(os.environ)
+        paid_project_verified = os.getenv("NOMICA_LINE_AI_PAID_PROJECT_VERIFIED") == "true"
+        if budget is not None and gemini_api_key and paid_project_verified and load_optional_access(os.environ).line_oral_pilot:
+            # Provider retries could charge twice for one reservation.
+            client = genai.Client(api_key=gemini_api_key, vertexai=False, http_options=types.HttpOptions(
+                timeout=8_000, retry_options=types.HttpRetryOptions(attempts=1),
+            ))
+            self.line_ai_gateway = LineAIGateway(sessionmaker(bind=db_session.get_bind()), client.models, budget)
 
         self.user_state_manager = UserStateManager()
         self.user_manager = UserManager(self.db_session)
@@ -138,7 +151,9 @@ class LineBotManager:
         return LineWebhookEvents(self.db_session).process(event, handler)
 
     def process_oral_event(self, event):
-        pilot = LineOralPilot(self.db_session, self.message_parser.ai_parse_service)
+        pilot = LineOralPilot(
+            self.db_session, self.message_parser.ai_parse_service, getattr(self, "line_ai_gateway", None),
+        )
         return LineWebhookEvents(self.db_session).process(event, pilot.handle)
 
     def handle_message_flex(self, event):

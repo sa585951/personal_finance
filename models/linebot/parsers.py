@@ -1,5 +1,9 @@
 import json
 import logging
+import math
+
+from ..line_ai_gateway import AIRequestBlocked
+
 
 class GeminiParser:
     def __init__(self, model, prompt_template, cold_start_checker=None):
@@ -14,7 +18,7 @@ class GeminiParser:
         self.prompt_template = prompt_template
         self.cold_start_checker = cold_start_checker
 
-    def parse(self,message):
+    def parse(self, message, *, generate=None):
         """
         使用 Gemini 解析自然語言
         
@@ -26,14 +30,18 @@ class GeminiParser:
         """
         try:
             prompt = self.prompt_template.format(message = message)
-            response = self.model.generate_content(prompt)
+            response = generate(prompt) if generate else self.model.generate_content(prompt)
 
             # 清理回應
             cleaned_text = self._clean_response(response.text)
             result = json.loads(cleaned_text)
 
+            if generate:
+                return self._validate_gateway_result(result, message)
             return self._validate_result(result, message)
-        
+
+        except AIRequestBlocked:
+            raise
         except Exception as e:
             # SDK exceptions can contain prompts, credentials and provider payloads.
             logging.getLogger(__name__).warning("Gemini parsing failed: type=%s", type(e).__name__)
@@ -44,6 +52,23 @@ class GeminiParser:
 
             return {"type": "other", "error": "parser_unavailable"}
         
+    def _validate_gateway_result(self, result, message):
+        if not isinstance(result, dict) or result.get("type") not in ("expense", "income"):
+            return {"type": "other"}
+        validated = {"type": result["type"]}
+        for name, limit in (("category", 100), ("budget_category", 100), ("description", 500),
+                            ("currency", 3), ("target_asset", 100), ("date", 10)):
+            value = result.get(name)
+            if isinstance(value, str) and len(value) <= limit:
+                validated[name] = value.strip() or None
+        value = result.get("amount")
+        if type(value) in (int, float) and math.isfinite(value):
+            validated["amount"] = value
+        validated["description"] = self._normalize_description(
+            validated.get("description"), message, validated.get("category"),
+        )
+        return validated
+
     def _clean_response(self, text):
         """清理 Gemini 回應"""
         cleaned = text.strip()

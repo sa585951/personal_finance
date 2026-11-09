@@ -33,10 +33,10 @@ class AIParseService:
             prompt_template=prompt_template,
         )
 
-    def parse(self, message):
+    def parse(self, message, *, generate=None):
         """解析使用者輸入，回傳跨平台可共用的 normalized result。"""
         raw_text = (message or "").strip()
-        legacy_result, parser_source = self._parse_legacy(raw_text)
+        legacy_result, parser_source = self._parse_legacy(raw_text, generate=generate)
         legacy_result = self._apply_standard_field_split(legacy_result, raw_text)
         legacy_result = self._apply_account_metadata(legacy_result, raw_text)
         legacy_result = self._apply_transaction_date(legacy_result, raw_text)
@@ -57,12 +57,13 @@ class AIParseService:
         """相容既有 LINE MessageHandler 的解析格式。"""
         return self.parse(message)["legacy"]
 
-    def _parse_legacy(self, message):
+    def _parse_legacy(self, message, *, generate=None):
         quick_result = self.quick_parser.parse(message)
         if quick_result:
             return quick_result, "quick"
 
-        gemini_result = self.gemini_parser.parse(message)
+        gemini_result = (self.gemini_parser.parse(message, generate=generate) if generate
+                         else self.gemini_parser.parse(message))
         fallback_result = self._parse_local_fallback(message, gemini_result)
         if fallback_result:
             return fallback_result, "local_fallback"
