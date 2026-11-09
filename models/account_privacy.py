@@ -16,7 +16,7 @@ from sqlalchemy import and_, func, select, update
 from .schema import (
     account_adjustments_table, accounts_table, ai_parse_events_table, auth_sessions_table,
     budgets_table, categories_table, credit_card_billing_profiles_table, line_ai_consents,
-    portfolios_table, receipt_documents_table, transactions_table, transfers_table,
+    portfolios_table, product_events_table, receipt_documents_table, transactions_table, transfers_table,
     trip_invites_table, trip_members_table, trips_table, user_identities_table, users_table,
 )
 
@@ -39,6 +39,7 @@ EXPORTS = (
     ("trip_memberships.csv", trip_members_table, "user_id"),
     ("ai_parse_events.csv", ai_parse_events_table, "user_id"),
     ("line_ai_consents.csv", line_ai_consents, "user_id"),
+    ("usage_events.csv", product_events_table, "user_id"),
 )
 # Columns never exported even though they belong to the person's rows.
 EXCLUDED_COLUMNS = {"token_hash", "qr_secret", "random_code"}

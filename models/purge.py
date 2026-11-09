@@ -20,7 +20,8 @@ from .schema import (
     ai_parse_events_table, attachments_table, auth_sessions_table, budgets_table, categories_table,
     credit_card_billing_profiles_table, financial_commands_table, holding_cost_entries_table, holdings_table,
     line_ai_attempts, line_ai_consents, metadata, portfolio_snapshot_items_table, portfolio_snapshots_table,
-    portfolios_table, receipt_documents_table, settlement_account_entries_table, settlements_table,
+    portfolios_table, product_events_table, receipt_documents_table, settlement_account_entries_table,
+    settlements_table,
     transaction_splits_table, transactions_table, transfers_table, trip_invites_table, trip_members_table,
     trips_table, user_identities_table, users_table,
 )
@@ -55,6 +56,7 @@ class PurgeService:
             user_identities_table: own(user_identities_table),
             auth_sessions_table: own(auth_sessions_table),
             line_ai_consents: own(line_ai_consents),
+            product_events_table: own(product_events_table),
             ai_parse_events_table: own(ai_parse_events_table),
             financial_commands_table: own(financial_commands_table),
             attachments_table: own(attachments_table),

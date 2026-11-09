@@ -677,8 +677,23 @@ ai_parse_events_table = Table(
     Column("result_id", UUID(as_uuid=True)),
     Column("error_message", Text),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    # Set on confirmation: true when the person saved the draft without changing it.
+    Column("confirmed_unchanged", Boolean),
     CheckConstraint("source in ('line_bot', 'web', 'pwa', 'ios')", name="ck_ai_parse_events_source"),
     CheckConstraint("status in ('success', 'failed', 'confirmed', 'cancelled')", name="ck_ai_parse_events_status"),
+)
+
+
+# Beta measurement: allowlisted UI events with short, non-free-text properties.
+product_events_table = Table(
+    "product_events",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("name", String(50), nullable=False),
+    Column("props", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Index("ix_product_events_user_created", "user_id", "created_at"),
 )
 
 

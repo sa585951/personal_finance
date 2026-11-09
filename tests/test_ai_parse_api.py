@@ -50,7 +50,16 @@ class FakeAIParseEventManager:
         self.last_parse_result = parse_result
         return {"id": uuid.UUID("11111111-1111-1111-1111-111111111111")}
 
-    def confirm_event(self, user_id, event_id, result_type, result_id):
+    def parsed_payload(self, user_id, event_id):
+        return self.last_parse_result
+
+    @staticmethod
+    def draft_unchanged(parsed_payload, submitted):
+        from models.ai_parse_event_manager import AIParseEventManager
+        return AIParseEventManager.draft_unchanged(parsed_payload, submitted)
+
+    def confirm_event(self, user_id, event_id, result_type, result_id, *, unchanged=None):
+        self.confirmed_unchanged = unchanged
         self.confirmed_event = {
             "user_id": user_id,
             "event_id": event_id,

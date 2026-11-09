@@ -26,7 +26,7 @@ from models.budget_manager import BudgetManager, ReportCurrencyError
 from models.linebot.manager import LineBotManager
 from models.app_state import AppStateManager
 from models.database import db_session 
-from models.schema import transactions_table, trips_table
+from models.schema import product_events_table, transactions_table, trips_table
 from models.settlement_account_entry_manager import SettlementAccountEntryManager
 from models.transaction_service import TransactionService
 from models.receipt_import_service import ReceiptImportService
@@ -411,6 +411,40 @@ def delete_account(current_user_id):
     response = jsonify({"success": True, "data": result})
     _clear_auth_cookie(response)
     return response
+
+# --- API - Beta 量測 ---
+
+PRODUCT_EVENTS = {"home_view", "home_click"}
+PRODUCT_EVENTS_PER_DAY = 500
+
+
+@app.route("/api/events", methods=["POST"])
+@token_required
+def record_product_event(current_user_id):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or data.get("name") not in PRODUCT_EVENTS:
+        return jsonify({"success": False, "message": "不支援的事件"}), 400
+    props = data.get("props") or {}
+    # Short labels only: no free text, so nothing personal is collected here.
+    if (not isinstance(props, dict) or len(props) > 5 or any(
+            not isinstance(key, str) or len(key) > 30
+            or not (isinstance(value, bool) or (isinstance(value, str) and len(value) <= 40)
+                    or (isinstance(value, int) and abs(value) < 10**9))
+            for key, value in props.items())):
+        return jsonify({"success": False, "message": "事件屬性格式不正確"}), 400
+    try:
+        since = datetime.now(timezone.utc) - timedelta(days=1)
+        recent = db_session.scalar(select(func.count()).select_from(product_events_table).where(
+            product_events_table.c.user_id == UUID(str(current_user_id)),
+            product_events_table.c.created_at >= since))
+        if recent >= PRODUCT_EVENTS_PER_DAY:
+            return "", 204
+        db_session.execute(product_events_table.insert().values(
+            user_id=UUID(str(current_user_id)), name=data["name"], props=props))
+        db_session.commit()
+    except Exception as error:
+        return _api_operation_error(error, "record_product_event")
+    return "", 204
 
 # --- API - AI 快速輸入 ---
 
@@ -1620,11 +1654,14 @@ def add_transaction(current_user_id):
         if success:
             parse_event_id = data.get("parse_event_id")
             if parse_event_id and created_transaction_id and not result["replayed"]:
-                linebot_manager.ai_parse_event_manager.confirm_event(
+                events = linebot_manager.ai_parse_event_manager
+                unchanged = events.draft_unchanged(events.parsed_payload(current_user_id, parse_event_id), data)
+                events.confirm_event(
                     current_user_id,
                     parse_event_id,
                     data["type"],
                     created_transaction_id,
+                    unchanged=unchanged,
                 )
             db_session.commit()
         return jsonify({
