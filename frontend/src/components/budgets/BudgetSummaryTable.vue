@@ -474,7 +474,7 @@ select {
   gap: 3px;
   min-height: 58px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--card-bg);
   border: 1px solid rgba(20, 184, 166, 0.24);
   border-radius: 8px;
 }
@@ -558,8 +558,8 @@ select {
   min-height: 32px;
   padding: 7px 9px;
   color: inherit;
-  background: rgba(255, 255, 255, 0.64);
-  border: 1px solid rgba(255, 255, 255, 0.56);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   min-width: 0;
   font-size: 0.84rem;

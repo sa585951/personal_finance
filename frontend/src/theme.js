@@ -8,7 +8,7 @@ export function currentTheme() {
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   const themeColor = document.querySelector('meta[name="theme-color"]');
-  if (themeColor) themeColor.content = theme === "dark" ? "#101216" : "#4263EB";
+  if (themeColor) themeColor.content = theme === "dark" ? "#131416" : "#FAFAF8";
   window.dispatchEvent(new Event("nomica-theme-change"));
 }
 

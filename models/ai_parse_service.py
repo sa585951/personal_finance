@@ -19,6 +19,10 @@ DISABLED_GOAL_TYPES = {
 }
 
 
+# Sentinel for parse(): run quick rules and the local fallback, never a model.
+LOCAL_ONLY = object()
+
+
 class AIParseService:
     """跨入口共用的語意解析服務。
 
@@ -33,10 +37,10 @@ class AIParseService:
             prompt_template=prompt_template,
         )
 
-    def parse(self, message):
+    def parse(self, message, *, generate=None):
         """解析使用者輸入，回傳跨平台可共用的 normalized result。"""
         raw_text = (message or "").strip()
-        legacy_result, parser_source = self._parse_legacy(raw_text)
+        legacy_result, parser_source = self._parse_legacy(raw_text, generate=generate)
         legacy_result = self._apply_standard_field_split(legacy_result, raw_text)
         legacy_result = self._apply_account_metadata(legacy_result, raw_text)
         legacy_result = self._apply_transaction_date(legacy_result, raw_text)
@@ -53,21 +57,29 @@ class AIParseService:
             "errors": self._normalize_errors(legacy_result),
         }
 
+    def parse_local(self, message):
+        """Rules only: never contacts a model provider, so it needs no AI consent."""
+        return self.parse(message, generate=LOCAL_ONLY)
+
     def parse_legacy(self, message):
         """相容既有 LINE MessageHandler 的解析格式。"""
         return self.parse(message)["legacy"]
 
-    def _parse_legacy(self, message):
+    def _parse_legacy(self, message, *, generate=None):
         quick_result = self.quick_parser.parse(message)
         if quick_result:
             return quick_result, "quick"
 
-        gemini_result = self.gemini_parser.parse(message)
+        if generate is LOCAL_ONLY:
+            gemini_result = {"type": "other", "error": "local_only"}
+        else:
+            gemini_result = (self.gemini_parser.parse(message, generate=generate) if generate
+                             else self.gemini_parser.parse(message))
         fallback_result = self._parse_local_fallback(message, gemini_result)
         if fallback_result:
             return fallback_result, "local_fallback"
 
-        return gemini_result, "gemini"
+        return gemini_result, "local" if generate is LOCAL_ONLY else "gemini"
 
     def _parse_local_fallback(self, message, gemini_result):
         """Gemini 失敗時的本地規則 fallback，供本地開發與基本輸入測試使用。"""

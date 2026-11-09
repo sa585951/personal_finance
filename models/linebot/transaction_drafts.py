@@ -7,7 +7,7 @@ from ..ai_parse_event_manager import AIParseEventManager
 from ..asset_manager import AssetManager
 from ..budget_manager import BudgetManager
 from ..idempotency import money
-from ..schema import ai_parse_events_table
+from ..schema import accounts_table, ai_parse_events_table
 from ..transaction_service import TransactionService
 from .line_sdk import FlexSendMessage
 
@@ -38,20 +38,23 @@ class LineTransactionDrafts:
         # Freeze date/account/currency in the DB preview; a later worker must not
         # reparse or resolve a different account when the user confirms.
         record = self.events.record_from_parse_result(user_id, 'line_bot', {**parsed, 'line_draft': payload})
-        draft_id = str(record['id'])
         account_label = asset['bank_name'] if asset else '不連動帳戶'
+        return self.preview(record['id'], payload, account_label)
+
+    def preview(self, draft_id, payload, account_label, *, oral=False):
+        prefix = 'nomica.oral.' if oral else 'nomica.'
         return FlexSendMessage(alt_text='確認收支：尚未記帳', contents={
             'type': 'bubble', 'body': {'type': 'box', 'layout': 'vertical', 'contents': [
                 {'type': 'text', 'text': '確認收支（尚未記帳）', 'weight': 'bold', 'wrap': True},
-                {'type': 'text', 'text': f"{payload['date']} · {payload['item']}\n{'收入' if payload['type']=='income' else '支出'} {payload['amount']} {payload['original_currency']}\n帳戶：{account_label}", 'wrap': True, 'margin': 'md'},
+                {'type': 'text', 'text': f"{payload['date']} · {payload['item']}\n{'收入' if payload['type']=='income' else '支出'} {payload['amount']} {payload['original_currency']}\n分類：{payload["budget_category"]}\n帳戶：{account_label}", 'wrap': True, 'margin': 'md'},
                 {'type': 'text', 'text': '請核對金額、日期與帳戶；30分鐘內確認才會記帳。資料不正確請取消並重新輸入。', 'size': 'sm', 'wrap': True, 'margin': 'md'},
             ]}, 'footer': {'type': 'box', 'layout': 'vertical', 'contents': [
-                {'type': 'button', 'style': 'primary', 'action': {'type': 'postback', 'label': '確認新增', 'data': 'nomica.confirm:'+draft_id}},
-                {'type': 'button', 'action': {'type': 'postback', 'label': '取消', 'data': 'nomica.cancel:'+draft_id}},
+                {'type': 'button', 'style': 'primary', 'action': {'type': 'postback', 'label': '確認新增', 'data': f'{prefix}confirm:{draft_id}'}},
+                {'type': 'button', 'action': {'type': 'postback', 'label': '取消', 'data': f'{prefix}cancel:{draft_id}'}},
             ]},
         })
 
-    def resolve(self, user_id, draft_id, action):
+    def resolve(self, user_id, draft_id, action, *, oral=False):
         try:
             owner, key = UUID(str(user_id)), UUID(str(draft_id))
         except (ValueError, TypeError):
@@ -60,7 +63,7 @@ class LineTransactionDrafts:
         row = self.db_session.execute(select(table).where(
             table.c.id == key, table.c.user_id == owner, table.c.source == 'line_bot',
         ).with_for_update()).mappings().first()
-        if row is None:
+        if row is None or bool((row['parsed_payload'] or {}).get('line_oral')) != oral:
             return '找不到可操作的收支草稿，請重新輸入。'
         if row['status'] == 'confirmed':
             return '這筆收支先前已建立，沒有再次記帳或扣款。'
@@ -77,9 +80,34 @@ class LineTransactionDrafts:
             return '收支草稿已取消或逾期，沒有新增記帳。'
         if action != 'confirm':
             return '請使用草稿上的確認或取消按鈕。'
+        if oral:
+            # Recheck the frozen account under lock before a pilot can write money.
+            account = accounts_table
+            eligible = self.db_session.execute(select(account.c.id).where(
+                account.c.id == payload.get('account_id'), account.c.user_id == owner,
+                account.c.deleted_at.is_(None), account.c.is_active.is_(True),
+                account.c.track_balance.is_(True), account.c.currency == payload['original_currency'],
+            ).with_for_update()).first()
+            if not eligible or payload.get('amount') is None or payload.get('date') is None:
+                return '草稿資料不完整或帳戶已無法使用，請重新輸入。'
         # Row lock + stable transaction key protect even distinct postback event
         # IDs clicking the same preview concurrently across multiple workers.
-        result = self.service.create_transaction(user_id, {**payload, 'client_request_id': str(key)})
+        transaction = {**payload, 'client_request_id': str(key)}
+        if oral:
+            try:
+                with self.db_session.begin_nested():
+                    category_id = self.service.budget_manager._get_category_id(
+                        owner, payload['budget_category'], payload['type'],
+                    )
+                    if str(category_id) != row['parsed_payload'].get('category_id'):
+                        return '草稿分類已變更，請重新輸入。'
+                    result = self.service.create_transaction(user_id, transaction)
+                    if not result['success']:
+                        raise ValueError(result['message'])
+            except ValueError:
+                return '目前無法入帳，請核對帳戶餘額與草稿資料後再試。'
+        else:
+            result = self.service.create_transaction(user_id, transaction)
         if not result['success']:
             raise ValueError(result['message'])
         self.events.confirm_event(user_id, key, payload['type'], result['transaction_id'])

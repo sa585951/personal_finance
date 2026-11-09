@@ -2,7 +2,7 @@
   <section class="account-impact" :class="[kind, { confirmed }]" aria-live="polite">
     <div class="impact-heading">
       <div>
-        <p>{{ confirmed ? "Recorded movement" : "Before you confirm" }}</p>
+        <p>{{ confirmed ? "帳戶變動" : "送出前確認" }}</p>
         <h3>{{ confirmed ? "這筆資金異動已完成" : "這筆紀錄會如何影響帳戶" }}</h3>
       </div>
       <span>{{ confirmed ? "已完成" : "預估" }}</span>

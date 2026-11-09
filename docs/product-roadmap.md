@@ -2,28 +2,9 @@
 
 ## 狀態
 
-- Roadmap 版本：M0 至 M9
-- 生效日期：2026-08-17
-- 目前 Milestone：M3 Ledger Correctness 第一輪完成；M2 PWA Alpha 以有限證據收尾，解除後續 Web 開發關卡
-- 前一工作批次：S1 安全邊界。情境驗收 F01–F08 已修復；本批處理 R01、R02/U06、R12/R13/R14、AI-01/02 及 DEP-01。發票掃描 V1 保留既有成果，下一步不擴充批次 resolve。細節與部署限制見 `docs/security-boundary-hardening.md`。
-- S1 本機修補回歸：Backend 465 passed，前端檢查／建置、五尺寸深淺色 UI 及本機 HTTPS Cookie 整合通過（LINE Provider 為替身）。npm audit 20 → 7 moderate，正式依賴 audit 為 0；剩餘 lint 工具鏈與正式部署驗收另行追蹤。
-- 2026-10-30：S2 核心 R03 本機修補完成（一般交易帳戶鎖、交易版本鎖、跨帳戶固定順序、相對校正鎖）；完整 Backend 475 passed。見 `docs/s2-ledger-concurrency.md`，仍不宣告正式併發／歷史帳務驗收通過。文件入口與封存規則見 `docs/README.md`。
-- S3 R04 第一個小批次：缺少跨幣別匯率時拒絕默認 1；新增／修改拒絕且零帳務異動的 regression 已驗證，完整 Backend 480 passed。R04 月報混幣及 R05～R07 未完成，見 `docs/s3-fx-correctness.md`。
-- S3 R04 第二批：依確認規則限制 TWD 個人報表，非 TWD 應納入金額明確拒絕；17 項新測試與完整 Backend 506 passed。仍待 R05～R07。
-- S3 R05：編輯未改幣別且未指定新匯率時保留歷史 rate；8 項新測試及完整 Backend 514 passed，接續 R06／R07。
-- S3 R06：四位小數換算尾差依最大餘數／固定成員 ID 分配，僅既有分攤者受影響；6 項新測試及完整 Backend 520 passed，接續 R07。
-- S3 R07：帳戶建立後幣別固定（含零餘額），換幣整體拒絕且歷史零異動；6 項新測試與完整 Backend 526 passed。S3.4 R09 唯一性仍待驗證。
-- S3.4 R09：成員／split 唯一性、共享 15 active 上限與安全 migration 0019 已本機驗證，完整 Backend 536 passed；未升級既有 scenario／正式 DB。S3.1 其餘驗收仍須收尾。
-- S2.3 R16 補漏：直接回傳 request-local 交易 ID／replayed，移除已開放呼叫方共享欄位依賴；非交易建立不回 stale ID／不確認舊事件，完整 Backend 541 passed。
-- S3.1 收尾：USD／EUR 小數 UI 原生驗收、finite／Numeric 範圍與精度驗證已完成；數值新增 34 項、完整 Backend 575 passed，五尺寸深淺色 mock UI 與 build／lint／styles 通過。
-- 2026-11-03：S2／S3 獨立審查的舊匯率精度與極大 Decimal 指數兩項 Important 已修補；18 項新增案例、完整 Backend 595 passed，styles／lint／build 與五尺寸深淺色 mock UI 重跑通過。S4.1 舊 key 規則已確認：無原始指紋回 409 並附既有交易 ID，不換 key 或重寫；實作待接續，不宣告 S4～S6 或公開門檻通過。
-- 2026-11-03 S4.1 Backend：交易原始指紋、不同意圖／legacy 409、原始結果回放已修補；22 項案例與完整 Backend 617 passed。沿用 0017 命令表，無新 migration；Web 持久恢復及公開寫入入口驗收未完成。
-- 2026-11-03 S4.1 Web：日常／旅行原payload/key持久恢復、legacy明確核對解除已實作；25組mock恢復案例、完整UI及styles/lint/build通過。另有真實localhost API/DB掉回應重整回放與SQL對帳證據；公開必填key相容切換仍待決策，S4.1及發布門檻未全通過。
-- 2026-11-03 S4.1公開交易POST已依核定改必填key，缺少／格式錯誤400零財務寫入，internal相容保留；20項門檻案例及最終完整Backend640 passed（60.02s），29組UI／完整前端檢查與真實localhost/SQL通過，獨立審查無新增問題；部署client同步及其他financial create修補未完成，不宣告整個S4.1或發布通過。
-- 本批新增 migration `20261021_0018`（短效 OAuth state）；Web 改同源 Cookie，部署前須協調 API/OAuth proxy、LINE callback 及 production 設定。AI 與 LINE 互動預設停用，LINE Login、手動記帳與 QR 不受此入口設定影響；不代表已完成正式部署或 G1/G-AI/G2。
-- 帳期與共用分頁批次狀態：本地第一版、migration chain、DB smoke 與 390／430px 操作驗收已完成；正式環境仍須套用 `20260925_0015` 並做部署後驗收，不視為已上線
-
-舊有 Phase 1 至 Phase 7、Phase App 與 Allocation 文件保留為歷史開發紀錄。新工作一律使用本文件的 Milestone 命名，避免同時維護兩套進度語言。
+- Roadmap 版本：M0 至 M9，生效日期 2026-08-17。
+- 目前位置：M0、M1、M3 第一版完成；M2 以有限證據收尾；S1～S4 修補、S5 最低隱私集合（匯出、刪除帳號、登出所有裝置）與 Web 帳簿式改版已完成本機驗收。
+- 各批次的詳細進度與測試數字見 [current-progress.md](current-progress.md)；缺陷與修補見 [test-fix-status.md](test-fix-status.md)。
 
 ## 已完成基線
 
@@ -125,7 +106,7 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 狀態：有限證據收尾（2026-09-25）。已有試用者提出問題並促成後續修正，但沒有完整的 5 至 10 位非開發者分段測試、完成率與留存紀錄；不宣稱原訂 Alpha 門檻正式通過。使用頻率不固定不再無限期阻擋後續 Web 產品化。
 
-- 原訂以 5 至 10 位非開發者驗證登入、第一帳戶、第一交易、旅行、邀請、shared expense、share、group settlement 與個人月報；原目標與未驗證項目見 `docs/m2-pwa-alpha-plan.md`。
+- 原訂以 5 至 10 位非開發者驗證登入、第一帳戶、第一交易、旅行、邀請、shared expense、share、group settlement 與個人月報；原招募計畫已移除（見 Git 歷史），下一輪改以 M5 的封閉 Beta 量測取代。
 - Group Settlement／部分還款只更新群組分帳狀態，不自動異動私人帳戶；使用者可另外為自己的一側選擇同幣別帳戶入帳或扣款。
 - 後續 Web 工作改以已知使用者問題安排可獨立驗收的小批次；下一批為信用卡帳期資訊，不將帳戶負餘額誤稱為本期應繳。
 - M2 有限證據收尾不代表完成財務 reconciliation、留存或市場驗證；iOS 正式開發仍依後續 Web／PWA 產品與財務語意驗證結果決定。
@@ -189,6 +170,24 @@ iOS Prototype 在此暫停。`KeychainStore` 目前是尚未接入 `AppSession` 
 
 - 目前只保留 feature flag／entitlement boundary。
 - 取得 4 週留存、AI 成本、Shared/Trip 使用率與付費需求資料前，不做 StoreKit、billing table 或 subscription UI。
+
+## 平台分工與收費假設
+
+Nomica 是一本帳、多個入口。三個入口共用同一組 API 與帳務規則，分工如下：
+
+| 入口 | 角色 | 不做 |
+| --- | --- | --- |
+| LINE | 快速記帳窗口：一句話產生草稿、確認入帳、旅行邀請 | 完整查詢、編輯、結算與設定 |
+| Web／PWA | 完整帳本：明細、旅行結算、帳戶、預算、分析、隱私設定 | — |
+| iOS（M6） | 接手手機上的主要使用；加上推播、Widget、捷徑與語音輸入 | 首版不追求與 Web 完全同功能 |
+
+定位：「在 LINE 裡一句話記帳，旅行分帳自動回到你的個人帳本。」
+
+收費假設（M9 前不實作，只做驗證）：
+- 一句話記帳（含 AI）屬免費入口，設每月使用上限；成本低且競品免費，不單獨收費。
+- 候選付費點：單趟旅行方案（更多成員、多幣別結算、結算報告），或 Plus 訂閱（發票載具同步、進階報表與匯出、多本帳本）。
+- iOS 內販售數位功能須遵守 App Store 規範（通常需使用 In-App Purchase），上架前依當時規定確認；Web 端可另行收費。
+- 先以封閉 Beta 量測每週記帳天數、一句話記帳成功率、旅行帳本帶來的新使用者，以及結算頁的付費意願點擊率。
 
 ## 明確暫緩
 

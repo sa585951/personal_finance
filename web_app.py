@@ -8,7 +8,6 @@ from flask import Flask, jsonify, request, redirect, g
 from flask_cors import CORS
 from sqlalchemy import select, func
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import TextMessage
 from linebot.v3.webhooks import MessageEvent, PostbackEvent, TextMessageContent, UserSource
 import os
 import requests
@@ -16,6 +15,7 @@ import jwt
 
 # 匯入重構後的核心類別和資料庫引擎
 from models.asset_manager import AssetManager
+from models.account_privacy import AccountPrivacyService, SharedTripOwnershipError
 from models.idempotency import IdempotencyConflict
 from models.asset_allocation_manager import AllocationNotFoundError, AssetAllocationManager
 from models.auth_session_manager import AuthSessionManager
@@ -83,6 +83,7 @@ CORS(
 
 # 實例化 Manager
 asset_manager = AssetManager(db_session)
+account_privacy_service = AccountPrivacyService(db_session)
 asset_allocation_manager = AssetAllocationManager(db_session)
 auth_session_manager = AuthSessionManager(db_session)
 oauth_login_state_manager = OAuthLoginStateManager(db_session)
@@ -185,21 +186,28 @@ def _decode_auth_payload():
     except jwt.InvalidTokenError:
         return None, jsonify({'message': 'Token is invalid!'}), 401
 
+def _dev_bypass_user():
+    """Resolve the loopback-only dev user to the same internal id every route sees."""
+    provider_user_id = request.headers.get("X-Dev-User", "local-dev-user")
+    if provider_user_id not in DEV_AUTH_USERS:
+        provider_user_id = "local-dev-user"
+    dev_user = DEV_AUTH_USERS[provider_user_id]
+    user = user_manager.get_or_create_user_for_identity(
+        provider="dev",
+        provider_user_id=provider_user_id,
+        display_name=dev_user["display_name"],
+        provider_email=dev_user["provider_email"],
+    )
+    db_session.commit()
+    return user
+
+
 def token_required(f):
     """Token 驗證裝飾器"""
     @wraps(f)
     def decorated(*args, **kwargs):
         if DEV_AUTH_BYPASS:
-            provider_user_id = request.headers.get("X-Dev-User", "local-dev-user")
-            dev_user = DEV_AUTH_USERS.get(provider_user_id, DEV_AUTH_USERS["local-dev-user"])
-            user = user_manager.get_or_create_user_for_identity(
-                provider="dev",
-                provider_user_id=provider_user_id if provider_user_id in DEV_AUTH_USERS else "local-dev-user",
-                display_name=dev_user["display_name"],
-                provider_email=dev_user["provider_email"],
-            )
-            db_session.commit()
-            return f(str(user["id"]), *args, **kwargs)
+            return f(str(_dev_bypass_user()["id"]), *args, **kwargs)
 
         data, error_response, status_code = _decode_auth_payload()
         if error_response is not None:
@@ -257,7 +265,7 @@ def start_request_timer():
 
 @app.after_request
 def log_request_duration(response):
-    if request.path.startswith(("/api/auth/", "/line-login-")):
+    if request.path.startswith(("/api/auth/", "/api/account/", "/line-login-")):
         response.headers["Cache-Control"] = "no-store"
         response.headers["Referrer-Policy"] = "no-referrer"
     if request.path == "/line-login-callback":
@@ -289,14 +297,16 @@ def home():
 @app.route("/api/auth/me", methods=["GET"])
 def get_current_auth_user():
     if DEV_AUTH_BYPASS:
-        provider_user_id = request.headers.get("X-Dev-User", "local-dev-user")
-        dev_user = DEV_AUTH_USERS.get(provider_user_id, DEV_AUTH_USERS["local-dev-user"])
+        # Must equal the id token_required hands to routes: clients bind
+        # financial writes to it through X-Nomica-Request-Owner.
+        user = _dev_bypass_user()
         return jsonify(
             {
                 "success": True,
                 "data": {
-                    "user_id": provider_user_id,
-                    "name": dev_user["display_name"],
+                    "user_id": str(user["id"]),
+                    "name": user["display_name"] or "",
+                    "provider": "dev",
                 },
             }
         )
@@ -352,6 +362,56 @@ def get_auth_account(user_id):
         }
     )
 
+# --- API - 個人資料權利（S5） ---
+
+@app.route("/api/auth/logout-all", methods=["POST"])
+@token_required
+def logout_all_devices(current_user_id):
+    try:
+        revoked = account_privacy_service.revoke_all_sessions(current_user_id)
+        db_session.commit()
+    except Exception as error:
+        return _api_operation_error(error, "logout_all_devices")
+    response = jsonify({"success": True, "data": {"revoked_sessions": revoked}})
+    _clear_auth_cookie(response)
+    return response
+
+
+@app.route("/api/account/export", methods=["GET"])
+@token_required
+def export_account_data(current_user_id):
+    try:
+        archive = account_privacy_service.export_zip(current_user_id)
+    except Exception as error:
+        return _api_operation_error(error, "export_account_data")
+    filename = f"nomica-export-{datetime.now(timezone.utc):%Y%m%d}.zip"
+    return app.response_class(archive, mimetype="application/zip", headers={
+        "Content-Disposition": f'attachment; filename="{filename}"',
+    })
+
+
+@app.route("/api/account/delete", methods=["POST"])
+@token_required
+def delete_account(current_user_id):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "請提供 JSON object"}), 400
+    try:
+        result = account_privacy_service.delete_account(current_user_id, data.get("confirmation"))
+        db_session.commit()
+    except SharedTripOwnershipError as error:
+        db_session.rollback()
+        return jsonify({"success": False, "code": "SHARED_TRIPS_OWNED", "message": str(error),
+                        "data": {"trips": error.trip_names}}), 409
+    except ValueError as error:
+        db_session.rollback()
+        return jsonify({"success": False, "message": str(error)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "delete_account")
+    response = jsonify({"success": True, "data": result})
+    _clear_auth_cookie(response)
+    return response
+
 # --- API - AI 快速輸入 ---
 
 @app.route("/api/capabilities", methods=["GET"])
@@ -359,53 +419,77 @@ def get_auth_account(user_id):
 def get_capabilities(current_user_id):
     response = jsonify({"success": True, "data": {
         "ai_parse": OPTIONAL_ACCESS.ai_parse,
-        "line_interactions": OPTIONAL_ACCESS.line_interactions,
+        "line_interactions": OPTIONAL_ACCESS.line_interactions or OPTIONAL_ACCESS.line_oral_pilot,
     }})
     response.headers["Cache-Control"] = "no-store"
     return response
+
+def _read_parse_text():
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return None, (jsonify({"success": False, "message": "輸入必須為 JSON object"}), 400)
+    text = data.get("text") or data.get("message") or ""
+    if not isinstance(text, str) or len(text) > 1000:
+        return None, (jsonify({"success": False, "message": "text 必須為 1000 字元以內的文字"}), 400)
+    text = text.strip()
+    if not text:
+        return None, (jsonify({"success": False, "message": "缺少 text 欄位"}), 400)
+    return text, None
+
+
+def _parse_response(current_user_id, text, parse):
+    parse_result = parse(text)
+    transaction = parse_result.get("transaction")
+    if transaction and transaction.get("account_hint"):
+        matched_account = asset_manager.find_asset_by_name(
+            current_user_id,
+            transaction["account_hint"],
+            currency=transaction.get("currency"),
+            context_text=text,
+        )
+        transaction["account_id"] = matched_account["account_key"] if matched_account else None
+        transaction["account_name"] = matched_account["bank_name"] if matched_account else None
+    parse_event = linebot_manager.ai_parse_event_manager.record_from_parse_result(
+        current_user_id,
+        "web",
+        parse_result,
+    )
+    db_session.commit()
+    return jsonify({
+        "success": True,
+        "data": {
+            "parse_event_id": str(parse_event["id"]),
+            "parse_result": parse_result,
+        },
+    }), 200
+
 
 @app.route("/api/ai/parse", methods=["POST"])
 @token_required
 def parse_ai_input(current_user_id):
     if not OPTIONAL_ACCESS.ai_parse:
         return jsonify({"success": False, "code": "AI_DISABLED", "message": "解析暫停開放，請使用手動輸入或發票 QR"}), 503
-    data = request.get_json(silent=True) or {}
-    if not isinstance(data, dict):
-        return jsonify({"success": False, "message": "輸入必須為 JSON object"}), 400
-    text = data.get("text") or data.get("message") or ""
-    if not isinstance(text, str) or len(text) > 1000:
-        return jsonify({"success": False, "message": "text 必須為 1000 字元以內的文字"}), 400
-    text = text.strip()
-    if not text:
-        return jsonify({"success": False, "message": "缺少 text 欄位"}), 400
-
+    text, error = _read_parse_text()
+    if error:
+        return error
     try:
-        parse_result = linebot_manager.message_parser.parse_shared(text)
-        transaction = parse_result.get("transaction")
-        if transaction and transaction.get("account_hint"):
-            matched_account = asset_manager.find_asset_by_name(
-                current_user_id,
-                transaction["account_hint"],
-                currency=transaction.get("currency"),
-                context_text=text,
-            )
-            transaction["account_id"] = matched_account["account_key"] if matched_account else None
-            transaction["account_name"] = matched_account["bank_name"] if matched_account else None
-        parse_event = linebot_manager.ai_parse_event_manager.record_from_parse_result(
-            current_user_id,
-            "web",
-            parse_result,
-        )
-        db_session.commit()
-        return jsonify({
-            "success": True,
-            "data": {
-                "parse_event_id": str(parse_event["id"]),
-                "parse_result": parse_result,
-            },
-        }), 200
+        return _parse_response(current_user_id, text, linebot_manager.message_parser.parse_shared)
     except Exception as error:
         return _api_operation_error(error, "parse_ai_input")
+
+
+@app.route("/api/parse/local", methods=["POST"])
+@token_required
+def parse_local_input(current_user_id):
+    """Speak-to-record on the Web with local rules only; no text leaves Nomica."""
+    text, error = _read_parse_text()
+    if error:
+        return error
+    try:
+        return _parse_response(current_user_id, text,
+                               linebot_manager.message_parser.ai_parse_service.parse_local)
+    except Exception as error:
+        return _api_operation_error(error, "parse_local_input")
 
 @app.route("/api/ai/parse-events", methods=["GET"])
 @token_required
@@ -1738,34 +1822,23 @@ def line_webhook():
         app.logger.error("LINE webhook parsing failed")
         return 'Error parsing request', 400
 
-    if OPTIONAL_ACCESS.line_help_user_ids:
-        for event in events:
-            if (isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent)
-                    and isinstance(event.source, UserSource)
-                    and event.source.user_id in OPTIONAL_ACCESS.line_help_user_ids
-                    and event.mode == "active" and event.reply_token
-                    and event.message.text.strip() == "幫助"):
-                try:
-                    linebot_manager.reply_message_flex(
-                        event.reply_token,
-                        TextMessage(text="請到 Nomica Web 的新增頁面手動記帳。LINE 目前提供操作說明。"),
-                        raise_on_error=True,
-                    )
-                except Exception:
-                    app.logger.warning("LINE help reply failed")
-                    return 'Reply failed; retry later', 503
-        return 'OK', 200
-
-    if not OPTIONAL_ACCESS.line_interactions:
-        # Acknowledge valid deliveries without profile calls, persistence or writes.
+    if not (OPTIONAL_ACCESS.line_oral_pilot or OPTIONAL_ACCESS.line_interactions):
         return 'LINE interaction is paused', 200
 
+    handler = (linebot_manager.process_oral_event if OPTIONAL_ACCESS.line_oral_pilot
+               else linebot_manager.process_event)
     for event in events:
+        # Only authenticated one-to-one deliveries may enter the bookkeeping flow.
+        if OPTIONAL_ACCESS.line_oral_pilot and not (
+            isinstance(getattr(event, 'source', None), UserSource)
+            and event.source.user_id and event.mode == "active" and event.reply_token
+        ):
+            continue
         if not ((isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent))
                 or isinstance(event, PostbackEvent)):
             continue
         try:
-            response = linebot_manager.process_event(event)
+            response = handler(event)
             # Commit the inbox result and ledger before sending the external
             # reply. A lost reply/HTTP response is safe to redeliver and replay.
             db_session.commit()

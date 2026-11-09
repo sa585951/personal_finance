@@ -15,6 +15,7 @@ const AllocationOverview = () => import("../views/AllocationOverview.vue");
 const AllocationDetail = () => import("../views/AllocationDetail.vue");
 const UniversalAddView = () => import("../views/UniversalAddView.vue");
 const AnalysisView = () => import("../views/AnalysisView.vue");
+const MeView = () => import("../views/MeView.vue");
 
 const routes = [
   {
@@ -26,31 +27,31 @@ const routes = [
     path: "/",
     name: "Home",
     component: HomeView,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, tab: "today" },
   },
   {
     path: "/assets",
     name: "AssetsOverview",
     component: AssetsOverview,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, tab: "me" },
   },
   {
     path: "/allocation",
     name: "AllocationOverview",
     component: AllocationOverview,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, tab: "me" },
   },
   {
     path: "/allocation/:portfolioId",
     name: "AllocationDetail",
     component: AllocationDetail,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, tab: "me" },
   },
   {
     path: "/transactions",
     name: "TransactionRecord",
     component: TransactionRecord,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, tab: "ledger" },
   },
   {
     path: "/add",
@@ -62,41 +63,47 @@ const routes = [
     path: "/analysis",
     name: "Analysis",
     component: AnalysisView,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, tab: "me" },
   },
   {
     path: "/trips",
     name: "Trips",
     component: TripListView,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, tab: "trips" },
   },
   {
     path: "/trips/invite/:token",
     name: "TripInviteAccept",
     component: TripInviteAccept,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, tab: "trips" },
   },
   {
     path: "/trips/:tripId",
     name: "TripDetail",
     component: TripsView,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, tab: "trips" },
   },
   {
     path: "/budgets",
     name: "BudgetPlanner",
     component: BudgetPlanner,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, tab: "me" },
   },
   {
     path: "/goals",
     redirect: "/analysis",
   },
   {
+    path: "/me",
+    name: "Me",
+    component: MeView,
+    meta: { requiresAuth: true, tab: "me" },
+  },
+  {
     path: "/account",
     name: "AccountSettings",
     component: AccountSettings,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, tab: "me" },
   },
   {
     path: '/auth-callback',

@@ -2,7 +2,6 @@
   <section class="ai-quick-input">
     <div class="quick-header">
       <div>
-        <p class="eyebrow">AI Quick Entry</p>
         <h2>一句話記帳</h2>
       </div>
       <span class="status-pill">先解析</span>

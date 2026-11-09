@@ -2,7 +2,6 @@
   <div class="allocation-screen">
     <header class="page-header">
       <div>
-        <p class="eyebrow">Asset Allocation</p>
         <h1>資產配置</h1>
         <p class="page-description">記錄自己的投資策略、投入成本與手動估值，不連接券商或即時行情。</p>
       </div>

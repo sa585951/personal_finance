@@ -4,7 +4,7 @@
       <router-link to="/"><img src="/nomica-mark.svg" alt="" class="logo-mark" />Nomica</router-link>
     </div>
     <ul class="nav-links">
-      <li v-for="item in navItems" :key="item.to">
+      <li v-for="item in navItems" :key="item.to" :class="{ 'nav-add': item.add, 'is-current': !item.add && $route.meta.tab === item.tab }">
         <router-link :to="item.to" :aria-label="item.label">
           <component :is="item.icon" />
           <span>{{ item.label }}</span>
@@ -39,16 +39,16 @@
 <script>
 import apiClient from "@/api";
 import ThemeToggle from "@/components/shared/ThemeToggle.vue";
-import { HomeFilled, Money, PieChart, Suitcase, Wallet } from '@element-plus/icons-vue';
+import { House, Tickets, Plus, Suitcase, User } from '@element-plus/icons-vue';
 
 export default {
   name: 'Navbar',
   components: {
-    HomeFilled,
-    Money,
-    PieChart,
+    House,
+    Tickets,
+    Plus,
     Suitcase,
-    Wallet,
+    User,
     ThemeToggle,
   },
   data() {
@@ -65,11 +65,11 @@ export default {
         { id: 'cara-dev-user', name: 'Cara' },
       ],
       navItems: [
-        { to: "/", label: "首頁", icon: "HomeFilled" },
-        { to: "/transactions", label: "紀錄", icon: "Money" },
-        { to: "/trips", label: "旅行", icon: "Suitcase" },
-        { to: "/analysis", label: "分析", icon: "PieChart" },
-        { to: "/assets", label: "帳戶", icon: "Wallet" },
+        { tab: "today", to: "/", label: "今天", icon: "House" },
+        { tab: "ledger", to: "/transactions", label: "明細", icon: "Tickets" },
+        { to: "/add", label: "記一筆", icon: "Plus", add: true },
+        { tab: "trips", to: "/trips", label: "旅行", icon: "Suitcase" },
+        { tab: "me", to: "/me", label: "我的", icon: "User" },
       ],
     };
   },
@@ -170,22 +170,20 @@ export default {
 .logo-mark { width: 32px; height: 32px; border-radius: 10px; }
 .nav-links {
   position: fixed;
-  left: 10px;
-  right: 10px;
-  bottom: max(8px, env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   justify-content: space-between;
   flex: 1 1 auto;
   gap: 2px;
   min-width: 0;
-  min-height: 68px;
+  min-height: 64px;
   margin: 0;
-  padding: 6px;
+  padding: 4px 6px max(4px, env(safe-area-inset-bottom));
   list-style: none;
-  border: 1px solid var(--border-color);
-  border-radius: 18px;
+  border-top: 1px solid var(--border-color);
   background: var(--card-bg);
-  box-shadow: 0 4px 16px rgba(23, 26, 31, .08);
 }
 .nav-links li { flex: 1; }
 .nav-links a {
@@ -209,17 +207,27 @@ export default {
 .nav-links a:hover,
 .nav-links a.router-link-active,
 .nav-links a.router-link-exact-active {
-  color: var(--primary-color);
-  background: var(--primary-soft);
+  color: var(--text-color);
+  background: transparent;
   border-bottom: 0;
   transform: none;
 }
+.nav-links li.is-current a,
+.nav-links li.is-current a svg { color: var(--text-color); }
+.nav-add a span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+.nav-add a svg {
+  box-sizing: content-box;
+  width: 22px;
+  height: 22px;
+  padding: 11px;
+  border-radius: 50%;
+  color: var(--on-primary);
+  background: var(--primary-color);
+}
+.nav-links .nav-add a svg,
+.nav-links .nav-add a.router-link-active svg { color: var(--on-primary); }
 .nav-links a.router-link-active svg,
-.nav-links a.router-link-exact-active svg { color: var(--primary-color); }
-.nav-links a[href="/trips"].router-link-active,
-.nav-links a[href="/trips"].router-link-exact-active { color: var(--travel-color); background: var(--travel-soft); }
-.nav-links a[href="/trips"].router-link-active svg,
-.nav-links a[href="/trips"].router-link-exact-active svg { color: var(--travel-color); }
+.nav-links a.router-link-exact-active svg { color: var(--text-color); }
 .auth-section { position: relative; z-index: 1; display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
 .account-button {
   display: grid;
@@ -327,6 +335,8 @@ export default {
   .logo { flex: 0 0 auto; }
   .nav-links { position: static; flex: 0 1 540px; max-width: 540px; min-height: auto; padding: 0; border: 0; background: transparent; box-shadow: none; }
   .nav-links a { flex-direction: row; gap: 7px; min-height: 42px; font-size: .84rem; }
+  .nav-add a span { position: static; width: auto; height: auto; clip: auto; }
+  .nav-add a svg { width: 16px; height: 16px; padding: 5px; }
   .nav-links svg { width: 18px; height: 18px; }
   .account-button { display: inline-flex; max-width: 150px; padding: 0 12px 0 4px; gap: 8px; border-radius: 999px; }
   .account-initial { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: var(--primary-soft); }

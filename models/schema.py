@@ -682,6 +682,36 @@ ai_parse_events_table = Table(
 )
 
 
+line_ai_consents = Table(
+    "line_ai_consents", metadata,
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("version", Integer, nullable=False),
+    Column("consented", Boolean, nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+)
+
+line_ai_control = Table(
+    "line_ai_control", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("enabled", Boolean, nullable=False),
+    CheckConstraint("id = 1", name="ck_line_ai_control_singleton"),
+)
+
+line_ai_attempts = Table(
+    "line_ai_attempts", metadata,
+    Column("event_id", String(255), primary_key=True),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")),
+    Column("model", String(80), nullable=False),
+    Column("month", Date, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("status", String(24), nullable=False),
+    Column("charge_usd", Numeric(20, 9), nullable=False),
+    Column("input_tokens", Integer),
+    Column("output_tokens", Integer),
+    Index("ix_line_ai_attempts_month", "month"),
+    Index("ix_line_ai_attempts_user_created", "user_id", "created_at"),
+)
+
 financial_commands_table = Table(
     "financial_commands", metadata,
     Column("id", UUID(as_uuid=True), **UUID_PK),
