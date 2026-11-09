@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# All jobs use synthetic data and loopback-only settings; no secrets are needed.
+env:
+  NOMICA_ENV: testing
+  FLASK_ENV: testing
+  FRONTEND_BASE_URL: http://localhost:5199
+  VITE_BACKEND_BASE_URL: http://localhost:5055
+  DEV_AUTH_BYPASS: "false"
+  JWT_SECRET_KEY: ci-only-secret
+  LINE_LOGIN_CHANNEL_ID: ci
+  LINE_LOGIN_CHANNEL_SECRET: ci
+  LINE_MSG_CHANNEL_ACCESS_TOKEN: ci
+  LINE_MSG_CHANNEL_SECRET: ci
+  NOMICA_AI_MODE: disabled
+  NOMICA_LINE_MODE: disabled
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: nomica_ci
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d nomica_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/nomica_ci
+      TEST_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/nomica_ci_test
+      RUN_DB_SMOKE_TESTS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Create destructive test database
+        run: PGPASSWORD=ci psql -h 127.0.0.1 -U ci -d nomica_ci -c "CREATE DATABASE nomica_ci_test;"
+      - name: Migrations apply cleanly
+        run: alembic upgrade head
+      - name: Backend tests (including DB smoke tests)
+        run: python -m pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run check:styles
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Mocked UI regression
+        run: npm run test:ui
+
+  e2e:
+    # Real browser -> Vite -> Flask -> PostgreSQL, no API mocks.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: nomica_e2e
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d nomica_e2e"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/nomica_e2e
+      NOMICA_ENV: development
+      FLASK_ENV: development
+      DEV_AUTH_BYPASS: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: pip install -r requirements.txt
+      - run: alembic upgrade head
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: End-to-end smoke
+        run: npm run test:e2e
+        working-directory: frontend
+        env:
+          E2E_PYTHON: python

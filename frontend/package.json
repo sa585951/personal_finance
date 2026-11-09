@@ -8,7 +8,8 @@
     "preview": "vite preview --host 127.0.0.1",
     "lint": "eslint .",
     "check:styles": "node scripts/check-styles.cjs",
-    "test:ui": "node scripts/test-ui.cjs"
+    "test:ui": "node scripts/test-ui.cjs",
+    "test:e2e": "node scripts/test-e2e.cjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
