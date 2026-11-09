@@ -270,7 +270,7 @@ module.exports = async function testTransactionRecovery(browser, base, installMo
       await page.locator('.expense-form button[type=submit]').click(); await entered;
       if (change === 'amount') await page.locator('.expense-form input[type=number]').first().fill('999');
       else {
-        await page.locator('.trip-tabs').getByRole('button', { name: '交易', exact: true }).click();
+        await page.locator('.trip-tabs').getByRole('button', { name: '支出', exact: true }).click();
         await page.getByTitle('編輯交易', { exact: true }).click();
         await page.waitForFunction(() => document.querySelector('.expense-form input[type=text]')?.value === 'Existing edit');
       }
