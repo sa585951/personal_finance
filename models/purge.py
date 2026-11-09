@@ -1,7 +1,8 @@
 """Permanent removal of data for accounts deleted more than 30 days ago.
 
-Scope: only users whose account deletion (AccountPrivacyService.delete_account)
-has passed purge_after. Ordinary soft-deleted ledger rows of active users are
+Scope: users whose account deletion (AccountPrivacyService.delete_account)
+has passed purge_after, plus every person's measurement events older than
+EVENT_RETENTION_DAYS. Ordinary soft-deleted ledger rows of active users are
 not touched here; their audit trail stays.
 
 Method: delete candidate rows children-first, skipping any row still referenced
@@ -10,7 +11,7 @@ repeat until a pass deletes nothing. What remains is anonymised. Re-running is
 safe: a second run finds nothing more to delete.
 """
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import exists, or_, select, update
 
@@ -27,6 +28,8 @@ from .schema import (
 )
 
 DELETED_ACCOUNT_NAME = "已刪除的帳戶"
+# Beta measurement events are kept this long for everyone, then removed.
+EVENT_RETENTION_DAYS = 180
 MAX_PASSES = 20
 
 
@@ -122,5 +125,8 @@ class PurgeService:
         ).values(name=DELETED_ACCOUNT_NAME)).rowcount
         self.session.execute(update(trip_members_table).where(trip_members_table.c.user_id.in_(users))
                              .values(display_name=DELETED_NAME))
+        expired_events = self.session.execute(product_events_table.delete().where(
+            product_events_table.c.created_at < now - timedelta(days=EVENT_RETENTION_DAYS))).rowcount
         return {"deleted": {name: count for name, count in deleted.items() if count},
-                "anonymised_accounts": retained_accounts}
+                "anonymised_accounts": retained_accounts,
+                "expired_events": expired_events}

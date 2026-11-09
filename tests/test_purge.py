@@ -8,9 +8,10 @@ from models.account_privacy import DELETE_CONFIRMATION, DELETED_NAME, AccountPri
 from models.asset_allocation_manager import AssetAllocationManager
 from models.asset_manager import AssetManager
 from models.budget_manager import BudgetManager
-from models.purge import DELETED_ACCOUNT_NAME, PurgeService
+from models.purge import DELETED_ACCOUNT_NAME, EVENT_RETENTION_DAYS, PurgeService
 from models.schema import (
-    accounts_table, ai_parse_events_table, portfolios_table, transactions_table, trip_members_table, users_table,
+    accounts_table, ai_parse_events_table, portfolios_table, product_events_table, transactions_table,
+    trip_members_table, users_table,
 )
 from models.user_manager import UserManager
 from tests.test_financial_command_idempotency import command_db  # noqa: F401
@@ -84,3 +85,17 @@ def test_active_users_soft_deleted_rows_are_not_purged(command_db):
         s.commit()
         assert PurgeService(s).run(now=LATER)["deleted"] == {}
         assert count(s, transactions_table, transactions_table.c.user_id == data["a"]) >= 1
+
+
+def test_measurement_events_expire_after_retention_for_everyone(command_db):
+    engine, data = command_db
+    now = datetime.now(timezone.utc)
+    with Session(engine) as s:
+        for days in (EVENT_RETENTION_DAYS + 1, EVENT_RETENTION_DAYS - 1, 0):
+            s.execute(product_events_table.insert().values(
+                user_id=data["a"], name="home_view", created_at=now - timedelta(days=days)))
+        s.commit()
+        assert PurgeService(s).run(now=now)["expired_events"] == 1
+        s.commit()
+        assert count(s, product_events_table) == 2
+        assert PurgeService(s).run(now=now)["expired_events"] == 0

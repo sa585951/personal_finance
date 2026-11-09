@@ -13,18 +13,19 @@
 
 | Commit | 內容 |
 | --- | --- |
-| `8a09570` | LINE AI 每人每日上限（預設 30 次）與 80% 用量 LINE 通知；migration `20261110_0021` |
+| `8a09570` | LINE AI 每人每日上限（預設 30 次）與 80% 用量 LINE 通知 |
 | `aab8f54` | 刪除帳號 30 天後永久清除（`scripts/purge_deleted_users`）；隱私權政策與服務條款頁 |
 | `85d7616` | 旅行列表改為列表；旅行詳情以支出為主、浮動「記一筆旅行支出」、設定分頁、旅行支出預設帳戶 |
 | `a5ebec3` | 帳戶、預算、分析頁整理；移除信用卡誤報與錯誤的旅行數；預算用詞一致 |
-| `6ab45d3` | 今天頁：每日可花、預算引導、情境卡（旅行中／信用卡繳款）；量測事件與 `scripts/beta_metrics`；migration `20261110_0022` |
-| `abdeaa2` 與本次 | 封閉測試營運與試用者上手說明（併入 [deployment-checklist.md](deployment-checklist.md)） |
+| `6ab45d3` | 今天頁：每日可花、預算引導、情境卡（旅行中／信用卡繳款）；量測事件與 `scripts/beta_metrics` |
+| `abdeaa2`、`536b9d2` | 封閉測試營運與試用者上手說明（併入 [deployment-checklist.md](deployment-checklist.md)） |
+| 本次 | 這批的資料庫變更合為一支 migration `20261110_0021`；量測事件保留 180 天，由清除排程刪除 |
 
 本機結果：後端 774 passed（含 PostgreSQL）；端對端、mock UI、lint、check-styles、build 通過。
 
 ## 開始封閉測試前
 
-依 [deployment-checklist.md](deployment-checklist.md)「封閉測試 → 開始前」逐項完成：備份 → migration 到 `20261110_0022` → 部署 → 環境變數 → 清除排程 → 填政策頁與上手說明的營運者與聯絡方式 → 實機驗收。
+依 [deployment-checklist.md](deployment-checklist.md)「封閉測試 → 開始前」逐項完成：備份 → migration 到 `20261110_0021` → 部署 → 環境變數 → 清除排程 → 填政策頁與上手說明的營運者與聯絡方式 → 實機驗收。
 
 ## 尚未完成
 

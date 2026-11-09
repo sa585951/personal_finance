@@ -7,7 +7,7 @@ back, and the would-be counts are printed. Pass --apply to commit.
     DATABASE_URL=... python -m scripts.purge_deleted_users --apply    # commit
 
 Safe to schedule daily (for example as a Render Cron Job): a run with nothing
-due deletes nothing.
+due deletes nothing. The same run removes measurement events older than 180 days.
 """
 import argparse
 import json
