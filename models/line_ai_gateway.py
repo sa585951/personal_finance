@@ -30,10 +30,18 @@ class AIRequestBlocked(Exception):
     """Carries a fixed, safe LINE reply instead of a provider exception."""
 
 
+# Applies when NOMICA_LINE_AI_MONTHLY_USD is unset; set "0" to turn LINE AI off.
+DEFAULT_MONTHLY_USD = Decimal("5")
+
+
 def read_line_ai_budget(env):
+    raw = (env.get("NOMICA_LINE_AI_MONTHLY_USD") or "").strip()
+    if not raw:
+        return DEFAULT_MONTHLY_USD
     try:
-        value = Decimal(env.get("NOMICA_LINE_AI_MONTHLY_USD") or "0")
+        value = Decimal(raw)
     except InvalidOperation:
+        # A typo must never lift the cap: fail closed.
         return None
     return value if value.is_finite() and 0 < value <= 1_000_000 else None
 

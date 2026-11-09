@@ -11,9 +11,9 @@
 2. 在 Google AI Studio 核對專案、帳務、Key 限制與資料使用條款。試用使用
    Paid Tier 的 Gemini Developer API Standard 文字價格。確認專案後，透過部署平台
    秘密設定保存 `GEMINI_API_KEY`，並設 `NOMICA_LINE_AI_PAID_PROJECT_VERIFIED=true`。請比對最新的 [Google Gemini 定價與資料使用表](https://ai.google.dev/gemini-api/docs/pricing)。
-3. 從既有 Google 帳務紀錄選擇可接受的每月 USD 上限，設
-   `NOMICA_LINE_AI_MONTHLY_USD`。需至少有 0.001792 USD 可供首次預留。
-   留空時繼續用規則記帳。LINE 沿用原模式預設，Web AI 可維持 disabled。
+3. 每月費用上限預設為 5 USD，不需設定。要調整時設 `NOMICA_LINE_AI_MONTHLY_USD`
+   （需至少 0.001792 USD 供首次預留）；設 `0` 會關閉 LINE AI，只用規則記帳。
+   無法解析的值一律視為關閉。LINE 沿用原模式預設，Web AI 可維持 disabled。
 4. 用自己的 LINE 帳號測試「幫助」、「午餐 120 現金」及「昨天跟同事吃午餐，刷國泰卡 120」。
    確認首次只顯示同意提示、重傳才出草稿、確認後只入帳一次，並在撤回後重測新訊息。
    用第二個已登入的 LINE 帳號核對其同意與帳本各自獨立。核對用量表與 Google 帳務。

@@ -48,10 +48,18 @@ def gate(line_db):
     return engine, data, provider, gateway
 
 
-@pytest.mark.parametrize("value", [None, "", "0", "-1", "NaN", "Infinity", "typo"])
+@pytest.mark.parametrize("value", ["0", "-1", "NaN", "Infinity", "typo"])
 def test_unusable_budget_does_not_enable_provider(value):
-    env = {"NOMICA_LINE_AI_MONTHLY_USD": value} if value is not None else {}
-    assert read_line_ai_budget(env) is None
+    assert read_line_ai_budget({"NOMICA_LINE_AI_MONTHLY_USD": value}) is None
+
+
+@pytest.mark.parametrize("env", [{}, {"NOMICA_LINE_AI_MONTHLY_USD": ""}, {"NOMICA_LINE_AI_MONTHLY_USD": "  "}])
+def test_unset_budget_uses_default_cap(env):
+    assert read_line_ai_budget(env) == Decimal("5")
+
+
+def test_explicit_budget_overrides_default():
+    assert read_line_ai_budget({"NOMICA_LINE_AI_MONTHLY_USD": "2.50"}) == Decimal("2.50")
 
 
 def consent(gateway, user_id, granted=True):
