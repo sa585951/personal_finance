@@ -18,13 +18,13 @@
 | `85d7616` | 旅行列表改為列表；旅行詳情以支出為主、浮動「記一筆旅行支出」、設定分頁、旅行支出預設帳戶 |
 | `a5ebec3` | 帳戶、預算、分析頁整理；移除信用卡誤報與錯誤的旅行數；預算用詞一致 |
 | `6ab45d3` | 今天頁：每日可花、預算引導、情境卡（旅行中／信用卡繳款）；量測事件與 `scripts/beta_metrics`；migration `20261110_0022` |
-| 本次 | [試用者上手說明](beta-tester-guide.md)、[封閉測試營運手冊](beta-runbook.md) |
+| `abdeaa2` 與本次 | 封閉測試營運與試用者上手說明（併入 [deployment-checklist.md](deployment-checklist.md)） |
 
 本機結果：後端 774 passed（含 PostgreSQL）；端對端、mock UI、lint、check-styles、build 通過。
 
 ## 開始封閉測試前
 
-依 [beta-runbook.md](beta-runbook.md)「開始前」逐項完成：備份 → migration 到 `20261110_0022` → 部署 → 環境變數 → 清除排程 → 填政策頁與上手說明的營運者與聯絡方式 → 實機驗收。
+依 [deployment-checklist.md](deployment-checklist.md)「封閉測試 → 開始前」逐項完成：備份 → migration 到 `20261110_0022` → 部署 → 環境變數 → 清除排程 → 填政策頁與上手說明的營運者與聯絡方式 → 實機驗收。
 
 ## 尚未完成
 

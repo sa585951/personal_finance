@@ -5,11 +5,10 @@
 | 類型 | 文件 | 用途 |
 | --- | --- | --- |
 | 目前進度 | [current-progress.md](current-progress.md) | 已完成、待驗收與下一步 |
-| 封閉測試 | [beta-runbook.md](beta-runbook.md)、[beta-tester-guide.md](beta-tester-guide.md) | 測試前準備、每週例行、停用與回退；給試用者的上手說明 |
 | 產品方向 | [product-roadmap.md](product-roadmap.md) | Milestone、平台分工與收費假設 |
 | 財務與 API 合約 | [finance-contract.md](finance-contract.md)、[api-contract.md](api-contract.md) | 隨行為變更更新 |
 | 寫入安全 | [financial-write-safety.md](financial-write-safety.md)、[s2-ledger-concurrency.md](s2-ledger-concurrency.md)、[s3-fx-correctness.md](s3-fx-correctness.md) | 冪等、併發、匯率與數值規則 |
-| 安全與部署 | [security-boundary-hardening.md](security-boundary-hardening.md)、[deployment-checklist.md](deployment-checklist.md) | 正式設定與部署步驟 |
+| 安全與部署 | [security-boundary-hardening.md](security-boundary-hardening.md)、[deployment-checklist.md](deployment-checklist.md) | 正式設定、部署步驟、封閉測試營運與試用者上手說明 |
 | QA 台帳 | [test-fix-status.md](test-fix-status.md) | 缺陷 ID、修補與證據；舊批次計畫已併入 |
 | 功能規格 | [line-ai-pilot.md](line-ai-pilot.md)、[receipt-import-v1.md](receipt-import-v1.md)、[visual-design-system.md](visual-design-system.md)、[product-event-taxonomy.md](product-event-taxonomy.md) | 功能行為與驗收 |
 | 領域背景 | [asset-allocation-domain-plan.md](asset-allocation-domain-plan.md)、[legacy-schema-inventory.md](legacy-schema-inventory.md) | 資產配置設計依據；舊表移除前的相容紀錄 |
