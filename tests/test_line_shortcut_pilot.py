@@ -341,3 +341,80 @@ def test_signed_oral_ai_requests_consent_and_only_sends_when_needed(webhook, mon
             accounts_table.c.id == card_account.account_id,
         )) == 380
     assert counts(engine, data) == (2, 1, 1000)
+
+
+def _footer(reply):
+    return reply.messages[0].to_dict()["contents"]["footer"]["contents"]
+
+
+def _labels(reply):
+    return [button["action"]["label"] for button in _footer(reply)]
+
+
+def _draft(engine, draft_id=None):
+    with Session(engine) as session:
+        query = select(ai_parse_events_table)
+        query = (query.where(ai_parse_events_table.c.id == draft_id) if draft_id
+                 else query.order_by(ai_parse_events_table.c.created_at.desc()))
+        return session.execute(query).mappings().first()
+
+
+def _many_accounts(engine, data):
+    from models.budget_manager import BudgetManager
+    with Session(engine) as session:
+        assets = AssetManager(session)
+        for i in range(1, 11):
+            assets.add_account(data["a"], f"帳戶{i:02d}", "cash", 100)
+        assets.add_account(data["a"], "Foreign", "cash", 500, currency="JPY")
+        session.commit()
+        ids = {row.name: row.id for row in session.execute(
+            select(accounts_table.c.name, accounts_table.c.id).where(accounts_table.c.user_id == data["a"]))}
+    today = date.today().isoformat()
+    # Two uses of 帳戶07, then one later use of 帳戶03: 03 is latest, 07 is most used.
+    for name in ("帳戶07", "帳戶07", "帳戶03"):
+        with Session(engine) as session:
+            BudgetManager(session).add_transaction(
+                data["a"], today, "usage", 10, "expense", "伙食", account_id=str(ids[name]),
+                client_request_id=uuid4())
+            session.commit()
+    return ids
+
+
+def test_account_menu_orders_by_usage_and_pages_beyond_eight(webhook):
+    send, replies, engine, data = webhook
+    ids = _many_accounts(engine, data)
+    assert send(lunch("menu")).status_code == 200
+    labels = _labels(replies[-1])
+    # 12 TWD accounts: latest-used first, then most-used, 8 per page plus a "more" button.
+    assert labels[:2] == ["帳戶03", "帳戶07"]
+    assert len(labels) == 9 and labels[-1] == "更多帳戶（2/2）"
+    assert "Foreign" not in labels
+
+    draft = _draft(engine)
+    assert send(event_dict("more", postback=f"nomica.oral.more:{draft['id']}:1")).status_code == 200
+    second = _labels(replies[-1])
+    assert len(second) == 5 and second[-1] == "更多帳戶（1/2）"
+    assert not set(second[:-1]) & set(labels[:-1])
+
+    # A button from the first page still works after paging.
+    first_page_id = ids["帳戶03"]
+    assert send(event_dict("pick", postback=f"nomica.oral.account:{draft['id']}:{first_page_id}")).status_code == 200
+    assert "確認" in str(replies[-1].messages[0].to_dict())
+    assert _draft(engine)["parsed_payload"]["line_draft"]["account_id"] == str(first_page_id)
+
+
+def test_typed_account_name_selects_only_own_same_currency_account(webhook):
+    send, replies, engine, data = webhook
+    ids = _many_accounts(engine, data)
+    assert send(lunch("menu")).status_code == 200
+    waiting = _draft(engine)["id"]
+    # Another user's account and a different-currency account are never chosen by name.
+    for i, name in enumerate(("B cash", "Foreign")):
+        assert send(lunch(f"other-{i}", name)).status_code == 200
+        assert "確認收支" not in str(replies[-1].messages[0].to_dict())
+        assert _draft(engine, waiting)["parsed_payload"]["line_draft"].get("account_id") is None
+    assert send(lunch("typed", "帳戶05")).status_code == 200
+    assert "確認" in str(replies[-1].messages[0].to_dict())
+    assert _draft(engine, waiting)["parsed_payload"]["line_draft"]["account_id"] == str(ids["帳戶05"])
+    # Nothing is recorded until the confirm card is used.
+    assert counts(engine, data)[0] == 4
