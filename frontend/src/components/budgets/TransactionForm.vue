@@ -127,6 +127,7 @@ import apiClient from "@/api";
 import AccountImpactCard from "@/components/shared/AccountImpactCard.vue";
 import AccountPicker from "@/components/shared/AccountPicker.vue";
 import { findAccountByHint } from "@/utils/accountMatcher";
+import { defaultAccountId, rememberLastAccount } from "@/utils/lastAccount";
 import { format } from "date-fns";
 
 export default {
@@ -305,7 +306,12 @@ export default {
         this.applyDraft(this.draft);
         return;
       }
+      this.applyDefaultAccount();
       this.ensureCategoryMatchesType();
+    },
+    applyDefaultAccount() {
+      if (this.isEditing || this.newTransaction.account_id) return;
+      this.newTransaction.account_id = defaultAccountId(this.type, this.accountOptions);
     },
     applyDraft(draft) {
       const transactionType = ["expense", "income"].includes(draft.type)
@@ -336,6 +342,12 @@ export default {
         account_id: matchedAccountId,
         parse_event_id: draft.parse_event_id || "",
       };
+      // A named but unmatched account stays empty so the warning asks the person to choose.
+      if (!draft.account_hint && !matchedAccountId) {
+        this.newTransaction.account_id = defaultAccountId(transactionType, this.accountOptions, {
+          requiredCurrency: draft.currency || "",
+        });
+      }
       this.aiReview = {
         type: transactionType,
         title: draft.title || "",
@@ -403,6 +415,7 @@ export default {
           ? await this.externalSubmit(this.transactionPayload())
           : await apiClient.post(`/api/transactions`, this.transactionPayload());
 
+        rememberLastAccount(this.newTransaction.type, this.newTransaction.account_id);
         await this.fetchAssets();
         this.$emit("transaction-added", {
           type: this.newTransaction.type,
@@ -479,6 +492,7 @@ export default {
       };
       this.submitMessage = "";
       this.aiReview = null;
+      if (this.assetsLoaded) this.applyDefaultAccount();
     },
     cancelEdit() {
       this.resetForm();
