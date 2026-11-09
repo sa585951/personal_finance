@@ -2,7 +2,6 @@
   <section class="totals-section">
     <div class="section-heading">
       <h2>資金總覽</h2>
-      <span>依幣別統計</span>
     </div>
 
     <div v-if="currencyTotals.length === 0" class="empty-total">
@@ -25,8 +24,7 @@
             <span class="total-currency">{{ currencyTotal.currency }}</span>
             <bdi class="total-number">{{ formatAmount(currencyTotal.total, currencyTotal.currency) }}</bdi>
           </strong>
-          <small>{{ currencyTotal.accountCount || 0 }} 個帳戶 · 以可用資金 100% 計</small>
-          <small>{{ isAllocationCollapsed(currencyTotal.currency) ? "點擊展開資金分配" : "點擊收合資金分配" }}</small>
+          <small>{{ currencyTotal.accountCount || 0 }} 個帳戶 · {{ isAllocationCollapsed(currencyTotal.currency) ? "查看分配" : "收合分配" }}</small>
         </button>
 
         <div class="allocation-panel">
@@ -144,10 +142,7 @@ export default {
 
 <style scoped>
 .totals-section {
-  padding: 16px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--card-bg);
+  padding: 0;
 }
 
 .section-heading {
@@ -189,11 +184,11 @@ export default {
 .total-primary {
   container-type: inline-size;
   width: 100%;
-  padding: 18px;
+  padding: 4px 0;
   border: 0;
-  border-radius: 10px;
-  background: var(--primary-color);
-  color: var(--on-primary);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-color);
   box-shadow: none;
   text-align: left;
 }
@@ -211,8 +206,16 @@ export default {
 .total-primary span,
 .total-primary small {
   display: block;
-  font-weight: 700;
-  opacity: 0.86;
+  color: var(--light-text-color);
+  font-weight: 600;
+}
+
+.total-primary strong span {
+  color: var(--light-text-color);
+}
+
+.total-primary .total-number {
+  color: var(--text-color);
 }
 
 .total-primary strong {

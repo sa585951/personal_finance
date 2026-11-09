@@ -43,16 +43,7 @@
             {{ formatMoney(Math.abs(monthlyNet)) }}
           </b>
         </div>
-        <div class="summary-metrics">
-          <div class="income">
-            <span>收入</span>
-            <strong>+{{ formatMoney(monthlyIncome) }}</strong>
-          </div>
-          <div class="expense">
-            <span>支出</span>
-            <strong>-{{ formatMoney(monthlyExpense) }}</strong>
-          </div>
-        </div>
+        <p class="summary-line">收入 +{{ formatMoney(monthlyIncome) }} · 支出 −{{ formatMoney(monthlyExpense) }}</p>
       </section>
 
       <section class="status-card app-surface">
@@ -63,20 +54,7 @@
           </div>
           <router-link to="/budgets">管理預算</router-link>
         </div>
-        <div class="status-metrics">
-          <div>
-            <span>總預算</span>
-            <strong>{{ formatMoney(totalBudget) }}</strong>
-          </div>
-          <div>
-            <span>已使用</span>
-            <strong>{{ budgetUsageRate }}%</strong>
-          </div>
-          <div>
-            <span>需留意</span>
-            <strong>{{ budgetAttentionCount }} 類</strong>
-          </div>
-        </div>
+        <p class="summary-line">上限 {{ formatMoney(totalBudget) }} · 已用 {{ budgetUsageRate }}%</p>
         <div class="progress-track" aria-label="預算使用率">
           <span :class="{ danger: budgetUsageRate > 100 }" :style="{ width: `${budgetProgressWidth}%` }"></span>
         </div>
@@ -90,24 +68,11 @@
         <div class="section-heading">
           <div>
             <span>旅行摘要</span>
-            <h2>{{ includeTrips ? "已納入我的月報" : "目前只看日常" }}</h2>
+            <h2>{{ includeTrips ? "已納入月報的旅行" : "目前只看日常" }}</h2>
           </div>
           <router-link to="/trips">查看旅行</router-link>
         </div>
-        <div class="status-metrics">
-          <div>
-            <span>旅行支出</span>
-            <strong>{{ formatMoney(monthlyTravelExpense) }}</strong>
-          </div>
-          <div>
-            <span>旅行帳本</span>
-            <strong>{{ monthlyTripRows.filter(trip => trip.id !== null).length }} 個</strong>
-          </div>
-          <div>
-            <span>進行中</span>
-            <strong>{{ activeTripCount }} 個</strong>
-          </div>
-        </div>
+        <p class="summary-line">本月旅行分攤 {{ formatMoney(monthlyTravelExpense) }}</p>
         <div v-if="includeTrips && monthlyTripRows.length > 0" class="trip-list">
           <div v-for="trip in monthlyTripRows.slice(0, 3)" :key="trip.id ?? 'deleted-trip-shares'">
             <span>{{ trip.name }}</span>
@@ -282,9 +247,6 @@ export default {
         .map(([id, amount]) => ({ id, name: id === null ? "已刪除旅行的個人分攤" : (this.tripNameMap.get(id) || "旅行帳本"), amount }))
         .sort((left, right) => right.amount - left.amount);
     },
-    activeTripCount() {
-      return this.trips.filter((trip) => trip.status === "active").length;
-    },
     budgetedItems() {
       return this.effectiveBudgetSummary.filter((item) => Number(item.budget || 0) > 0);
     },
@@ -332,10 +294,12 @@ export default {
       ).length;
     },
     budgetStatusLabel() {
+      // Same per-category wording as the budget page and Today.
       if (this.totalBudget <= 0) return "尚未設定預算";
-      if (this.budgetUsageRate > 100) return "本月已有分類超支";
-      if (this.budgetAttentionCount > 0) return "有分類接近上限";
-      return "目前控制良好";
+      const overspent = this.budgetedItems.filter((item) => Number(item.spent || 0) > Number(item.budget || 0)).length;
+      if (overspent > 0) return `${overspent} 個分類超支`;
+      if (this.budgetAttentionCount > 0) return "有分類快用完";
+      return "都在上限內";
     },
     selectedTypeTransactions() {
       return this.transactions.filter((transaction) => transaction.type === this.flowType);
@@ -871,5 +835,10 @@ h2 {
     grid-column: 2;
     text-align: right;
   }
+}
+.summary-line {
+  margin: 8px 0 0;
+  color: var(--light-text-color);
+  font-variant-numeric: tabular-nums;
 }
 </style>
