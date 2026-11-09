@@ -1,6 +1,6 @@
 <template>
   <div class="form-container">
-    <div class="form-heading">
+    <div v-if="isEditing || mode === 'preview'" class="form-heading">
       <h3>{{ formTitle }}</h3>
       <button
         v-if="isEditing"
@@ -12,12 +12,15 @@
       </button>
     </div>
     <form @submit.prevent="submitTransaction">
-      <label v-if="shouldShowField('date')" for="transactionDate">
-        日期
+      <label v-if="shouldShowField('amount')" for="transactionAmount" class="full-row amount-field">
+        金額
         <input
-          type="date"
-          id="transactionDate"
-          v-model="newTransaction.date"
+          type="number"
+          inputmode="decimal"
+          id="transactionAmount"
+          :min="amountStep"
+          :step="amountStep"
+          v-model.number="newTransaction.amount"
           :readonly="lockedReceiptFields"
           required
         />
@@ -52,19 +55,6 @@
         />
       </label>
 
-      <label v-if="shouldShowField('amount')" for="transactionAmount">
-        金額
-        <input
-          type="number"
-          id="transactionAmount"
-          :min="amountStep"
-          :step="amountStep"
-          v-model.number="newTransaction.amount"
-          :readonly="lockedReceiptFields"
-          required
-        />
-      </label>
-
       <AccountPicker
         v-if="shouldShowField('account_id')"
         v-model="newTransaction.account_id"
@@ -72,6 +62,18 @@
         :accounts="accountOptions"
         :label="type === 'income' ? '存入帳戶' : '付款帳戶'"
       />
+
+      <label v-if="shouldShowField('date')" for="transactionDate" class="date-field">
+        日期
+        <input
+          type="date"
+          id="transactionDate"
+          v-model="newTransaction.date"
+          :readonly="lockedReceiptFields"
+          required
+        />
+      </label>
+
 
       <label v-if="shouldShowField('description')" for="transactionDescription" class="full-row">
         備註
@@ -93,7 +95,7 @@
 
       <div v-if="aiReview && mode === 'full'" class="ai-review full-row">
         <div class="ai-review-heading">
-          <strong>AI 已套用，送出前請確認</strong>
+          <strong>依你的句子填入</strong>
           <span>{{ aiReview.type === "income" ? "收入" : "支出" }}</span>
         </div>
         <div class="ai-review-grid">
@@ -365,8 +367,8 @@ export default {
         this.ensureCategoryMatchesType();
       }
       this.submitMessage = draft.account_hint && !matchedAccountId
-        ? "已套用 AI 解析結果，但帳戶需要手動確認。"
-        : "已套用 AI 解析結果，送出前請再確認欄位。";
+        ? `找不到「${draft.account_hint}」，請選擇帳戶。`
+        : "";
     },
     applyEditingTransaction(transaction) {
       this.newTransaction = {
@@ -697,5 +699,10 @@ export default {
   .ai-review-grid {
     grid-template-columns: 1fr;
   }
+}
+.amount-field input {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 </style>

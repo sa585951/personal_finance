@@ -2,7 +2,6 @@
   <div class="trip-list-view">
     <header class="page-header">
       <div>
-        <p class="eyebrow">Nomica Travel</p>
         <h1>旅行帳本</h1>
       </div>
       <div class="header-actions">
@@ -19,7 +18,7 @@
     <section v-if="showCreateTrip || (!loading && trips.length === 0)" class="create-panel app-surface">
       <div class="section-heading">
         <div>
-          <span>NEW TRIP</span>
+          <span>新旅行</span>
           <h2>新增旅行</h2>
         </div>
         <p>建立後再到旅行詳情記錄支出、分帳與邀請旅伴。</p>

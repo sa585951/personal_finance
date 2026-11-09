@@ -2,7 +2,6 @@
   <div class="budget-screen">
     <header class="budget-header">
       <div>
-        <p class="eyebrow">Budget</p>
         <h1>每月預算</h1>
       </div>
       <button

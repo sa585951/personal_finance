@@ -2,7 +2,7 @@
   <section class="trip-status-center" aria-label="旅行狀態中心">
     <div class="trip-status-heading">
       <div>
-        <span>Trip Check</span>
+        <span>旅行狀態</span>
         <h2>旅行狀態中心</h2>
       </div>
       <p>快速核對這趟旅行目前需要處理的地方。</p>

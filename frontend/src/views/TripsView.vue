@@ -2,7 +2,6 @@
   <div class="trips-page">
     <header class="trips-header">
       <div>
-        <p class="eyebrow">Nomica Travel</p>
         <h1>旅行詳情</h1>
       </div>
       <div class="header-actions">

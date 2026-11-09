@@ -1,628 +1,365 @@
 <template>
-  <div class="transactions-screen">
-    <header class="page-header">
-      <div>
-        <p class="eyebrow">Nomica Ledger</p>
-        <h1>個人收支</h1>
-      </div>
-      <button type="button" class="page-add-button app-primary-action" @click="openUniversalAdd">
-        <Plus />
-        <span>記一筆</span>
-      </button>
+  <div class="ledger-page">
+    <header class="ledger-header">
+      <h1>明細</h1>
+      <select v-model="month" aria-label="月份" class="month-select" @change="load">
+        <option v-for="option in monthOptions" :key="option" :value="option">{{ monthLabel(option) }}</option>
+      </select>
     </header>
 
-    <div class="mode-switch" aria-label="交易模式">
+    <label class="search">
+      <Search aria-hidden="true" />
+      <span class="sr-only">搜尋</span>
+      <input v-model.trim="query" type="search" placeholder="搜尋品項、類別、帳戶、備註" />
+    </label>
+
+    <div class="filters" role="radiogroup" aria-label="類型">
       <button
-        v-for="tab in transactionTabs"
-        :key="tab.key"
+        v-for="option in typeOptions"
+        :key="option.value"
         type="button"
-        :class="[tab.key, { active: activeType === tab.key }]"
-        @click="setActiveType(tab.key)"
-      >
-        <span>{{ tab.label }}</span>
-      </button>
+        role="radio"
+        class="chip"
+        :aria-checked="type === option.value"
+        :class="{ active: type === option.value }"
+        @click="type = option.value"
+      >{{ option.label }}</button>
     </div>
 
-    <section v-if="editingTransaction" class="entry-form-section app-surface">
+    <section v-if="editing" class="edit-panel" aria-label="編輯紀錄">
       <TransactionForm
-        :type="activeType"
-        :editing-transaction="editingTransaction"
-        @transaction-updated="handleTransactionUpdated"
-        @edit-cancelled="cancelEditingTransaction"
+        :key="editing.id"
+        :type="editing.type"
+        :editing-transaction="editing"
+        @transaction-updated="afterChange"
+        @edit-cancelled="editing = null"
       />
+      <button type="button" class="delete-button" @click="remove(editing)">刪除這筆</button>
     </section>
 
-    <section class="records-section app-surface">
-      <div class="section-heading">
-        <h2>{{ tableTitle }}</h2>
-        <span>{{ tableMetaText }}</span>
-      </div>
-      <div class="record-mode-switch" aria-label="紀錄查找方式">
-        <button
-          v-for="mode in recordModes"
-          :key="mode.key"
-          type="button"
-          :class="{ active: recordMode === mode.key }"
-          @click="setRecordMode(mode.key)"
-        >
-          {{ mode.label }}
-        </button>
-      </div>
-      <label v-if="recordMode === 'month'" class="record-month-picker">
-        查找月份
-        <input v-model="recordMonth" type="month" />
-      </label>
-      <AppStatePanel
-        v-if="recordError && recordTransactions.length === 0"
-        title="收支紀錄暫時無法載入"
-        :message="recordError"
-        action-label="重新整理"
-        tone="error"
-        @action="fetchRecordTransactions"
-      />
-      <AppStatePanel
-        v-else-if="isRecordLoading && recordTransactions.length === 0"
-        title="正在載入收支紀錄"
-        :message="recordMode === 'month' ? `查找 ${recordMonth} 的資料。` : '整理最近的交易資料。'"
-        loading
-      />
-      <AppStatePanel
-        v-else-if="recordTransactions.length === 0"
-        :title="activeType === 'income' ? '目前沒有收入紀錄' : '目前沒有支出紀錄'"
-        :message="recordMode === 'month' ? '這個月份沒有符合條件的紀錄。' : '記下第一筆後，這裡會依時間顯示最近紀錄。'"
-        :action-label="recordMode === 'recent' ? '記第一筆' : ''"
-        tone="empty"
-        @action="openUniversalAdd"
-      />
-      <TransactionTable
-        v-else
-        :transactions="recordTransactions"
-        @transaction-edit="startEditingTransaction"
-        @transaction-deleted="fetchTransactions"
-      />
-      <AppPagination
-        v-if="recordTransactions.length > 0"
-        :current-page="recordPager.page"
-        :page-size="recordPager.pageSize"
-        :total-count="recordPagination.total_count"
-        :has-next="recordPagination.has_more"
-        :has-previous="recordPager.page > 1"
-        :loading="isRecordLoading"
-        :error="recordError"
-        aria-label="個人收支分頁"
-        @next="loadNextRecordPage"
-        @previous="loadPreviousRecordPage"
-        @retry="retryRecordPage"
-      />
-    </section>
+    <AppStatePanel v-if="loading" title="讀取中" loading />
+    <AppStatePanel
+      v-else-if="loadError"
+      title="明細暫時無法載入"
+      :message="loadError"
+      action-label="重試"
+      tone="error"
+      @action="load"
+    />
 
+    <section v-else class="records-section" aria-label="收支明細">
+      <p class="totals">
+        <span>收入 <strong class="income">+{{ formatAmount(totals.income) }}</strong></span>
+        <span>支出 <strong>−{{ formatAmount(totals.expense) }}</strong></span>
+      </p>
+
+      <div v-for="group in groups" :key="group.date" class="day">
+        <h2>{{ friendlyDate(group.date) }}</h2>
+        <LedgerRow
+          v-for="item in group.items"
+          :key="item.id"
+          :transaction="item"
+          :interactive="item.can_edit !== false"
+          @select="edit"
+        />
+      </div>
+
+      <div v-if="!groups.length" class="empty">
+        <p>{{ query ? `找不到「${query}」。` : "這個月還沒有紀錄。" }}</p>
+        <router-link v-if="!query" to="/add" class="ink-button">記一筆</router-link>
+      </div>
+      <p v-if="truncated" class="caption">只顯示前 {{ items.length }} 筆，請縮小月份範圍。</p>
+    </section>
   </div>
 </template>
 
 <script>
+import { Search } from "@element-plus/icons-vue";
 import apiClient from "@/api";
 import AppStatePanel from "@/components/shared/AppStatePanel.vue";
-import AppPagination from "@/components/shared/AppPagination.vue";
-import { Plus } from "@element-plus/icons-vue";
-import {
-  createCursorPager,
-  cursorForPage,
-  recordCursorPage,
-  resetCursorPager,
-} from "@/utils/cursorPagination";
-import TransactionForm from "../components/budgets/TransactionForm.vue";
-import TransactionTable from "../components/budgets/TransactionTable.vue";
+import LedgerRow from "@/components/shared/LedgerRow.vue";
+import TransactionForm from "@/components/budgets/TransactionForm.vue";
+import { formatAmount, friendlyDate, localDateKey } from "@/utils/money";
+
+const PAGE_SIZE = 50;
+const MAX_PAGES = 10;
 
 export default {
   name: "TransactionRecord",
-  components: {
-    AppStatePanel,
-    AppPagination,
-    TransactionForm,
-    TransactionTable,
-    Plus,
-  },
+  components: { AppStatePanel, LedgerRow, Search, TransactionForm },
   data() {
+    const query = this.$route.query;
+    const currentMonth = localDateKey().slice(0, 7);
     return {
-      recordTransactions: [],
-      activeType: this.initialTypeFromRoute(),
-      editingTransaction: null,
-      recordPager: createCursorPager(20),
-      recordMode: "recent",
-      recordMonth: this.defaultMonthKey(),
-      recordPagination: {
-        next_cursor: null,
-        has_more: false,
-        limit: 20,
-        total_count: 0,
-      },
-      isRecordLoading: false,
-      recordError: "",
-      recordRequestSequence: 0,
-      recordRetry: null,
+      month: /^\d{4}-\d{2}$/.test(query.month || "") ? query.month : currentMonth,
+      months: [currentMonth],
+      type: ["expense", "income"].includes(query.type) ? query.type : "all",
+      typeOptions: [
+        { value: "all", label: "全部" },
+        { value: "expense", label: "支出" },
+        { value: "income", label: "收入" },
+      ],
+      query: "",
+      items: [],
+      truncated: false,
+      loading: true,
+      loadError: "",
+      editing: null,
     };
   },
-  watch: {
-    "$route.query.type"() {
-      this.activeType = this.initialTypeFromRoute();
-      this.editingTransaction = null;
-      this.fetchTransactions();
+  computed: {
+    monthOptions() {
+      return [...new Set([this.month, ...this.months])].sort().reverse();
     },
-    "$route.query.edit": {
-      immediate: true,
-      handler(transactionId) {
-        if (transactionId) {
-          this.loadTransactionForEdit(transactionId);
-        }
-      },
+    filtered() {
+      const needle = this.query.toLowerCase();
+      return this.items.filter((item) => {
+        if (this.type !== "all" && item.type !== this.type) return false;
+        if (!needle) return true;
+        return [item.category, item.budget_category, item.account_name, item.description, item.merchant]
+          .some((value) => String(value || "").toLowerCase().includes(needle));
+      });
     },
-    recordMonth() {
-      if (this.recordMode === "month") {
-        this.recordPager = resetCursorPager(this.recordPager);
-        this.fetchRecordTransactions();
+    groups() {
+      const byDate = new Map();
+      for (const item of this.filtered) {
+        if (!byDate.has(item.date)) byDate.set(item.date, []);
+        byDate.get(item.date).push(item);
       }
+      return [...byDate.entries()].map(([date, items]) => ({ date, items }));
+    },
+    totals() {
+      const sum = (kind) => this.filtered
+        .filter((item) => item.type === kind)
+        .reduce((total, item) => total + Number(item.converted_amount ?? item.amount ?? 0), 0);
+      return { income: sum("income"), expense: sum("expense") };
     },
   },
-  computed: {
-    recordModes() {
-      return [
-        { key: "recent", label: "最近紀錄" },
-        { key: "month", label: "依月份查找" },
-      ];
-    },
-    transactionTabs() {
-      return [
-        {
-          key: "expense",
-          label: "支出",
-        },
-        {
-          key: "income",
-          label: "收入",
-        },
-      ];
-    },
-    tableTitle() {
-      const typeLabel = this.activeType === "income" ? "收入" : "支出";
-      return this.recordMode === "month"
-        ? `${this.recordMonthLabel} ${typeLabel}紀錄`
-        : `最近${typeLabel}紀錄`;
-    },
-    tableMetaText() {
-      return `共 ${this.recordPagination.total_count} 筆`;
-    },
-    recordMonthLabel() {
-      const [year, month] = String(this.recordMonth || "").split("-");
-      return year && month ? `${year} 年 ${Number(month)} 月` : "指定月份";
-    },
+  mounted() {
+    this.loadMonths();
+    this.load();
   },
   methods: {
-    openUniversalAdd() {
-      this.$router.push({
-        name: "UniversalAdd",
-        state: { returnTo: this.$route.fullPath },
-      });
+    formatAmount,
+    friendlyDate,
+    monthLabel(value) {
+      const [year, month] = value.split("-");
+      return `${year} 年 ${Number(month)} 月`;
     },
-    defaultMonthKey() {
-      const now = new Date();
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    },
-    initialTypeFromRoute() {
-      return this.$route.query.type === "income" ? "income" : "expense";
-    },
-    setActiveType(type) {
-      this.activeType = type;
-      this.editingTransaction = null;
-      this.$router.replace({
-        path: this.$route.path,
-        query: {
-          ...this.$route.query,
-          type,
-        },
-      });
-    },
-    async handleTransactionUpdated() {
-      this.editingTransaction = null;
-      await this.fetchTransactions();
-      this.clearEditQuery();
-    },
-    cancelEditingTransaction() {
-      this.editingTransaction = null;
-      this.clearEditQuery();
-    },
-    startEditingTransaction(transaction) {
-      if (!transaction?.id) return;
-      if (["expense", "income"].includes(transaction.type)) {
-        this.activeType = transaction.type;
-        this.$router.replace({
-          path: this.$route.path,
-          query: {
-            ...this.$route.query,
-            type: transaction.type,
-          },
-        });
-      }
-      this.editingTransaction = {
-        ...transaction,
-        selectedAt: Date.now(),
-      };
-      this.$nextTick(() => {
-        document.querySelector(".entry-form-section")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      });
-    },
-    async loadTransactionForEdit(transactionId) {
+    async loadMonths() {
       try {
-        const response = await apiClient.get(`/api/transactions/${transactionId}`);
-        const transaction = response.data.data;
-        if (transaction.trip_id) {
-          this.$router.replace({
-            path: "/trips",
-            query: { trip_id: transaction.trip_id },
-          });
-          return;
-        }
-        this.startEditingTransaction(transaction);
-      } catch (error) {
-        console.error("無法載入交易明細", error);
-        this.$swal.fire(
-          "無法開啟編輯",
-          error.response?.data?.message || "請稍後再試。",
-          "error"
-        );
-        this.clearEditQuery();
+        const response = await apiClient.get("/api/months");
+        this.months = response.data?.data || this.months;
+      } catch {
+        // The current month stays selectable without the list.
       }
     },
-    clearEditQuery() {
-      if (!this.$route.query.edit) return;
-      const { edit, ...query } = this.$route.query;
-      this.$router.replace({
-        path: this.$route.path,
-        query,
-      });
-    },
-    setRecordMode(mode) {
-      if (!["recent", "month"].includes(mode) || mode === this.recordMode) return;
-      this.recordMode = mode;
-      this.recordPager = resetCursorPager(this.recordPager);
-      this.fetchRecordTransactions();
-    },
-    async loadNextRecordPage() {
-      if (!this.recordPagination.has_more || this.isRecordLoading) return;
-      const loaded = await this.fetchRecordTransactions(
-        this.recordPagination.next_cursor,
-        this.recordPager.page + 1
-      );
-      if (loaded) this.scrollRecordsIntoView();
-    },
-    async loadPreviousRecordPage() {
-      if (this.recordPager.page <= 1 || this.isRecordLoading) return;
-      const targetPage = this.recordPager.page - 1;
-      const loaded = await this.fetchRecordTransactions(
-        cursorForPage(this.recordPager, targetPage),
-        targetPage
-      );
-      if (loaded) this.scrollRecordsIntoView();
-    },
-    async retryRecordPage() {
-      const retry = this.recordRetry;
-      await this.fetchRecordTransactions(
-        retry?.cursor ?? cursorForPage(this.recordPager, this.recordPager.page),
-        retry?.page ?? this.recordPager.page
-      );
-    },
-    async fetchRecordTransactions(cursor = null, targetPage = 1) {
-      const requestId = ++this.recordRequestSequence;
-      this.isRecordLoading = true;
-      this.recordError = "";
-      this.recordRetry = null;
+    async load() {
+      this.loading = true;
+      this.loadError = "";
+      this.editing = null;
       try {
-        let requestedCursor = cursor;
-        let requestedPage = targetPage;
-        let response;
+        const items = [];
+        let cursor = null;
+        let pages = 0;
         do {
-          const params = {
-            type: this.activeType,
-            limit: this.recordPager.pageSize,
-          };
-          if (this.recordMode === "month") {
-            params.month = this.recordMonth;
-          }
-          if (requestedCursor) {
-            params.cursor = requestedCursor;
-          }
-          response = await apiClient.get("/api/transactions", { params });
-          if (requestId !== this.recordRequestSequence) return false;
-          if ((response.data.data || []).length > 0 || requestedPage === 1) break;
-          requestedPage -= 1;
-          requestedCursor = cursorForPage(this.recordPager, requestedPage);
-        } while (requestedPage >= 1);
-
-        this.recordTransactions = response.data.data || [];
-        this.recordPagination = response.data.pagination || {
-          next_cursor: null,
-          has_more: false,
-          limit: this.recordPager.pageSize,
-          total_count: this.recordTransactions.length,
-        };
-        this.recordPager = recordCursorPage(
-          this.recordPager,
-          requestedPage,
-          requestedCursor
-        );
-        this.recordRetry = null;
-        return true;
+          const response = await apiClient.get("/api/transactions", {
+            params: { month: this.month, limit: PAGE_SIZE, ...(cursor ? { cursor } : {}) },
+          });
+          items.push(...(response.data?.data || []));
+          const pagination = response.data?.pagination || {};
+          cursor = pagination.has_more ? pagination.next_cursor : null;
+          pages += 1;
+        } while (cursor && pages < MAX_PAGES);
+        this.items = items;
+        this.truncated = Boolean(cursor);
       } catch (error) {
-        if (requestId !== this.recordRequestSequence) return false;
-        console.error("無法載入收支紀錄", error);
-        this.recordRetry = { cursor, page: targetPage };
-        if (targetPage === 1) {
-          this.recordTransactions = [];
-          this.recordPager = resetCursorPager(this.recordPager);
-          this.recordPagination = {
-            next_cursor: null,
-            has_more: false,
-            limit: this.recordPager.pageSize,
-            total_count: 0,
-          };
-        }
-        this.recordError = error.response?.data?.message || "無法載入紀錄，請稍後再試。";
-        return false;
+        this.loadError = error.response?.data?.message || "請確認網路連線後重試。";
       } finally {
-        if (requestId === this.recordRequestSequence) {
-          this.isRecordLoading = false;
-        }
+        this.loading = false;
       }
     },
-    async fetchTransactions() {
-      this.recordPager = resetCursorPager(this.recordPager);
-      await this.fetchRecordTransactions();
+    edit(item) {
+      this.editing = item;
+      window.scrollTo({ top: 0, behavior: "smooth" });
     },
-    scrollRecordsIntoView() {
-      this.$nextTick(() => {
-        document.querySelector(".records-section")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
+    async remove(item) {
+      const label = `${item.category || item.budget_category}（${formatAmount(item.amount, item.currency)} ${item.currency || "TWD"}）`;
+      const result = await this.$swal.fire({
+        title: "刪除這筆紀錄？",
+        text: `${label}會從明細移除，帳戶餘額會一併還原。`,
+        showCancelButton: true,
+        confirmButtonText: "刪除",
+        cancelButtonText: "取消",
+        reverseButtons: true,
       });
+      if (!result.isConfirmed) return;
+      try {
+        await apiClient.delete(`/api/transactions/${item.id}`);
+        await this.afterChange();
+      } catch (error) {
+        this.$swal.fire("刪除失敗", error.response?.data?.message || "請稍後再試。", "error");
+      }
     },
-  },
-  created() {
-    this.fetchTransactions();
+    async afterChange() {
+      this.editing = null;
+      await this.load();
+    },
   },
 };
 </script>
 
 <style scoped>
-.transactions-screen {
-  max-width: 520px;
-  min-height: calc(100vh - 80px);
+.ledger-page {
+  max-width: var(--compact-page-max-width);
   margin: 0 auto;
-  padding: 24px 14px calc(var(--app-bottom-nav-height) + 22px);
+  padding: 20px 16px calc(var(--app-bottom-nav-height) + 24px);
   color: var(--text-color);
 }
 
-.page-header {
+.ledger-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 1rem;
+  margin-bottom: 12px;
 }
 
-.page-header > div {
-  min-width: 0;
-}
-
-.page-add-button {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-width: 96px;
-  min-height: 44px;
-  padding: 0 14px;
-  border: 0;
-  font-size: 0.92rem;
-  font-weight: 900;
-}
-
-.page-add-button svg {
-  width: 18px;
-  height: 18px;
-}
-
-.page-add-button:hover {
-  transform: none;
-  box-shadow: none;
-}
-
-.eyebrow {
-  margin: 0 0 4px;
-  color: var(--light-text-color);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-h1 {
-  color: var(--text-color);
-  font-size: 1.85rem;
+.ledger-header h1 {
   margin: 0;
-  letter-spacing: 0;
+  font-size: 1.5rem;
 }
 
-.mode-switch {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  display: inline-grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  width: 100%;
-  padding: 6px;
-  margin: 1rem 0;
-  background: var(--border-color);
+.month-select {
+  min-height: 40px;
+  padding: 0 10px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
+  color: var(--text-color);
+  background: var(--card-bg);
+  font-weight: 600;
 }
 
-.mode-switch button {
-  display: inline-flex;
+.search {
+  display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
   min-height: 44px;
+  margin-bottom: 10px;
   padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+}
+
+.search svg {
+  width: 16px;
+  height: 16px;
+  color: var(--light-text-color);
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  color: var(--text-color);
+  background: transparent;
+  outline: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.chip {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
   color: var(--light-text-color);
   background: transparent;
-  border: 0;
-  border-radius: 8px;
-  box-shadow: none;
-  font-size: 1rem;
-  text-align: center;
+  font-weight: 600;
 }
 
-.mode-switch button.expense {
-  color: var(--expense-color);
+.chip.active {
+  color: var(--on-primary);
+  background: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
-.mode-switch button.income {
+.totals {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 8px;
+  color: var(--light-text-color);
+  font-size: 0.88rem;
+}
+
+.totals strong {
+  color: var(--text-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.totals strong.income {
   color: var(--income-color);
 }
 
-.mode-switch button.expense.active {
-  color: #ffffff;
-  background: #a43d3d;
-}
-
-.mode-switch button.income.active {
-  color: #ffffff;
-  background: #176f59;
-}
-
-.mode-switch span {
-  font-size: 1rem;
-  font-weight: 800;
-}
-
-.records-section {
-  margin-top: 1rem;
-}
-
-.entry-form-section {
-  margin: 0 0 1rem;
-}
-
-.record-mode-switch {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  margin-bottom: 12px;
-  padding: 6px;
-  background: var(--border-color);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-}
-
-.record-mode-switch button {
-  min-height: 40px;
-  padding: 0 10px;
+.day h2 {
+  margin: 18px 0 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
   color: var(--light-text-color);
-  background: transparent;
-  border: 0;
-  border-radius: 8px;
-  box-shadow: none;
-  font-size: 0.9rem;
-  font-weight: 900;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
-.record-mode-switch button.active {
-  color: var(--text-color);
-  background: var(--card-bg);
+.edit-panel {
+  margin-bottom: 16px;
 }
 
-.record-month-picker {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-  color: var(--light-text-color);
-  font-size: 0.86rem;
-  font-weight: 900;
-}
-
-.record-month-picker input {
-  width: 100%;
-  min-height: 42px;
-  padding: 0 10px;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-}
-
-.record-error,
-.record-loading {
-  margin: 0 0 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-weight: 800;
-}
-
-.record-error {
-  color: var(--expense-color);
-  background: var(--expense-soft);
+.delete-button {
+  min-height: 44px;
+  padding: 0 16px;
   border: 1px solid var(--expense-color);
-}
-
-.record-loading {
-  color: var(--light-text-color);
-  background: var(--secondary-color);
-  border: 1px solid var(--border-color);
-}
-
-.section-heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 0 10px;
-}
-
-.section-heading h2 {
-  margin: 0;
-  color: var(--text-color);
-  font-size: 1.08rem;
-}
-
-.section-heading span {
-  color: var(--light-text-color);
-  font-size: 0.86rem;
+  border-radius: 10px;
+  color: var(--expense-color);
+  background: transparent;
   font-weight: 700;
 }
 
-@media (min-width: 900px) {
-  .transactions-screen {
-    padding-top: 36px;
-  }
+.empty {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding: 24px 0;
 }
 
-@media (max-width: 420px) {
-  .page-header {
-    align-items: flex-start;
-  }
+.empty p,
+.caption {
+  margin: 0;
+  color: var(--light-text-color);
+}
 
-  .page-header h1,
-h1 {
-    font-size: 1.65rem;
-  }
-
-  .mode-switch {
-    margin-top: 0.8rem;
-  }
+.ink-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 10px;
+  color: var(--on-primary);
+  background: var(--primary-color);
+  text-decoration: none;
+  font-weight: 700;
 }
 </style>

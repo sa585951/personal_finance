@@ -1,16 +1,12 @@
 <template>
   <div class="universal-add-screen">
     <header class="add-header">
-      <button type="button" aria-label="返回" @click="leaveAdd">返回</button>
-      <div>
-        <p>Nomica Quick Entry</p>
-        <h1>新增收支</h1>
-      </div>
-      <span aria-hidden="true"></span>
+      <h1>記一筆</h1>
+      <button type="button" class="text-button" aria-label="關閉" @click="leaveAdd">關閉</button>
     </header>
 
     <p v-if="recoveryLoading" role="status">正在核對待確認請求…</p>
-    <p v-else-if="recoveryError" role="alert">{{ recoveryError }}</p>
+    <p v-else-if="recoveryError" role="alert" class="notice error">{{ recoveryError }}</p>
     <PendingTransactionRecovery
       v-else-if="transactionCommand?.pending && (!sendingDaily || retryingDaily)"
       :payload="transactionCommand.pending.payload"
@@ -21,113 +17,59 @@
       @acknowledge="acknowledgeDailyPending"
     />
     <ReceiptEntryFlow v-else-if="stage === 'receipt'" @manual="openManual('expense')" @cancel="resetDraft" />
+
     <template v-else-if="stage === 'input'">
-      <button type="button" class="receipt-entry" @click="stage = 'receipt'"><Document aria-hidden="true" /><span>掃描發票記帳<small>掃描 QR Code，帶入日期與金額</small></span><ArrowRight aria-hidden="true" /></button>
-      <AIQuickInput
-        v-if="aiAvailable"
-        :type="preferredType"
-        auto-apply
-        @apply-draft="openPreview"
-        @parse-failed="parseFailure = $event"
-      />
-      <p v-else class="parse-failure" role="status">解析暫停開放，仍可手動輸入或掃描發票。</p>
-
-      <p v-if="parseFailure" class="parse-failure">{{ parseFailure }}</p>
-
-      <section class="manual-options" aria-labelledby="manualEntryTitle">
-        <div>
-          <p>Manual Entry</p>
-          <h2 id="manualEntryTitle">改用手動輸入</h2>
-        </div>
-        <div class="manual-buttons">
-          <button type="button" class="expense" @click="openManual('expense')">
-            手動新增支出
+      <form class="sentence" @submit.prevent="parseSentence">
+        <label for="sentenceInput" class="sr-only">說一句話記帳</label>
+        <textarea
+          id="sentenceInput"
+          v-model="sentence"
+          rows="2"
+          maxlength="200"
+          placeholder="昨天跟同事吃午餐 刷國泰卡 120"
+          @keydown.enter.exact.prevent="parseSentence"
+        ></textarea>
+        <div class="sentence-actions">
+          <button type="button" class="text-button" @click="stage = 'receipt'">
+            <Document aria-hidden="true" />掃描發票
           </button>
-          <button type="button" class="income" @click="openManual('income')">
-            手動新增收入
+          <button type="submit" class="ink-button" :aria-busy="parsing">
+            {{ parsing ? "辨識中" : "填入" }}
           </button>
         </div>
-      </section>
-    </template>
+      </form>
+      <p v-if="parseNote" class="notice" :class="{ error: parseNoteError }" role="status">{{ parseNote }}</p>
+      <p v-if="parseFailure" class="notice error" role="alert">{{ parseFailure }}</p>
 
-    <template v-else-if="stage === 'preview'">
-      <section class="preview-card app-surface">
-        <div class="preview-heading">
-          <div>
-            <p>AI Preview</p>
-            <h2>確認解析內容</h2>
-          </div>
-          <span :class="activeType">{{ activeType === "income" ? "收入" : "支出" }}</span>
-        </div>
-        <dl>
-          <div><dt>項目</dt><dd>{{ draft.title || "待補" }}</dd></div>
-          <div><dt>金額</dt><dd>{{ draft.amount || "待補" }}</dd></div>
-          <div><dt>類別</dt><dd>{{ draft.budget_category || "待補" }}</dd></div>
-          <div><dt>日期</dt><dd>{{ draft.date || "今天" }}</dd></div>
-          <div><dt>帳戶</dt><dd>{{ draft.account_name || draft.account_hint || "不連動帳戶" }}</dd></div>
-          <div><dt>備註</dt><dd>{{ draft.description || "無" }}</dd></div>
-        </dl>
-        <p v-if="missingFieldLabels.length" class="missing-fields">
-          請先補上：{{ missingFieldLabels.join("、") }}
-        </p>
-        <div class="preview-actions">
-          <button type="button" @click="expanded = !expanded">
-            {{ expanded ? "只看必要欄位" : "調整資料" }}
-          </button>
-          <button type="button" @click="resetDraft">重新輸入</button>
-        </div>
-      </section>
+      <div class="type-switch" role="radiogroup" aria-label="收支類型">
+        <button
+          v-for="option in typeOptions"
+          :key="option.value"
+          type="button"
+          role="radio"
+          :aria-checked="activeType === option.value"
+          :class="{ active: activeType === option.value }"
+          @click="switchType(option.value)"
+        >{{ option.label }}</button>
+      </div>
 
       <TransactionForm
         :key="clientRequestId"
+        class="manual-heading"
         :type="activeType"
-        :draft="draft"
-        mode="preview"
-        :missing-fields="missingFields"
-        :expanded="expanded"
+        :draft="draftForForm"
         :client-request-id="clientRequestId"
         :external-submit="submitDailyTransaction"
-        submit-label="確認新增"
-        @transaction-added="handleAdded"
-      />
-    </template>
-
-    <template v-else-if="stage === 'manual'">
-      <section class="manual-heading">
-        <div>
-          <p>Manual Entry</p>
-          <h2>{{ activeType === "income" ? "手動新增收入" : "手動新增支出" }}</h2>
-        </div>
-        <button type="button" @click="resetDraft">返回輸入選項</button>
-      </section>
-      <TransactionForm
-        :key="clientRequestId"
-        :type="activeType"
-        :client-request-id="clientRequestId"
-        :external-submit="submitDailyTransaction"
+        :submit-label="activeType === 'income' ? '記下收入' : '記下支出'"
         @transaction-added="handleAdded"
       />
     </template>
 
     <template v-else>
-      <section class="success-panel app-surface">
-        <div
-          class="success-visual"
-          :class="successKind"
-          :aria-label="successKind === 'income' ? '收入已存入帳戶' : '支出已由帳戶扣除'"
-          role="img"
-        >
-          <div class="success-account">
-            <span></span>
-            <component :is="successKind === 'income' ? 'BottomLeft' : 'TopRight'" />
-          </div>
-          <CircleCheckFilled class="success-check" aria-hidden="true" />
-        </div>
-        <p>Entry completed</p>
-        <h2>{{ successResult?.replayed ? "這筆紀錄先前已建立" : "記帳完成" }}</h2>
-        <span class="success-copy">
-          {{ successResult?.replayed ? "系統沒有重複建立或扣款。" : "交易已加入紀錄，以下是實際採用的帳務影響。" }}
-        </span>
+      <section class="success-panel" role="status">
+        <CircleCheckFilled class="success-check" aria-hidden="true" />
+        <h2>{{ successResult?.replayed ? "這筆紀錄先前已建立" : "已記下" }}</h2>
+        <p v-if="successResult?.replayed">沒有重複建立或扣款。</p>
       </section>
 
       <AccountImpactCard
@@ -140,36 +82,31 @@
       />
 
       <div class="success-actions">
-        <button type="button" class="secondary-action" @click="resetDraft">再記一筆</button>
-        <button type="button" class="primary-action app-primary-action" @click="finishAdded">完成並返回</button>
+        <button type="button" class="ghost-button" @click="finishAdded">完成</button>
+        <button type="button" class="ink-button" @click="resetDraft">再記一筆</button>
       </div>
     </template>
   </div>
 </template>
 
 <script>
-import AIQuickInput from "@/components/budgets/AIQuickInput.vue";
 import apiClient from "@/api";
 import { openPendingCommand } from '@/utils/pendingFinancialCommand';
 import PendingTransactionRecovery from '@/components/shared/PendingTransactionRecovery.vue';
 import ReceiptEntryFlow from "@/components/receipts/ReceiptEntryFlow.vue";
 import TransactionForm from "@/components/budgets/TransactionForm.vue";
 import AccountImpactCard from "@/components/shared/AccountImpactCard.vue";
-import { BottomLeft, CircleCheckFilled, TopRight, Document, ArrowRight } from "@element-plus/icons-vue";
+import { CircleCheckFilled, Document } from "@element-plus/icons-vue";
 
 export default {
   name: "UniversalAddView",
   components: {
     PendingTransactionRecovery,
     ReceiptEntryFlow,
-    AIQuickInput,
     TransactionForm,
     AccountImpactCard,
-    BottomLeft,
     CircleCheckFilled,
-    TopRight,
     Document,
-    ArrowRight,
   },
   data() {
     return {
@@ -182,38 +119,25 @@ export default {
       sendingDaily: false,
       retryingDaily: false,
       stage: this.$route.query.mode === "receipt" ? "receipt" : "input",
-      preferredType: this.$route.query.type === "income" ? "income" : "expense",
-      activeType: "expense",
-      draft: {},
-      missingFields: [],
-      expanded: false,
+      activeType: this.$route.query.type === "income" ? "income" : "expense",
+      typeOptions: [{ value: "expense", label: "支出" }, { value: "income", label: "收入" }],
+      draft: null,
+      sentence: "",
+      parsing: false,
+      parseNote: "",
+      parseNoteError: false,
       parseFailure: "",
-      aiAvailable: false,
       successResult: null,
       clientRequestId: this.createRequestId(),
       returnTo: this.safeReturnPath(window.history.state?.returnTo),
     };
   },
-  async mounted() {
+  mounted() {
     this.ensureTransactionCommand().catch(() => {});
-    try {
-      const response = await apiClient.get('/api/capabilities');
-      this.aiAvailable = response.data?.data?.ai_parse === true;
-    } catch {
-      this.aiAvailable = false;
-    }
   },
   computed: {
-    successKind() {
-      return this.successResult?.type === "income" ? "income" : "expense";
-    },
-    missingFieldLabels() {
-      const labels = {
-        amount: "金額",
-        title: "項目",
-        budget_category: "類別",
-      };
-      return this.missingFields.map((field) => labels[field] || field);
+    draftForForm() {
+      return this.draft && Object.keys(this.draft).length ? this.draft : null;
     },
   },
   methods: {
@@ -301,31 +225,64 @@ export default {
       }
       return path === "/add" ? "" : path;
     },
-    openPreview(draft) {
-      this.draft = draft;
-      this.activeType = draft.type === "income" ? "income" : "expense";
-      this.missingFields = Array.isArray(draft.missing_fields) ? draft.missing_fields : [];
-      this.expanded = false;
+    async parseSentence() {
+      const text = this.sentence.trim();
+      if (this.parsing) return;
+      if (!text) {
+        this.parseNote = "先輸入一句話，例如「午餐 120」。";
+        this.parseNoteError = true;
+        return;
+      }
+      this.parsing = true;
+      this.parseNote = "";
+      this.parseNoteError = false;
       this.parseFailure = "";
-      this.successResult = null;
+      try {
+        const response = await apiClient.post("/api/parse/local", { text });
+        const result = response.data?.data?.parse_result || {};
+        const transaction = result.transaction;
+        if (!transaction) {
+          this.applyDraft({ type: this.activeType, title: text.slice(0, 40) });
+          this.parseNote = "沒有認出這句話，已放進項目，請補上金額。";
+          this.parseNoteError = true;
+          return;
+        }
+        this.applyDraft({ ...transaction, raw_text: text, parse_event_id: response.data?.data?.parse_event_id || "" });
+        const missing = (result.missing_fields || []).includes("amount") || !transaction.amount;
+        this.parseNote = missing ? "已填入，請補上金額後確認。" : "已填入下方欄位，確認後按記下。";
+        this.parseNoteError = missing;
+        this.sentence = "";
+      } catch (error) {
+        this.parseNote = error.response?.data?.message || "目前無法辨識，請直接填寫下方欄位。";
+        this.parseNoteError = true;
+      } finally {
+        this.parsing = false;
+      }
+    },
+    applyDraft(draft) {
+      this.activeType = draft.type === "income" ? "income" : "expense";
+      this.draft = { ...draft, type: this.activeType };
+    },
+    switchType(type) {
+      if (type === this.activeType) return;
+      this.activeType = type;
+      this.draft = null;
+      this.parseNote = "";
       this.clientRequestId = this.createRequestId();
-      this.stage = "preview";
     },
     openManual(type) {
       this.activeType = type;
-      this.draft = {};
-      this.missingFields = [];
-      this.expanded = true;
+      this.draft = null;
       this.parseFailure = "";
       this.successResult = null;
       this.clientRequestId = this.createRequestId();
-      this.stage = "manual";
+      this.stage = "input";
     },
     resetDraft() {
       this.stage = "input";
-      this.draft = {};
-      this.missingFields = [];
-      this.expanded = false;
+      this.draft = null;
+      this.sentence = "";
+      this.parseNote = "";
       this.parseFailure = "";
       this.successResult = null;
       this.clientRequestId = this.createRequestId();
@@ -336,7 +293,7 @@ export default {
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
     finishAdded() {
-      const fallback = `/transactions?type=${this.successResult?.type === "income" ? "income" : "expense"}`;
+      const fallback = "/";
       this.$router.replace(this.returnTo || fallback);
     },
     leaveAdd() {
@@ -351,333 +308,174 @@ export default {
 </script>
 
 <style scoped>
-.receipt-entry { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 72px; padding: 14px 16px; margin-bottom: 16px; color: var(--primary-color); background: var(--primary-soft); border: 1px solid var(--brand-border); border-radius: var(--card-radius); text-align: left; font-weight: 800; }
-.receipt-entry svg { width: 24px; height: 24px; flex: none; }
-.receipt-entry span { flex: 1; }
-.receipt-entry small { display: block; margin-top: 4px; color: var(--light-text-color); font-weight: 500; }
 .universal-add-screen {
-  max-width: 520px;
+  max-width: var(--compact-page-max-width);
   min-height: calc(100vh - var(--app-bottom-nav-height));
   margin: 0 auto;
-  padding: 18px 14px calc(var(--app-bottom-nav-height) + 24px);
+  padding: 20px 16px calc(var(--app-bottom-nav-height) + 24px);
   color: var(--text-color);
 }
 
-.add-header,
-.preview-heading,
-.manual-heading {
+.add-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-}
-
-.add-header {
   margin-bottom: 16px;
 }
 
-.add-header > span {
-  width: 50px;
-}
-
-.add-header button,
-.preview-actions button,
-.manual-heading button {
-  min-height: 38px;
-  padding: 0 12px;
-  color: var(--primary-color);
-  background: var(--primary-soft);
-  border: 1px solid var(--brand-border);
-  border-radius: 8px;
-  font-weight: 800;
-}
-
-.add-header p,
-.preview-heading p,
-.manual-heading p,
-.manual-options p {
-  margin: 0 0 3px;
-  color: var(--light-text-color);
-  font-size: 0.75rem;
-  font-weight: 800;
-}
-
-.add-header h1,
-.preview-heading h2,
-.manual-heading h2,
-.manual-options h2 {
-  margin: 0;
-  letter-spacing: 0;
-}
-
 .add-header h1 {
-  font-size: 1.55rem;
+  margin: 0;
+  font-size: 1.5rem;
 }
 
-.manual-options {
-  margin-bottom: 14px;
-  padding: 16px;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.sentence {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--brand-border);
+  border-radius: 12px;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+}
+
+.sentence textarea {
+  width: 100%;
+  min-height: 56px;
+  padding: 0;
+  border: 0;
+  resize: none;
+  color: var(--text-color);
+  background: transparent;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  outline: none;
+}
+
+.sentence:focus-within {
+  border-color: var(--text-color);
+}
+
+.sentence-actions,
+.success-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 8px;
+  color: var(--light-text-color);
+  background: transparent;
+  border: 0;
+  font-weight: 600;
+}
+
+.text-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ink-button,
+.ghost-button {
+  min-height: 44px;
+  padding: 0 18px;
   border-radius: 10px;
+  font-weight: 700;
 }
 
-.preview-card {
-  margin-bottom: 14px;
-  padding: 16px;
+.ink-button {
+  color: var(--on-primary);
+  background: var(--primary-color);
+  border: 0;
+}
+
+.ink-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ghost-button {
+  color: var(--text-color);
+  background: transparent;
   border: 1px solid var(--border-color);
 }
 
-.manual-heading {
-  margin-bottom: 14px;
-  padding: 16px;
+.notice {
+  margin: 0 0 12px;
+  color: var(--light-text-color);
+  font-size: 0.88rem;
+}
+
+.notice.error {
+  color: var(--expense-color);
+}
+
+.type-switch {
+  display: inline-flex;
+  margin: 4px 0 8px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--secondary-color);
+}
+
+.type-switch button {
+  min-width: 72px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--light-text-color);
+  background: transparent;
+  font-weight: 700;
+}
+
+.type-switch button.active {
+  color: var(--text-color);
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-}
-
-.success-panel {
-  margin-bottom: 14px;
-  padding: 16px;
-  border: 1px solid var(--border-color);
 }
 
 .success-panel {
   display: grid;
   justify-items: center;
+  gap: 6px;
+  padding: 24px 0 16px;
   text-align: center;
 }
 
-.success-visual {
-  position: relative;
-  width: 92px;
-  height: 76px;
-  margin-bottom: 10px;
-  animation: success-arrive 320ms ease-out both;
-}
-
-.success-account {
-  position: absolute;
-  inset: 8px 10px 4px 4px;
-  display: grid;
-  place-items: center;
-  color: var(--income-color);
-  background: var(--income-soft);
-  border: 1px solid var(--income-color);
-  border-radius: 12px;
-  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.12);
-}
-
-.success-account::before,
-.success-account::after,
-.success-account span {
-  position: absolute;
-  left: 12px;
-  width: 22px;
-  height: 3px;
-  content: "";
-  background: currentColor;
-  border-radius: 999px;
-  opacity: 0.35;
-}
-
-.success-account::before {
-  top: 18px;
-}
-
-.success-account span {
-  top: 27px;
-}
-
-.success-account::after {
-  top: 36px;
-  width: 15px;
-}
-
-.success-account > svg {
-  width: 28px;
-  height: 28px;
-  margin-left: 34px;
-  stroke-width: 2.2;
-}
-
-.success-visual.expense .success-account {
-  color: var(--warning-color);
-  background: var(--warning-soft);
-  border-color: var(--warning-color);
-  box-shadow: 0 8px 18px rgba(180, 83, 9, 0.12);
-}
-
-.success-check {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 25px;
-  height: 25px;
-  color: var(--income-color);
-  background: var(--card-bg);
-  border: 3px solid var(--card-bg);
-  border-radius: 50%;
-}
-
-@keyframes success-arrive {
-  from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.94);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .success-visual {
-    animation: none;
-  }
-}
-
-.success-panel p,
 .success-panel h2,
-.success-copy {
+.success-panel p {
   margin: 0;
 }
 
 .success-panel p {
-  color: var(--income-color);
-  font-size: 0.72rem;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.success-panel h2 {
-  margin-top: 3px;
-  letter-spacing: 0;
-}
-
-.success-copy {
-  margin-top: 7px;
   color: var(--light-text-color);
-  font-size: 0.88rem;
-  line-height: 1.5;
+}
+
+.success-check {
+  width: 44px;
+  height: 44px;
+  color: var(--income-color);
 }
 
 .success-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 
 .success-actions button {
-  min-height: 46px;
-  border-radius: 8px;
-  font-weight: 900;
-}
-
-.success-actions .secondary-action {
-  color: var(--primary-color);
-  background: var(--primary-soft);
-  border: 1px solid var(--brand-border);
-}
-
-.success-actions .primary-action {
-  color: var(--on-primary);
-  background: var(--primary-color);
-  border: 1px solid var(--primary-color);
-}
-
-.manual-buttons {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.manual-buttons button {
-  min-height: 46px;
-  border-radius: 8px;
-  font-weight: 900;
-}
-
-.manual-buttons .expense {
-  color: var(--expense-color);
-  background: var(--expense-soft);
-  border: 1px solid var(--expense-color);
-}
-
-.manual-buttons .income {
-  color: var(--income-color);
-  background: var(--income-soft);
-  border: 1px solid var(--income-color);
-}
-
-.preview-heading > span {
-  padding: 5px 9px;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 900;
-}
-
-.preview-heading > span.expense {
-  color: var(--expense-color);
-  background: var(--expense-soft);
-}
-
-.preview-heading > span.income {
-  color: var(--income-color);
-  background: var(--income-soft);
-}
-
-.preview-card dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: 16px 0 0;
-}
-
-.preview-card dl div {
-  min-width: 0;
-  padding: 10px;
-  background: var(--secondary-color);
-  border-radius: 8px;
-}
-
-.preview-card dt {
-  color: var(--light-text-color);
-  font-size: 0.76rem;
-  font-weight: 800;
-}
-
-.preview-card dd {
-  margin: 3px 0 0;
-  color: var(--text-color);
-  font-weight: 900;
-  overflow-wrap: anywhere;
-}
-
-.missing-fields,
-.parse-failure {
-  padding: 10px 12px;
-  color: var(--warning-color);
-  background: var(--warning-soft);
-  border: 1px solid var(--warning-color);
-  border-radius: 8px;
-  font-weight: 800;
-}
-
-.preview-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-@media (max-width: 430px) {
-  .manual-buttons,
-  .preview-card dl,
-  .success-actions {
-    grid-template-columns: 1fr;
-  }
+  flex: 1;
 }
 </style>

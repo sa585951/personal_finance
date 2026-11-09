@@ -110,32 +110,29 @@ async function testPrivateTripShareClassification(browser) {
     await installMocks(page);
     await page.goto(new URL('/login', base).href);
     const result = await page.evaluate(async () => {
-      const { default: Home } = await import('/src/views/HomeView.vue');
+      // Today reads monthly totals from the backend report (covered by backend tests);
+      // the client-side R11 classification now lives only in Analysis.
       const { default: Analysis } = await import('/src/views/AnalysisView.vue');
       const transactions = [
         { type: 'expense', converted_amount: 50 },
         { type: 'expense', trip_id: 'visible', converted_amount: 200 },
         { type: 'expense', is_trip_share: true, converted_amount: 500 },
       ];
-      const home = { monthTransactions: transactions, includeTripsInHome: true,
-        monthlyReportAmount: row => row.converted_amount };
       const analysis = { transactions, includeTrips: true, tripNameMap: new Map([['visible', 'Visible trip']]),
         transactionAmount: row => row.converted_amount };
       return {
-        daily: Home.computed.monthlyDailyExpense.call(home),
-        travel: Home.computed.monthlyTravelExpense.call(home),
         analysis: Analysis.computed.monthlyTravelExpense.call(analysis),
         groups: Analysis.computed.monthlyTripRows.call(analysis),
       };
     });
     assert.deepEqual(result, {
-      daily: 50, travel: 700, analysis: 700,
+      analysis: 700,
       groups: [
         { id: null, name: '已刪除旅行的個人分攤', amount: 500 },
         { id: 'visible', name: 'Visible trip', amount: 200 },
       ],
     });
-    console.log('R11 private travel shares preserve daily/travel classification');
+    console.log('R11 private travel shares keep their travel classification');
   } finally { await page.close(); }
 }
 
@@ -149,6 +146,7 @@ async function testReportCurrencyRefusal(browser) {
       success: false, code: 'REPORT_CURRENCY_UNSUPPORTED', message,
     } });
     await page.route('**/api/dashboard/overview', reject);
+    await page.route('**/api/reports/income_expense_summary*', reject);
     await page.route('**/api/transactions*', route => {
       return new URL(route.request().url()).searchParams.get('monthly_report') === 'true'
         ? reject(route) : route.fallback();
@@ -239,10 +237,10 @@ async function testDisabledAiKeepsManualEntry(browser) {
     const page = await context.newPage();
     const errors = await installMocks(page);
     await page.goto(`${base.origin}/add`, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('status').filter({ hasText: '解析暫停開放' }).waitFor();
-    await page.getByRole('button', { name: '手動新增支出', exact: true }).click();
-    await page.locator('.manual-heading').waitFor();
-    assert((await page.locator('.manual-heading').innerText()).includes('手動新增支出'));
+    // Speak-to-record and the manual form share one screen; no "paused" banner.
+    await page.locator('#sentenceInput').waitFor();
+    await page.locator('#transactionAmount').waitFor();
+    assert.equal(await page.getByText('解析暫停開放').count(), 0);
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 }
@@ -286,13 +284,13 @@ async function testDisabledAiKeepsManualEntry(browser) {
         await page.goto(new URL(route, base).href);
         await page.locator(selector).first().waitFor();
         for (const surface of await page.locator('.app-surface').all()) {
-          assert.equal(await surface.evaluate(el => getComputedStyle(el).borderRadius), '16px');
+          assert.equal(await surface.evaluate(el => getComputedStyle(el).borderRadius), '12px');
         }
         if (await page.locator('.app-surface').count()) await themeColor(page, '.app-surface', '--card-bg', 'backgroundColor');
         if (route === '/transactions') {
-          await page.locator('.app-pagination').waitFor();
-          assert(await page.getByRole('button', { name: '前往上一頁' }).isDisabled());
-          assert(await page.getByRole('button', { name: '前往下一頁' }).isDisabled());
+          await page.getByText('測試消費').first().waitFor();
+          await page.getByRole('radio', { name: '支出', exact: true }).click();
+          await page.getByText('測試消費').first().waitFor();
         }
         if (route === '/trips') await page.locator('.trip-card').waitFor();
         if (route === '/account') await themeColor(page, '.account-page', '--text-color');

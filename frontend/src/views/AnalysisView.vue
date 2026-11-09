@@ -2,7 +2,6 @@
   <div class="analysis-screen">
     <header class="analysis-header">
       <div>
-        <p class="eyebrow">Nomica Analysis</p>
         <h1>財務分析</h1>
       </div>
       <input v-model="selectedMonth" type="month" aria-label="分析月份" />
@@ -628,9 +627,8 @@ h2 {
 }
 
 .summary-card {
-  color: #ffffff;
-  background: var(--hero-bg);
-  border-color: var(--hero-bg);
+  color: var(--text-color);
+  background: var(--card-bg);
 }
 
 .summary-heading div,
@@ -649,7 +647,7 @@ h2 {
 }
 
 .summary-heading span {
-  color: #c4cbe3;
+  color: var(--light-text-color);
 }
 
 .summary-heading strong {
@@ -691,12 +689,8 @@ h2 {
   background: var(--secondary-color);
 }
 
-.summary-metrics div {
-  background: rgba(255, 255, 255, 0.1);
-}
-
 .summary-metrics span {
-  color: #c4cbe3;
+  color: var(--light-text-color);
 }
 
 .summary-metrics strong,
@@ -707,7 +701,7 @@ h2 {
 }
 
 .summary-metrics strong {
-  color: #ffffff;
+  color: var(--text-color);
 }
 
 .section-heading a {

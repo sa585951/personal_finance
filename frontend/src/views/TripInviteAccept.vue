@@ -1,7 +1,6 @@
 <template>
   <main class="invite-page">
     <section class="invite-card">
-      <p class="eyebrow">Trip Invite</p>
       <h1>加入旅行帳本</h1>
       <p class="invite-message">{{ message }}</p>
 

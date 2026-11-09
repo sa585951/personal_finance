@@ -24,7 +24,7 @@ module.exports = async function testTransactionRecovery(browser, base, installMo
   }
   async function fill(page, kind) {
     if (kind === 'daily') {
-      await page.getByRole('button', { name: '手動新增支出', exact: true }).click();
+      await page.locator('#transactionAmount').waitFor();
       await page.locator('#transactionCategory').fill('Recovery expense');
       await page.locator('#transactionAmount').fill('100');
       await page.locator('#budgetCategory').selectOption('伙食');

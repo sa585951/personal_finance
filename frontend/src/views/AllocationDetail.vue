@@ -8,7 +8,7 @@
     <template v-else-if="portfolio">
       <header class="detail-header">
         <div>
-          <p class="eyebrow">{{ portfolio.base_currency }} Portfolio</p>
+          <p class="eyebrow">{{ portfolio.base_currency }} 投資組合</p>
           <h1>{{ portfolio.name }}</h1>
           <p>手動管理策略與資產快照，不連接券商或即時行情。</p>
         </div>

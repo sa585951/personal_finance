@@ -43,7 +43,7 @@ async function accountByName(page, name) {
 
 async function addExpense(page, { item, amount, pickAccount }) {
   await page.goto(`${web}/add`);
-  await page.getByRole('button', { name: '手動新增支出', exact: true }).click();
+  await page.locator('#transactionAmount').waitFor();
   await page.locator('#transactionCategory').fill(item);
   await page.locator('#transactionAmount').fill(String(amount));
   if (pickAccount) {
@@ -52,7 +52,7 @@ async function addExpense(page, { item, amount, pickAccount }) {
   }
   const created = page.waitForResponse(response =>
     response.url().endsWith('/api/transactions') && response.request().method() === 'POST');
-  await page.getByRole('button', { name: '新增支出', exact: true }).click();
+  await page.getByRole('button', { name: '記下支出', exact: true }).click();
   const response = await created;
   assert.equal(response.status(), 201, `create failed: ${await response.text()}`);
 }
@@ -100,19 +100,30 @@ async function run() {
 
     // 4. The next expense defaults to the last-used account (no silent 不連動).
     await page.goto(`${web}/add`);
-    await page.getByRole('button', { name: '手動新增支出', exact: true }).click();
     await expectEventually(async () =>
       (await page.locator('.picker-trigger').getAttribute('aria-label') || '').includes(accountName),
     'last-used account is preselected');
     await addExpense(page, { item: `E2E 咖啡 ${stamp}`, amount: 30 });
     assert.equal((await accountByName(page, accountName)).balance, 850);
 
-    // 5. The ledger lists both entries.
+    // 5. Speak-to-record: one sentence fills amount and category; the last-used account stays selected.
+    await page.goto(`${web}/add`);
+    await page.locator('#sentenceInput').fill("晚餐 260");
+    await page.getByRole('button', { name: '填入', exact: true }).click();
+    await expectEventually(async () => await page.locator('#transactionAmount').inputValue() === '260', 'sentence fills the amount');
+    assert.equal(await page.locator('#budgetCategory').inputValue(), '伙食');
+    const spoken = page.waitForResponse(response =>
+      response.url().endsWith('/api/transactions') && response.request().method() === 'POST');
+    await page.getByRole('button', { name: '記下支出', exact: true }).click();
+    assert.equal((await spoken).status(), 201);
+    assert.equal((await accountByName(page, accountName)).balance, 590);
+
+    // 6. The ledger lists the entries.
     await page.goto(`${web}/transactions`);
     await page.getByText(`E2E 咖啡 ${stamp}`).waitFor();
     await page.getByText(`E2E 午餐 ${stamp}`).waitFor();
 
-    // 6. Privacy: export, then delete the account (runs last: it removes the user).
+    // 7. Privacy: export, then delete the account (runs last: it removes the user).
     await require('./test-e2e-privacy.cjs')({ page, web, stamp, accountName, expectEventually });
 
     assert.deepEqual(errors, [], 'no uncaught browser exceptions');

@@ -1,7 +1,6 @@
 <template>
   <div class="assets-screen">
     <header class="assets-header">
-      <p class="eyebrow">Accounts</p>
       <h1>帳戶總覽</h1>
     </header>
 
@@ -97,7 +96,7 @@
       <section v-if="lastTransferResult?.impact" class="transfer-result-panel app-surface">
         <div class="transfer-result-heading">
           <div>
-            <p>Movement completed</p>
+            <p>轉帳完成</p>
             <h2>{{ lastTransferResult.isEditing ? "轉帳已更新" : "轉帳完成" }}</h2>
           </div>
           <button type="button" aria-label="關閉轉帳結果" @click="lastTransferResult = null">關閉</button>

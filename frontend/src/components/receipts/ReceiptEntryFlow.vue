@@ -2,7 +2,7 @@
   <section class="receipt-flow app-card" aria-label="發票掃描記帳">
     <div class="receipt-heading">
       <span class="receipt-symbol"><Document aria-hidden="true" /></span>
-      <div><p class="eyebrow">Receipt entry</p><h2>掃描發票</h2></div>
+      <div><h2>掃描發票</h2></div>
       <span class="step-badge">{{ receipt ? '確認紀錄' : '快速掃描' }}</span>
     </div>
     <p class="intro">{{ receipt ? '核對發票資料，再選擇連結既有紀錄或新增支出。' : '將左側 QR Code 放入框內，或從相簿選擇發票圖片。' }}</p>

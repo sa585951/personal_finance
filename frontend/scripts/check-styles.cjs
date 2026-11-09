@@ -20,7 +20,7 @@ for (const file of files) {
   const descriptor = file.endsWith('.vue') ? parse(text).descriptor : null;
   const styles = descriptor ? descriptor.styles : [{ content: text }];
   if (descriptor?.template) {
-    const surfaces = new Set(['insights-panel', 'getting-started-panel', 'account-health-panel', 'create-panel', 'management-panel', 'action-panel', 'transfer-result-panel', 'records-section', 'entry-form-section', 'status-card', 'chart-card', 'source-card', 'preview-card', 'success-panel', 'trip-card']);
+    const surfaces = new Set(['insights-panel', 'getting-started-panel', 'account-health-panel', 'create-panel', 'management-panel', 'action-panel', 'transfer-result-panel', 'entry-form-section', 'status-card', 'chart-card', 'source-card', 'preview-card', 'trip-card']);
     for (const match of descriptor.template.content.matchAll(/(?<![:\w-])class="([^"]*)"/g)) {
       const classes = match[1].split(/\s+/);
       if (classes.some(name => surfaces.has(name))) assert(classes.includes('app-surface'), `${file}: migrated surface requires app-surface`);
