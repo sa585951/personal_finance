@@ -20,6 +20,14 @@
         </span>
         <ArrowRight aria-hidden="true" />
       </router-link>
+      <router-link to="/privacy" class="me-row">
+        <span><strong>隱私權政策</strong></span>
+        <ArrowRight aria-hidden="true" />
+      </router-link>
+      <router-link to="/terms" class="me-row">
+        <span><strong>服務條款</strong></span>
+        <ArrowRight aria-hidden="true" />
+      </router-link>
       <div class="me-row me-row--static">
         <span><strong>外觀</strong></span>
         <ThemeToggle show-label />

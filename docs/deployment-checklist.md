@@ -24,6 +24,9 @@
 7. 憑證只存部署平台秘密設定；範例可版控，真實 `.env`、DB dump、Token 不可版控。
    依需求配置 JWT、DB、LINE Login 憑證；停用 AI 不需要為了部署加入 Gemini Key。
 8. 協調 frontend/backend 版本與回退方案。回退不得直接刪除 state、命令或去重資料表。
+9. 刪除帳號 30 天後的永久清除：`python -m scripts.purge_deleted_users` 預設只試跑並回報筆數，
+   加 `--apply` 才寫入。建議每天排程一次（例如 Render Cron Job，指令同上並帶 `--apply`），
+   沒有到期的資料時不會刪除任何東西。清除後只能從資料庫備份還原。
 
 ## staging 驗證（先用合成資料）
 

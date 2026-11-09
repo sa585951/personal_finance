@@ -1,6 +1,6 @@
 <template>
-  <Navbar v-if="!['Login', 'AuthCallback'].includes($route.name)" />
-  <main :class="{ 'with-navbar': !['Login', 'AuthCallback'].includes($route.name) }">
+  <Navbar v-if="!['Login', 'AuthCallback', 'Privacy', 'Terms'].includes($route.name)" />
+  <main :class="{ 'with-navbar': !['Login', 'AuthCallback', 'Privacy', 'Terms'].includes($route.name) }">
   <router-view />
   </main>
 </template>
