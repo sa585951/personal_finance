@@ -1,16 +1,16 @@
 """LINE pilot for natural-language drafts and explicit account selection."""
 import re
 from collections import Counter
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from unicodedata import normalize
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, func, select, update
 
 from ..asset_manager import ACCOUNT_TYPE_LABELS
 from ..budget_manager import DEFAULT_CURRENCY
 from ..line_ai_gateway import AIRequestBlocked, CONSENT_NOTICE, set_line_ai_consent
-from ..schema import accounts_table, ai_parse_events_table, categories_table
+from ..schema import accounts_table, ai_parse_events_table, categories_table, transactions_table
 from ..user_manager import UserManager
 from .line_sdk import FlexSendMessage
 from .transaction_drafts import LineTransactionDrafts
@@ -44,6 +44,8 @@ BOOKKEEPING_TEXT = re.compile(
 )
 GUIDE = "可傳「昨天午餐刷卡 120」或「午餐 120」。請核對草稿後確認，其他操作請到 Nomica Web。"
 NO_DRAFT = "找不到可操作的收支草稿，請重新輸入。"
+ACCOUNT_PAGE_SIZE = 8
+USAGE_WINDOW_DAYS = 90
 
 
 def parse_oral(parser, message, *, generate=None):
@@ -124,6 +126,9 @@ class LineOralPilot:
                     "請再傳一筆記帳文字，隨時可回「撤回 AI」。")
         if text.startswith(("補金額 ", "補日期 ")):
             return self._clarify(owner, text)
+        chosen = self._choose_account_by_name(owner, text)
+        if chosen is not None:
+            return chosen
         if len(text) > 1000:
             return "訊息太長，請簡短描述一筆收支。"
         try:
@@ -176,11 +181,27 @@ class LineOralPilot:
             return None
 
     def _accounts(self, owner, currency):
-        table = accounts_table
-        return self.session.execute(select(table.c.id, table.c.name, table.c.type).where(
-            table.c.user_id == owner, table.c.deleted_at.is_(None),
-            table.c.is_active.is_(True), table.c.track_balance.is_(True), table.c.currency == currency,
-        ).order_by(table.c.name, table.c.id)).mappings().all()
+        """Same-currency accounts, most useful first: last used, then most used in 90 days."""
+        table, tx = accounts_table, transactions_table
+        since = date.today() - timedelta(days=USAGE_WINDOW_DAYS)
+        usage = select(
+            tx.c.account_id,
+            func.max(tx.c.created_at).label("last_used"),
+            func.count().filter(tx.c.transaction_date >= since).label("recent_uses"),
+        ).where(tx.c.user_id == owner, tx.c.deleted_at.is_(None), tx.c.account_id.is_not(None)
+                ).group_by(tx.c.account_id).subquery()
+        rows = self.session.execute(
+            select(table.c.id, table.c.name, table.c.type, usage.c.last_used, usage.c.recent_uses)
+            .select_from(table.outerjoin(usage, usage.c.account_id == table.c.id))
+            .where(
+                table.c.user_id == owner, table.c.deleted_at.is_(None),
+                table.c.is_active.is_(True), table.c.track_balance.is_(True), table.c.currency == currency,
+            ).order_by(table.c.name, table.c.id)
+        ).mappings().all()
+        used = [row for row in rows if row["last_used"] is not None]
+        latest = max(used, key=lambda row: row["last_used"])["id"] if used else None
+        ordered = sorted(rows, key=lambda row: (row["id"] != latest, -(row["recent_uses"] or 0)))
+        return [{"id": row["id"], "name": row["name"], "type": row["type"]} for row in ordered]
 
     def _save(self, row, data):
         self.session.execute(update(ai_parse_events_table).where(ai_parse_events_table.c.id == row["id"])
@@ -207,6 +228,10 @@ class LineOralPilot:
                            and alias and self._card_alias(account["name"]) == alias]
                 if len(matches) == 1:
                     return self._freeze_account(row, matches[0])
+        return self._account_menu(row, accounts, page=0)
+
+    @staticmethod
+    def _menu_options(accounts):
         labels = Counter(account["name"][:20] for account in accounts)
         options = []
         for account in accounts:
@@ -216,22 +241,65 @@ class LineOralPilot:
                 label = account["name"][:20 - len(suffix)] + suffix
             options.append((account, label))
         label_counts = Counter(label for _, label in options)
-        offered = [(account, label) for account, label in options if label_counts[label] == 1][:5]
-        if not offered:
+        return [(account, label) for account, label in options if label_counts[label] == 1]
+
+    def _account_menu(self, row, accounts, page):
+        options = self._menu_options(accounts)
+        if not options:
             return "無法在 LINE 區分同名帳戶，請到 Nomica Web 記帳。"
-        data["offered_accounts"] = [str(account["id"]) for account, _ in offered]
+        pages = (len(options) + ACCOUNT_PAGE_SIZE - 1) // ACCOUNT_PAGE_SIZE
+        page = min(max(page, 0), pages - 1)
+        offered = options[page * ACCOUNT_PAGE_SIZE:(page + 1) * ACCOUNT_PAGE_SIZE]
+        data = row["parsed_payload"]
+        # Keep earlier pages valid: every account ever shown on this draft stays selectable.
+        known = list(data.get("offered_accounts") or [])
+        known += [str(account["id"]) for account, _ in offered if str(account["id"]) not in known]
+        data["offered_accounts"] = known
         self._save(row, data)
         buttons = [{
             "type": "button", "action": {"type": "postback", "label": label,
                 "data": f"nomica.oral.account:{row['id']}:{account['id']}"},
         } for account, label in offered]
+        if pages > 1:
+            following = (page + 1) % pages
+            buttons.append({
+                "type": "button", "style": "secondary", "action": {
+                    "type": "postback", "label": f"更多帳戶（{following + 1}/{pages}）",
+                    "data": f"nomica.oral.more:{row['id']}:{following}"},
+            })
         return FlexSendMessage(alt_text="選擇記帳帳戶", contents={
             "type": "bubble",
             "body": {"type": "box", "layout": "vertical", "contents": [{
-                "type": "text", "text": "請選擇帳戶。若沒看到需要的帳戶，請到 Nomica Web 記帳。", "wrap": True,
+                "type": "text", "text": "請選擇帳戶，或直接回覆帳戶名稱。", "wrap": True,
             }]},
-            "footer": {"type": "box", "layout": "vertical", "contents": buttons},
+            "footer": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": buttons},
         })
+
+    def _awaiting_account(self, owner):
+        table = ai_parse_events_table
+        rows = self.session.execute(self._pending(owner).where(
+            table.c.parsed_payload["line_draft"]["account_id"].as_string().is_(None),
+        ).limit(2)).mappings().all()
+        rows = [row for row in rows if row["parsed_payload"].get("offered_accounts")]
+        return rows[0] if len(rows) == 1 else None
+
+    def _choose_account_by_name(self, owner, text):
+        """A reply that names one of the person's accounts picks it for the waiting draft."""
+        name = normalize("NFKC", text).strip()
+        if not name or len(name) > 100:
+            return None
+        row = self._awaiting_account(owner)
+        if not row:
+            return None
+        accounts = self._accounts(owner, row["parsed_payload"]["line_draft"]["original_currency"])
+        exact = [account for account in accounts if normalize("NFKC", account["name"]) == name]
+        if not exact:
+            alias = self._card_alias(name)
+            exact = [account for account in accounts if account["type"] == "credit_card"
+                     and alias and self._card_alias(account["name"]) == alias]
+        if len(exact) != 1:
+            return None
+        return self._freeze_account(row, exact[0])
 
     @staticmethod
     def _card_alias(name):
@@ -282,7 +350,7 @@ class LineOralPilot:
         action, _, args = data.partition(":")
         if action in {"nomica.oral.confirm", "nomica.oral.cancel"}:
             return self.drafts.resolve(owner, args, action.rsplit(".", 1)[-1], oral=True)
-        if action != "nomica.oral.account":
+        if action not in {"nomica.oral.account", "nomica.oral.more"}:
             return None
         draft_id, _, account_id = args.partition(":")
         try:
@@ -296,6 +364,12 @@ class LineOralPilot:
         payload = saved["line_draft"]
         if payload.get("account_id"):
             return "已選定帳戶，請使用確認卡。"
+        if action == "nomica.oral.more":
+            try:
+                page = int(account_id)
+            except ValueError:
+                return NO_DRAFT
+            return self._account_menu(row, self._accounts(owner, payload["original_currency"]), page)
         if account_id in saved["offered_accounts"]:
             for account in self._accounts(owner, payload["original_currency"]):
                 if str(account["id"]) == account_id:
