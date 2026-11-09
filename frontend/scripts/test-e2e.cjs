@@ -112,6 +112,9 @@ async function run() {
     await page.getByText(`E2E 咖啡 ${stamp}`).waitFor();
     await page.getByText(`E2E 午餐 ${stamp}`).waitFor();
 
+    // 6. Privacy: export, then delete the account (runs last: it removes the user).
+    await require('./test-e2e-privacy.cjs')({ page, web, stamp, accountName, expectEventually });
+
     assert.deepEqual(errors, [], 'no uncaught browser exceptions');
     console.log('E2E smoke passed');
   } finally {

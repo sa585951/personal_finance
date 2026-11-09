@@ -15,6 +15,7 @@ import jwt
 
 # 匯入重構後的核心類別和資料庫引擎
 from models.asset_manager import AssetManager
+from models.account_privacy import AccountPrivacyService, SharedTripOwnershipError
 from models.idempotency import IdempotencyConflict
 from models.asset_allocation_manager import AllocationNotFoundError, AssetAllocationManager
 from models.auth_session_manager import AuthSessionManager
@@ -82,6 +83,7 @@ CORS(
 
 # 實例化 Manager
 asset_manager = AssetManager(db_session)
+account_privacy_service = AccountPrivacyService(db_session)
 asset_allocation_manager = AssetAllocationManager(db_session)
 auth_session_manager = AuthSessionManager(db_session)
 oauth_login_state_manager = OAuthLoginStateManager(db_session)
@@ -263,7 +265,7 @@ def start_request_timer():
 
 @app.after_request
 def log_request_duration(response):
-    if request.path.startswith(("/api/auth/", "/line-login-")):
+    if request.path.startswith(("/api/auth/", "/api/account/", "/line-login-")):
         response.headers["Cache-Control"] = "no-store"
         response.headers["Referrer-Policy"] = "no-referrer"
     if request.path == "/line-login-callback":
@@ -359,6 +361,56 @@ def get_auth_account(user_id):
             },
         }
     )
+
+# --- API - 個人資料權利（S5） ---
+
+@app.route("/api/auth/logout-all", methods=["POST"])
+@token_required
+def logout_all_devices(current_user_id):
+    try:
+        revoked = account_privacy_service.revoke_all_sessions(current_user_id)
+        db_session.commit()
+    except Exception as error:
+        return _api_operation_error(error, "logout_all_devices")
+    response = jsonify({"success": True, "data": {"revoked_sessions": revoked}})
+    _clear_auth_cookie(response)
+    return response
+
+
+@app.route("/api/account/export", methods=["GET"])
+@token_required
+def export_account_data(current_user_id):
+    try:
+        archive = account_privacy_service.export_zip(current_user_id)
+    except Exception as error:
+        return _api_operation_error(error, "export_account_data")
+    filename = f"nomica-export-{datetime.now(timezone.utc):%Y%m%d}.zip"
+    return app.response_class(archive, mimetype="application/zip", headers={
+        "Content-Disposition": f'attachment; filename="{filename}"',
+    })
+
+
+@app.route("/api/account/delete", methods=["POST"])
+@token_required
+def delete_account(current_user_id):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "請提供 JSON object"}), 400
+    try:
+        result = account_privacy_service.delete_account(current_user_id, data.get("confirmation"))
+        db_session.commit()
+    except SharedTripOwnershipError as error:
+        db_session.rollback()
+        return jsonify({"success": False, "code": "SHARED_TRIPS_OWNED", "message": str(error),
+                        "data": {"trips": error.trip_names}}), 409
+    except ValueError as error:
+        db_session.rollback()
+        return jsonify({"success": False, "message": str(error)}), 400
+    except Exception as error:
+        return _api_operation_error(error, "delete_account")
+    response = jsonify({"success": True, "data": result})
+    _clear_auth_cookie(response)
+    return response
 
 # --- API - AI 快速輸入 ---
 

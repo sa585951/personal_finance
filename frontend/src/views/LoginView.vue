@@ -14,7 +14,8 @@
       <div class="login-box">
         <img class="login-icon" src="/nomica-mark.svg" alt="" />
         <h2>歡迎回來</h2>
-        <p>登入後繼續查看你的 Nomica 帳本。</p>
+        <p v-if="$route.query.deleted === '1'" class="login-notice" role="status">帳號已刪除。資料會在 30 天後永久清除。</p>
+        <p v-else>登入後繼續查看你的 Nomica 帳本。</p>
         <button type="button" @click="lineLogin" class="login-button">
           使用 LINE 繼續
         </button>
