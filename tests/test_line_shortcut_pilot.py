@@ -96,7 +96,7 @@ def test_signed_shortcut_filters_recipient_and_reports_correctable_errors(webhoo
         ("午餐 80 加飲料 40", "補金額"),
         ("上個週末午餐 120", "補日期"),
         ("月底午餐 120", "補日期"),
-        ("昨天去超商買咖啡花了 120 日圓", "幣別"),
+        ("昨天去超商買咖啡花了 120 日圓", "帳戶"),
         ("轉帳 120", "Web"),
     ]):
         assert send(lunch(f"case-{i}", message)).status_code == 200
@@ -248,7 +248,8 @@ def test_previous_and_pilot_parse_paths_replay_same_model_fixture():
     print(f"Baseline: {baseline_correct}/8 expected, {baseline_ready} drafts, {baseline_calls} model calls")
     print(f"Pilot: {pilot_correct}/8 expected, {pilot_ready} drafts, {pilot_calls} model calls")
     assert (baseline_correct, baseline_ready, baseline_calls) == (5, 6, 6)
-    assert (pilot_correct, pilot_ready, pilot_calls) == (8, 3, 3)
+    # The Web's local rules now answer most of these sentences, so only one still needs the model.
+    assert (pilot_correct, pilot_ready, pilot_calls) == (8, 3, 1)
 
 
 def test_natural_sentence_uses_same_draft_card_for_card_alias(webhook, monkeypatch):
@@ -316,7 +317,8 @@ def test_signed_oral_ai_requests_consent_and_only_sends_when_needed(webhook, mon
     gateway = LineAIGateway(sessionmaker(bind=engine), provider, Decimal("1"))
     monkeypatch.setattr(LineBotManager, "line_ai_gateway", gateway, raising=False)
 
-    spoken = "昨天跟同事吃午餐，刷國泰卡 120"
+    # 「聚會」 is not a category the rules know, so this sentence needs the model.
+    spoken = "昨天跟同事聚會，刷國泰卡 120"
     assert send(lunch("needs-consent", spoken)).status_code == 200
     assert "同意 AI" in str(replies[-1].messages[0].to_dict())
     assert not provider.calls

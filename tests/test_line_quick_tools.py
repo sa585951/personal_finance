@@ -168,3 +168,46 @@ def test_record_command_explains_how_to_enter_a_sentence_and_offers_recent_entri
     assert counts(engine, data) == before  # only an explanation; nothing is booked
     assert send({**lunch("record-unknown", text="記一筆"), "source": {"type": "user", "userId": "U-never-seen"}}).status_code == 200
     assert "登入" in str(_card(replies))
+
+
+class _ModelThatMustNotRun:
+    """Stands in for the AI gateway: refuses with the consent notice and records that it was asked."""
+
+    def __init__(self):
+        self.asked = 0
+
+    def generate(self, owner, event_id, prompt):
+        from models.line_ai_gateway import CONSENT_NOTICE, AIRequestBlocked
+        self.asked += 1
+        raise AIRequestBlocked(CONSENT_NOTICE, "consent_required")
+
+
+def test_everyday_sentences_use_local_rules_without_asking_for_ai(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    gateway = send.bot.line_ai_gateway = _ModelThatMustNotRun()
+    for i, text in enumerate(("咖啡 85 星巴克", "午餐麥當勞 150 用現金", "計程車 280 現金")):
+        assert send(lunch(f"local-{i}", text=text)).status_code == 200
+        card = _card(replies)
+        assert "同意 AI" not in str(card), text
+        assert "選擇記帳帳戶" in card["altText"] or "確認收支" in card["altText"], text
+    assert gateway.asked == 0
+
+
+def test_local_rules_keep_the_amount_and_category_visible_on_the_card(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    send.bot.line_ai_gateway = _ModelThatMustNotRun()
+    assert send(lunch("coffee", text="咖啡 85 星巴克")).status_code == 200
+    buttons = _card(replies)["contents"]["footer"]["contents"]
+    pick = next(b["action"]["data"] for b in buttons if b["action"]["label"] == "cash")
+    assert send(event_dict("pick-coffee", postback=pick)).status_code == 200
+    card = str(_card(replies)["contents"]["body"])
+    assert "85" in card and "伙食" in card
+
+
+def test_sentences_the_rules_do_not_understand_still_go_to_ai(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    gateway = send.bot.line_ai_gateway = _ModelThatMustNotRun()
+    for i, text in enumerate(("買了一個東西 500", "今天走了 8000 步")):
+        assert send(lunch(f"ai-{i}", text=text)).status_code == 200
+        assert "同意 AI" in str(_card(replies)), text
+    assert gateway.asked == 2

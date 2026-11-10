@@ -51,14 +51,32 @@ ACCOUNT_PAGE_SIZE = 8
 USAGE_WINDOW_DAYS = 90
 
 
+# A rule-guessed category of 「其他」 means the rules did not really understand the sentence.
+UNDERSTOOD_CATEGORY_MISSING = {"其他", "其他收入"}
+
+
+def confident_local(parser, text):
+    """The Web's local rules, trusted only when they found an amount and a real category."""
+    result = parser.parse_local(text)
+    legacy = result["legacy"]
+    if (result["source"] == "local_fallback" and legacy.get("type") in {"expense", "income"}
+            and legacy.get("amount") is not None
+            and legacy.get("budget_category") not in UNDERSTOOD_CATEGORY_MISSING):
+        return legacy
+    return None
+
+
 def parse_oral(parser, message, *, generate=None):
-    """Use local rules only for a complete, unambiguous pattern."""
+    """Rules first (the fixed meal pattern, then the Web's local rules); a model only for the rest."""
     text = normalize("NFKC", message).strip()
     quick = MEAL.fullmatch(text)
     if quick:
         item, amount, account = quick.groups()
         return {"type": "expense", "category": item, "budget_category": "伙食",
                 "amount": amount.replace(",", ""), "target_asset": account}, "rule"
+    local = confident_local(parser, text)
+    if local:
+        return local, "local"
     parsed = parser.parse(text, generate=generate)
     if parsed["source"] == "local_fallback":
         return {}, "unavailable"
@@ -151,6 +169,9 @@ class LineOralPilot:
             return chosen
         if len(text) > 1000:
             return "訊息太長，請簡短描述一筆收支。"
+        if SENSITIVE_TEXT.search(normalize("NFKC", text)):
+            # Checked before any rule or model, so card numbers never reach a draft or a provider.
+            return "請移除卡號、密碼或驗證資訊，再傳送記帳文字。"
         try:
             if self.gateway:
                 def generate(prompt):
