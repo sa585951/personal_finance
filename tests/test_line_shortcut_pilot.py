@@ -145,7 +145,7 @@ def test_shortcut_replay_and_concurrent_confirmation_debit_once(webhook):
             return reply
 
     with ThreadPoolExecutor(max_workers=4) as pool:
-        assert sum("記帳完成" in reply for reply in pool.map(confirm, range(4))) == 1
+        assert sum("記帳完成" in str(reply.to_dict()) for reply in pool.map(confirm, range(4))) == 1
     assert counts(engine, data) == (2, 1, 880)
 
 
