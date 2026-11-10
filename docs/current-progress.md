@@ -30,14 +30,17 @@
 - 登入頁改為說明定位與三個使用情境
 - migration `20261111_0022`（`trips.cover_theme`）
 
-## 旅伴與結算（`codex/trip-members`，第 1 批）
+## 旅伴與結算（`codex/trip-members`）
 
 - 旅伴頭像：LINE 頭貼（僅同趟旅行成員可見）或名字首字加穩定色底
 - 旅伴名稱屬於該趟旅行；同趟不可重名（外部旅伴重名會被拒絕，自行加入者自動加「 2」）；owner 可改任何人、成員可改自己（`PATCH /api/trips/<id>/members/<member_id>`）
 - 旅行頂端「目前結算」橫幅（誰要給誰）、一條色帶的「這趟花在哪裡」與每天平均；分帳路徑顯示頭像
-- 無資料表異動；第 2 批（邀請連結／QR／認領外部旅伴）尚未開始
+- 邀請連結：登入前只顯示封面、旅行名稱、邀請人（`GET /api/trip-invites/<token>/preview`，公開）；登入後若有尚未綁定帳號的旅伴，先問「你是哪一位？」，名字相同者排最前並詢問「你是這位嗎？」，也可選「我是新的旅伴」
+- 認領：把登入者接到既有旅伴（保留成員 id、角色、名稱與所有紀錄）；owner 可「釋放」，帳務紀錄留在原旅伴上，之後可再被認領
+- owner 建立連結後顯示 QR Code（新增前端套件 `qrcode`）與「用 LINE 分享」
+- 無資料表異動、無新環境變數、無 migration
 
-本機結果：後端 783 passed；端對端、mock UI、lint、check-styles、build 通過。尚未在實機驗證 LINE 頭貼外連。
+本機結果：後端 787 passed；端對端、mock UI、lint、check-styles、build 通過。尚未在實機驗證：LINE 頭貼外連、`line.me/R/share` 分享連結、LINE 內建瀏覽器登入後返回邀請頁。
 
 ## 開始封閉測試前
 

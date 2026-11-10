@@ -1304,11 +1304,38 @@ def close_trip_invite(current_user_id, trip_id):
     except Exception as error:
         return _api_operation_error(error, "close_trip_invite", validation_status=400)
 
+@app.route("/api/trip-invites/<string:token>/preview", methods=["GET"])
+def preview_trip_invite(token):
+    try:
+        return jsonify({"success": True, "data": trip_manager.preview_invite(token)}), 200
+    except Exception as error:
+        return _api_operation_error(error, "preview_trip_invite", validation_status=404)
+
+@app.route("/api/trip-invites/<string:token>/candidates", methods=["GET"])
+@token_required
+def trip_invite_candidates(current_user_id, token):
+    try:
+        return jsonify({"success": True, "data": trip_manager.list_claim_candidates(current_user_id, token)}), 200
+    except Exception as error:
+        return _api_operation_error(error, "trip_invite_candidates", validation_status=404)
+
+@app.route("/api/trips/<string:trip_id>/members/<string:member_id>/release", methods=["POST"])
+@token_required
+def release_trip_member(current_user_id, trip_id, member_id):
+    try:
+        member = trip_manager.release_member(current_user_id, trip_id, member_id)
+        db_session.commit()
+        return jsonify({"success": True, "message": "已釋放這位旅伴", "data": member}), 200
+    except Exception as error:
+        return _api_operation_error(error, "release_trip_member", validation_status=400)
+
 @app.route("/api/trip-invites/<string:token>/accept", methods=["POST"])
 @token_required
 def accept_trip_invite(current_user_id, token):
     try:
-        result = trip_manager.accept_invite(current_user_id, token)
+        body = request.get_json(silent=True) or {}
+        result = trip_manager.accept_invite(
+            current_user_id, token, claim_member_id=body.get("claim_member_id") or None)
         db_session.commit()
         return jsonify({"success": True, "message": "已加入旅行帳本", "data": result}), 200
     except Exception as error:

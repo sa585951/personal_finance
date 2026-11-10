@@ -588,7 +588,124 @@ class TripManager:
             raise ValueError("找不到有效邀請連結")
         return self._to_invite_dict(row._mapping)
 
-    def accept_invite(self, user_id, token, member_limit=15):
+    def _claim_external_member(self, parsed_user_id, trip_id, claim_member_id, now):
+        """Attach a signed-in user to an existing account-less member; keeps its id, role and history."""
+        member_id = self._parse_uuid(claim_member_id, "member_id")
+        row = self.db_session.execute(
+            update(trip_members_table)
+            .where(
+                trip_members_table.c.id == member_id,
+                trip_members_table.c.trip_id == trip_id,
+                trip_members_table.c.user_id.is_(None),
+                trip_members_table.c.status == "active",
+                trip_members_table.c.deleted_at.is_(None),
+            )
+            .values(user_id=parsed_user_id, monthly_report_preference="pending", updated_at=now)
+            .returning(trip_members_table)
+        ).first()
+        if not row:
+            raise ValueError("這位旅伴已被認領或不存在，請重新整理後選擇")
+        return {
+            "trip": self.get_trip(parsed_user_id, trip_id),
+            "member": self._to_member_dict(row._mapping),
+            "already_joined": False,
+            "claimed": True,
+        }
+
+    def _load_valid_invite(self, token):
+        row = self.db_session.execute(
+            select(
+                trip_invites_table.c.trip_id,
+                trip_invites_table.c.created_by_user_id,
+                trip_invites_table.c.status,
+                trip_invites_table.c.expires_at,
+                trips_table.c.name,
+                trips_table.c.cover_theme,
+                trips_table.c.status.label("trip_status"),
+                trips_table.c.deleted_at,
+            )
+            .join(trips_table, trip_invites_table.c.trip_id == trips_table.c.id)
+            .where(trip_invites_table.c.token_hash == self._hash_invite_token(str(token or "")))
+        ).first()
+        if not row:
+            raise ValueError("邀請連結不存在或已失效")
+        invite = row._mapping
+        if invite["status"] != "active":
+            raise ValueError("邀請連結已關閉")
+        if invite["expires_at"] <= datetime.now(timezone.utc):
+            raise ValueError("邀請連結已過期")
+        if invite["deleted_at"] is not None or invite["trip_status"] != "active":
+            raise ValueError("旅行帳本目前不可加入")
+        return invite
+
+    def preview_invite(self, token):
+        """What anyone holding the link may see before signing in: cover, trip name, who invited."""
+        invite = self._load_valid_invite(token)
+        inviter = self._get_user_display_name(invite["created_by_user_id"])
+        return {
+            "trip_name": invite["name"],
+            "cover_theme": invite["cover_theme"],
+            "inviter_name": inviter,
+        }
+
+    def list_claim_candidates(self, user_id, token):
+        """Account-less members a signed-in link holder may claim as themselves."""
+        parsed_user_id = self._parse_user_id(user_id)
+        invite = self._load_valid_invite(token)
+        trip_id = invite["trip_id"]
+        already = self.db_session.execute(
+            select(trip_members_table.c.id).where(
+                trip_members_table.c.trip_id == trip_id,
+                trip_members_table.c.user_id == parsed_user_id,
+                trip_members_table.c.status == "active",
+                trip_members_table.c.deleted_at.is_(None),
+            )
+        ).first()
+        rows = self.db_session.execute(
+            select(trip_members_table.c.id, trip_members_table.c.display_name)
+            .where(
+                trip_members_table.c.trip_id == trip_id,
+                trip_members_table.c.user_id.is_(None),
+                trip_members_table.c.status == "active",
+                trip_members_table.c.deleted_at.is_(None),
+            )
+            .order_by(trip_members_table.c.created_at)
+        ).all()
+        return {
+            "trip_id": str(trip_id),
+            "already_joined": bool(already),
+            "my_name": self._get_user_display_name(parsed_user_id),
+            "candidates": [{"id": str(r.id), "display_name": r.display_name} for r in rows],
+        }
+
+    def release_member(self, user_id, trip_id, member_id):
+        """Owner detaches a claimed account from a member; the member and its records stay."""
+        trip = self._ensure_owner(user_id, trip_id)
+        self._lock_membership_trip(trip["id"])
+        parsed_member_id = self._parse_uuid(member_id, "member_id")
+        row = self.db_session.execute(
+            select(trip_members_table).where(
+                trip_members_table.c.id == parsed_member_id,
+                trip_members_table.c.trip_id == trip["id"],
+                trip_members_table.c.deleted_at.is_(None),
+            )
+        ).first()
+        if not row:
+            raise ValueError("找不到旅伴")
+        member = row._mapping
+        if member["role"] == "owner":
+            raise ValueError("不能釋放旅行 owner")
+        if member["user_id"] is None:
+            raise ValueError("這位旅伴本來就沒有綁定帳號")
+        updated = self.db_session.execute(
+            update(trip_members_table)
+            .where(trip_members_table.c.id == parsed_member_id)
+            .values(user_id=None, updated_at=datetime.now(timezone.utc))
+            .returning(trip_members_table)
+        ).first()
+        return self._to_member_dict(updated._mapping)
+
+    def accept_invite(self, user_id, token, member_limit=15, claim_member_id=None):
         parsed_user_id = self._parse_user_id(user_id)
         token_hash = self._hash_invite_token(token)
         invite_row = self.db_session.execute(
@@ -636,6 +753,11 @@ class TripManager:
                     "member": self._to_member_dict(existing_member),
                     "already_joined": True,
                 }
+
+        if claim_member_id:
+            if existing_member_row:
+                raise ValueError("你之前已在這趟旅行中，請直接加入，不需要認領")
+            return self._claim_external_member(parsed_user_id, invite["trip_id"], claim_member_id, now)
 
         if self._active_member_count(invite["trip_id"]) >= min(member_limit, self.MAX_ACTIVE_MEMBERS):
             raise ValueError("旅行帳本成員已達上限")

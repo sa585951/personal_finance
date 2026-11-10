@@ -76,7 +76,8 @@ const routes = [
     path: "/trips/invite/:token",
     name: "TripInviteAccept",
     component: TripInviteAccept,
-    meta: { requiresAuth: true, tab: "trips" },
+    // Public so the link can show the trip before sign-in; the page itself asks to log in.
+    meta: { requiresAuth: false, tab: "trips" },
   },
   {
     path: "/trips/:tripId",

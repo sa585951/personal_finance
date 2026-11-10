@@ -13,6 +13,7 @@
           <small>
             {{ translateRole(member.role) }}
             <template v-if="member.id === currentMemberId"> · 你</template>
+            <template v-else-if="!member.user_id"> · 未綁定帳號</template>
           </small>
         </div>
         <button
@@ -23,6 +24,14 @@
           @click="$emit('rename-member', member)"
         >
           <Edit />
+        </button>
+        <button
+          v-if="isOwner && member.role !== 'owner' && member.user_id"
+          class="quiet-mini-button"
+          type="button"
+          @click="$emit('release-member', member)"
+        >
+          釋放
         </button>
         <select
           v-if="isOwner && member.role !== 'owner'"
@@ -57,6 +66,12 @@
       <div v-if="latestInviteUrl" class="invite-copy-row">
         <input :value="latestInviteUrl" readonly />
         <button class="secondary-action" type="button" @click="$emit('copy-invite')">複製</button>
+      </div>
+      <div v-if="latestInviteUrl" class="invite-share">
+        <img v-if="qrSrc" class="invite-qr" :src="qrSrc" alt="邀請連結 QR Code" width="148" height="148" />
+        <a class="secondary-action line-share" :href="lineShareUrl" target="_blank" rel="noopener noreferrer">
+          用 LINE 分享
+        </a>
       </div>
       <button
         v-if="!activeInvite"
@@ -132,10 +147,35 @@ export default {
     "create-invite",
     "delete-member",
     "leave",
+    "release-member",
     "rename-member",
     "update-new-member",
     "update-role",
   ],
+  data() {
+    return { qrSrc: "" };
+  },
+  computed: {
+    lineShareUrl() {
+      return `https://line.me/R/share?text=${encodeURIComponent(`一起記旅行帳：${this.latestInviteUrl}`)}`;
+    },
+  },
+  watch: {
+    latestInviteUrl: {
+      immediate: true,
+      async handler(url) {
+        this.qrSrc = "";
+        if (!url) return;
+        try {
+          const { toDataURL } = await import("qrcode");
+          const dataUrl = await toDataURL(url, { margin: 1, width: 296, errorCorrectionLevel: "M" });
+          if (url === this.latestInviteUrl) this.qrSrc = dataUrl;
+        } catch (error) {
+          this.qrSrc = "";
+        }
+      },
+    },
+  },
   methods: {
     translateRole(role) {
       const roleMap = {
@@ -263,6 +303,25 @@ export default {
   line-height: 1.45;
 }
 
+.invite-share {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.invite-qr {
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.line-share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .invite-status-row,
 .invite-copy-row {
   display: flex;
@@ -303,6 +362,7 @@ select {
 .secondary-action,
 .danger-action,
 .quiet-mini-button {
+  white-space: nowrap;
   min-height: 38px;
   padding: 0 12px;
   color: #ffffff;

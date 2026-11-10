@@ -110,6 +110,7 @@
           :new-member="newMember"
           @update-role="updateMemberRole"
           @rename-member="renameMember"
+          @release-member="releaseMember"
           @delete-member="deleteMember"
           @close-invite="closeInvite"
           @copy-invite="copyInviteLink"
@@ -998,6 +999,23 @@ export default {
       } catch (error) {
         this.$swal.fire("更新失敗", error.response?.data?.message || "權限更新失敗", "error");
         await this.selectTrip(this.selectedTrip.id);
+      }
+    },
+    async releaseMember(member) {
+      const confirmed = await this.$swal.fire({
+        title: `釋放「${member.display_name}」？`,
+        text: "對方會失去這趟旅行的存取權，帳務紀錄仍留在這位旅伴上，之後可以讓別人認領。",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: "釋放",
+        cancelButtonText: "取消",
+      });
+      if (!confirmed.isConfirmed) return;
+      try {
+        await apiClient.post(`/api/trips/${this.selectedTrip.id}/members/${member.id}/release`);
+        await this.selectTrip(this.selectedTrip.id);
+      } catch (error) {
+        this.$swal.fire("無法釋放", error.response?.data?.message || "請稍後再試。", "error");
       }
     },
     async renameMember(member) {
