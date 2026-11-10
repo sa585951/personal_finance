@@ -183,9 +183,12 @@ def account_label(session, account_id):
     return session.execute(select(a.c.name, a.c.type).where(a.c.id == account_id)).first()
 
 
-def _tap(label, text=None):
-    return {"type": "button", "height": "sm", "style": "secondary",
-            "action": {"type": "message", "label": label, "text": text or label}}
+def _tap(label, text=None, *, stacked=False):
+    button = {"type": "button", "height": "sm", "style": "secondary",
+              "action": {"type": "message", "label": label, "text": text or label}}
+    if stacked:
+        button["margin"] = "md"  # buttons stacked in one column need air between them
+    return button
 
 
 def guide_card(*, linked=True):
@@ -198,14 +201,14 @@ def guide_card(*, linked=True):
     body += [
         section("1. 說一句話記帳"),
         note("像聊天一樣輸入，確認後才會記帳。點下面的範例可以直接試試："),
-        _tap("午餐 120"),
-        _tap("昨天晚餐 刷卡 450"),
+        _tap("午餐 120", stacked=True),
+        _tap("昨天晚餐 刷卡 450", stacked=True),
         section("2. 少打字"),
         note("每次回覆下方會有快速按鈕：點最近常記的項目，會直接產生確認卡。確認卡上可按「改分類」，或回「改金額 150」。"),
         section("3. 看摘要"),
-        {"type": "box", "layout": "horizontal", "spacing": "sm", "margin": "sm",
+        {"type": "box", "layout": "horizontal", "spacing": "md", "margin": "md",
          "contents": [_tap("今天"), _tap("本月")]},
-        {"type": "box", "layout": "horizontal", "spacing": "sm", "margin": "sm",
+        {"type": "box", "layout": "horizontal", "spacing": "md", "margin": "md",
          "contents": [_tap("餘額"), _tap("最近")]},
         section("4. AI 輔助（選用）"),
         note("規則看不懂的句子可交給 AI。第一次會說明資料如何處理，回「同意 AI」才會開啟，回「撤回 AI」可隨時關閉。"),
@@ -216,7 +219,7 @@ def guide_card(*, linked=True):
     web = (os.environ.get("FRONTEND_BASE_URL") or "").rstrip("/")
     if web.startswith("https://"):
         contents["footer"] = {"type": "box", "layout": "vertical", "contents": [{
-            "type": "button", "style": "primary", "height": "sm",
+            "type": "button", "style": "primary", "height": "sm", "color": "#23656D",
             "action": {"type": "uri", "label": "開啟 Nomica Web", "uri": web}}]}
     return FlexSendMessage(alt_text=GUIDE_ALT_TEXT, contents=contents)
 
