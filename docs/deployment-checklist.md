@@ -72,12 +72,26 @@ AI 如要開放，另通過 G-AI；這次停用不等於已完成額度或預算
 | Migration | `DATABASE_URL='…' alembic current` 確認版本，再 `alembic upgrade head`，結果應為 `20261111_0022 (head)` | [ ] |
 | 部署 | Render 部署對應的 main；Vercel 前端同步 | [ ] |
 | 環境變數 | `GEMINI_API_KEY`、`NOMICA_LINE_AI_PAID_PROJECT_VERIFIED=true`；建議設 `NOMICA_ADMIN_LINE_USER_ID`（80% 用量通知）；`NOMICA_LINE_AI_DAILY_PER_USER` 不設即每人每日 20 次 | [ ] |
+| LINE 官方帳號後台 | 關閉「加入好友的歡迎訊息」與「自動回應訊息」（Nomica 加好友時會自己送使用說明卡，避免重複）；建立圖文選單，見下方「LINE 圖文選單」 | [ ] |
 | 清除排程 | 每天執行 `python -m scripts.purge_deleted_users --apply`（例如 Render Cron Job，使用同一組 `DATABASE_URL`） | [ ] |
 | 政策頁 | `frontend/src/constants/policies.js` 的營運者與聯絡方式改為實際內容 | [ ] |
 | 上手說明 | 填好下方附錄的 `〔〕` 後寄給試用者 | [ ] |
 | 實機驗收 | 見下方清單 | [ ] |
 
+### LINE 圖文選單（後台設定，不需要部署）
+
+聊天室最下方的固定按鈕，讓使用者一打開就能點，不用先傳訊息。
+
+1. LINE Official Account Manager → 圖文選單 → 建立新的圖文選單，選 4 格或 6 格版型。
+2. 每一格的動作選「文字」，內容要和下列完全一致，Nomica 才會認得：
+   「今天」「本月」「餘額」「最近」。
+3. 若有第 5、6 格：動作選「連結」，填 Web 的記一筆頁面（`{FRONTEND_BASE_URL}/add`，LINE 內建瀏覽器開啟）與「幫助」（文字動作，內容 `幫助`）。
+4. 選單列文字（例如「記帳選單」）、顯示期間與預設顯示設為開啟後儲存。
+
+驗收：新加好友的帳號收到一張說明卡；聊天室底部出現選單；點「餘額」收到餘額卡。
+
 ### 實機驗收
+
 
 用兩個 LINE 帳號（A、B）：
 
@@ -86,6 +100,7 @@ AI 如要開放，另通過 G-AI；這次停用不等於已完成額度或預算
 - [ ] LINE：「午餐 120」→ 選帳戶（翻頁、打字選擇各一次）→ 確認，只入帳一次
 - [ ] LINE：規則看不懂的句子 → 出現同意說明 →「同意 AI」→ 重傳 → 草稿 → 確認
 - [ ] LINE：「撤回 AI」後，同一類句子不再送 AI
+- [ ] LINE：新帳號加好友收到一張說明卡；傳「幫助」收到同一張；圖文選單點「餘額」收到餘額卡；點最近常記項目出現確認卡
 - [ ] A 建立旅行並邀請 B；B 加入後兩人都能看到同一筆旅行支出，分帳結果一致
 - [ ] iPhone 與 Android：掃描發票 QR、圖片備援、同一張發票重掃不重複記帳
 - [ ] 「我的 → 帳號與隱私」：匯出資料可開啟

@@ -9,7 +9,7 @@ from flask import Flask, jsonify, request, redirect, g
 from flask_cors import CORS
 from sqlalchemy import select, func
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.webhooks import MessageEvent, PostbackEvent, TextMessageContent, UserSource
+from linebot.v3.webhooks import FollowEvent, MessageEvent, PostbackEvent, TextMessageContent, UserSource
 import os
 import requests
 import jwt
@@ -2013,7 +2013,7 @@ def line_webhook():
         ):
             continue
         if not ((isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent))
-                or isinstance(event, PostbackEvent)):
+                or isinstance(event, (PostbackEvent, FollowEvent))):
             continue
         try:
             response = handler(event)
