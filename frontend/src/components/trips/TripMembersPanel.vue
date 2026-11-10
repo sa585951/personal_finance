@@ -7,6 +7,7 @@
 
     <div class="member-list">
       <div v-for="member in members" :key="member.id" class="member-row">
+        <MemberAvatar :member="member" />
         <div>
           <span>{{ member.display_name }}</span>
           <small>
@@ -14,6 +15,15 @@
             <template v-if="member.id === currentMemberId"> · 你</template>
           </small>
         </div>
+        <button
+          v-if="isOwner || member.id === currentMemberId"
+          class="member-edit"
+          type="button"
+          :aria-label="`修改 ${member.display_name} 的名稱`"
+          @click="$emit('rename-member', member)"
+        >
+          <Edit />
+        </button>
         <select
           v-if="isOwner && member.role !== 'owner'"
           class="member-role-select"
@@ -93,11 +103,12 @@
 </template>
 
 <script>
-import { Delete, Plus, User } from "@element-plus/icons-vue";
+import { Delete, Edit, Plus, User } from "@element-plus/icons-vue";
+import MemberAvatar from "@/components/trips/MemberAvatar.vue";
 
 export default {
   name: "TripMembersPanel",
-  components: { Delete, Plus, User },
+  components: { Delete, Edit, MemberAvatar, Plus, User },
   props: {
     members: { type: Array, default: () => [] },
     currentMemberId: { type: String, default: "" },
@@ -121,6 +132,7 @@ export default {
     "create-invite",
     "delete-member",
     "leave",
+    "rename-member",
     "update-new-member",
     "update-role",
   ],
@@ -305,7 +317,8 @@ select {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: #2563eb;
+  background: var(--primary-color);
+  color: var(--on-primary);
 }
 
 .danger-action {
@@ -358,5 +371,20 @@ select {
   .invite-copy-row .secondary-action {
     width: 100%;
   }
+}
+.member-edit {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  color: var(--light-text-color);
+  background: transparent;
+  border: 0;
+}
+
+.member-edit svg {
+  width: 16px;
+  height: 16px;
 }
 </style>

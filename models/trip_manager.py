@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
@@ -19,6 +20,30 @@ from .schema import (
 
 # Preset cover colours for trips; the frontend maps each key to its palette.
 COVER_THEMES = ("ocean", "sunset", "forest", "night", "sakura", "sand", "alpine", "stone")
+
+
+MEMBER_NAME_MAX = 40
+
+
+def normalize_member_name(value):
+    """NFKC, trimmed, inner whitespace collapsed. Raises ValueError when unusable."""
+    name = " ".join(unicodedata.normalize("NFKC", str(value or "")).split())
+    if not name:
+        raise ValueError("旅伴名稱不可為空")
+    if len(name) > MEMBER_NAME_MAX:
+        raise ValueError(f"旅伴名稱不可超過 {MEMBER_NAME_MAX} 個字")
+    return name
+
+
+def member_name_key(name):
+    """Comparison key: names that differ only by case or width are the same name."""
+    return unicodedata.normalize("NFKC", name).casefold()
+
+
+def safe_avatar_url(value):
+    """Only https image URLs are ever handed to the browser."""
+    value = (value or "").strip()
+    return value if value.startswith("https://") and len(value) <= 500 else None
 
 
 def _cover_theme(value):
@@ -240,15 +265,45 @@ class TripManager:
         }
 
     def _list_trip_members_for_trip(self, trip_id):
+        # Only reachable after a trip-access check, so avatars are shown to co-members only.
         stmt = (
-            select(trip_members_table)
+            select(trip_members_table, users_table.c.avatar_url)
+            .select_from(trip_members_table.outerjoin(users_table, users_table.c.id == trip_members_table.c.user_id))
             .where(
                 trip_members_table.c.trip_id == trip_id,
                 trip_members_table.c.deleted_at.is_(None),
             )
             .order_by(trip_members_table.c.created_at)
         )
-        return [self._to_member_dict(row._mapping) for row in self.db_session.execute(stmt)]
+        members = []
+        for row in self.db_session.execute(stmt):
+            mapping = dict(row._mapping)
+            avatar = safe_avatar_url(mapping.pop("avatar_url", None))
+            member = self._to_member_dict(mapping)
+            member["avatar_url"] = avatar
+            members.append(member)
+        return members
+
+    def _taken_name_keys(self, trip_id, exclude_member_id=None):
+        rows = self.db_session.execute(
+            select(trip_members_table.c.id, trip_members_table.c.display_name).where(
+                trip_members_table.c.trip_id == trip_id,
+                trip_members_table.c.deleted_at.is_(None),
+                trip_members_table.c.status != "removed",
+            )
+        ).all()
+        return {member_name_key(row.display_name) for row in rows if row.id != exclude_member_id}
+
+    def _unique_member_name(self, trip_id, name):
+        """For people who join themselves: never turn them away over a name clash."""
+        base = normalize_member_name(name)
+        taken = self._taken_name_keys(trip_id)
+        candidate, number = base, 2
+        while member_name_key(candidate) in taken:
+            suffix = f" {number}"
+            candidate = base[: MEMBER_NAME_MAX - len(suffix)] + suffix
+            number += 1
+        return candidate
 
     def create_trip(
         self,
@@ -372,24 +427,55 @@ class TripManager:
         trip = self._ensure_trip_access(user_id, trip_id)
         if trip["owner_user_id"] != self._parse_user_id(user_id):
             raise ValueError("只有旅行 owner 可以新增旅伴")
-        if not str(display_name).strip():
-            raise ValueError("旅伴名稱不可為空")
+        name = normalize_member_name(display_name)
         if role not in {"editor", "viewer"}:
             raise ValueError("外部旅伴 role 僅支援 editor 或 viewer")
         self._lock_membership_trip(trip["id"])
         if self._active_member_count(trip["id"]) >= self.MAX_ACTIVE_MEMBERS:
             raise ValueError("旅行帳本成員已達上限")
+        if member_name_key(name) in self._taken_name_keys(trip["id"]):
+            raise ValueError(f"這趟旅行已經有叫「{name}」的旅伴")
 
         row = self.db_session.execute(
             insert(trip_members_table)
             .values(
                 trip_id=trip["id"],
                 user_id=None,
-                display_name=str(display_name).strip(),
+                display_name=name,
                 role=role,
                 status="active",
                 monthly_report_preference=None,
             )
+            .returning(trip_members_table)
+        ).first()
+        return self._to_member_dict(row._mapping)
+
+    def rename_member(self, user_id, trip_id, member_id, display_name):
+        """The owner can rename anyone; a member can rename themselves."""
+        trip = self._ensure_trip_access(user_id, trip_id, for_write=True)
+        parsed_user_id = self._parse_user_id(user_id)
+        parsed_member_id = self._parse_uuid(member_id, "member_id")
+        name = normalize_member_name(display_name)
+        self._lock_membership_trip(trip["id"])
+        member_row = self.db_session.execute(
+            select(trip_members_table).where(
+                trip_members_table.c.id == parsed_member_id,
+                trip_members_table.c.trip_id == trip["id"],
+                trip_members_table.c.deleted_at.is_(None),
+                trip_members_table.c.status != "removed",
+            )
+        ).first()
+        if not member_row:
+            raise ValueError("找不到旅伴")
+        member = dict(member_row._mapping)
+        if trip["owner_user_id"] != parsed_user_id and member["user_id"] != parsed_user_id:
+            raise ValueError("只有旅行 owner 或本人可以修改旅伴名稱")
+        if member_name_key(name) in self._taken_name_keys(trip["id"], exclude_member_id=parsed_member_id):
+            raise ValueError(f"這趟旅行已經有叫「{name}」的旅伴")
+        row = self.db_session.execute(
+            update(trip_members_table)
+            .where(trip_members_table.c.id == parsed_member_id)
+            .values(display_name=name, updated_at=datetime.now(timezone.utc))
             .returning(trip_members_table)
         ).first()
         return self._to_member_dict(row._mapping)
@@ -576,7 +662,8 @@ class TripManager:
                 .values(
                     trip_id=invite["trip_id"],
                     user_id=parsed_user_id,
-                    display_name=self._get_user_display_name(parsed_user_id),
+                    display_name=self._unique_member_name(
+                        invite["trip_id"], self._get_user_display_name(parsed_user_id)),
                     role=invite["invite_role"],
                     status="active",
                     monthly_report_preference="pending",

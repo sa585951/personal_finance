@@ -39,3 +39,12 @@ export function tripTimeLabel(trip, todayKey) {
   if (today > end) return "已結束";
   return `第 ${today - start + 1}／${end - start + 1} 天`;
 }
+
+/** Days of the trip that have passed, counting today; 0 before departure. */
+export function tripDaysElapsed(trip, todayKey) {
+  const today = dayNumber(todayKey);
+  const start = dayNumber(trip.start_date);
+  const end = dayNumber(trip.end_date);
+  if (today < start) return 0;
+  return Math.min(end - start + 1, today - start + 1);
+}

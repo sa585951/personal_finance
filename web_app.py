@@ -1211,6 +1211,19 @@ def delete_trip_member(current_user_id, trip_id, member_id):
     except Exception as error:
         return _api_operation_error(error, "delete_trip_member", validation_status=400)
 
+@app.route("/api/trips/<string:trip_id>/members/<string:member_id>", methods=["PATCH"])
+@token_required
+def rename_trip_member(current_user_id, trip_id, member_id):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or "display_name" not in data:
+        return jsonify({"success": False, "message": "缺少旅伴名稱"}), 400
+    try:
+        member = trip_manager.rename_member(current_user_id, trip_id, member_id, data["display_name"])
+        db_session.commit()
+        return jsonify({"success": True, "message": "旅伴名稱已更新", "data": member}), 200
+    except Exception as error:
+        return _api_operation_error(error, "rename_trip_member", validation_status=400)
+
 @app.route("/api/trips/<string:trip_id>/members/<string:member_id>/role", methods=["PATCH"])
 @token_required
 def update_trip_member_role(current_user_id, trip_id, member_id):
