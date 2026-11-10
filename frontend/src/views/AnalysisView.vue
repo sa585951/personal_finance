@@ -32,7 +32,7 @@
     <p v-else-if="isLoading" class="state-message">分析資料讀取中</p>
 
     <template v-if="!isLoading && !errorMessage">
-    <template v-if="activeTab === 'overview'">
+    <div v-if="activeTab === 'overview'" class="overview-layout">
       <section class="summary-card" aria-label="月份收支摘要">
         <div class="summary-heading">
           <div>
@@ -82,7 +82,7 @@
         <p v-else-if="includeTrips">本月沒有納入個人月報的旅行分攤。</p>
         <p v-else>切換至「含旅行」可查看已納入月報的個人旅行分攤。</p>
       </section>
-    </template>
+    </div>
 
     <template v-else-if="activeTab === 'spending'">
       <section class="chart-card app-surface">
@@ -840,5 +840,31 @@ h2 {
   margin: 8px 0 0;
   color: var(--light-text-color);
   font-variant-numeric: tabular-nums;
+}
+
+/* Tablet: a wider column. Desktop: budget and trip status sit side by side. */
+@media (min-width: 768px) {
+  .analysis-screen {
+    max-width: 800px;
+    padding-inline: 24px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .analysis-screen {
+    max-width: 1040px;
+  }
+
+  .overview-layout {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 16px;
+    align-items: start;
+  }
+
+  .overview-layout > .summary-card,
+  .overview-layout > .chart-card {
+    grid-column: 1 / -1;
+  }
 }
 </style>

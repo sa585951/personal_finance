@@ -724,4 +724,17 @@ select {
   color: var(--light-text-color);
   font-weight: 500;
 }
+
+/* Desktop: category rows in two columns under a full-width total. */
+@media (min-width: 1100px) {
+  .budget-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 16px;
+  }
+
+  .budget-list > .budget-total,
+  .budget-list > .budget-alert {
+    grid-column: 1 / -1;
+  }
+}
 </style>

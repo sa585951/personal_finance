@@ -329,4 +329,17 @@ h1 {
     grid-template-columns: 1fr;
   }
 }
+
+@media (min-width: 768px) {
+  .budget-screen {
+    max-width: 760px;
+    padding-inline: 24px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .budget-screen {
+    max-width: 1000px;
+  }
+}
 </style>

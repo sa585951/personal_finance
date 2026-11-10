@@ -42,6 +42,12 @@
 
 本機結果：後端 787 passed；端對端、mock UI、lint、check-styles、build 通過。尚未在實機驗證：LINE 頭貼外連、`line.me/R/share` 分享連結、LINE 內建瀏覽器登入後返回邀請頁。
 
+## 帳戶、預算、分析重排（`codex/trip-members`）
+
+- 帳戶：改成帳本式列表（群組標題加小計、每個帳戶一列、操作改成文字按鈕）；移除重複的分配長條與標籤
+- 版面：手機單欄、平板（768 以上）放寬、桌面（1100 以上）帳戶頁左列表右摘要，預算頁分類兩欄，分析總覽預算與旅行並排
+- 右上角顯示 LINE 頭像（`/api/auth/me` 回傳 `avatar_url`）
+
 ## 開始封閉測試前
 
 依 [deployment-checklist.md](deployment-checklist.md)「封閉測試 → 開始前」逐項完成：備份 → migration 到 `20261111_0022` → 部署 → 環境變數 → 清除排程 → 填政策頁與上手說明的營運者與聯絡方式 → 實機驗收。

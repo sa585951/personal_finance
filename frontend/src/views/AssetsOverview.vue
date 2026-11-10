@@ -839,7 +839,7 @@ h1 {
 }
 
 .action-panel {
-  padding: 16px;
+  padding: 12px;
   border: 1px solid var(--border-color);
 }
 
@@ -893,8 +893,8 @@ h1 {
 }
 
 .action-tab {
-  min-height: 72px;
-  padding: 12px;
+  min-height: 46px;
+  padding: 8px 12px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   background: var(--secondary-color);
@@ -961,5 +961,36 @@ h1 {
 .account-alert span {
   color: var(--text-color);
   font-size: 0.88rem;
+}
+
+/* Tablet: a wider single column. */
+@media (min-width: 768px) {
+  .assets-screen {
+    max-width: 760px;
+    padding-inline: 24px;
+  }
+}
+
+/* Desktop: the account ledger on the left, totals and actions beside it. */
+@media (min-width: 1100px) {
+  .assets-screen {
+    max-width: 1080px;
+  }
+
+  .assets-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
+    align-items: start;
+    gap: 16px 32px;
+  }
+
+  .assets-content > * {
+    grid-column: 2;
+  }
+
+  .assets-content > .accounts-list {
+    grid-column: 1;
+    grid-row: 1 / span 12;
+  }
 }
 </style>

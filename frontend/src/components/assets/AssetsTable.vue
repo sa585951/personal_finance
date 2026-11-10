@@ -24,7 +24,7 @@
           class="group-header"
           @click="toggleGroup(group.type)"
         >
-          <span>{{ isGroupCollapsed(group.type) ? ">" : "v" }}</span>
+          <span class="chevron" :class="{ open: !isGroupCollapsed(group.type) }" aria-hidden="true"></span>
           <span class="group-title">
             <strong>{{ group.label }}</strong>
             <small>{{ group.accounts.length }} 個帳戶</small>
@@ -34,32 +34,12 @@
               v-for="item in group.currencyTotals"
               :key="`${group.type}-${item.currency}`"
             >
-              {{ item.currency }} {{ percentage(item.amount, currencyAllocationTotals[item.currency]) }}%
+              {{ formatMoney(item.amount, item.currency) }}
             </small>
           </span>
         </button>
 
         <div v-if="!isGroupCollapsed(group.type)" class="account-cards">
-          <div class="group-allocation">
-            <div
-              v-for="item in group.currencyTotals"
-              :key="`${group.type}-${item.currency}-summary`"
-              class="group-allocation-row"
-            >
-              <div>
-                <strong>{{ item.currency }}</strong>
-                <span>{{ formatMoney(item.amount, item.currency) }}</span>
-              </div>
-              <small>{{ percentage(item.amount, currencyAllocationTotals[item.currency]) }}%</small>
-              <div class="allocation-track">
-                <div
-                  class="allocation-fill"
-                  :style="{ width: percentage(item.amount, currencyAllocationTotals[item.currency]) + '%' }"
-                ></div>
-              </div>
-            </div>
-          </div>
-
           <article
             v-for="account in group.accounts"
             :key="account.key"
@@ -89,17 +69,10 @@
                 </strong>
               </div>
               <span class="activity-hint">
-                {{ expandedAccountId === account.key ? "收合近期活動" : "查看近期活動" }}
+                {{ expandedAccountId === account.key ? "收合近期活動" : "近期活動" }}
               </span>
             </button>
-            <div class="account-meta">
-              <span>{{ account.asset.currency || "TWD" }}</span>
-              <span>{{ account.asset.track_balance ? "追蹤餘額" : "不追蹤餘額" }}</span>
-              <span>
-                佔 {{ account.asset.currency || "TWD" }}
-                {{ percentage(positiveBalance(account.asset), currencyAllocationTotals[account.asset.currency || "TWD"]) }}%
-              </span>
-            </div>
+            <p v-if="account.asset.track_balance === false" class="account-note">不追蹤餘額</p>
             <div v-if="account.asset.account_type === 'credit_card'" class="billing-summary">
               <template v-if="account.asset.credit_card_billing">
                 <span>下次預計結帳：{{ account.asset.credit_card_billing.next_closing_date }}</span>
@@ -111,25 +84,14 @@
               <span v-else>尚未設定信用卡帳期，可從「編輯帳戶」設定。</span>
               <small>日期不代表本期應繳金額或繳清狀態，請以銀行帳單為準。</small>
             </div>
-            <div class="account-ratio">
-              <div
-                class="account-ratio-fill"
-                :style="{
-                  width: percentage(
-                    positiveBalance(account.asset),
-                    currencyAllocationTotals[account.asset.currency || 'TWD']
-                  ) + '%'
-                }"
-              ></div>
-            </div>
             <div class="account-actions">
-              <button class="edit-btn" @click="startEdit(account)">
+              <button class="quiet-action" @click="startEdit(account)">
                 編輯帳戶
               </button>
-              <button class="update-btn" :disabled="adjustmentDisabled(account.key)" @click="promptUpdate(account)">
+              <button class="quiet-action" :disabled="adjustmentDisabled(account.key)" @click="promptUpdate(account)">
                 校正餘額
               </button>
-              <button class="delete-btn" @click="promptDelete(account.key)">
+              <button class="quiet-action danger" @click="promptDelete(account.key)">
                 刪除
               </button>
             </div>
@@ -560,10 +522,7 @@ export default {
 </script>
 <style scoped>
 .accounts-list {
-  padding: 16px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--card-bg);
+  padding: 0;
 }
 
 .section-heading {
@@ -616,13 +575,27 @@ export default {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  min-height: 42px;
-  padding: 8px 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--secondary-color);
+  min-height: 40px;
+  padding: 6px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--text-color);
   box-shadow: none;
+}
+
+.chevron {
+  width: 8px;
+  height: 8px;
+  margin: 0 4px;
+  border-right: 2px solid var(--light-text-color);
+  border-bottom: 2px solid var(--light-text-color);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+
+.chevron.open {
+  transform: rotate(45deg);
 }
 
 .group-header:hover {
@@ -659,79 +632,29 @@ export default {
 }
 
 .group-totals small {
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: var(--travel-soft);
-  color: var(--travel-color);
-  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .account-cards {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.group-allocation {
-  display: grid;
-  gap: 8px;
-  padding: 10px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--card-bg);
-}
-
-.group-allocation-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px 10px;
-}
-
-.group-allocation-row div:first-child {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.group-allocation-row strong {
-  color: var(--text-color);
-  font-size: 0.9rem;
-}
-
-.group-allocation-row span,
-.group-allocation-row small {
-  color: var(--light-text-color);
-  font-size: 0.82rem;
-}
-
-.allocation-track {
-  grid-column: 1 / -1;
-  height: 7px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--border-color);
-}
-
-.allocation-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--chart-2);
-  transition: width 0.25s ease;
 }
 
 .account-card {
   container-type: inline-size;
-  padding: 14px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--secondary-color);
+  padding: 14px 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.account-card:first-child {
+  border-top: 0;
 }
 
 .account-card.expanded {
-  border-color: #94a3b8;
-  background: var(--card-bg);
+  background: var(--secondary-color);
 }
 
 .account-summary-button {
@@ -751,8 +674,10 @@ export default {
 }
 
 .account-main {
-  display: grid;
-  gap: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .account-identity {
@@ -786,9 +711,12 @@ export default {
 
 .account-balance {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   align-items: baseline;
+  justify-content: flex-end;
   gap: 4px 6px;
+  text-align: right;
 }
 
 .account-balance span {
@@ -803,26 +731,16 @@ export default {
 
 .activity-hint {
   display: inline-flex;
-  margin-top: 8px;
+  margin-top: 6px;
   color: var(--light-text-color);
-  font-size: 0.82rem;
-  font-weight: 800;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
-.account-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.account-meta span {
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: var(--travel-soft);
-  color: var(--travel-color);
-  font-size: 0.78rem;
-  font-weight: 700;
+.account-note {
+  margin: 4px 0 0;
+  color: var(--light-text-color);
+  font-size: 0.8rem;
 }
 
 .billing-summary {
@@ -838,38 +756,34 @@ export default {
 
 .billing-summary small { color: var(--warning-color); line-height: 1.45; }
 
-.account-ratio {
-  height: 6px;
-  margin-top: 10px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--border-color);
-}
-
-.account-ratio-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--primary-color);
-  transition: width 0.25s ease;
-}
-
 .account-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 16px;
+  margin-top: 8px;
 }
 
-.account-actions button {
-  min-height: 40px;
-  padding: 8px 12px;
-  border-radius: 8px;
+.quiet-action {
+  min-height: 36px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--primary-color);
+  background: transparent;
   box-shadow: none;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
-.account-actions button:hover {
+.quiet-action:hover {
   transform: none;
   box-shadow: none;
+  text-decoration: underline;
+}
+
+.quiet-action.danger {
+  color: var(--danger-color, var(--expense-color));
 }
 
 .edit-form {
@@ -947,10 +861,6 @@ export default {
   font-size: 0.82rem;
 }
 
-.edit-btn {
-  background-color: var(--primary-color);
-}
-
 .cancel-btn {
   background-color: var(--light-text-color);
 }
@@ -964,7 +874,6 @@ export default {
 }
 
 @media (max-width: 420px) {
-  .account-actions,
   .field-grid {
     grid-template-columns: 1fr;
   }
