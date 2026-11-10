@@ -56,6 +56,13 @@
 - 次數與預算沿用 LINE 閘道的鎖定與原子保留；`GET /api/ai/status` 提供剩餘次數
 - 無 migration、無新環境變數；需既有的 Gemini 設定（`NOMICA_LINE_AI_PAID_PROJECT_VERIFIED=true` 等）才會出現
 
+## 舊 LINE 程式移除（`codex/trip-members`）
+
+- 刪除舊的 LINE 互動流程：訊息處理、12 個流程處理器、卡片建構器與主題（約 7,900 行）；LINE 現在只剩口語記帳（`oral_pilot`）
+- `NOMICA_LINE_MODE=synthetic` 不再存在（只有本機測試用的舊流程會用到）；正式值 `oral_pilot`、`help_only`、`disabled` 不變
+- 舊流程的測試一併移除；確認、取消、逾期、重送、確認失敗還原與回覆遺失重試，仍由口語記帳的測試涵蓋
+- 無 migration、無環境變數變更
+
 ## 開始封閉測試前
 
 依 [deployment-checklist.md](deployment-checklist.md)「封閉測試 → 開始前」逐項完成：備份 → migration 到 `20261111_0022` → 部署 → 環境變數 → 清除排程 → 填政策頁與上手說明的營運者與聯絡方式 → 實機驗收。
@@ -65,4 +72,4 @@
 - Web 一句話記帳接 Gemini 與共用額度（排在測試第 1～2 週）
 - 帳戶、預算、分析的完整重排；桌面表格；PWA 圖示與 LINE 頭像
 - 隱私權政策與服務條款的法務審閱
-- 舊 LINE 程式（約 6,900 行）移除、大檔拆分、OpenAPI、監控擴充
+- 大檔拆分（`web_app.py`、`trip_manager.py`、`budget_manager.py`）、OpenAPI、監控擴充

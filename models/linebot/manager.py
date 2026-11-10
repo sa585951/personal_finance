@@ -5,14 +5,12 @@ import logging
 from google import genai
 from google.genai import types
 from sqlalchemy.orm import sessionmaker
-from .message_handler import MessageHandler
 from .oral_pilot import LineOralPilot
 from .message_parser import MessageParser
-from .user_state_manager import UserStateManager
 from ..ai_parse_event_manager import AIParseEventManager
 from ..user_manager import UserManager
-from .transaction_drafts import LineTransactionDrafts
 from .webhook_events import LineWebhookEvents
+from .notice import create_notice_message
 from ..optional_access import load_optional_access
 from ..line_ai_gateway import LineAIGateway, read_line_ai_budget, read_line_ai_daily_limit
 from linebot.v3 import WebhookParser
@@ -91,7 +89,6 @@ class LineBotManager:
             self.line_ai_gateway = LineAIGateway(sessionmaker(bind=db_session.get_bind()), client.models, budget,
                                                  daily_limit=daily_limit, notify=notify)
 
-        self.user_state_manager = UserStateManager()
         self.user_manager = UserManager(self.db_session)
         self.ai_parse_event_manager = AIParseEventManager(self.db_session)
         
@@ -148,74 +145,12 @@ class LineBotManager:
             gemini_model=self.model,
             prompt_template=self.prompt_template,
         )
-        
-        self.message_handler = MessageHandler(self.user_state_manager, self.db_session)
-
-    def process_event(self, event):
-        handler = self.build_message_response if getattr(event, 'message', None) is not None else self.build_postback_response
-        return LineWebhookEvents(self.db_session).process(event, handler)
 
     def process_oral_event(self, event):
         pilot = LineOralPilot(
             self.db_session, self.message_parser.ai_parse_service, getattr(self, "line_ai_gateway", None),
         )
         return LineWebhookEvents(self.db_session).process(event, pilot.handle)
-
-    def handle_message_flex(self, event):
-        response = self.build_message_response(event)
-        if response is not None:
-            self.reply_message_flex(event.reply_token, response)
-        return response
-
-    def build_message_response(self, event):
-        user_message = event.message.text.strip()
-        profile = self.line_bot_api.get_profile(event.source.user_id)
-        user = self.user_manager.get_or_create_user_for_identity('line', event.source.user_id, profile.display_name)
-        internal_user_id = str(user['id'])
-        if self.app_state and self.app_state.is_cold_start():
-            return '系統剛啟動完成，請重新傳送訊息。尚未建立收支。'
-        if self.user_state_manager.get_user_state(internal_user_id):
-            return self.message_handler.handle_user_message(internal_user_id, user_message, {})
-        parsed = self.message_parser.parse_shared(user_message)
-        if parsed['legacy'].get('type') in {'expense', 'income'}:
-            # Never auto-commit parsed money: the persisted preview requires an
-            # explicit owner-bound postback before any account/ledger mutation.
-            return LineTransactionDrafts(self.db_session).prepare(internal_user_id, parsed)
-        self.ai_parse_event_manager.record_from_parse_result(internal_user_id, 'line_bot', parsed)
-        return self.message_handler.handle_user_message(internal_user_id, user_message, parsed['legacy'])
-
-    def _confirm_parse_event_if_transaction_created(self, user_id, parse_event, parsed_data, creation_result=None):
-        """Only a caller-provided creation result may confirm an adopted event."""
-        if parsed_data.get("type") not in {"expense", "income"}:
-            return None
-
-        transaction_id = creation_result.transaction_id if creation_result is not None else None
-        if not transaction_id:
-            return None
-
-        return self.ai_parse_event_manager.confirm_event(
-            user_id,
-            parse_event["id"],
-            parsed_data["type"],
-            transaction_id,
-        )
-
-    def handle_postback_event(self, event):
-        response = self.build_postback_response(event)
-        if response is not None:
-            self.reply_message_flex(event.reply_token, response)
-        return response
-
-    def build_postback_response(self, event):
-        profile = self.line_bot_api.get_profile(event.source.user_id)
-        user = self.user_manager.get_or_create_user_for_identity('line', event.source.user_id, profile.display_name)
-        internal_user_id = str(user['id'])
-        data = event.postback.data
-        for action in ('confirm', 'cancel'):
-            prefix = 'nomica.' + action + ':'
-            if data.startswith(prefix):
-                return LineTransactionDrafts(self.db_session).resolve(internal_user_id, data[len(prefix):], action)
-        return self.message_handler.handle_postback(internal_user_id, data, event.postback.params or {})
 
     def reply_message_flex(self, reply_token, message, raise_on_error=False):
         """
@@ -250,5 +185,5 @@ class LineBotManager:
     def _to_line_message(self, message):
         """把舊流程的純文字輸出統一轉成 Flex 卡片。"""
         if isinstance(message, str):
-            return self.message_handler.response_builder.create_notice_message("通知", message)
+            return create_notice_message("通知", message)
         return message

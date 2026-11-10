@@ -15,10 +15,11 @@ from models.ai_parse_service import AIParseService
 from models.asset_manager import AssetManager
 from models.idempotency import money
 from models.linebot.oral_pilot import oral_payload, parse_oral
+from models.ai_parse_event_manager import AIParseEventManager
 from models.optional_access import load_optional_access
 from models.schema import accounts_table, account_movements_table, ai_parse_events_table, transactions_table
 from tests.test_ai_parse_api import _load_web_app
-from tests.test_line_durable_confirmation import command_db, event, event_dict, line_db, manager  # noqa: F401
+from tests.line_fixtures import FakeLINE, command_db, event, event_dict, line_db, manager  # noqa: F401
 
 
 def lunch(eid="shortcut", text="午餐 120", **changes):
@@ -41,7 +42,6 @@ def safe_manager(session):
         "currency": "TWD", "target_asset": next((name for name in ("國泰卡", "Duplicate", "B cash") if name in text), None),
     }
     bot.line_bot_api.get_profile = forbidden
-    bot.process_event = forbidden
     return bot
 
 
@@ -63,6 +63,7 @@ def webhook(line_db, monkeypatch):
         with app.app.test_client() as client:
             return client.post("/line-webhook", data=body, headers={"X-Line-Signature": signature})
 
+    send.bot = bot
     yield send, replies, engine, data
     db.remove()
 
@@ -150,9 +151,14 @@ def test_shortcut_replay_and_concurrent_confirmation_debit_once(webhook):
 
 def test_shortcut_cancel_expiry_and_legacy_draft_rejected(webhook):
     send, replies, engine, data = webhook
-    from tests.test_line_durable_confirmation import create_draft
-
-    legacy_id, _ = create_draft(engine)
+    # A draft from the retired non-oral flow, still pending in the database, can never be confirmed here.
+    with Session(engine) as session:
+        legacy = AIParseEventManager(session).record_from_parse_result(data["a"], "line_bot", {
+            "raw_text": "old", "line_draft": {"date": "2026-10-01", "item": "午餐", "amount": "91", "type": "expense",
+                                              "budget_category": "伙食", "account_id": data["cash"],
+                                              "original_currency": "TWD"}})
+        session.commit()
+        legacy_id = str(legacy["id"])
     assert send(event_dict("legacy", postback="nomica.oral.confirm:" + legacy_id)).status_code == 200
     assert counts(engine, data) == (1, 0, 1000)
 
@@ -418,3 +424,50 @@ def test_typed_account_name_selects_only_own_same_currency_account(webhook):
     assert _draft(engine, waiting)["parsed_payload"]["line_draft"]["account_id"] == str(ids["帳戶05"])
     # Nothing is recorded until the confirm card is used.
     assert counts(engine, data)[0] == 4
+
+
+def _draft_ready_to_confirm(send, replies):
+    assert send(lunch()).status_code == 200
+    buttons = replies[-1].messages[0].to_dict()["contents"]["footer"]["contents"]
+    selection = next(b["action"]["data"] for b in buttons if b["action"]["label"] == "cash")
+    assert send(event_dict("pick", postback=selection)).status_code == 200
+    return replies[-1].messages[0].to_dict()["contents"]["footer"]["contents"][0]["action"]["data"]
+
+
+def test_lost_reply_is_retried_without_creating_a_second_draft(webhook):
+    send, replies, engine, data = webhook
+    api = send.bot.line_bot_api
+    original = api.reply_message
+    failures = []
+
+    def lose_first_reply(request):
+        if not failures:
+            failures.append(request)
+            raise RuntimeError("Lost external reply after DB commit")
+        original(request)
+
+    api.reply_message = lose_first_reply
+    assert send(lunch()).status_code == 503
+    assert send(lunch()).status_code == 200
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(ai_parse_events_table)) == 1
+
+
+def test_failed_confirmation_rolls_back_everything_and_can_be_retried(webhook, monkeypatch):
+    send, replies, engine, data = webhook
+    confirm = _draft_ready_to_confirm(send, replies)
+    draft_id = confirm.rsplit(":", 1)[-1]
+    original = AIParseEventManager.confirm_event
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("Injected draft update failure after financial write")
+
+    monkeypatch.setattr(AIParseEventManager, "confirm_event", fail)
+    assert send(event_dict("confirm-once", postback=confirm)).status_code == 503
+    assert counts(engine, data) == (1, 0, 1000)
+    with Session(engine) as session:
+        assert session.scalar(select(ai_parse_events_table.c.status).where(
+            ai_parse_events_table.c.id == draft_id)) == "success"
+    monkeypatch.setattr(AIParseEventManager, "confirm_event", original)
+    assert send(event_dict("confirm-once", postback=confirm)).status_code == 200
+    assert counts(engine, data) == (2, 1, 880)

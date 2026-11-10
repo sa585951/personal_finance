@@ -9,7 +9,6 @@ from linebot.v3.messaging import FlexMessage, PushMessageRequest, ReplyMessageRe
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 from models.linebot.manager import LineBotManager
-from models.linebot.response_builder import ResponseBuilder
 
 
 class FakeMessagingApi:
@@ -27,7 +26,6 @@ class FakeMessagingApi:
 def _manager_with_fake_api():
     manager = object.__new__(LineBotManager)
     manager.line_bot_api = FakeMessagingApi()
-    manager.message_handler = SimpleNamespace(response_builder=ResponseBuilder())
     return manager
 
 

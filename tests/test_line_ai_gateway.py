@@ -13,7 +13,7 @@ from models.line_ai_gateway import (
     set_line_ai_consent,
 )
 from models.schema import line_ai_attempts, line_ai_control
-from tests.test_line_durable_confirmation import command_db, line_db  # noqa: F401
+from tests.line_fixtures import command_db, line_db  # noqa: F401
 
 
 class Provider:
