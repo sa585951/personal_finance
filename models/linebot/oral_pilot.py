@@ -140,6 +140,8 @@ class LineOralPilot:
             set_line_ai_consent(self.session, owner, True)
             return ("已開啟 AI 口語記帳。規則無法處理的記帳文字會傳給 Google Gemini。"
                     "請再傳一筆記帳文字，隨時可回「撤回 AI」。")
+        if normalize("NFKC", text) == quick_tools.ENTRY_COMMAND:
+            return quick_tools.entry_prompt_card()
         if normalize("NFKC", text) in quick_tools.QUERY_COMMANDS:
             return quick_tools.query_card(self.session, owner, normalize("NFKC", text))
         if text.startswith(("補金額 ", "補日期 ", "改金額 ")):
