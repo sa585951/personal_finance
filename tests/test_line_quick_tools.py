@@ -155,3 +155,16 @@ def test_follow_events_outside_a_one_to_one_chat_are_ignored(webhook):  # noqa: 
     group = {**_follow("follow-group"), "source": {"type": "group", "groupId": "C-1", "userId": "U-fix-a"}}
     assert send(group).status_code == 200
     assert replies == []
+
+
+def test_record_command_explains_how_to_enter_a_sentence_and_offers_recent_entries(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    _confirm_a_lunch(send, replies)
+    before = counts(engine, data)
+    assert send(lunch("record", text="記一筆")).status_code == 200
+    card = _card(replies)
+    assert card["altText"] == "說一句話就能記帳" and "午餐 120" in str(card)
+    assert any(item["action"]["type"] == "postback" for item in _chips(replies))
+    assert counts(engine, data) == before  # only an explanation; nothing is booked
+    assert send({**lunch("record-unknown", text="記一筆"), "source": {"type": "user", "userId": "U-never-seen"}}).status_code == 200
+    assert "登入" in str(_card(replies))

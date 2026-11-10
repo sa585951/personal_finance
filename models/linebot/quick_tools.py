@@ -24,6 +24,7 @@ MAX_BALANCE_ROWS = 10
 RECENT_LIMIT = 5
 DRAFT_CARD_ALT_TEXTS = {"確認收支：尚未記帳", "選擇記帳帳戶", "選擇分類"}
 GUIDE_ALT_TEXT = "Nomica 使用說明"
+ENTRY_COMMAND = "記一筆"
 
 
 def today():
@@ -218,3 +219,12 @@ def guide_card(*, linked=True):
             "type": "button", "style": "primary", "height": "sm",
             "action": {"type": "uri", "label": "開啟 Nomica Web", "uri": web}}]}
     return FlexSendMessage(alt_text=GUIDE_ALT_TEXT, contents=contents)
+
+
+def entry_prompt_card():
+    """Answer to the rich-menu 「記一筆」: how to record without leaving LINE."""
+    return info_card(
+        "說一句話就能記帳",
+        [("例如", "午餐 120"), ("", "昨天晚餐 刷卡 450"), ("", "計程車 280 現金")],
+        "直接輸入就好。核對確認卡後按確認才會記帳；點下方最近常記的項目可以一鍵重記。",
+    )
