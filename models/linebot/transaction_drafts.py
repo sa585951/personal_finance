@@ -27,10 +27,11 @@ class LineTransactionDrafts:
             'type': 'bubble', 'body': {'type': 'box', 'layout': 'vertical', 'contents': [
                 {'type': 'text', 'text': '確認收支（尚未記帳）', 'weight': 'bold', 'wrap': True},
                 {'type': 'text', 'text': f"{payload['date']} · {payload['item']}\n{'收入' if payload['type']=='income' else '支出'} {payload['amount']} {payload['original_currency']}\n分類：{payload["budget_category"]}\n帳戶：{account_label}", 'wrap': True, 'margin': 'md'},
-                {'type': 'text', 'text': '請核對金額、日期與帳戶；30分鐘內確認才會記帳。資料不正確請取消並重新輸入。', 'size': 'sm', 'wrap': True, 'margin': 'md'},
+                {'type': 'text', 'text': '請核對金額、日期與帳戶；30分鐘內確認才會記帳。要改金額請回「改金額 150」，其他資料不正確請取消並重新輸入。', 'size': 'sm', 'wrap': True, 'margin': 'md'},
             ]}, 'footer': {'type': 'box', 'layout': 'vertical', 'contents': [
                 {'type': 'button', 'style': 'primary', 'action': {'type': 'postback', 'label': '確認新增', 'data': f'{prefix}confirm:{draft_id}'}},
                 {'type': 'button', 'action': {'type': 'postback', 'label': '取消', 'data': f'{prefix}cancel:{draft_id}'}},
+                {'type': 'button', 'style': 'secondary', 'action': {'type': 'postback', 'label': '改分類', 'data': f'{prefix}cats:{draft_id}'}},
             ]},
         })
 

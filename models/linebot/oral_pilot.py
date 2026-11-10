@@ -12,7 +12,9 @@ from ..budget_manager import DEFAULT_CURRENCY
 from ..line_ai_gateway import AIRequestBlocked, CONSENT_NOTICE, set_line_ai_consent
 from ..schema import accounts_table, ai_parse_events_table, categories_table, transactions_table
 from ..user_manager import UserManager
+from . import quick_tools
 from .line_sdk import FlexSendMessage
+from .notice import create_notice_message
 from .transaction_drafts import LineTransactionDrafts
 
 
@@ -42,7 +44,8 @@ SENSITIVE_TEXT = re.compile(
 BOOKKEEPING_TEXT = re.compile(
     r"(?:[0-9]|[一二兩三四五六七八九十百千萬]+[十百千萬元塊])"
 )
-GUIDE = "可傳「昨天午餐刷卡 120」或「午餐 120」。請核對草稿後確認，其他操作請到 Nomica Web。"
+GUIDE = ("可傳「昨天午餐刷卡 120」或「午餐 120」，或點下方常用項目。傳「今天」「本月」「餘額」「最近」可查看摘要。"
+         "請核對草稿後確認，其他操作請到 Nomica Web。")
 NO_DRAFT = "找不到可操作的收支草稿，請重新輸入。"
 ACCOUNT_PAGE_SIZE = 8
 USAGE_WINDOW_DAYS = 90
@@ -101,6 +104,18 @@ class LineOralPilot:
         self.drafts = LineTransactionDrafts(session)
 
     def handle(self, event):
+        """Reply, then add the shortcut chips (queries and recent entries) for a known person."""
+        response = self._handle(event)
+        if response is None:
+            return None
+        user = UserManager(self.session).get_user_by_identity("line", event.source.user_id)
+        if not user:
+            return response
+        if isinstance(response, str):
+            response = create_notice_message("通知", response)
+        return quick_tools.attach(response, quick_tools.quick_replies(self.session, user["id"]))
+
+    def _handle(self, event):
         message = getattr(event, "message", None)
         text = message.text.strip() if message else ""
         if text == "幫助":
@@ -124,7 +139,9 @@ class LineOralPilot:
             set_line_ai_consent(self.session, owner, True)
             return ("已開啟 AI 口語記帳。規則無法處理的記帳文字會傳給 Google Gemini。"
                     "請再傳一筆記帳文字，隨時可回「撤回 AI」。")
-        if text.startswith(("補金額 ", "補日期 ")):
+        if normalize("NFKC", text) in quick_tools.QUERY_COMMANDS:
+            return quick_tools.query_card(self.session, owner, normalize("NFKC", text))
+        if text.startswith(("補金額 ", "補日期 ", "改金額 ")):
             return self._clarify(owner, text)
         chosen = self._choose_account_by_name(owner, text)
         if chosen is not None:
@@ -324,13 +341,15 @@ class LineOralPilot:
 
     def _clarify(self, owner, text):
         command, value = text.split(maxsplit=1)
-        field = "amount" if command == "補金額" else "date"
+        field = "date" if command == "補日期" else "amount"
         table = ai_parse_events_table
-        rows = self.session.execute(self._pending(owner).where(
-            table.c.parsed_payload["line_draft"][field].as_string().is_(None),
-        ).limit(2)).mappings().all()
+        query = self._pending(owner)
+        if command != "改金額":
+            # 補金額/補日期 fill a blank; 改金額 corrects the one draft still waiting for a decision.
+            query = query.where(table.c.parsed_payload["line_draft"][field].as_string().is_(None))
+        rows = self.session.execute(query.limit(2)).mappings().all()
         if len(rows) != 1:
-            return "找不到唯一待補資料的草稿，請重新傳一筆完整收支。"
+            return "找不到唯一待處理的草稿，請重新傳一筆完整收支。"
         if field == "amount":
             value = normalize("NFKC", value)
             value = self._amount(value.replace(",", "")) if AMOUNT_TEXT.fullmatch(value) else None
@@ -344,12 +363,97 @@ class LineOralPilot:
         row = rows[0]
         row["parsed_payload"]["line_draft"][field] = value
         self._save(row, row["parsed_payload"])
+        return self._show_draft(owner, row)
+
+    def _show_draft(self, owner, row):
+        """The confirm card when an account is already frozen, otherwise the next missing step."""
+        payload = row["parsed_payload"]["line_draft"]
+        if payload.get("account_id"):
+            account = quick_tools.account_label(self.session, payload["account_id"])
+            if account:
+                return self.drafts.preview(row["id"], payload, f"{account.name}（{ACCOUNT_TYPE_LABELS[account.type]}）")
+            payload["account_id"] = None
+            self._save(row, row["parsed_payload"])
         return self._advance(owner, row)
+
+    def _again(self, owner, transaction_id):
+        """One tap on a recent entry: the same preview-and-confirm draft, dated today."""
+        try:
+            key = UUID(transaction_id)
+        except ValueError:
+            return NO_DRAFT
+        t = transactions_table
+        row = self.session.execute(
+            select(t.c.title, t.c.description, t.c.type, t.c.original_amount, t.c.original_currency,
+                   t.c.account_id, categories_table.c.name)
+            .join(categories_table, t.c.category_id == categories_table.c.id)
+            .where(t.c.id == key, t.c.user_id == owner, t.c.trip_id.is_(None), t.c.deleted_at.is_(None),
+                   t.c.type.in_(("expense", "income")))
+        ).first()
+        if not row:
+            return "找不到這筆紀錄，請重新輸入。"
+        payload = dict(date=quick_tools.today().isoformat(), item=row.title, amount=self._amount(row.original_amount),
+                       type=row.type, budget_category=row.name, description=row.description or "",
+                       original_currency=row.original_currency)
+        budget = self.drafts.service.budget_manager
+        try:
+            rate = budget._default_exchange_rate(payload["original_currency"], DEFAULT_CURRENCY)
+        except ValueError:
+            return "無法確認幣別或取得適用匯率，請到 Nomica Web 記帳。"
+        if payload["original_currency"] != DEFAULT_CURRENCY:
+            payload["exchange_rate"] = str(rate)
+        category_id = budget._get_category_id(owner, payload["budget_category"], payload["type"])
+        payload["budget_category"] = self.session.scalar(
+            select(categories_table.c.name).where(categories_table.c.id == category_id))
+        record = self.drafts.events.record_parse_event(owner, "line_bot", "", {
+            "line_oral": True, "line_draft": payload, "account_hint": None, "offered_accounts": [],
+            "category_id": str(category_id),
+        }, "success", result_type=payload["type"])
+        # Reuse the same account only while it is still a usable account in this currency.
+        for account in self._accounts(owner, payload["original_currency"]):
+            if account["id"] == row.account_id:
+                return self._freeze_account(record, account)
+        return self._advance(owner, record)
+
+    def _category(self, owner, action, args):
+        draft_id, _, category_id = args.partition(":")
+        try:
+            key = UUID(draft_id)
+        except ValueError:
+            return NO_DRAFT
+        row = self.session.execute(self._pending(owner).where(ai_parse_events_table.c.id == key)).mappings().first()
+        if not row:
+            return NO_DRAFT
+        data = row["parsed_payload"]
+        payload = data["line_draft"]
+        choices = quick_tools.category_choices(self.session, owner, payload["type"], limit=50)
+        if action == "nomica.oral.cats":
+            buttons = [{"type": "button", "action": {"type": "postback", "label": name[:20],
+                        "data": f"nomica.oral.cat:{row['id']}:{cid}"}} for cid, name in choices[:12]]
+            return FlexSendMessage(alt_text="選擇分類", contents={
+                "type": "bubble",
+                "body": {"type": "box", "layout": "vertical", "contents": [
+                    {"type": "text", "text": "要改成哪個分類？", "wrap": True}]},
+                "footer": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": buttons},
+            })
+        chosen = next((name for cid, name in choices if str(cid) == category_id), None)
+        if chosen is None:
+            return "該分類已無法選用，請重新輸入。"
+        budget = self.drafts.service.budget_manager
+        # Store what the name resolves to, so confirmation sees exactly this category.
+        data["category_id"] = str(budget._get_category_id(owner, chosen, payload["type"]))
+        payload["budget_category"] = chosen
+        self._save(row, data)
+        return self._show_draft(owner, row)
 
     def _postback(self, owner, data):
         action, _, args = data.partition(":")
         if action in {"nomica.oral.confirm", "nomica.oral.cancel"}:
             return self.drafts.resolve(owner, args, action.rsplit(".", 1)[-1])
+        if action == "nomica.oral.again":
+            return self._again(owner, args)
+        if action in {"nomica.oral.cats", "nomica.oral.cat"}:
+            return self._category(owner, action, args)
         if action not in {"nomica.oral.account", "nomica.oral.more"}:
             return None
         draft_id, _, account_id = args.partition(":")

@@ -1,0 +1,118 @@
+"""LINE read-only cards, one-tap repeats of recent entries, and editing a draft before confirming."""
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from models.schema import ai_parse_events_table, categories_table, transactions_table
+from tests.line_fixtures import command_db, event_dict, line_db  # noqa: F401
+from tests.test_line_shortcut_pilot import counts, lunch, webhook  # noqa: F401
+
+
+def _card(replies):
+    return replies[-1].messages[0].to_dict()
+
+
+def _chips(replies):
+    return (_card(replies).get("quickReply") or {}).get("items", [])
+
+
+def _confirm_a_lunch(send, replies, label="first"):
+    assert send(lunch(label)).status_code == 200
+    buttons = _card(replies)["contents"]["footer"]["contents"]
+    pick = next(b["action"]["data"] for b in buttons if b["action"]["label"] == "cash")
+    assert send(event_dict("pick-" + label, postback=pick)).status_code == 200
+    confirm = _card(replies)["contents"]["footer"]["contents"][0]["action"]["data"]
+    assert send(event_dict("confirm-" + label, postback=confirm)).status_code == 200
+
+
+def test_query_commands_reply_with_cards_and_change_nothing(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    before = counts(engine, data)
+    for command, title in (("今天", "今天"), ("本月", "本月"), ("餘額", "帳戶餘額"), ("最近", "最近紀錄")):
+        assert send(lunch("q-" + command, text=command)).status_code == 200
+        card = _card(replies)
+        assert title in card["altText"], command
+        labels = [item["action"]["label"] for item in _chips(replies)]
+        assert labels[:4] == ["今天", "本月", "餘額", "最近"]
+    assert counts(engine, data) == before
+    assert send(lunch("balances", text="餘額")).status_code == 200
+    assert "1,000" in str(_card(replies))  # the cash account balance
+
+
+def test_other_people_get_only_their_own_numbers(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    assert send(lunch("a-balance", text="餘額")).status_code == 200
+    mine = str(_card(replies))
+    assert send({**lunch("b-balance", text="餘額"), "source": {"type": "user", "userId": "U-fix-b"}}).status_code == 200
+    theirs = str(_card(replies))
+    assert mine != theirs
+
+
+def test_a_recent_entry_repeats_with_one_tap_and_still_needs_confirmation(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    _confirm_a_lunch(send, replies)
+    assert counts(engine, data)[2] == 880
+    assert send(lunch("again-menu", text="最近")).status_code == 200
+    repeats = [i for i in _chips(replies) if i["action"]["type"] == "postback"]
+    assert repeats and repeats[0]["action"]["label"] == "午餐 120"
+    assert send(event_dict("tap-repeat", postback=repeats[0]["action"]["data"])).status_code == 200
+    card = _card(replies)
+    assert card["altText"] == "確認收支：尚未記帳"
+    assert "quickReply" not in card  # no shortcut chips beside a confirm button
+    assert counts(engine, data)[2] == 880  # nothing is booked until confirmed
+    confirm = card["contents"]["footer"]["contents"][0]["action"]["data"]
+    assert send(event_dict("confirm-repeat", postback=confirm)).status_code == 200
+    assert counts(engine, data)[2] == 760
+
+
+def test_a_repeat_cannot_copy_someone_elses_transaction(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    _confirm_a_lunch(send, replies)
+    with Session(engine) as session:
+        tx_id = str(session.scalar(select(transactions_table.c.id).where(
+            transactions_table.c.user_id == data["a"], transactions_table.c.title == "午餐")))
+    assert send(event_dict("steal", role="b", postback="nomica.oral.again:" + tx_id)).status_code == 200
+    assert "找不到這筆紀錄" in str(_card(replies))
+    assert send(event_dict("junk", postback="nomica.oral.again:not-a-uuid")).status_code == 200
+
+
+def test_amount_can_be_corrected_on_the_card_before_confirming(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    assert send(lunch()).status_code == 200
+    buttons = _card(replies)["contents"]["footer"]["contents"]
+    pick = next(b["action"]["data"] for b in buttons if b["action"]["label"] == "cash")
+    assert send(event_dict("pick", postback=pick)).status_code == 200
+    assert send(lunch("fix-amount", text="改金額 150")).status_code == 200
+    card = _card(replies)
+    assert card["altText"] == "確認收支：尚未記帳" and "150" in str(card)
+    assert send(lunch("bad-amount", text="改金額 很多")).status_code == 200
+    assert "格式不正確" in str(_card(replies))
+    confirm = card["contents"]["footer"]["contents"][0]["action"]["data"]
+    assert send(event_dict("confirm", postback=confirm)).status_code == 200
+    assert counts(engine, data)[2] == 850
+
+
+def test_category_can_be_changed_on_the_card_before_confirming(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    assert send(lunch()).status_code == 200
+    buttons = _card(replies)["contents"]["footer"]["contents"]
+    pick = next(b["action"]["data"] for b in buttons if b["action"]["label"] == "cash")
+    assert send(event_dict("pick", postback=pick)).status_code == 200
+    footer = _card(replies)["contents"]["footer"]["contents"]
+    change = next(b["action"]["data"] for b in footer if b["action"]["label"] == "改分類")
+    assert send(event_dict("cats", postback=change)).status_code == 200
+    assert _card(replies)["altText"] == "選擇分類"
+    options = _card(replies)["contents"]["footer"]["contents"]
+    other = next(b for b in options if b["action"]["label"] == "交通")
+    assert send(event_dict("cat", postback=other["action"]["data"])).status_code == 200
+    card = _card(replies)
+    assert "交通" in str(card["contents"]["body"])
+    confirm = card["contents"]["footer"]["contents"][0]["action"]["data"]
+    assert send(event_dict("confirm", postback=confirm)).status_code == 200
+    with Session(engine) as session:
+        name = session.scalar(select(categories_table.c.name).join(
+            transactions_table, transactions_table.c.category_id == categories_table.c.id
+        ).where(transactions_table.c.user_id == data["a"], transactions_table.c.title == "午餐"))
+        draft = session.execute(select(ai_parse_events_table)).mappings().all()[-1]
+    assert name == "交通" and draft["status"] == "confirmed"
+    # A forged category id is refused.
+    assert send(event_dict("forged", postback=change.replace("cats", "cat") + ":" + data["b_cash"])).status_code == 200
