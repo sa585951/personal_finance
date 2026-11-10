@@ -1,5 +1,6 @@
 """Budget, consent and the only outbound Gemini path for LINE bookkeeping."""
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from decimal import Decimal, InvalidOperation
@@ -29,14 +30,52 @@ CONSENT_NOTICE = (
 
 
 class AIRequestBlocked(Exception):
-    """Carries a fixed, safe LINE reply instead of a provider exception."""
+    """Carries a fixed, safe reply instead of a provider exception."""
+
+    def __init__(self, message, code="blocked"):
+        super().__init__(message)
+        self.code = code
+
+
+# One shared notice for the Web, where there is no chat to reply "同意 AI" in.
+WEB_CONSENT_NOTICE = (
+    "規則無法處理的記帳文字會傳給 Google Gemini 解析，請勿輸入卡號、密碼或其他敏感資料。"
+    "Google 依付費服務條款處理，可能短期保留資料供安全監控。AI 只產生草稿，確認後才會入帳。"
+    "你隨時可以在「我的」撤回，LINE 與網頁共用同一份同意。"
+)
+
+# AI calls in flight per process: the provider call holds a worker for seconds.
+MAX_CONCURRENT_CALLS = 4
+
+
+class _InFlight:
+    """Non-blocking caps: a few calls overall and one at a time per person."""
+
+    def __init__(self, limit):
+        self._slots = threading.BoundedSemaphore(limit)
+        self._owners = set()
+        self._lock = threading.Lock()
+
+    def acquire(self, owner):
+        with self._lock:
+            if owner in self._owners:
+                raise AIRequestBlocked("上一個 AI 解析還在處理中，請稍候。", "busy")
+            if not self._slots.acquire(blocking=False):
+                raise AIRequestBlocked("現在使用 AI 的人較多，請稍後再試，或直接輸入金額記帳。", "busy")
+            self._owners.add(owner)
+
+    def release(self, owner):
+        with self._lock:
+            if owner in self._owners:
+                self._owners.discard(owner)
+                self._slots.release()
 
 
 # Applies when NOMICA_LINE_AI_MONTHLY_USD is unset; set "0" to turn LINE AI off.
 DEFAULT_MONTHLY_USD = Decimal("5")
 # Per-person AI requests per Taipei calendar day; keeps one account from using up
 # the shared monthly budget. Rule-based entries never reach the gateway.
-DEFAULT_DAILY_PER_USER = 30
+DEFAULT_DAILY_PER_USER = 20
 ALERT_RATIO = Decimal("0.8")
 LOCAL_TZ = ZoneInfo("Asia/Taipei")
 # Attempts that never reached the provider do not count toward the daily cap.
@@ -84,6 +123,22 @@ class LineAIGateway:
         self.daily_limit = daily_limit
         # Best-effort admin notice; called after the reservation commits.
         self.notify = notify
+        self.in_flight = _InFlight(MAX_CONCURRENT_CALLS)
+
+    def status(self, owner):
+        """Consent and today's remaining AI requests for one person."""
+        owner = UUID(str(owner))
+        local_midnight = datetime.now(timezone.utc).astimezone(LOCAL_TZ).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        with self.sessions.begin() as session:
+            consented = bool(session.scalar(select(line_ai_consents.c.consented).where(
+                line_ai_consents.c.user_id == owner, line_ai_consents.c.version == CONSENT_VERSION)))
+            enabled = bool(session.scalar(select(line_ai_control.c.enabled).where(line_ai_control.c.id == 1)))
+            used = session.scalar(select(func.count()).select_from(line_ai_attempts).where(
+                line_ai_attempts.c.user_id == owner, line_ai_attempts.c.created_at >= local_midnight,
+                line_ai_attempts.c.status.not_in(UNSENT_STATUSES))) or 0
+        return {"enabled": enabled, "consented": consented,
+                "remaining": max(0, self.daily_limit - used), "daily_limit": self.daily_limit}
 
     def _check_consent(self, session, owner, *, lock=False):
         query = select(line_ai_consents.c.consented).where(
@@ -91,12 +146,12 @@ class LineAIGateway:
         )
         consent = session.scalar(query.with_for_update(read=True) if lock else query)
         if not consent:
-            raise AIRequestBlocked(CONSENT_NOTICE)
+            raise AIRequestBlocked(CONSENT_NOTICE, "consent_required")
 
     def _check_switch(self, session, *, lock=False):
         query = select(line_ai_control.c.enabled).where(line_ai_control.c.id == 1)
         if not session.scalar(query.with_for_update() if lock else query):
-            raise AIRequestBlocked("AI 解析目前暫停。可用「午餐 120」或到 Nomica Web 記帳。")
+            raise AIRequestBlocked("AI 解析目前暫停。可用「午餐 120」或到 Nomica Web 記帳。", "paused")
 
     def _reserve(self, owner, event_id):
         now = datetime.now(timezone.utc)
@@ -115,16 +170,16 @@ class LineAIGateway:
                 attempts.c.status.not_in(UNSENT_STATUSES),
             ))
             if today >= self.daily_limit:
-                raise AIRequestBlocked("今天的 AI 解析次數已用完，明天恢復。可先用「午餐 120」或到 Nomica Web 記帳。")
+                raise AIRequestBlocked("今天的 AI 解析次數已用完，明天恢復。可先用「午餐 120」或到 Nomica Web 記帳。", "daily_limit")
             recent = select(attempts.c.event_id).where(
                 attempts.c.user_id == owner, attempts.c.created_at > now - timedelta(seconds=5),
             ).limit(1)
             if session.scalar(recent):
-                raise AIRequestBlocked("AI 解析請間隔幾秒再試，也可以用「午餐 120」記帳。")
+                raise AIRequestBlocked("AI 解析請間隔幾秒再試，也可以用「午餐 120」記帳。", "too_fast")
             used = session.scalar(select(func.coalesce(func.sum(attempts.c.charge_usd), 0))
                                   .where(attempts.c.month == month))
             if used + RESERVE > self.budget:
-                raise AIRequestBlocked("AI 解析已達本月費用上限。可用「午餐 120」或到 Nomica Web 記帳。")
+                raise AIRequestBlocked("AI 解析已達本月費用上限。可用「午餐 120」或到 Nomica Web 記帳。", "budget")
             session.execute(insert(attempts).values(
                 event_id=event_id, user_id=owner, month=month, model=MODEL,
                 created_at=now, status="reserved", charge_usd=RESERVE,
@@ -170,6 +225,14 @@ class LineAIGateway:
         if len(prompt.encode("utf-8")) > 24_000:
             raise AIRequestBlocked("記帳文字太長，請縮短後再試。")
         owner = UUID(str(owner))
+        # Checked before reserving, so a refused call is never counted against the daily cap.
+        self.in_flight.acquire(owner)
+        try:
+            return self._generate(owner, event_id, prompt)
+        finally:
+            self.in_flight.release(owner)
+
+    def _generate(self, owner, event_id, prompt):
         self._reserve(owner, event_id)
         self._authorize_or_release(owner, event_id, "counting")
         try:

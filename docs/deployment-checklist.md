@@ -19,9 +19,9 @@
 6. LINE 記帳預設啟用，`NOMICA_LINE_MODE` 可不設；舊值 `help_only` 也會進入記帳，
    要暫停 LINE 訊息互動時設 `disabled`。`NOMICA_LINE_HELP_USER_IDS` 已不讀取，可移除。
    LINE Gemini 需 `GEMINI_API_KEY` 與 `NOMICA_LINE_AI_PAID_PROJECT_VERIFIED=true`，
-   月上限預設 5 USD，每人每日 30 次（`NOMICA_LINE_AI_DAILY_PER_USER` 可調）；設
-   `NOMICA_ADMIN_LINE_USER_ID` 可收到 80% 用量通知，見 [LINE AI 試用](line-ai-pilot.md)。Web 一句話記帳只用本機規則；
-   Web AI 維持 `NOMICA_AI_MODE=disabled`。
+   月上限預設 5 USD，每人每日 20 次（LINE 與網頁共用；`NOMICA_LINE_AI_DAILY_PER_USER` 可調）；設
+   `NOMICA_ADMIN_LINE_USER_ID` 可收到 80% 用量通知，見 [LINE AI 試用](line-ai-pilot.md)。Web 一句話記帳先用本機規則，認不出時使用者可按「用 AI 試試」，共用同一份同意、每日次數與每月上限（需上述 Gemini 設定才會出現）；
+   舊的測試用 `/api/ai/parse` 維持 `NOMICA_AI_MODE=disabled`（正式環境不開）。
 7. 憑證只存部署平台秘密設定；範例可版控，真實 `.env`、DB dump、Token 不可版控。
    依需求配置 JWT、DB、LINE Login 憑證；停用 AI 不需要為了部署加入 Gemini Key。
 8. 協調 frontend/backend 版本與回退方案。回退不得直接刪除 state、命令或去重資料表。
@@ -71,7 +71,7 @@ AI 如要開放，另通過 G-AI；這次停用不等於已完成額度或預算
 | 資料庫備份 | Supabase：確認自動備份已開啟，並在升級前手動建立一次備份 | [ ] |
 | Migration | `DATABASE_URL='…' alembic current` 確認版本，再 `alembic upgrade head`，結果應為 `20261111_0022 (head)` | [ ] |
 | 部署 | Render 部署對應的 main；Vercel 前端同步 | [ ] |
-| 環境變數 | `GEMINI_API_KEY`、`NOMICA_LINE_AI_PAID_PROJECT_VERIFIED=true`；建議設 `NOMICA_ADMIN_LINE_USER_ID`（80% 用量通知）；`NOMICA_LINE_AI_DAILY_PER_USER` 不設即每人每日 30 次 | [ ] |
+| 環境變數 | `GEMINI_API_KEY`、`NOMICA_LINE_AI_PAID_PROJECT_VERIFIED=true`；建議設 `NOMICA_ADMIN_LINE_USER_ID`（80% 用量通知）；`NOMICA_LINE_AI_DAILY_PER_USER` 不設即每人每日 20 次 | [ ] |
 | 清除排程 | 每天執行 `python -m scripts.purge_deleted_users --apply`（例如 Render Cron Job，使用同一組 `DATABASE_URL`） | [ ] |
 | 政策頁 | `frontend/src/constants/policies.js` 的營運者與聯絡方式改為實際內容 | [ ] |
 | 上手說明 | 填好下方附錄的 `〔〕` 後寄給試用者 | [ ] |
@@ -144,7 +144,7 @@ DATABASE_URL='…' python -m scripts.beta_metrics --weeks 4
 
 需要選帳戶時，可以按按鈕，也可以直接回覆帳戶名稱（信用卡可簡稱「玉山卡」）。
 
-規則看不懂的句子，可以交給 AI 解析。第一次使用時 Nomica 會說明資料怎麼處理；回覆「同意 AI」才會開啟，回覆「撤回 AI」可隨時關閉。AI 每人每天最多 30 次，用完時仍可用「午餐 120」這種格式記帳。
+規則看不懂的句子，可以交給 AI 解析。第一次使用時 Nomica 會說明資料怎麼處理；回覆「同意 AI」才會開啟，回覆「撤回 AI」可隨時關閉。AI 每人每天最多 20 次（LINE 與網頁合計），用完時仍可用「午餐 120」這種格式記帳。
 
 **在網頁記帳**：按下方的「＋」，在上方輸入一句話後按「填入」，或直接填表單。
 

@@ -18,7 +18,7 @@
 3. 每月費用上限預設為 5 USD，不需設定。要調整時設 `NOMICA_LINE_AI_MONTHLY_USD`
    （需至少 0.001792 USD 供首次預留）；設 `0` 會關閉 LINE AI，只用規則記帳。
    無法解析的值一律視為關閉。LINE 沿用原模式預設，Web AI 可維持 disabled。
-   每人每日 AI 解析上限預設 30 次（台北時間零點重算），可設 `NOMICA_LINE_AI_DAILY_PER_USER`
+   每人每日 AI 解析上限預設 20 次（LINE 與網頁共用）（台北時間零點重算），可設 `NOMICA_LINE_AI_DAILY_PER_USER`
    調整；規則記帳、同一訊息重送，以及未送出給 Gemini 的請求不計次。設
    `NOMICA_ADMIN_LINE_USER_ID`（LINE Developers 該 channel 的 Basic settings 中的 Your user ID）
    後，本月用量達上限 80% 時會用 LINE 通知一次。需要 migration `20261110_0021`。
