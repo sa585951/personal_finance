@@ -2203,7 +2203,7 @@ export default {
   margin: 0 auto;
   min-height: calc(100vh - 80px);
   /* Room for the floating add button above the bottom navigation. */
-  padding: 24px 16px calc(var(--app-bottom-nav-height) + 88px);
+  padding: 24px 16px calc(var(--app-bottom-nav-height) + env(safe-area-inset-bottom) + 110px);
   color: var(--text-color);
 }
 
@@ -2719,7 +2719,8 @@ h1 {
 .trip-fab {
   position: fixed;
   right: 16px;
-  bottom: calc(var(--app-bottom-nav-height) + 8px);
+  /* Clear the nav's raised centre button and the phone's home-indicator inset. */
+  bottom: calc(var(--app-bottom-nav-height) + env(safe-area-inset-bottom) + 24px);
   z-index: 15;
   display: inline-flex;
   align-items: center;
