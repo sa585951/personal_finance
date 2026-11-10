@@ -117,5 +117,8 @@ def test_rejoin_restores_same_identity_and_external_names_are_not_identity(comma
         member=trips.accept_invite(c,token)['member']['id']
         trips.leave_trip(c,data['trip'])
         assert trips.accept_invite(c,token)['member']['id']==member
-        assert trips.add_external_member(data['a'],data['trip'],'Same name')['id']!=trips.add_external_member(data['a'],data['trip'],'Same name')['id']
+        first=trips.add_external_member(data['a'],data['trip'],'Same name')['id']
+        assert first!=member  # an account-less member is never mistaken for a user's identity
+        with pytest.raises(ValueError):
+            trips.add_external_member(data['a'],data['trip'],'Same name')  # names are unique per trip
         s.commit()

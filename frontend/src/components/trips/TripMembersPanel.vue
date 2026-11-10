@@ -7,13 +7,32 @@
 
     <div class="member-list">
       <div v-for="member in members" :key="member.id" class="member-row">
+        <MemberAvatar :member="member" />
         <div>
           <span>{{ member.display_name }}</span>
           <small>
             {{ translateRole(member.role) }}
             <template v-if="member.id === currentMemberId"> · 你</template>
+            <template v-else-if="!member.user_id"> · 未綁定帳號</template>
           </small>
         </div>
+        <button
+          v-if="isOwner || member.id === currentMemberId"
+          class="member-edit"
+          type="button"
+          :aria-label="`修改 ${member.display_name} 的名稱`"
+          @click="$emit('rename-member', member)"
+        >
+          <Edit />
+        </button>
+        <button
+          v-if="isOwner && member.role !== 'owner' && member.user_id"
+          class="quiet-mini-button"
+          type="button"
+          @click="$emit('release-member', member)"
+        >
+          釋放
+        </button>
         <select
           v-if="isOwner && member.role !== 'owner'"
           class="member-role-select"
@@ -47,6 +66,12 @@
       <div v-if="latestInviteUrl" class="invite-copy-row">
         <input :value="latestInviteUrl" readonly />
         <button class="secondary-action" type="button" @click="$emit('copy-invite')">複製</button>
+      </div>
+      <div v-if="latestInviteUrl" class="invite-share">
+        <img v-if="qrSrc" class="invite-qr" :src="qrSrc" alt="邀請連結 QR Code" width="148" height="148" />
+        <a class="secondary-action line-share" :href="lineShareUrl" target="_blank" rel="noopener noreferrer">
+          用 LINE 分享
+        </a>
       </div>
       <button
         v-if="!activeInvite"
@@ -93,11 +118,12 @@
 </template>
 
 <script>
-import { Delete, Plus, User } from "@element-plus/icons-vue";
+import { Delete, Edit, Plus, User } from "@element-plus/icons-vue";
+import MemberAvatar from "@/components/trips/MemberAvatar.vue";
 
 export default {
   name: "TripMembersPanel",
-  components: { Delete, Plus, User },
+  components: { Delete, Edit, MemberAvatar, Plus, User },
   props: {
     members: { type: Array, default: () => [] },
     currentMemberId: { type: String, default: "" },
@@ -121,9 +147,35 @@ export default {
     "create-invite",
     "delete-member",
     "leave",
+    "release-member",
+    "rename-member",
     "update-new-member",
     "update-role",
   ],
+  data() {
+    return { qrSrc: "" };
+  },
+  computed: {
+    lineShareUrl() {
+      return `https://line.me/R/share?text=${encodeURIComponent(`一起記旅行帳：${this.latestInviteUrl}`)}`;
+    },
+  },
+  watch: {
+    latestInviteUrl: {
+      immediate: true,
+      async handler(url) {
+        this.qrSrc = "";
+        if (!url) return;
+        try {
+          const { toDataURL } = await import("qrcode");
+          const dataUrl = await toDataURL(url, { margin: 1, width: 296, errorCorrectionLevel: "M" });
+          if (url === this.latestInviteUrl) this.qrSrc = dataUrl;
+        } catch (error) {
+          this.qrSrc = "";
+        }
+      },
+    },
+  },
   methods: {
     translateRole(role) {
       const roleMap = {
@@ -251,6 +303,25 @@ export default {
   line-height: 1.45;
 }
 
+.invite-share {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.invite-qr {
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.line-share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .invite-status-row,
 .invite-copy-row {
   display: flex;
@@ -291,6 +362,7 @@ select {
 .secondary-action,
 .danger-action,
 .quiet-mini-button {
+  white-space: nowrap;
   min-height: 38px;
   padding: 0 12px;
   color: #ffffff;
@@ -305,7 +377,8 @@ select {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: #2563eb;
+  background: var(--primary-color);
+  color: var(--on-primary);
 }
 
 .danger-action {
@@ -358,5 +431,20 @@ select {
   .invite-copy-row .secondary-action {
     width: 100%;
   }
+}
+.member-edit {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  color: var(--light-text-color);
+  background: transparent;
+  border: 0;
+}
+
+.member-edit svg {
+  width: 16px;
+  height: 16px;
 }
 </style>

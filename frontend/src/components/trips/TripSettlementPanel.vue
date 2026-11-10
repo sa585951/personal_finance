@@ -1,23 +1,5 @@
 <template>
   <section class="trip-settlement-panel">
-    <div class="trip-closeout-panel" :class="closeoutStatus.tone">
-      <div class="closeout-header">
-        <span>旅行收尾檢查</span>
-        <strong :class="closeoutStatus.tone">{{ closeoutStatus.label }}</strong>
-      </div>
-      <div class="closeout-list">
-        <div
-          v-for="item in closeoutChecks"
-          :key="item.label"
-          class="closeout-item"
-          :class="item.tone"
-        >
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-        </div>
-      </div>
-    </div>
-
     <div class="section-title split-title-row">
       <div>
         <TrendCharts />
@@ -35,8 +17,10 @@
         class="settlement-row settlement-action-row"
       >
         <div class="settlement-route">
+          <MemberAvatar :member="memberById(suggestion.from_member_id, suggestion.from_display_name)" size="sm" />
           <strong>{{ suggestion.from_display_name }}</strong>
-          <span>→</span>
+          <span class="route-arrow" aria-hidden="true">→</span>
+          <MemberAvatar :member="memberById(suggestion.to_member_id, suggestion.to_display_name)" size="sm" />
           <strong>{{ suggestion.to_display_name }}</strong>
         </div>
         <div class="settlement-actions">
@@ -52,7 +36,7 @@
             type="button"
             @click="$emit('select-suggestion', suggestion)"
           >
-            依此記錄
+            {{ suggestion.to_member_id === currentMemberId ? "收到了" : "記錄還款" }}
           </button>
         </div>
       </div>
@@ -224,14 +208,14 @@
 </template>
 
 <script>
+import MemberAvatar from "@/components/trips/MemberAvatar.vue";
 import { TrendCharts } from "@element-plus/icons-vue";
 
 export default {
   name: "TripSettlementPanel",
-  components: { TrendCharts },
+  components: { MemberAvatar, TrendCharts },
   props: {
-    closeoutStatus: { type: Object, required: true },
-    closeoutChecks: { type: Array, default: () => [] },
+    members: { type: Array, default: () => [] },
     suggestions: { type: Array, default: () => [] },
     summary: { type: Array, default: () => [] },
     records: { type: Array, default: () => [] },
@@ -296,6 +280,9 @@ export default {
     },
   },
   methods: {
+    memberById(id, fallbackName) {
+      return this.members.find((member) => member.id === id) || { id, display_name: fallbackName };
+    },
     paidForPair(fromMemberId, toMemberId) {
       return this.records
         .filter((record) => record.from_member_id === fromMemberId && record.to_member_id === toMemberId)
@@ -389,120 +376,6 @@ export default {
 
 .settlement-action-amount small {
   color: var(--light-text-color);
-}
-
-.trip-closeout-panel {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 14px;
-  padding: 12px;
-  background: var(--secondary-color);
-  border: 1px solid var(--border-color);
-  border-left: 5px solid #94a3b8;
-  border-radius: 8px;
-}
-
-.trip-closeout-panel.success {
-  background: var(--income-soft);
-  border-color: var(--income-color);
-  border-left-color: var(--income-color);
-}
-
-.trip-closeout-panel.warning {
-  background: var(--warning-soft);
-  border-color: var(--warning-color);
-  border-left-color: #f59e0b;
-}
-
-.trip-closeout-panel.neutral {
-  background: var(--secondary-color);
-  border-color: var(--border-color);
-  border-left-color: #94a3b8;
-}
-
-.closeout-header,
-.closeout-item,
-.split-summary-row,
-.settlement-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.closeout-header span {
-  color: var(--text-color);
-  font-weight: 900;
-}
-
-.closeout-header strong,
-.closeout-item strong {
-  font-weight: 900;
-}
-
-.closeout-header strong {
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 0.82rem;
-}
-
-.closeout-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.closeout-item {
-  min-height: 40px;
-  padding: 8px 10px;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-left: 4px solid #94a3b8;
-  border-radius: 8px;
-}
-
-.closeout-item span {
-  color: var(--light-text-color);
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.closeout-item.success {
-  border-color: var(--income-color);
-  border-left-color: var(--income-color);
-}
-
-.closeout-item.warning {
-  background: var(--warning-soft);
-  border-color: var(--warning-color);
-  border-left-color: #f59e0b;
-}
-
-.closeout-header .success,
-.closeout-item.success strong {
-  color: var(--income-color);
-}
-
-.closeout-header .success {
-  background: var(--income-soft);
-}
-
-.closeout-header .warning,
-.closeout-item.warning strong {
-  color: var(--warning-color);
-}
-
-.closeout-header .warning {
-  background: var(--warning-soft);
-}
-
-.closeout-header .neutral,
-.closeout-item.neutral strong {
-  color: var(--light-text-color);
-}
-
-.closeout-header .neutral {
-  background: var(--border-color);
 }
 
 .section-title,
@@ -657,37 +530,31 @@ export default {
 
 .settlement-action-row,
 .settlement-row {
-  background: var(--primary-soft);
-  border-color: var(--brand-border);
+  background: transparent;
+  border-color: var(--border-color);
+}
+
+.settlement-action-row {
+  border-width: 0 0 1px;
+  border-radius: 0;
 }
 
 .settlement-route {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 6px 8px;
   min-width: 0;
 }
 
 .settlement-route strong {
-  color: var(--primary-color);
+  color: var(--text-color);
   font-size: 1rem;
 }
 
-.settlement-route strong:last-child {
-  text-align: right;
-}
-
-.settlement-route span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  color: var(--primary-color);
-  background: var(--primary-soft);
-  border-radius: 999px;
-  font-weight: 900;
+.settlement-route .route-arrow {
+  color: var(--light-text-color);
+  font-weight: 700;
 }
 
 .settlement-row.settled {
@@ -740,8 +607,8 @@ export default {
 }
 
 .confirm-settlement-button {
-  color: #ffffff;
-  background: #2563eb;
+  color: var(--on-primary);
+  background: var(--primary-color);
 }
 
 .quiet-mini-button {
@@ -751,10 +618,6 @@ export default {
 
 @media (max-width: 820px) {
   .settlement-form-fields {
-    grid-template-columns: 1fr;
-  }
-
-  .closeout-list {
     grid-template-columns: 1fr;
   }
 

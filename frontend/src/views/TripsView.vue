@@ -61,6 +61,8 @@
           </div>
         </section>
 
+        <TripResultBanner v-if="tripResult" :result="tripResult" @open-split="activeSection = 'split'" />
+
         <button
           v-for="alert in tripAlerts"
           :key="alert.key"
@@ -85,16 +87,11 @@
           </button>
         </nav>
 
-        <TripSummaryPanel
+        <TripBreakdown
           v-show="activeSection === 'transactions'"
-          :currency="selectedTrip.base_currency"
-          :my-share-amount="myTripShareAmount"
-          :expense-total="tripExpenseTotal"
-          :net-amount="myTripNetAmount"
-          :net-status="myTripNetStatus"
           :category-totals="tripTransactionSummary.category_totals"
-          :expanded="showTripSummary"
-          @toggle="showTripSummary = !showTripSummary"
+          :currency="selectedTrip.base_currency"
+          :days-elapsed="tripDaysElapsed(selectedTrip, today)"
         />
 
         <TripMembersPanel
@@ -112,6 +109,8 @@
           :member-message="memberMessage"
           :new-member="newMember"
           @update-role="updateMemberRole"
+          @rename-member="renameMember"
+          @release-member="releaseMember"
           @delete-member="deleteMember"
           @close-invite="closeInvite"
           @copy-invite="copyInviteLink"
@@ -187,8 +186,7 @@
 
         <TripSettlementPanel
           v-show="activeSection === 'split'"
-          :closeout-status="tripCloseoutStatus"
-          :closeout-checks="tripCloseoutChecks"
+          :members="selectedTrip.members"
           :suggestions="settlementSuggestions"
           :summary="splitSummary"
           :records="settlementRecords"
@@ -282,12 +280,14 @@ import TripExpensePanel from "@/components/trips/TripExpensePanel.vue";
 import TripManagementPanel from "@/components/trips/TripManagementPanel.vue";
 import TripMembersPanel from "@/components/trips/TripMembersPanel.vue";
 import TripSettlementPanel from "@/components/trips/TripSettlementPanel.vue";
-import TripSummaryPanel from "@/components/trips/TripSummaryPanel.vue";
+import TripBreakdown from "@/components/trips/TripBreakdown.vue";
+import TripResultBanner from "@/components/trips/TripResultBanner.vue";
 import TripSwitcherModal from "@/components/trips/TripSwitcherModal.vue";
 import TripTransactionsPanel from "@/components/trips/TripTransactionsPanel.vue";
 import { defaultAccountId, rememberLastAccount } from "@/utils/lastAccount";
 import { localDateKey } from "@/utils/money";
-import { tripCover, tripTimeLabel } from "@/constants/tripCovers";
+import { tripCover, tripDaysElapsed, tripTimeLabel } from "@/constants/tripCovers";
+import { formatAmount } from "@/utils/money";
 import CoverPicker from "@/components/trips/CoverPicker.vue";
 import {
   createCursorPager,
@@ -315,7 +315,8 @@ export default {
     TripManagementPanel,
     TripMembersPanel,
     TripSettlementPanel,
-    TripSummaryPanel,
+    TripBreakdown,
+    TripResultBanner,
     TripSwitcherModal,
     TripTransactionsPanel,
     User,
@@ -382,7 +383,6 @@ export default {
       selectedTransactionDate: "all",
       showExpenseAdvanced: false,
       showSplitDetails: false,
-      showTripSummary: false,
       showSplitMemberOptions: false,
       newMember: {
         display_name: "",
@@ -461,35 +461,40 @@ export default {
         (transaction) => transaction.date === this.selectedTransactionDate
       );
     },
-    tripCloseoutStatus() {
-      if (this.tripTransactionSummary.total_count === 0) {
-        return { label: "尚無支出", tone: "neutral" };
+    tripResult() {
+      // Shown only when there is something to settle between at least two people.
+      const me = this.selectedTrip?.current_member_id;
+      if (!this.splitDetailsLoaded) return null;
+      if (!me || (this.selectedTrip.members || []).length < 2) return null;
+      if (!(this.tripTransactionSummary.expense_count > 0)) return null;
+      const money = (amount, currency) => `${currency} ${formatAmount(amount, currency)}`;
+      const detail = `你的成本 ${money(this.myTripShareAmount, this.selectedTrip.base_currency)} · 整團 ${money(this.tripExpenseTotal, this.selectedTrip.base_currency)}`;
+      const suggestions = this.settlementSuggestions;
+      const toMe = suggestions.filter((item) => item.to_member_id === me);
+      const fromMe = suggestions.filter((item) => item.from_member_id === me);
+      const sum = (items) => items.reduce((total, item) => total + Number(item.amount || 0), 0);
+      if (toMe.length) {
+        const currency = toMe[0].currency;
+        return {
+          tone: "owed", detail,
+          headline: toMe.length === 1
+            ? `${toMe[0].from_display_name} 要給你 ${money(toMe[0].amount, currency)}`
+            : `${toMe.length} 位旅伴要給你共 ${money(sum(toMe), currency)}`,
+        };
       }
-      if (this.settlementSuggestions.length > 0) {
-        return { label: "待結算", tone: "warning" };
+      if (fromMe.length) {
+        const currency = fromMe[0].currency;
+        return {
+          tone: "owing", detail,
+          headline: fromMe.length === 1
+            ? `你要給 ${fromMe[0].to_display_name} ${money(fromMe[0].amount, currency)}`
+            : `你要給 ${fromMe.length} 位旅伴共 ${money(sum(fromMe), currency)}`,
+        };
       }
-      return { label: "已平衡", tone: "success" };
-    },
-    tripCloseoutChecks() {
-      return [
-        {
-          label: "旅行支出",
-          value: this.tripTransactionSummary.total_count > 0
-            ? `${this.tripTransactionSummary.total_count} 筆`
-            : "尚未記錄",
-          tone: this.tripTransactionSummary.total_count > 0 ? "success" : "neutral",
-        },
-        {
-          label: "待收待付",
-          value: this.settlementSuggestions.length > 0 ? `${this.settlementSuggestions.length} 筆待處理` : "已平衡",
-          tone: this.settlementSuggestions.length > 0 ? "warning" : "success",
-        },
-        {
-          label: "已確認付款",
-          value: this.settlementRecords.length > 0 ? `${this.settlementRecords.length} 筆` : "尚無",
-          tone: this.settlementRecords.length > 0 ? "success" : "neutral",
-        },
-      ];
+      return {
+        tone: "even", detail,
+        headline: suggestions.length ? "你不用結算" : "已平衡，不用結算",
+      };
     },
     tripAlerts() {
       // Only states that need action; nothing is shown when the trip is fine or empty.
@@ -497,9 +502,6 @@ export default {
       const missing = this.tripTransactionSummary.missing_split_count || 0;
       if (missing > 0) {
         alerts.push({ key: "split", text: `${missing} 筆支出還沒分攤`, section: "transactions" });
-      }
-      if ((this.tripTransactionSummary.expense_count || 0) > 0 && this.settlementSuggestions.length > 0) {
-        alerts.push({ key: "settle", text: `${this.settlementSuggestions.length} 筆待結算`, section: "split" });
       }
       return alerts;
     },
@@ -809,6 +811,8 @@ export default {
         this.activeSection = this.canCreateTripTransaction && !(this.tripTransactionSummary.total_count > 0)
           ? "expense" : "transactions";
         await this.ensureActiveSectionData(this.activeSection);
+        // The overview leaves suggestions out for speed; the banner loads them without blocking.
+        if (!this.splitDetailsLoaded && this.selectedTrip.members.length > 1) this.fetchSplitState();
       } catch (error) {
         console.error("無法載入旅行明細", error);
         this.selectedTrip = null;
@@ -989,12 +993,54 @@ export default {
         );
         this.memberMessage = response.data.message;
         this.selectedTrip.members = this.selectedTrip.members.map((tripMember) => (
-          tripMember.id === member.id ? response.data.data : tripMember
+          tripMember.id === member.id ? { ...tripMember, ...response.data.data } : tripMember
         ));
         this.normalizeActiveSection();
       } catch (error) {
         this.$swal.fire("更新失敗", error.response?.data?.message || "權限更新失敗", "error");
         await this.selectTrip(this.selectedTrip.id);
+      }
+    },
+    async releaseMember(member) {
+      const confirmed = await this.$swal.fire({
+        title: `釋放「${member.display_name}」？`,
+        text: "對方會失去這趟旅行的存取權，帳務紀錄仍留在這位旅伴上，之後可以讓別人認領。",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: "釋放",
+        cancelButtonText: "取消",
+      });
+      if (!confirmed.isConfirmed) return;
+      try {
+        await apiClient.post(`/api/trips/${this.selectedTrip.id}/members/${member.id}/release`);
+        await this.selectTrip(this.selectedTrip.id);
+      } catch (error) {
+        this.$swal.fire("無法釋放", error.response?.data?.message || "請稍後再試。", "error");
+      }
+    },
+    async renameMember(member) {
+      if (!this.selectedTrip) return;
+      const result = await this.$swal.fire({
+        title: "修改旅伴名稱",
+        input: "text",
+        inputValue: member.display_name,
+        inputAttributes: { maxlength: "40", "aria-label": "旅伴名稱" },
+        showCancelButton: true,
+        confirmButtonText: "儲存",
+        cancelButtonText: "取消",
+        inputValidator: (value) => (String(value || "").trim() ? undefined : "名稱不可為空"),
+      });
+      if (!result.isConfirmed || result.value.trim() === member.display_name) return;
+      try {
+        const response = await apiClient.patch(
+          `/api/trips/${this.selectedTrip.id}/members/${member.id}`,
+          { display_name: result.value }
+        );
+        this.memberMessage = response.data.message;
+        // Names are copied into settlement rows and expense lists, so reload them.
+        await this.selectTrip(this.selectedTrip.id);
+      } catch (error) {
+        this.$swal.fire("修改失敗", error.response?.data?.message || "名稱更新失敗", "error");
       }
     },
     async leaveSelectedTrip() {
@@ -1321,8 +1367,10 @@ export default {
     },
     async fetchSplitState() {
       if (!this.selectedTrip) return;
+      const tripId = this.selectedTrip.id;
       try {
-        const response = await apiClient.get(`/api/trips/${this.selectedTrip.id}/split-state`);
+        const response = await apiClient.get(`/api/trips/${tripId}/split-state`);
+        if (this.selectedTrip?.id !== tripId) return;
         const splitState = response.data.data || {};
         this.splitSummary = splitState.split_summary || [];
         this.settlementSuggestions = splitState.settlement_suggestions || [];
@@ -1337,6 +1385,8 @@ export default {
       this.splitDetailsLoaded = false;
       this.settlementSuggestions = [];
       this.settlementRecords = [];
+      // The result banner needs fresh suggestions; load them in the background.
+      this.fetchSplitState();
     },
     async fetchSettlementSuggestions() {
       if (!this.selectedTrip) return;
@@ -1382,6 +1432,7 @@ export default {
       this.initializeCustomSplitAllocations();
     },
     tripCover,
+    tripDaysElapsed,
     tripTimeLabel,
     async updateCoverTheme(theme) {
       if (!this.selectedTrip || this.updatingTripSettings || theme === this.selectedTrip.cover_theme) return;
@@ -2259,7 +2310,8 @@ h1 {
 }
 
 .secondary-action {
-  background: #2563eb;
+  background: var(--primary-color);
+  color: var(--on-primary);
 }
 
 .quiet-action {
