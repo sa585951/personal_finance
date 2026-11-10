@@ -29,9 +29,9 @@ def test_public_optional_modes_fail_closed(key, value):
 
 def test_synthetic_mode_never_enables_cloud():
     policy = load_optional_access({"NOMICA_ENV": "testing", "NOMICA_AI_MODE": "synthetic",
-        "NOMICA_LINE_MODE": "synthetic", "FRONTEND_BASE_URL": "http://localhost:5173",
+        "NOMICA_LINE_MODE": "disabled", "FRONTEND_BASE_URL": "http://localhost:5173",
         "VITE_BACKEND_BASE_URL": "http://localhost:5000"})
-    assert policy.ai_parse and policy.line_interactions and not policy.cloud_ai
+    assert policy.ai_parse and not policy.line_oral_pilot and not policy.cloud_ai
 
 
 def test_shared_provider_adapter_never_dispatches_even_with_a_key(monkeypatch):

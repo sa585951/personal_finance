@@ -476,7 +476,7 @@ def _load_web_app(monkeypatch):
     # Explicit test-only policy substitute exercises existing parser/LINE HTTP
     # contracts without opening the production feature or contacting a provider.
     from models.optional_access import OptionalAccess
-    web_app.OPTIONAL_ACCESS = OptionalAccess(ai_parse=True, line_interactions=True)
+    web_app.OPTIONAL_ACCESS = OptionalAccess(ai_parse=True)
     web_app.auth_session_manager = FakeAuthSessionManager()
     web_app.db_session = FakeDBSession()
     # HTTP boundary tests use an isolated in-memory state store. PostgreSQL

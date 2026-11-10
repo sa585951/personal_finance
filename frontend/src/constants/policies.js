@@ -27,7 +27,7 @@ export const privacySections = [
     title: "第三方服務",
     items: [
       "LINE：登入與 LINE 記帳訊息。",
-      "Google Gemini（付費方案）：你在 LINE 回覆「同意 AI」後，規則無法處理的記帳文字會送給 Gemini 解析。依 Google 付費服務條款，內容不用於改進 Google 產品，但可能短期保留供安全監控。你可隨時回覆「撤回 AI」。",
+      "Google Gemini（付費方案）：你在 LINE 回覆「同意 AI」或在網頁記帳頁同意後，規則無法處理的記帳文字會送給 Gemini 解析（LINE 與網頁共用同一份同意）。依 Google 付費服務條款，內容不用於改進 Google 產品，但可能短期保留供安全監控。你可隨時回覆「撤回 AI」，或到「我的 → 帳號設定」撤回。",
       "主機與資料庫：Render（後端）、Vercel（網頁）、Supabase（資料庫）。",
     ],
   },
@@ -46,7 +46,7 @@ export const privacySections = [
     title: "你的權利",
     items: [
       "在「我的 → 帳號與隱私」下載你的資料、登出所有裝置或刪除帳號。",
-      "在 LINE 回覆「撤回 AI」停止使用 AI 解析。",
+      "在 LINE 回覆「撤回 AI」，或在「帳號設定」撤回，即可停止使用 AI 解析。",
       `其他問題請透過 ${CONTACT} 聯繫。`,
     ],
   },

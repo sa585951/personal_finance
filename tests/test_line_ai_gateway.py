@@ -13,7 +13,7 @@ from models.line_ai_gateway import (
     set_line_ai_consent,
 )
 from models.schema import line_ai_attempts, line_ai_control
-from tests.test_line_durable_confirmation import command_db, line_db  # noqa: F401
+from tests.line_fixtures import command_db, line_db  # noqa: F401
 
 
 class Provider:
@@ -101,7 +101,8 @@ def test_parallel_reservation_and_unknown_result_cannot_repeat(gate):
             assert provider.started.wait(5)
             with pytest.raises(AIRequestBlocked, match="費用上限"):
                 gateway.generate(data["b"], "other", "private text")
-            with pytest.raises(AIRequestBlocked, match="已受理"):
+            # The same person cannot start a second call while one is in flight.
+            with pytest.raises(AIRequestBlocked, match="還在處理中"):
                 gateway.generate(data["a"], "first", "private text")
         finally:
             provider.release.set()
@@ -207,7 +208,7 @@ def test_withdrawal_after_reservation_blocks_token_count(gate, monkeypatch):
 
 
 @pytest.mark.parametrize("env,expected", [
-    ({}, 30), ({"NOMICA_LINE_AI_DAILY_PER_USER": ""}, 30), ({"NOMICA_LINE_AI_DAILY_PER_USER": "5"}, 5),
+    ({}, 20), ({"NOMICA_LINE_AI_DAILY_PER_USER": ""}, 20), ({"NOMICA_LINE_AI_DAILY_PER_USER": "5"}, 5),
     ({"NOMICA_LINE_AI_DAILY_PER_USER": "0"}, None), ({"NOMICA_LINE_AI_DAILY_PER_USER": "-1"}, None),
     ({"NOMICA_LINE_AI_DAILY_PER_USER": "typo"}, None),
 ])
@@ -270,3 +271,52 @@ def test_alert_failure_does_not_block_the_request(line_db):
     gateway.generate(data["a"], "first", "private text")
     with engine.connect() as conn:
         assert conn.execute(select(line_ai_attempts.c.status)).scalar_one() == "completed"
+
+
+def test_status_reports_consent_and_remaining_requests(gate):
+    engine, data, provider, gateway = gate
+    gateway.daily_limit = 3
+    before = gateway.status(data["a"])
+    assert before == {"enabled": True, "consented": False, "remaining": 3, "daily_limit": 3}
+    consent(gateway, data["a"])
+    gateway.generate(data["a"], "status-1", "private text")
+    after = gateway.status(data["a"])
+    assert after["consented"] is True and after["remaining"] == 2
+
+
+def test_blocked_requests_carry_a_machine_readable_code(gate):
+    engine, data, provider, gateway = gate
+    with pytest.raises(AIRequestBlocked) as blocked:
+        gateway.generate(data["a"], "no-consent", "private text")
+    assert blocked.value.code == "consent_required"
+    consent(gateway, data["a"])
+    gateway.daily_limit = 1
+    gateway.generate(data["a"], "one", "private text")
+    with pytest.raises(AIRequestBlocked) as limited:
+        gateway.generate(data["a"], "two", "private text")
+    assert limited.value.code in {"daily_limit", "too_fast"}
+
+
+def test_global_in_flight_cap_refuses_without_counting(gate, monkeypatch):
+    engine, data, provider, gateway = gate
+    from models import line_ai_gateway as module
+    gateway.in_flight = module._InFlight(1)
+    gateway.budget = Decimal("1")
+    for role in ("a", "b"):
+        consent(gateway, data[role])
+    provider.release.clear()
+    with ThreadPoolExecutor() as pool:
+        first = pool.submit(gateway.generate, data["a"], "first", "private text")
+        try:
+            assert provider.started.wait(5)
+            with pytest.raises(AIRequestBlocked) as busy:
+                gateway.generate(data["b"], "second", "private text")
+            assert busy.value.code == "busy"
+        finally:
+            provider.release.set()
+        first.result()
+    with engine.connect() as conn:
+        ids = [row.event_id for row in conn.execute(select(line_ai_attempts))]
+    assert ids == ["first"]  # the refused call left no attempt behind
+    # The slot is free again afterwards.
+    gateway.generate(data["b"], "third", "private text")

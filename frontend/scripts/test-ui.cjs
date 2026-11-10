@@ -268,6 +268,7 @@ async function testDisabledAiKeepsManualEntry(browser) {
     if (process.env.ASSET_RECOVERY_ONLY === 'true') return;
     await require('./test-adjustment-recovery.cjs')(browser, base, installMocks);
     await require('./test-transaction-recovery.cjs')(browser, base, installMocks);
+    await require('./test-ai-sentence.cjs')(browser, base, installMocks);
     await testCurrencyDecimalInputs(browser);
     await testReportCurrencyRefusal(browser);
     await testUntrustedDialogs(browser);

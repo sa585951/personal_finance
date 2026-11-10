@@ -312,7 +312,7 @@ class LineOralPilot:
         payload["account_id"] = str(account["id"])
         self._save(row, data)
         label = f"{account['name']}（{ACCOUNT_TYPE_LABELS[account['type']]}）"
-        return self.drafts.preview(row["id"], payload, label, oral=True)
+        return self.drafts.preview(row["id"], payload, label)
 
     def _pending(self, owner):
         table = ai_parse_events_table
@@ -349,7 +349,7 @@ class LineOralPilot:
     def _postback(self, owner, data):
         action, _, args = data.partition(":")
         if action in {"nomica.oral.confirm", "nomica.oral.cancel"}:
-            return self.drafts.resolve(owner, args, action.rsplit(".", 1)[-1], oral=True)
+            return self.drafts.resolve(owner, args, action.rsplit(".", 1)[-1])
         if action not in {"nomica.oral.account", "nomica.oral.more"}:
             return None
         draft_id, _, account_id = args.partition(":")

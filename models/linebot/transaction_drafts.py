@@ -21,28 +21,8 @@ class LineTransactionDrafts:
         self.service = TransactionService(BudgetManager(db_session), self.assets)
         self.events = AIParseEventManager(db_session)
 
-    def prepare(self, user_id, parsed):
-        legacy = parsed['legacy']
-        if parsed.get('errors') or parsed.get('missing_fields'):
-            return '解析資料不完整，尚未建立收支。請補齊資料後重新輸入。'
-        asset = self.service._find_asset(user_id, legacy.get('target_asset'), legacy, parsed.get('raw_text', ''))
-        if legacy.get('target_asset') and not asset:
-            return '找不到指定帳戶，尚未建立收支。請確認帳戶名稱後重新輸入。'
-        payload = dict(
-            date=self.service._transaction_date(legacy), item=legacy.get('category') or '記帳',
-            amount=money(legacy.get('amount')), type=legacy['type'],
-            budget_category=legacy.get('budget_category'), description=legacy.get('description') or '',
-            account_id=str(asset['id']) if asset else None,
-            original_currency=legacy.get('currency') or (asset['currency'] if asset else 'TWD'),
-        )
-        # Freeze date/account/currency in the DB preview; a later worker must not
-        # reparse or resolve a different account when the user confirms.
-        record = self.events.record_from_parse_result(user_id, 'line_bot', {**parsed, 'line_draft': payload})
-        account_label = asset['bank_name'] if asset else '不連動帳戶'
-        return self.preview(record['id'], payload, account_label)
-
-    def preview(self, draft_id, payload, account_label, *, oral=False):
-        prefix = 'nomica.oral.' if oral else 'nomica.'
+    def preview(self, draft_id, payload, account_label):
+        prefix = 'nomica.oral.'
         return FlexSendMessage(alt_text='確認收支：尚未記帳', contents={
             'type': 'bubble', 'body': {'type': 'box', 'layout': 'vertical', 'contents': [
                 {'type': 'text', 'text': '確認收支（尚未記帳）', 'weight': 'bold', 'wrap': True},
@@ -54,7 +34,7 @@ class LineTransactionDrafts:
             ]},
         })
 
-    def resolve(self, user_id, draft_id, action, *, oral=False):
+    def resolve(self, user_id, draft_id, action):
         try:
             owner, key = UUID(str(user_id)), UUID(str(draft_id))
         except (ValueError, TypeError):
@@ -63,7 +43,7 @@ class LineTransactionDrafts:
         row = self.db_session.execute(select(table).where(
             table.c.id == key, table.c.user_id == owner, table.c.source == 'line_bot',
         ).with_for_update()).mappings().first()
-        if row is None or bool((row['parsed_payload'] or {}).get('line_oral')) != oral:
+        if row is None or not (row['parsed_payload'] or {}).get('line_oral'):
             return '找不到可操作的收支草稿，請重新輸入。'
         if row['status'] == 'confirmed':
             return '這筆收支先前已建立，沒有再次記帳或扣款。'
@@ -80,34 +60,30 @@ class LineTransactionDrafts:
             return '收支草稿已取消或逾期，沒有新增記帳。'
         if action != 'confirm':
             return '請使用草稿上的確認或取消按鈕。'
-        if oral:
-            # Recheck the frozen account under lock before a pilot can write money.
-            account = accounts_table
-            eligible = self.db_session.execute(select(account.c.id).where(
-                account.c.id == payload.get('account_id'), account.c.user_id == owner,
-                account.c.deleted_at.is_(None), account.c.is_active.is_(True),
-                account.c.track_balance.is_(True), account.c.currency == payload['original_currency'],
-            ).with_for_update()).first()
-            if not eligible or payload.get('amount') is None or payload.get('date') is None:
-                return '草稿資料不完整或帳戶已無法使用，請重新輸入。'
+        # Recheck the frozen account under lock before a pilot can write money.
+        account = accounts_table
+        eligible = self.db_session.execute(select(account.c.id).where(
+            account.c.id == payload.get('account_id'), account.c.user_id == owner,
+            account.c.deleted_at.is_(None), account.c.is_active.is_(True),
+            account.c.track_balance.is_(True), account.c.currency == payload['original_currency'],
+        ).with_for_update()).first()
+        if not eligible or payload.get('amount') is None or payload.get('date') is None:
+            return '草稿資料不完整或帳戶已無法使用，請重新輸入。'
         # Row lock + stable transaction key protect even distinct postback event
         # IDs clicking the same preview concurrently across multiple workers.
         transaction = {**payload, 'client_request_id': str(key)}
-        if oral:
-            try:
-                with self.db_session.begin_nested():
-                    category_id = self.service.budget_manager._get_category_id(
-                        owner, payload['budget_category'], payload['type'],
-                    )
-                    if str(category_id) != row['parsed_payload'].get('category_id'):
-                        return '草稿分類已變更，請重新輸入。'
-                    result = self.service.create_transaction(user_id, transaction)
-                    if not result['success']:
-                        raise ValueError(result['message'])
-            except ValueError:
-                return '目前無法入帳，請核對帳戶餘額與草稿資料後再試。'
-        else:
-            result = self.service.create_transaction(user_id, transaction)
+        try:
+            with self.db_session.begin_nested():
+                category_id = self.service.budget_manager._get_category_id(
+                    owner, payload['budget_category'], payload['type'],
+                )
+                if str(category_id) != row['parsed_payload'].get('category_id'):
+                    return '草稿分類已變更，請重新輸入。'
+                result = self.service.create_transaction(user_id, transaction)
+                if not result['success']:
+                    raise ValueError(result['message'])
+        except ValueError:
+            return '目前無法入帳，請核對帳戶餘額與草稿資料後再試。'
         if not result['success']:
             raise ValueError(result['message'])
         self.events.confirm_event(user_id, key, payload['type'], result['transaction_id'])

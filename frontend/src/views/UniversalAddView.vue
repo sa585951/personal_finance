@@ -39,6 +39,12 @@
         </div>
       </form>
       <p v-if="parseNote" class="notice" :class="{ error: parseNoteError }" role="status">{{ parseNote }}</p>
+      <p v-if="aiOffer && aiStatus" class="ai-offer">
+        <button type="button" class="text-button" :disabled="aiBusy" @click="parseWithAI">
+          {{ aiBusy ? "AI 辨識中…" : "規則認不出來？用 AI 試試" }}
+        </button>
+        <small>今天還剩 {{ aiStatus.remaining }} 次</small>
+      </p>
       <p v-if="parseFailure" class="notice error" role="alert">{{ parseFailure }}</p>
 
       <div class="type-switch" role="radiogroup" aria-label="收支類型">
@@ -124,6 +130,9 @@ export default {
       draft: null,
       sentence: "",
       parsing: false,
+      aiStatus: null,
+      aiOffer: false,
+      aiBusy: false,
       parseNote: "",
       parseNoteError: false,
       parseFailure: "",
@@ -134,6 +143,7 @@ export default {
   },
   mounted() {
     this.ensureTransactionCommand().catch(() => {});
+    this.loadAiStatus();
   },
   computed: {
     draftForForm() {
@@ -225,6 +235,27 @@ export default {
       }
       return path === "/add" ? "" : path;
     },
+    async loadAiStatus() {
+      try {
+        const response = await apiClient.get("/api/ai/status");
+        const data = response.data?.data;
+        this.aiStatus = data?.available ? data : null;
+      } catch {
+        this.aiStatus = null; // AI is optional: the page works without it.
+      }
+    },
+    // Shows a recognised sentence as a draft. Returns true when a transaction was found.
+    applyParseResponse(response, text) {
+      const result = response.data?.data?.parse_result || {};
+      const transaction = result.transaction;
+      if (!transaction) return false;
+      this.applyDraft({ ...transaction, raw_text: text, parse_event_id: response.data?.data?.parse_event_id || "" });
+      const missing = (result.missing_fields || []).includes("amount") || !transaction.amount;
+      this.parseNote = missing ? "已填入，請補上金額後確認。" : "已填入下方欄位，確認後按記下。";
+      this.parseNoteError = missing;
+      this.sentence = "";
+      return true;
+    },
     async parseSentence() {
       const text = this.sentence.trim();
       if (this.parsing) return;
@@ -237,26 +268,62 @@ export default {
       this.parseNote = "";
       this.parseNoteError = false;
       this.parseFailure = "";
+      this.aiOffer = false;
       try {
         const response = await apiClient.post("/api/parse/local", { text });
-        const result = response.data?.data?.parse_result || {};
-        const transaction = result.transaction;
-        if (!transaction) {
+        if (!this.applyParseResponse(response, text)) {
           this.applyDraft({ type: this.activeType, title: text.slice(0, 40) });
           this.parseNote = "沒有認出這句話，已放進項目，請補上金額。";
           this.parseNoteError = true;
-          return;
+          this.aiOffer = Boolean(this.aiStatus && this.aiStatus.remaining > 0);
         }
-        this.applyDraft({ ...transaction, raw_text: text, parse_event_id: response.data?.data?.parse_event_id || "" });
-        const missing = (result.missing_fields || []).includes("amount") || !transaction.amount;
-        this.parseNote = missing ? "已填入，請補上金額後確認。" : "已填入下方欄位，確認後按記下。";
-        this.parseNoteError = missing;
-        this.sentence = "";
       } catch (error) {
         this.parseNote = error.response?.data?.message || "目前無法辨識，請直接填寫下方欄位。";
         this.parseNoteError = true;
       } finally {
         this.parsing = false;
+      }
+    },
+    async confirmAiConsent() {
+      const answer = await this.$swal.fire({
+        title: "使用 AI 解析這句話？",
+        text: this.aiStatus.notice,
+        icon: "info",
+        showCancelButton: true,
+        confirmButtonText: "同意並使用",
+        cancelButtonText: "不用了",
+      });
+      if (!answer.isConfirmed) return false;
+      await apiClient.post("/api/ai/consent", { consented: true });
+      this.aiStatus = { ...this.aiStatus, consented: true };
+      return true;
+    },
+    async parseWithAI() {
+      const text = this.sentence.trim();
+      if (this.aiBusy || !text || !this.aiStatus) return;
+      this.aiBusy = true;
+      this.parseFailure = "";
+      try {
+        if (!this.aiStatus.consented && !(await this.confirmAiConsent())) return;
+        // A fresh id per attempt: the server counts and de-duplicates by it.
+        const response = await apiClient.post("/api/parse/ai", {
+          text, client_request_id: this.createRequestId(),
+        });
+        this.aiOffer = false;
+        if (!this.applyParseResponse(response, text)) {
+          this.parseNote = "AI 也看不懂這句話，請直接填寫下方欄位。";
+          this.parseNoteError = true;
+        }
+      } catch (error) {
+        const data = error.response?.data;
+        if (data?.code === "AI_CONSENT_REQUIRED") this.aiStatus = { ...this.aiStatus, consented: false };
+        if (data?.code === "AI_DAILY_LIMIT") this.aiStatus = { ...this.aiStatus, remaining: 0 };
+        this.parseNote = data?.message || "AI 暫時無法使用，請直接填寫下方欄位。";
+        this.parseNoteError = true;
+        if (!["AI_BUSY", "AI_TOO_FAST", "AI_CONSENT_REQUIRED"].includes(data?.code)) this.aiOffer = false;
+      } finally {
+        this.aiBusy = false;
+        this.loadAiStatus();
       }
     },
     applyDraft(draft) {
@@ -422,6 +489,17 @@ export default {
 
 .notice.error {
   color: var(--expense-color);
+}
+
+.ai-offer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.ai-offer small {
+  color: var(--light-text-color);
 }
 
 .type-switch {

@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from uuid import UUID
 from urllib.parse import urlencode, unquote, urlsplit
+import re
 import time
 
 from flask import Flask, jsonify, request, redirect, g
@@ -258,7 +259,7 @@ def start_request_timer():
     if SECURITY_SETTINGS.environment == "production" and app.debug:
         return jsonify({"success": False, "message": "服務設定錯誤"}), 503
     local_mode = (SECURITY_SETTINGS.environment != "production"
-                  and (OPTIONAL_ACCESS.ai_parse or OPTIONAL_ACCESS.line_interactions))
+                  and OPTIONAL_ACCESS.ai_parse)
     if (DEV_AUTH_BYPASS or local_mode) and (request.remote_addr not in {"127.0.0.1", "::1"}
                            or urlsplit(request.host_url).hostname not in {"localhost", "127.0.0.1", "::1"}):
         return jsonify({"success": False, "message": "開發與合成測試模式僅限本機"}), 403
@@ -466,7 +467,7 @@ def record_product_event(current_user_id):
 def get_capabilities(current_user_id):
     response = jsonify({"success": True, "data": {
         "ai_parse": OPTIONAL_ACCESS.ai_parse,
-        "line_interactions": OPTIONAL_ACCESS.line_interactions or OPTIONAL_ACCESS.line_oral_pilot,
+        "line_interactions": OPTIONAL_ACCESS.line_oral_pilot,
     }})
     response.headers["Cache-Control"] = "no-store"
     return response
@@ -537,6 +538,92 @@ def parse_local_input(current_user_id):
                                linebot_manager.message_parser.ai_parse_service.parse_local)
     except Exception as error:
         return _api_operation_error(error, "parse_local_input")
+
+def _web_ai_gateway():
+    return getattr(linebot_manager, "line_ai_gateway", None)
+
+
+@app.route("/api/ai/status", methods=["GET"])
+@token_required
+def get_web_ai_status(current_user_id):
+    """Whether Web AI is on, if this person agreed, and how many requests remain today."""
+    from models.line_ai_gateway import WEB_CONSENT_NOTICE
+    gateway = _web_ai_gateway()
+    if not gateway:
+        data = {"available": False}
+    else:
+        status = gateway.status(current_user_id)
+        data = {"available": status["enabled"], "consented": status["consented"],
+                "remaining": status["remaining"], "daily_limit": status["daily_limit"],
+                "notice": WEB_CONSENT_NOTICE}
+    response = jsonify({"success": True, "data": data})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/api/ai/consent", methods=["POST"])
+@token_required
+def set_web_ai_consent(current_user_id):
+    """One consent shared with LINE: agreeing or withdrawing here applies to both."""
+    from models.line_ai_gateway import set_line_ai_consent
+    if not _web_ai_gateway():
+        return jsonify({"success": False, "code": "AI_DISABLED", "message": "AI 解析目前暫停。"}), 503
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict) or not isinstance(body.get("consented"), bool):
+        return jsonify({"success": False, "message": "consented 必須為 true 或 false"}), 400
+    try:
+        set_line_ai_consent(db_session, UUID(str(current_user_id)), body["consented"])
+        db_session.commit()
+        return jsonify({"success": True, "data": {"consented": body["consented"]}}), 200
+    except Exception as error:
+        return _api_operation_error(error, "set_web_ai_consent")
+
+
+@app.route("/api/parse/ai", methods=["POST"])
+@token_required
+def parse_ai_sentence(current_user_id):
+    """Web one-sentence bookkeeping: rules first, Gemini only for what rules cannot read."""
+    from models.line_ai_gateway import AIRequestBlocked
+    from models.linebot.oral_pilot import BOOKKEEPING_TEXT, SENSITIVE_TEXT
+    from unicodedata import normalize
+    gateway = _web_ai_gateway()
+    if not gateway:
+        return jsonify({"success": False, "code": "AI_DISABLED", "message": "AI 解析目前暫停，請直接填寫欄位。"}), 503
+    text, error = _read_parse_text()
+    if error:
+        return error
+    body = request.get_json(silent=True) or {}
+    request_id = body.get("client_request_id")
+    try:
+        request_id = str(UUID(str(request_id)))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "缺少有效的 client_request_id"}), 400
+    if len(text) > 200:
+        return jsonify({"success": False, "code": "AI_TEXT_TOO_LONG",
+                        "message": "AI 解析一次最多 200 字，請縮短後再試。"}), 400
+
+    owner = str(current_user_id)
+
+    def generate(prompt):
+        normalized = normalize("NFKC", text)
+        if SENSITIVE_TEXT.search(normalized):
+            raise AIRequestBlocked("請移除卡號、密碼或驗證資訊，再輸入記帳文字。", "sensitive")
+        if not (BOOKKEEPING_TEXT.search(normalized) and re.search(r"[一-鿿a-zA-Z]", normalized)):
+            raise AIRequestBlocked("請輸入一筆收支，例如「昨天午餐 120」。", "not_bookkeeping")
+        return gateway.generate(owner, f"web:{request_id}", prompt)
+
+    service = linebot_manager.message_parser.ai_parse_service
+    try:
+        return _parse_response(current_user_id, text, lambda value: service.parse(value, generate=generate))
+    except AIRequestBlocked as blocked:
+        db_session.rollback()
+        status = 409 if blocked.code == "consent_required" else 429 if blocked.code in {"daily_limit", "too_fast", "busy", "budget", "paused"} else 422
+        from models.line_ai_gateway import WEB_CONSENT_NOTICE
+        message = WEB_CONSENT_NOTICE if blocked.code == "consent_required" else str(blocked)
+        return jsonify({"success": False, "code": f"AI_{blocked.code.upper()}", "message": message}), status
+    except Exception as error:
+        return _api_operation_error(error, "parse_ai_sentence")
+
 
 @app.route("/api/ai/parse-events", methods=["GET"])
 @token_required
@@ -1914,14 +2001,13 @@ def line_webhook():
         app.logger.error("LINE webhook parsing failed")
         return 'Error parsing request', 400
 
-    if not (OPTIONAL_ACCESS.line_oral_pilot or OPTIONAL_ACCESS.line_interactions):
+    if not OPTIONAL_ACCESS.line_oral_pilot:
         return 'LINE interaction is paused', 200
 
-    handler = (linebot_manager.process_oral_event if OPTIONAL_ACCESS.line_oral_pilot
-               else linebot_manager.process_event)
+    handler = linebot_manager.process_oral_event
     for event in events:
         # Only authenticated one-to-one deliveries may enter the bookkeeping flow.
-        if OPTIONAL_ACCESS.line_oral_pilot and not (
+        if not (
             isinstance(getattr(event, 'source', None), UserSource)
             and event.source.user_id and event.mode == "active" and event.reply_token
         ):

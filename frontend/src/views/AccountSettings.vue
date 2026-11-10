@@ -26,6 +26,19 @@
       </div>
     </section>
 
+    <section v-if="aiStatus" class="account-card" aria-labelledby="ai-parse">
+      <h2 id="ai-parse">AI 解析</h2>
+      <p class="muted">
+        {{ aiStatus.consented
+          ? "已同意：規則看不懂的記帳文字會傳給 Google Gemini 解析，LINE 與網頁共用。撤回後新的請求會立即停止。"
+          : "尚未同意。第一次使用 AI 解析時會再向你說明。" }}
+        今天還剩 {{ aiStatus.remaining }} 次。
+      </p>
+      <button v-if="aiStatus.consented" type="button" class="secondary-action" :disabled="busy === 'ai'" @click="withdrawAi">
+        {{ busy === "ai" ? "處理中" : "撤回 AI 同意" }}
+      </button>
+    </section>
+
     <section class="account-card" aria-labelledby="data-export">
       <h2 id="data-export">匯出我的資料</h2>
       <p class="muted">下載 ZIP，內含帳戶、收支、轉帳、預算、旅行成員資格與 AI 解析紀錄的 CSV。</p>
@@ -85,6 +98,7 @@ export default {
       loading: false,
       errorMessage: "",
       providers: [],
+      aiStatus: null,
       busy: "",
       deleteConfirmation: "",
       deleteError: "",
@@ -98,8 +112,28 @@ export default {
   },
   mounted() {
     this.fetchAccount();
+    this.loadAiStatus();
   },
   methods: {
+    async loadAiStatus() {
+      try {
+        const data = (await apiClient.get("/api/ai/status")).data?.data;
+        this.aiStatus = data?.available ? data : null;
+      } catch {
+        this.aiStatus = null;
+      }
+    },
+    async withdrawAi() {
+      this.busy = "ai";
+      try {
+        await apiClient.post("/api/ai/consent", { consented: false });
+        await this.loadAiStatus();
+      } catch {
+        this.errorMessage = "撤回失敗，請稍後再試。";
+      } finally {
+        this.busy = "";
+      }
+    },
     async fetchAccount() {
       this.loading = true;
       this.errorMessage = "";
