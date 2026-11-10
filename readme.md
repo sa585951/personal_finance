@@ -73,4 +73,4 @@ python -m scripts.reconcile_accounts --fail-on-issues
 
 ## 部署
 
-依 [`docs/deployment-checklist.md`](docs/deployment-checklist.md)。環境變數與說明見 [`.env.example`](.env.example)；LINE AI 的啟用見 [`docs/line-ai-pilot.md`](docs/line-ai-pilot.md)。
+依本機的 `docs/deployment-checklist.md`（不進版控）。環境變數與說明見 [`.env.example`](.env.example)；LINE AI 的啟用見 [`docs/line-ai-pilot.md`](docs/line-ai-pilot.md)。
