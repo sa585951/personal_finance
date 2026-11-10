@@ -14,7 +14,10 @@
     <div class="auth-section">
       <template v-if="isLoggedIn || devAuthBypass">
         <button class="account-button" type="button" :aria-label="`帳號選單：${userName || '帳號'}`" :aria-expanded="showAccountMenu" @click="showAccountMenu = !showAccountMenu">
-          <span class="account-initial" aria-hidden="true">{{ (userName || "帳")[0] }}</span>
+          <span class="account-initial" aria-hidden="true">
+            <img v-if="avatarUrl && !avatarFailed" :src="avatarUrl" alt="" referrerpolicy="no-referrer" @error="avatarFailed = true" />
+            <template v-else>{{ (userName || "帳")[0] }}</template>
+          </span>
           <span class="account-name">{{ userName || "帳號" }}</span>
         </button>
         <div v-if="showAccountMenu" class="account-menu">
@@ -55,6 +58,8 @@ export default {
     return {
       isLoggedIn: false,
       userName: '',
+      avatarUrl: '',
+      avatarFailed: false,
       showAccountMenu: false,
       devAuthBypass: import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_BYPASS === "true",
       selectedDevUser: localStorage.getItem('devAuthUser') || 'local-dev-user',
@@ -105,6 +110,8 @@ export default {
         if (response.data?.success) {
           this.isLoggedIn = true;
           this.userName = response.data.data?.name || "帳號";
+          this.avatarUrl = response.data.data?.avatar_url || '';
+          this.avatarFailed = false;
           return;
         }
       } catch (error) {
@@ -248,7 +255,8 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.account-initial { font-size: .9rem; font-weight: 800; }
+.account-initial { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; font-size: .9rem; font-weight: 800; }
+.account-initial img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .account-name { display: none; }
 .account-menu {
   position: absolute;
@@ -339,7 +347,7 @@ export default {
   .nav-add a svg { width: 16px; height: 16px; padding: 5px; }
   .nav-links svg { width: 18px; height: 18px; }
   .account-button { display: inline-flex; max-width: 150px; padding: 0 12px 0 4px; gap: 8px; border-radius: 999px; }
-  .account-initial { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: var(--primary-soft); }
+  .account-initial { display: grid; flex: none; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: var(--primary-soft); }
   .account-name { display: block; overflow: hidden; text-overflow: ellipsis; }
 }
 </style>

@@ -30,7 +30,8 @@ from models.schema import product_events_table, transactions_table, trips_table
 from models.settlement_account_entry_manager import SettlementAccountEntryManager
 from models.transaction_service import TransactionService
 from models.receipt_import_service import ReceiptImportService
-from models.trip_manager import TripManager
+from models.schema import users_table
+from models.trip_manager import TripManager, safe_avatar_url
 from models.user_manager import UserManager
 
 LINE_CHANNEL_ID = os.getenv("LINE_LOGIN_CHANNEL_ID")
@@ -294,6 +295,17 @@ def home():
 
 # --- API - Auth ---
 
+def _current_user_avatar(user_id):
+    """The signed-in user's own LINE picture, https only; None when unknown."""
+    try:
+        value = db_session.execute(
+            select(users_table.c.avatar_url).where(users_table.c.id == user_id)
+        ).scalar_one_or_none()
+    except Exception:
+        db_session.rollback()
+        return None
+    return safe_avatar_url(value)
+
 @app.route("/api/auth/me", methods=["GET"])
 def get_current_auth_user():
     if DEV_AUTH_BYPASS:
@@ -322,6 +334,7 @@ def get_current_auth_user():
                 "name": data.get("name") or "",
                 "provider": data.get("provider") or "",
                 "session_id": data.get("session_id"),
+                "avatar_url": _current_user_avatar(data["user_id"]),
             },
         }
     )
