@@ -118,8 +118,9 @@ class LineOralPilot:
     def _handle(self, event):
         message = getattr(event, "message", None)
         text = message.text.strip() if message else ""
-        if text == "幫助":
-            return GUIDE
+        if getattr(event, "type", None) == "follow" or text == "幫助":
+            user = UserManager(self.session).get_user_by_identity("line", event.source.user_id)
+            return quick_tools.guide_card(linked=bool(user))
         user = UserManager(self.session).get_user_by_identity("line", event.source.user_id)
         if not user:
             return "請先用你目前傳訊息的 LINE 帳號登入 Nomica Web。"

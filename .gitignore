@@ -26,3 +26,6 @@ scripts/simulate_webhook.py
 .pytest_cache/
 .coverage
 htmlcov/
+
+# 部署與封閉測試營運清單只留在本機，不進版控
+docs/deployment-checklist.md

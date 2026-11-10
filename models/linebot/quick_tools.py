@@ -3,6 +3,7 @@
 Nothing here writes money: the cards only read the signed-in person's own rows, and a repeat only
 prepares the same preview-and-confirm draft that typing a sentence would.
 """
+import os
 from datetime import datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -22,6 +23,7 @@ MAX_REPEATS = 8           # LINE allows 13 quick-reply items: 4 queries + 8 repe
 MAX_BALANCE_ROWS = 10
 RECENT_LIMIT = 5
 DRAFT_CARD_ALT_TEXTS = {"確認收支：尚未記帳", "選擇記帳帳戶", "選擇分類"}
+GUIDE_ALT_TEXT = "Nomica 使用說明"
 
 
 def today():
@@ -178,3 +180,41 @@ def category_choices(session, owner, kind, limit=12):
 def account_label(session, account_id):
     a = accounts_table
     return session.execute(select(a.c.name, a.c.type).where(a.c.id == account_id)).first()
+
+
+def _tap(label, text=None):
+    return {"type": "button", "height": "sm", "style": "secondary",
+            "action": {"type": "message", "label": label, "text": text or label}}
+
+
+def guide_card(*, linked=True):
+    """What to type, what to tap, and what AI needs: sent on follow and for 「幫助」."""
+    section = lambda text: {"type": "text", "text": text, "weight": "bold", "size": "sm", "margin": "lg"}  # noqa: E731
+    note = lambda text: {"type": "text", "text": text, "size": "xs", "color": "#666666", "wrap": True, "margin": "sm"}  # noqa: E731
+    body = [{"type": "text", "text": "Nomica 怎麼用", "weight": "bold", "size": "lg"}]
+    if not linked:
+        body.append(note("先用同一個 LINE 帳號登入 Nomica Web，之後就能在這裡記帳。"))
+    body += [
+        section("1. 說一句話記帳"),
+        note("像聊天一樣輸入，確認後才會記帳。點下面的範例可以直接試試："),
+        _tap("午餐 120"),
+        _tap("昨天晚餐 刷卡 450"),
+        section("2. 少打字"),
+        note("每次回覆下方會有快速按鈕：點最近常記的項目，會直接產生確認卡。確認卡上可按「改分類」，或回「改金額 150」。"),
+        section("3. 看摘要"),
+        {"type": "box", "layout": "horizontal", "spacing": "sm", "margin": "sm",
+         "contents": [_tap("今天"), _tap("本月")]},
+        {"type": "box", "layout": "horizontal", "spacing": "sm", "margin": "sm",
+         "contents": [_tap("餘額"), _tap("最近")]},
+        section("4. AI 輔助（選用）"),
+        note("規則看不懂的句子可交給 AI。第一次會說明資料如何處理，回「同意 AI」才會開啟，回「撤回 AI」可隨時關閉。"),
+        note("旅行分帳、報表與帳戶管理請到 Nomica Web。"),
+    ]
+    contents = {"type": "bubble", "body": {"type": "box", "layout": "vertical", "paddingAll": "20px",
+                                          "contents": body}}
+    web = (os.environ.get("FRONTEND_BASE_URL") or "").rstrip("/")
+    if web.startswith("https://"):
+        contents["footer"] = {"type": "box", "layout": "vertical", "contents": [{
+            "type": "button", "style": "primary", "height": "sm",
+            "action": {"type": "uri", "label": "開啟 Nomica Web", "uri": web}}]}
+    return FlexSendMessage(alt_text=GUIDE_ALT_TEXT, contents=contents)

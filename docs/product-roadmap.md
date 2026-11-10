@@ -4,7 +4,7 @@
 
 - Roadmap 版本：M0 至 M9，生效日期 2026-08-17。
 - 目前位置：M0、M1、M3 第一版完成；M2 以有限證據收尾；S1～S4 修補、S5 最低隱私集合（匯出、刪除帳號、登出所有裝置）與 Web 帳簿式改版已完成本機驗收。
-- 各批次的詳細進度與測試數字見 [current-progress.md](current-progress.md)；缺陷與修補見 [test-fix-status.md](test-fix-status.md)。
+- 各批次的詳細進度與測試數字見 [current-progress.md](current-progress.md)；缺陷與修補以測試與 Git 歷史為準。
 
 ## 已完成基線
 

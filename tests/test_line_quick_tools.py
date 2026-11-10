@@ -116,3 +116,42 @@ def test_category_can_be_changed_on_the_card_before_confirming(webhook):  # noqa
     assert name == "交通" and draft["status"] == "confirmed"
     # A forged category id is refused.
     assert send(event_dict("forged", postback=change.replace("cats", "cat") + ":" + data["b_cash"])).status_code == 200
+
+
+def _follow(eid, user="U-fix-a"):
+    return {"type": "follow", "mode": "active", "timestamp": 1792454400000, "webhookEventId": eid,
+            "deliveryContext": {"isRedelivery": False}, "replyToken": "follow-token",
+            "source": {"type": "user", "userId": user}, "follow": {"isUnblocked": False}}
+
+
+def test_following_the_account_sends_one_guide_card(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    assert send(_follow("follow-linked")).status_code == 200
+    card = _card(replies)
+    text = str(card)
+    assert card["altText"] == "Nomica 使用說明"
+    for expected in ("午餐 120", "今天", "本月", "餘額", "最近", "同意 AI"):
+        assert expected in text
+    assert "先用同一個 LINE 帳號登入" not in text
+    assert [item["action"]["label"] for item in _chips(replies)][:4] == ["今天", "本月", "餘額", "最近"]
+    # A redelivery of the same event does not send a second card.
+    count = len(replies)
+    assert send({**_follow("follow-linked"), "deliveryContext": {"isRedelivery": True}}).status_code == 200
+    assert str(replies[-1].messages[0].to_dict()) == text and len(replies) == count + 1
+
+
+def test_guide_tells_an_unlinked_person_to_sign_in_and_help_shows_the_same_card(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    assert send(_follow("follow-new", user="U-never-seen")).status_code == 200
+    assert "先用同一個 LINE 帳號登入" in str(_card(replies))
+    assert _chips(replies) == []  # no account, so no personal shortcuts
+    assert send(lunch("help", text="幫助")).status_code == 200
+    assert _card(replies)["altText"] == "Nomica 使用說明"
+    assert "午餐 120" in str(_card(replies))
+
+
+def test_follow_events_outside_a_one_to_one_chat_are_ignored(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    group = {**_follow("follow-group"), "source": {"type": "group", "groupId": "C-1", "userId": "U-fix-a"}}
+    assert send(group).status_code == 200
+    assert replies == []
