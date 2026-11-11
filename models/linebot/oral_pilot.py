@@ -10,6 +10,7 @@ from sqlalchemy import and_, func, select, update
 from ..asset_manager import ACCOUNT_TYPE_LABELS
 from ..budget_manager import DEFAULT_CURRENCY
 from ..line_ai_gateway import AIRequestBlocked, CONSENT_NOTICE, set_line_ai_consent
+from ..sensitive_text import SENSITIVE_MESSAGE, SENSITIVE_TEXT, contains_sensitive  # noqa: F401
 from ..schema import accounts_table, ai_parse_events_table, categories_table, transactions_table
 from ..user_manager import UserManager
 from . import quick_tools
@@ -37,10 +38,6 @@ EXPLICIT_CURRENCIES = {
     "EUR": re.compile(r"(?<![A-Za-z])EUR(?![A-Za-z])|歐元|€", re.I | re.ASCII),
     "KRW": re.compile(r"(?<![A-Za-z])KRW(?![A-Za-z])|韓元|韓幣|₩", re.I | re.ASCII),
 }
-SENSITIVE_TEXT = re.compile(
-    r"密碼|驗證碼|身分證|身份證|卡號|(?i:\b(?:cvv|cvc|otp|password|api[ -]?key)\b)"
-    r"|(?<!\d)(?:\d[ -]?){13,19}(?!\d)"
-)
 BOOKKEEPING_TEXT = re.compile(
     r"(?:[0-9]|[一二兩三四五六七八九十百千萬]+[十百千萬元塊])"
 )
@@ -169,15 +166,15 @@ class LineOralPilot:
             return chosen
         if len(text) > 1000:
             return "訊息太長，請簡短描述一筆收支。"
-        if SENSITIVE_TEXT.search(normalize("NFKC", text)):
+        if contains_sensitive(text):
             # Checked before any rule or model, so card numbers never reach a draft or a provider.
-            return "請移除卡號、密碼或驗證資訊，再傳送記帳文字。"
+            return SENSITIVE_MESSAGE
         try:
             if self.gateway:
                 def generate(prompt):
                     normalized = normalize("NFKC", text)
-                    if SENSITIVE_TEXT.search(normalized):
-                        raise AIRequestBlocked("請移除卡號、密碼或驗證資訊，再傳送記帳文字。")
+                    if contains_sensitive(normalized):
+                        raise AIRequestBlocked(SENSITIVE_MESSAGE)
                     if not (BOOKKEEPING_TEXT.search(normalized) and re.search(r"[一-鿿a-zA-Z]", normalized)):
                         raise AIRequestBlocked(GUIDE)
                     return self.gateway.generate(owner, event.webhook_event_id, prompt)

@@ -211,3 +211,14 @@ def test_sentences_the_rules_do_not_understand_still_go_to_ai(webhook):  # noqa:
         assert send(lunch(f"ai-{i}", text=text)).status_code == 200
         assert "同意 AI" in str(_card(replies)), text
     assert gateway.asked == 2
+
+
+def test_line_refuses_ids_and_account_numbers_before_any_draft(webhook):  # noqa: F811
+    send, replies, engine, data = webhook
+    gateway = send.bot.line_ai_gateway = _ModelThatMustNotRun()
+    for i, text in enumerate(("午餐 120 身分證 A123456789", "咖啡 85 轉到 0123456789012", "午餐 120 打給 0912345678")):
+        assert send(lunch(f"sensitive-{i}", text=text)).status_code == 200
+        assert "請移除" in str(_card(replies)), text
+    assert gateway.asked == 0
+    with Session(engine) as session:
+        assert session.scalar(select(ai_parse_events_table.c.id).limit(1)) is None  # no draft was created

@@ -482,6 +482,10 @@ def _read_parse_text():
     text = text.strip()
     if not text:
         return None, (jsonify({"success": False, "message": "缺少 text 欄位"}), 400)
+    from models.sensitive_text import SENSITIVE_MESSAGE, contains_sensitive
+    if contains_sensitive(text):
+        # Stopped before parsing: the text is neither stored in a parse event nor sent to a model.
+        return None, (jsonify({"success": False, "code": "SENSITIVE_TEXT", "message": SENSITIVE_MESSAGE}), 422)
     return text, None
 
 
@@ -584,7 +588,8 @@ def set_web_ai_consent(current_user_id):
 def parse_ai_sentence(current_user_id):
     """Web one-sentence bookkeeping: rules first, Gemini only for what rules cannot read."""
     from models.line_ai_gateway import AIRequestBlocked
-    from models.linebot.oral_pilot import BOOKKEEPING_TEXT, SENSITIVE_TEXT
+    from models.linebot.oral_pilot import BOOKKEEPING_TEXT
+    from models.sensitive_text import SENSITIVE_MESSAGE, contains_sensitive
     from unicodedata import normalize
     gateway = _web_ai_gateway()
     if not gateway:
@@ -606,8 +611,8 @@ def parse_ai_sentence(current_user_id):
 
     def generate(prompt):
         normalized = normalize("NFKC", text)
-        if SENSITIVE_TEXT.search(normalized):
-            raise AIRequestBlocked("請移除卡號、密碼或驗證資訊，再輸入記帳文字。", "sensitive")
+        if contains_sensitive(normalized):
+            raise AIRequestBlocked(SENSITIVE_MESSAGE, "sensitive")
         if not (BOOKKEEPING_TEXT.search(normalized) and re.search(r"[一-鿿a-zA-Z]", normalized)):
             raise AIRequestBlocked("請輸入一筆收支，例如「昨天午餐 120」。", "not_bookkeeping")
         return gateway.generate(owner, f"web:{request_id}", prompt)
