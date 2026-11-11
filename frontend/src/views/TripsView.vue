@@ -299,6 +299,7 @@ import { defaultAccountId, rememberLastAccount } from "@/utils/lastAccount";
 import { localDateKey } from "@/utils/money";
 import { tripCover, tripDaysElapsed, tripTimeLabel } from "@/constants/tripCovers";
 import { formatAmount } from "@/utils/money";
+import { buildSettlementSummary } from "@/utils/settlementSummary";
 import CoverPicker from "@/components/trips/CoverPicker.vue";
 import {
   createCursorPager,
@@ -1992,26 +1993,15 @@ export default {
     },
     buildSettlementSummaryText() {
       if (!this.selectedTrip) return "";
-      const lines = [
-        `${this.selectedTrip.name} 結算摘要`,
-        `整團花費：${this.formatMoney(this.tripExpenseTotal, this.selectedTrip.base_currency)}`,
-        `我的成本：${this.formatMoney(this.myTripShareAmount, this.selectedTrip.base_currency)}`,
-        `${this.myTripNetStatus.label}：${this.formatMoney(Math.abs(this.myTripNetAmount), this.selectedTrip.base_currency)}（${this.myTripNetStatus.hint}）`,
-        "",
-        "建議結算：",
-      ];
-
-      if (this.settlementSuggestions.length === 0) {
-        lines.push("目前已平衡或尚無需結算");
-      } else {
-        this.settlementSuggestions.forEach((suggestion) => {
-          lines.push(
-            `${suggestion.from_display_name} → ${suggestion.to_display_name}：${this.formatMoney(suggestion.amount, suggestion.currency)}`
-          );
-        });
-      }
-
-      return lines.join("\n");
+      return buildSettlementSummary({
+        trip: this.selectedTrip,
+        total: this.tripExpenseTotal,
+        members: this.splitSummary,
+        suggestions: this.settlementSuggestions,
+        settlements: this.settlementRecords,
+        rates: this.tripRates?.rates || [],
+        formatMoney: this.formatMoney,
+      });
     },
     async writeTextToClipboard(text) {
       if (navigator.clipboard && window.isSecureContext) {
