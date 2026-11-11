@@ -32,6 +32,7 @@ from models.settlement_account_entry_manager import SettlementAccountEntryManage
 from models.transaction_service import TransactionService
 from models.receipt_import_service import ReceiptImportService
 from models.schema import users_table
+from models.admin_usage import is_admin as _is_admin, usage_overview
 from models.trip_manager import TripManager, safe_avatar_url
 from models.user_manager import UserManager
 
@@ -336,9 +337,29 @@ def get_current_auth_user():
                 "provider": data.get("provider") or "",
                 "session_id": data.get("session_id"),
                 "avatar_url": _current_user_avatar(data["user_id"]),
+                "is_admin": _caller_is_admin(data["user_id"]),
             },
         }
     )
+
+def _caller_is_admin(user_id):
+    try:
+        return _is_admin(db_session, user_id)
+    except Exception:
+        db_session.rollback()
+        return False
+
+@app.route("/api/admin/usage", methods=["GET"])
+@token_required
+def get_admin_usage(current_user_id):
+    """Operator-only usage overview; anyone else gets the same 404 as an unknown route."""
+    if not _caller_is_admin(current_user_id):
+        return jsonify({"success": False, "message": "Not found"}), 404
+    try:
+        return jsonify({"success": True, "data": usage_overview(db_session)})
+    except Exception as error:
+        db_session.rollback()
+        return _api_operation_error(error, "admin_usage")
 
 @app.route("/api/auth/logout", methods=["POST"])
 def logout():

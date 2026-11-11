@@ -12,6 +12,16 @@
       </router-link>
     </nav>
 
+    <nav v-if="isAdmin" class="me-group" aria-label="管理">
+      <router-link to="/admin/usage" class="me-row">
+        <span>
+          <strong>使用概況</strong>
+          <small>誰在用、最後記帳時間（只有你看得到）</small>
+        </span>
+        <ArrowRight aria-hidden="true" />
+      </router-link>
+    </nav>
+
     <nav class="me-group" aria-label="設定">
       <router-link to="/account" class="me-row">
         <span>
@@ -38,6 +48,7 @@
 
 <script>
 import { ArrowRight } from "@element-plus/icons-vue";
+import apiClient from "@/api";
 import ThemeToggle from "@/components/shared/ThemeToggle.vue";
 
 export default {
@@ -45,6 +56,7 @@ export default {
   components: { ArrowRight, ThemeToggle },
   data() {
     return {
+      isAdmin: false,
       ledgerLinks: [
         { to: "/assets", label: "帳戶", hint: "餘額、轉帳、信用卡帳期" },
         { to: "/budgets", label: "預算", hint: "每月各類別上限" },
@@ -52,6 +64,13 @@ export default {
         { to: "/allocation", label: "資產配置", hint: "投資標的與成本" },
       ],
     };
+  },
+  async mounted() {
+    try {
+      this.isAdmin = (await apiClient.get("/api/auth/me")).data?.data?.is_admin === true;
+    } catch {
+      this.isAdmin = false; // The admin row is optional; the page works without it.
+    }
   },
 };
 </script>
