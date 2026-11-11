@@ -179,6 +179,7 @@
             required
             @input="updateNumber('exchange_rate', $event.target.value)"
           />
+          <small v-if="rateHint" class="rate-hint">{{ rateHint }}</small>
         </label>
         <label>
           備註
@@ -233,6 +234,7 @@ export default {
     accounts: { type: Array, default: () => [] },
     isCurrentUserPayer: { type: Boolean, default: false },
     expensePreview: { type: Object, default: null },
+    rateHint: { type: String, default: "" },
     splitMemberSummary: { type: String, default: "" },
     customSplitTotal: { type: Number, default: 0 },
     customSplitDifference: { type: Number, default: 0 },
@@ -637,5 +639,11 @@ input:disabled {
   .custom-split-row {
     grid-template-columns: 1fr;
   }
+}
+
+.rate-hint {
+  color: var(--light-text-color);
+  font-size: 0.8rem;
+  font-weight: 400;
 }
 </style>

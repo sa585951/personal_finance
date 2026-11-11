@@ -24,6 +24,7 @@ from .schema import (
     settlements_table,
     transaction_splits_table,
     transactions_table,
+    trip_exchange_rates_table,
     trip_members_table,
     trips_table,
     users_table,
@@ -253,6 +254,17 @@ class BudgetManager:
             # Never reinterpret different currencies as equal when a rate is missing.
             raise ValueError("缺少跨幣別匯率，請提供 exchange_rate")
         return rate
+
+    def _trip_rate_or_default(self, trip_id, original_currency, base_currency):
+        """A trip's shared rate wins over the built-in reference table; neither is ever guessed as 1."""
+        if trip_id and original_currency != base_currency:
+            rate = self.db_session.execute(select(trip_exchange_rates_table.c.rate).where(
+                trip_exchange_rates_table.c.trip_id == trip_id,
+                trip_exchange_rates_table.c.currency == original_currency,
+            )).scalar_one_or_none()
+            if rate is not None:
+                return rate
+        return self._default_exchange_rate(original_currency, base_currency)
 
     @staticmethod
     def _require_twd_report_currency(currency):
@@ -1044,7 +1056,7 @@ class BudgetManager:
         transaction_currency = original_currency or (trip["default_currency"] if trip else DEFAULT_CURRENCY)
         base_currency = trip["base_currency"] if trip else DEFAULT_CURRENCY
         rate_value = (exchange_rate if exchange_rate is not None
-                      else self._default_exchange_rate(transaction_currency, base_currency))
+                      else self._trip_rate_or_default(parsed_trip_id, transaction_currency, base_currency))
         parsed_exchange_rate = self._normalize_amount(rate_value, "exchange_rate ", RATE)
         converted_amount = self._normalize_decimal(
             parsed_amount * parsed_exchange_rate, "換算金額", round_to_scale=True,
@@ -1229,7 +1241,7 @@ class BudgetManager:
                 and base_currency == existing["base_currency"]):
             exchange_rate = existing["exchange_rate"]
         rate_value = (exchange_rate if exchange_rate is not None
-                      else self._default_exchange_rate(transaction_currency, base_currency))
+                      else self._trip_rate_or_default(parsed_trip_id, transaction_currency, base_currency))
         parsed_exchange_rate = self._normalize_amount(rate_value, "exchange_rate ", RATE)
         preserve_financials = (
             parsed_amount == existing["original_amount"]

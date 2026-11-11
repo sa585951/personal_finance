@@ -330,6 +330,40 @@ trip_invites_table = Table(
 )
 
 
+# One shared rate per trip and foreign currency (into the trip's base currency). It only supplies
+# the default for expenses added later; recorded expenses keep the rate they were saved with.
+trip_exchange_rates_table = Table(
+    "trip_exchange_rates",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("trip_id", UUID(as_uuid=True), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False),
+    Column("currency", String(3), ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False),
+    Column("rate", RATE, nullable=False),
+    Column("updated_by_user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    UniqueConstraint("trip_id", "currency", name="uq_trip_exchange_rates_trip_currency"),
+    CheckConstraint("rate > 0", name="ck_trip_exchange_rates_rate_positive"),
+)
+
+# Who changed a trip rate, when, from what, and whether it was re-applied to recorded expenses.
+trip_exchange_rate_changes_table = Table(
+    "trip_exchange_rate_changes",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("trip_id", UUID(as_uuid=True), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False),
+    Column("currency", String(3), ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False),
+    Column("old_rate", RATE),
+    Column("new_rate", RATE, nullable=False),
+    Column("action", String(20), nullable=False),
+    Column("affected_count", Integer, nullable=False, server_default=text("0")),
+    Column("changed_by_user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")),
+    Column("changed_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    CheckConstraint("action in ('set', 'apply')", name="ck_trip_exchange_rate_changes_action"),
+    Index("ix_trip_exchange_rate_changes_trip", "trip_id", "changed_at"),
+)
+
+
 transactions_table = Table(
     "transactions",
     metadata,

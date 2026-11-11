@@ -250,3 +250,12 @@ Header存在且不同於真正token/session actor時，交易POST優先回409
 的Web／其他寫入client，再切換Backend並驗收。過渡期間維持財務寫入關閉或限制於
 已確認的新client；沒有在本輪操作正式部署、DB升級或對外開放。此批不新增migration。
 owner header不符的409優先於missing-key400，避免誤把原帳號的未知請求解除。
+
+
+## 旅行共用匯率
+
+- `GET /api/trips/<id>/exchange-rates`：成員可讀，回傳基準幣別、各外幣的旅行匯率與內建參考匯率、已記支出筆數、是否因還款紀錄而鎖定、最近 10 筆變更。
+- `PUT /api/trips/<id>/exchange-rates/<currency>`：僅旅行擁有者；body `{rate}`，大於 0、最多 8 位小數。只影響之後新增的支出，回傳尚有幾筆已記支出匯率不同。
+- `GET /api/trips/<id>/exchange-rates/<currency>/apply-preview`：僅擁有者；回傳筆數、總額變化、每位旅伴的結算變化與會連動調整的付款人帳戶。
+- `POST /api/trips/<id>/exchange-rates/<currency>/apply`：僅擁有者；body `{confirm:true}`。整批重存已記支出，任一筆失敗則全部不變；已有還款紀錄時回 400。
+- 新增或編輯旅行支出未提供 `exchange_rate` 時，順序為：旅行匯率 → 內建參考匯率 → 拒絕（不會默認為 1）。

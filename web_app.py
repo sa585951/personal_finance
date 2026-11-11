@@ -1409,6 +1409,52 @@ def close_trip_invite(current_user_id, trip_id):
     except Exception as error:
         return _api_operation_error(error, "close_trip_invite", validation_status=400)
 
+@app.route("/api/trips/<string:trip_id>/exchange-rates", methods=["GET"])
+@token_required
+def get_trip_exchange_rates(current_user_id, trip_id):
+    from models.trip_rates import TripRateManager
+    try:
+        return jsonify({"success": True, "data": TripRateManager(db_session).list_rates(current_user_id, trip_id)}), 200
+    except Exception as error:
+        return _api_operation_error(error, "get_trip_exchange_rates", validation_status=404)
+
+@app.route("/api/trips/<string:trip_id>/exchange-rates/<string:currency>", methods=["PUT"])
+@token_required
+def set_trip_exchange_rate(current_user_id, trip_id, currency):
+    from models.trip_rates import TripRateManager
+    try:
+        body = request.get_json(silent=True) or {}
+        result = TripRateManager(db_session).set_rate(current_user_id, trip_id, currency, body.get("rate"))
+        db_session.commit()
+        return jsonify({"success": True, "message": "旅行匯率已更新", "data": result}), 200
+    except Exception as error:
+        return _api_operation_error(error, "set_trip_exchange_rate", validation_status=400)
+
+@app.route("/api/trips/<string:trip_id>/exchange-rates/<string:currency>/apply-preview", methods=["GET"])
+@token_required
+def preview_trip_exchange_rate_apply(current_user_id, trip_id, currency):
+    from models.trip_rates import TripRateManager
+    try:
+        return jsonify({"success": True, "data": TripRateManager(db_session).preview_apply(
+            current_user_id, trip_id, currency)}), 200
+    except Exception as error:
+        return _api_operation_error(error, "preview_trip_exchange_rate_apply", validation_status=400)
+
+@app.route("/api/trips/<string:trip_id>/exchange-rates/<string:currency>/apply", methods=["POST"])
+@token_required
+def apply_trip_exchange_rate(current_user_id, trip_id, currency):
+    from models.trip_rates import TripRateManager
+    try:
+        body = request.get_json(silent=True) or {}
+        if body.get("confirm") is not True:
+            return jsonify({"success": False, "message": "請先確認變動內容"}), 400
+        result = TripRateManager(db_session).apply_rate(current_user_id, trip_id, currency)
+        db_session.commit()
+        return jsonify({"success": True, "message": "已套用到已記的支出", "data": result}), 200
+    except Exception as error:
+        db_session.rollback()
+        return _api_operation_error(error, "apply_trip_exchange_rate", validation_status=400)
+
 @app.route("/api/trip-invites/<string:token>/preview", methods=["GET"])
 def preview_trip_invite(token):
     try:

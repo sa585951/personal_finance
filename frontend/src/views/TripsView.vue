@@ -144,6 +144,7 @@
           :accounts="compatibleTripAccounts"
           :is-current-user-payer="isCurrentUserPayer"
           :expense-preview="expensePreview"
+          :rate-hint="expenseRateHint"
           :split-member-summary="splitMemberSummary"
           :custom-split-total="customSplitTotal"
           :custom-split-difference="customSplitDifference"
@@ -232,6 +233,15 @@
               @update:model-value="updateCoverTheme"
             />
           </div>
+          <TripRatesPanel
+            v-if="tripRates"
+            :rates="tripRates"
+            :is-owner="isTripOwner"
+            :default-currency="selectedTrip.default_currency"
+            :busy="ratesBusy"
+            @set-rate="setTripRate"
+            @apply-rate="applyTripRate"
+          />
           <div class="settings-row">
             <span><strong>切換旅行</strong></span>
             <button class="quiet-action" type="button" @click="showTripSwitcher = true">選擇</button>
@@ -278,6 +288,7 @@ import { openPendingCommand } from '@/utils/pendingFinancialCommand';
 import PendingTransactionRecovery from '@/components/shared/PendingTransactionRecovery.vue';
 import TripExpensePanel from "@/components/trips/TripExpensePanel.vue";
 import TripManagementPanel from "@/components/trips/TripManagementPanel.vue";
+import TripRatesPanel from "@/components/trips/TripRatesPanel.vue";
 import TripMembersPanel from "@/components/trips/TripMembersPanel.vue";
 import TripSettlementPanel from "@/components/trips/TripSettlementPanel.vue";
 import TripBreakdown from "@/components/trips/TripBreakdown.vue";
@@ -313,6 +324,7 @@ export default {
     TrendCharts,
     TripExpensePanel,
     TripManagementPanel,
+    TripRatesPanel,
     TripMembersPanel,
     TripSettlementPanel,
     TripBreakdown,
@@ -332,6 +344,8 @@ export default {
       expenseCommandError: '',
       legacyExpenseId: '',
       expenseCommandEpoch: 0,
+      tripRates: null,
+      ratesBusy: false,
       submittingInvite: false,
       updatingTripSettings: false,
       showTripSwitcher: false,
@@ -410,6 +424,15 @@ export default {
     };
   },
   computed: {
+    expenseRateHint() {
+      const currency = this.newExpense.original_currency;
+      const base = this.selectedTrip?.base_currency;
+      if (!currency || !base || currency === base) return "";
+      const tripRate = this.tripRates?.rates?.find((row) => row.currency === currency)?.rate;
+      if (tripRate && Number(this.newExpense.exchange_rate) === Number(tripRate)) return "旅行共用匯率，由旅行擁有者設定";
+      if (tripRate) return `旅行共用匯率是 ${tripRate}，這筆使用你填的匯率`;
+      return "目前是參考匯率，建議請旅行擁有者先設定這趟旅行的匯率";
+    },
     routeTripId() {
       return this.$route.params.tripId || "";
     },
@@ -733,6 +756,9 @@ export default {
       if (!originalCurrency || !baseCurrency || originalCurrency === baseCurrency) {
         return 1;
       }
+      // The trip's shared rate wins over the built-in reference table.
+      const tripRate = this.tripRates?.rates?.find((row) => row.currency === originalCurrency)?.rate;
+      if (tripRate) return Number(tripRate);
 
       const defaultRates = {
         "JPY:TWD": 0.22,
@@ -804,9 +830,11 @@ export default {
     },
     async selectTrip(tripId) {
       this.tripLoadError = "";
+      if (this.selectedTrip?.id !== tripId) this.tripRates = null;
       try {
         const response = await apiClient.get(`/api/trips/${tripId}/overview`);
         this.applyTripOverview(response.data.data);
+        this.fetchTripRates();
         // An empty trip opens on the form; otherwise the expense list comes first.
         this.activeSection = this.canCreateTripTransaction && !(this.tripTransactionSummary.total_count > 0)
           ? "expense" : "transactions";
@@ -1434,6 +1462,115 @@ export default {
     tripCover,
     tripDaysElapsed,
     tripTimeLabel,
+    async fetchTripRates() {
+      const tripId = this.selectedTrip?.id;
+      if (!tripId) return;
+      try {
+        const response = await apiClient.get(`/api/trips/${tripId}/exchange-rates`);
+        const data = response.data?.data;
+        if (this.selectedTrip?.id === tripId && Array.isArray(data?.rates)) {
+          this.tripRates = data;
+          // An untouched form follows the trip's rate as soon as it is known.
+          if (!this.editingTransactionId) this.applyDefaultExchangeRate();
+        }
+      } catch (error) {
+        console.error("無法載入旅行匯率", error);
+      }
+    },
+    async setTripRate(row) {
+      const base = this.tripRates.base_currency;
+      const answer = await this.$swal.fire({
+        title: `${row.currency} 對 ${base} 的匯率`,
+        text: `1 ${row.currency} = ? ${base}。只影響之後新增的支出，已記的不會變動。`,
+        input: "text",
+        inputValue: row.rate || row.default_rate || "",
+        inputAttributes: { inputmode: "decimal", autocomplete: "off" },
+        showCancelButton: true,
+        confirmButtonText: "儲存",
+        cancelButtonText: "取消",
+        inputValidator: (value) => (/^\d+(\.\d{1,8})?$/.test(String(value || "").trim()) && Number(value) > 0
+          ? undefined : "請輸入大於 0 的數字（最多 8 位小數）"),
+      });
+      if (!answer.isConfirmed) return;
+      this.ratesBusy = true;
+      try {
+        const response = await apiClient.put(
+          `/api/trips/${this.selectedTrip.id}/exchange-rates/${row.currency}`, { rate: answer.value.trim() });
+        await this.fetchTripRates();
+        const different = response.data.data.different_count;
+        this.$swal.fire(
+          "匯率已更新",
+          different > 0
+            ? `已記的 ${different} 筆 ${row.currency} 支出沒有變動。需要的話，可以按「套用到已記的支出」。`
+            : "之後新增的支出會自動使用這個匯率。",
+          "success",
+        );
+      } catch (error) {
+        this.$swal.fire("無法更新匯率", error.response?.data?.message || "請稍後再試。", "error");
+      } finally {
+        this.ratesBusy = false;
+      }
+    },
+    buildRatePreview(preview) {
+      // Member names are user content: assigned as text, never parsed as dialog HTML.
+      const box = document.createElement("div");
+      box.className = "rate-preview";
+      const line = (text, bold = false) => {
+        const element = document.createElement(bold ? "strong" : "p");
+        element.textContent = text;
+        box.appendChild(element);
+      };
+      const base = preview.base_currency;
+      line(`共 ${preview.count} 筆 ${preview.currency} 支出，總額 ${formatAmount(preview.old_total, base)} → ${formatAmount(preview.new_total, base)} ${base}`);
+      if (preview.members.length) {
+        line("每個人的結算變化（正數＝多拿回，負數＝多付）", true);
+        preview.members.forEach((member) => {
+          const value = Number(member.change);
+          const sign = value > 0 ? "+" : "−";
+          line(`${member.display_name || "旅伴"}：${sign}${formatAmount(Math.abs(value), base)} ${base}`);
+        });
+      }
+      if (preview.account_adjustment_count > 0) {
+        line(`其中 ${preview.account_adjustment_count} 筆連動了付款人的 ${base} 帳戶，餘額會同步調整 ${formatAmount(preview.account_adjustment_total, base)} ${base}。`);
+      }
+      line("套用後，這幾筆支出和分帳都會改用新匯率。若要再改，需要重新套用另一個匯率。");
+      return box;
+    },
+    async applyTripRate(row) {
+      this.ratesBusy = true;
+      try {
+        const preview = (await apiClient.get(
+          `/api/trips/${this.selectedTrip.id}/exchange-rates/${row.currency}/apply-preview`)).data.data;
+        if (preview.locked) {
+          this.$swal.fire("無法套用", "這趟旅行已經有還款紀錄，已記的支出不能再改動匯率。", "info");
+          return;
+        }
+        if (preview.count === 0) {
+          this.$swal.fire("不需要套用", `已記的 ${row.currency} 支出都已經是這個匯率。`, "info");
+          return;
+        }
+        const answer = await this.$swal.fire({
+          title: `把 ${preview.rate} 套用到已記的支出？`,
+          html: this.buildRatePreview(preview),
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: `套用到 ${preview.count} 筆`,
+          cancelButtonText: "取消",
+        });
+        if (!answer.isConfirmed) return;
+        await apiClient.post(
+          `/api/trips/${this.selectedTrip.id}/exchange-rates/${row.currency}/apply`, { confirm: true });
+        this.invalidateSplitDetails();
+        const section = this.activeSection;
+        await this.selectTrip(this.selectedTrip.id);
+        this.activeSection = section; // stay on the settings tab the owner was using
+        this.$swal.fire("已套用", `${preview.count} 筆支出已改用新匯率。`, "success");
+      } catch (error) {
+        this.$swal.fire("無法套用", error.response?.data?.message || "請稍後再試。", "error");
+      } finally {
+        this.ratesBusy = false;
+      }
+    },
     async updateCoverTheme(theme) {
       if (!this.selectedTrip || this.updatingTripSettings || theme === this.selectedTrip.cover_theme) return;
       const previous = this.selectedTrip.cover_theme;
