@@ -11,6 +11,7 @@ const TripsView = () => import("../views/TripsView.vue");
 const TripInviteAccept = () => import("../views/TripInviteAccept.vue");
 const AuthCallback = () => import("../views/AuthCallback.vue");
 const AccountSettings = () => import("../views/AccountSettings.vue");
+const AdminUsageView = () => import("../views/AdminUsageView.vue");
 const AllocationOverview = () => import("../views/AllocationOverview.vue");
 const AllocationDetail = () => import("../views/AllocationDetail.vue");
 const UniversalAddView = () => import("../views/UniversalAddView.vue");
@@ -99,6 +100,12 @@ const routes = [
     path: "/me",
     name: "Me",
     component: MeView,
+    meta: { requiresAuth: true, tab: "me" },
+  },
+  {
+    path: "/admin/usage",
+    name: "AdminUsage",
+    component: AdminUsageView,
     meta: { requiresAuth: true, tab: "me" },
   },
   {

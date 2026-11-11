@@ -510,6 +510,7 @@ def _auth_token(**overrides):
 def test_auth_me_accepts_bearer_token(monkeypatch):
     web_app = _load_web_app(monkeypatch)
     monkeypatch.setattr(web_app, "_current_user_avatar", lambda user_id: "https://profile.line-scdn.net/me")
+    monkeypatch.setattr(web_app, "_caller_is_admin", lambda user_id: False)
 
     response = web_app.app.test_client().get("/api/auth/me", headers=_auth_headers())
     payload = response.get_json()
@@ -523,6 +524,7 @@ def test_auth_me_accepts_bearer_token(monkeypatch):
             "provider": "line",
             "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
             "avatar_url": "https://profile.line-scdn.net/me",
+            "is_admin": False,
         },
     }
 
