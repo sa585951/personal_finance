@@ -262,7 +262,7 @@
     </section>
 
     <button
-      v-if="selectedTrip && canCreateTripTransaction && activeSection !== 'expense'"
+      v-if="selectedTrip && canCreateTripTransaction && activeSection === 'transactions'"
       type="button"
       class="trip-fab"
       @click="openExpenseForm"
