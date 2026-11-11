@@ -8,6 +8,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "lint": "eslint .",
     "check:styles": "node scripts/check-styles.cjs",
+    "test:unit": "node scripts/test-settlement-summary.mjs",
     "test:ui": "node scripts/test-ui.cjs",
     "test:e2e": "node scripts/test-e2e.cjs"
   },
