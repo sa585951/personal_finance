@@ -692,6 +692,22 @@ def get_dashboard_overview(current_user_id):
     except Exception as error:
         return _api_operation_error(error, "get_dashboard_overview")
 
+@app.route("/api/onboarding/cash-account", methods=["POST"])
+@token_required
+def create_first_cash_account(current_user_id):
+    """One tap on the home checklist: a starter 現金 account, only if the person has none."""
+    try:
+        account_id, created = asset_manager.ensure_first_cash_account(current_user_id)
+        db_session.commit()
+        return jsonify({"success": True, "data": {"account_id": str(account_id), "created": created}}), (201 if created else 200)
+    except ValueError as error:
+        db_session.rollback()
+        return jsonify({"success": False, "message": str(error)}), 400
+    except Exception as error:
+        db_session.rollback()
+        return _api_operation_error(error, "create_first_cash_account")
+
+
 @app.route("/api/assets", methods=["POST"])
 @token_required
 def add_asset(current_user_id):
