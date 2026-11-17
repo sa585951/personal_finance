@@ -5,15 +5,23 @@ const fs = require('node:fs');
 module.exports = async function testPrivacy({ page, web, stamp, accountName, expectEventually }) {
   const before = (await (await page.request.get(`${web}/api/auth/me`)).json()).data.user_id;
 
-  // Export: a real ZIP that carries this run's data.
+  // Export: the everyday Excel file and the full backup ZIP both download.
   await page.goto(`${web}/account`);
-  const downloadEvent = page.waitForEvent('download');
-  await page.getByRole('button', { name: '下載資料', exact: true }).click();
-  const download = await downloadEvent;
-  assert.match(download.suggestedFilename(), /^nomica-export-\d{8}\.zip$/);
-  const archive = fs.readFileSync(await download.path());
-  assert.equal(archive.subarray(0, 2).toString(), 'PK', 'export is a ZIP');
-  assert(archive.includes(Buffer.from('transactions.csv')), 'export lists transactions.csv');
+  const excelEvent = page.waitForEvent('download');
+  await page.getByRole('button', { name: '下載 Excel', exact: true }).click();
+  const excel = await excelEvent;
+  assert.match(excel.suggestedFilename(), /^nomica-\d{8}\.xlsx$/);
+  const sheet = fs.readFileSync(await excel.path());
+  assert.equal(sheet.subarray(0, 2).toString(), 'PK', 'an .xlsx file is a ZIP container');
+  assert(sheet.includes(Buffer.from('xl/workbook.xml')), 'export is an Excel workbook');
+
+  const fullEvent = page.waitForEvent('download');
+  await page.getByRole('button', { name: '下載完整備份（ZIP）', exact: true }).click();
+  const full = await fullEvent;
+  assert.match(full.suggestedFilename(), /^nomica-full-export-\d{8}\.zip$/);
+  const archive = fs.readFileSync(await full.path());
+  assert.equal(archive.subarray(0, 2).toString(), 'PK', 'full export is a ZIP');
+  assert(archive.includes(Buffer.from('transactions.csv')), 'full export lists transactions.csv');
 
   // Delete: the button stays disabled until the exact phrase is typed.
   const remove = page.getByRole('button', { name: '永久刪除帳號', exact: true });
