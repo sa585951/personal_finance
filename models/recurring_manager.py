@@ -191,6 +191,15 @@ class RecurringManager:
         )
         return str(created["transaction_id"])
 
+    def update_pending_amount(self, user_id, occurrence_id, amount):
+        """Change this month's amount without booking it; the person confirms separately."""
+        owner = _uuid(user_id, "使用者")
+        occurrence = self._pending_occurrence(owner, occurrence_id)
+        self.db_session.execute(
+            update(occurrences).where(occurrences.c.id == occurrence["id"])
+            .values(amount=_amount(amount), updated_at=datetime.now(TIMEZONE))
+        )
+
     def skip(self, user_id, occurrence_id):
         owner = _uuid(user_id, "使用者")
         occurrence = self._pending_occurrence(owner, occurrence_id)
