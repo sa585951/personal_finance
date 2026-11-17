@@ -2,7 +2,7 @@
   <div class="policy-page">
     <button type="button" class="back" @click="goBack">返回</button>
     <h1>{{ title }}</h1>
-    <p class="meta">生效日期：{{ effectiveDate }} · 營運者：{{ operator }}</p>
+    <p class="meta">生效日期：{{ effectiveDate }} · 營運者：{{ operator }} · 聯絡：{{ contact }}</p>
     <section v-for="section in sections" :key="section.title">
       <h2>{{ section.title }}</h2>
       <ul>
