@@ -522,6 +522,14 @@ def _parse_response(current_user_id, text, parse):
         )
         transaction["account_id"] = matched_account["account_key"] if matched_account else None
         transaction["account_name"] = matched_account["bank_name"] if matched_account else None
+    if transaction and not transaction.get("account_id") and transaction.get("type") in ("expense", "income"):
+        # No account words like 「帳戶」 or 「銀行」: look for one of the person's own account names instead.
+        mentioned = asset_manager.find_asset_mentioned_in(current_user_id, text, currency=transaction.get("currency"))
+        if mentioned:
+            asset, token = mentioned
+            transaction["account_id"] = asset["account_key"]
+            transaction["account_name"] = asset["bank_name"]
+            transaction["title"] = asset_manager.remove_account_words(transaction.get("title"), token)
     parse_event = linebot_manager.ai_parse_event_manager.record_from_parse_result(
         current_user_id,
         "web",
