@@ -15,6 +15,7 @@ module.exports = async function testPrivacy({ page, web, stamp, accountName, exp
   assert.equal(sheet.subarray(0, 2).toString(), 'PK', 'an .xlsx file is a ZIP container');
   assert(sheet.includes(Buffer.from('xl/workbook.xml')), 'export is an Excel workbook');
 
+  await page.getByText('進階：完整原始資料', { exact: true }).click(); // collapsed by default
   const fullEvent = page.waitForEvent('download');
   await page.getByRole('button', { name: '下載完整備份（ZIP）', exact: true }).click();
   const full = await fullEvent;
