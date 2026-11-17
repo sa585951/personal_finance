@@ -7,7 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, select, update
 
-from ..asset_manager import ACCOUNT_TYPE_LABELS
+from ..asset_manager import ACCOUNT_TYPE_LABELS, AssetManager
 from ..budget_manager import DEFAULT_CURRENCY
 from ..line_ai_gateway import AIRequestBlocked, CONSENT_NOTICE, set_line_ai_consent
 from ..sensitive_text import SENSITIVE_MESSAGE, SENSITIVE_TEXT, contains_sensitive  # noqa: F401
@@ -206,6 +206,14 @@ class LineOralPilot:
             alias = self._card_alias(normalized_hint)
             if normalized_hint not in normalized_text and not (alias and f"{alias}卡" in normalized_text):
                 hint = None
+        if not hint:
+            # A short bare name (「玉山」) that is clearly one of this person's own accounts.
+            mentioned = AssetManager(self.session).find_asset_mentioned_in(
+                owner, text, currency=payload["original_currency"])
+            if mentioned:
+                asset, token = mentioned
+                hint = asset["bank_name"]
+                payload["item"] = AssetManager.remove_account_words(payload["item"], token)
         record = self.drafts.events.record_parse_event(owner, "line_bot", "", {
             "line_oral": True, "line_draft": payload,
             "account_hint": hint, "offered_accounts": [], "category_id": str(category_id),

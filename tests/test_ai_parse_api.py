@@ -219,6 +219,13 @@ class FakeAssetManager:
         }
         return self.account_match
 
+    def find_asset_mentioned_in(self, user_id, text, currency=None):
+        return None
+
+    @staticmethod
+    def remove_account_words(title, token):
+        return title
+
     def __init__(self):
         self.account_match = None
         self.account_match_request = None
@@ -479,6 +486,7 @@ def _load_web_app(monkeypatch):
     web_app.OPTIONAL_ACCESS = OptionalAccess(ai_parse=True)
     web_app.auth_session_manager = FakeAuthSessionManager()
     web_app.db_session = FakeDBSession()
+    web_app.asset_manager = FakeAssetManager()  # No database here; tests that need matches replace it.
     # HTTP boundary tests use an isolated in-memory state store. PostgreSQL
     # concurrency/durability is covered by test_oauth_login_state_manager.py.
     from sqlalchemy import create_engine
