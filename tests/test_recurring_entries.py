@@ -131,6 +131,26 @@ def test_pending_items_do_not_touch_the_ledger_until_confirmed(command_db):
         s.rollback()
 
 
+def test_changing_the_amount_keeps_it_pending_until_confirmed(command_db):
+    engine, data = command_db
+    with Session(engine) as s:
+        m = manager(s)
+        m.create_rule(data["a"], november(data, s), today=date(2026, 11, 1))
+        m.generate_due(data["a"], today=date(2026, 11, 20))
+        [item] = m.list_pending(data["a"])
+        before = s.scalar(select(func.count()).select_from(transactions_table))
+        m.update_pending_amount(data["a"], item["id"], "300")
+        assert s.scalar(select(func.count()).select_from(transactions_table)) == before
+        [changed] = m.list_pending(data["a"])
+        assert changed["amount"] == 300.0
+        with pytest.raises(RecurringError, match="金額"):
+            m.update_pending_amount(data["a"], item["id"], "0")
+        m.confirm(data["a"], item["id"])
+        with pytest.raises(RecurringError, match="已經處理"):
+            m.update_pending_amount(data["a"], item["id"], "100")
+        s.rollback()
+
+
 def test_skipped_months_are_not_generated_again(command_db):
     engine, data = command_db
     with Session(engine) as s:
@@ -231,6 +251,8 @@ def test_api_flow(api):
     assert client.post(f"/api/recurring/occurrences/{first}/confirm", json={}, **kw).status_code == 200
     assert client.post(f"/api/recurring/occurrences/{first}/confirm", json={}, **kw).status_code == 400
     skip = listing["pending"][1]["id"]
+    assert client.put(f"/api/recurring/occurrences/{skip}", json={"amount": 55}, **kw).status_code == 200
+    assert client.put(f"/api/recurring/occurrences/{skip}", json={"amount": -1}, **kw).status_code == 400
     assert client.post(f"/api/recurring/occurrences/{skip}/skip", **kw).status_code == 200
     assert len(client.get("/api/recurring", **kw).get_json()["data"]["pending"]) == 1
     bad = client.post("/api/recurring/rules", json={"title": "x"}, **kw)

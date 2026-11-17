@@ -8,7 +8,7 @@
       <span class="pending-amount" :class="item.type">{{ item.type === "income" ? "+" : "−" }}{{ formatAmount(item.amount) }}</span>
       <div class="pending-actions">
         <button type="button" class="app-button app-button--primary" :disabled="busyId === item.id" @click="confirm(item)">確認</button>
-        <button type="button" class="app-button" :disabled="busyId === item.id" @click="confirmWithAmount(item)">改金額</button>
+        <button type="button" class="app-button" :disabled="busyId === item.id" @click="editAmount(item)">改金額</button>
         <button type="button" class="app-button app-button--text" :disabled="busyId === item.id" @click="skip(item)">略過</button>
       </div>
     </li>
@@ -44,26 +44,24 @@ export default {
         this.busyId = "";
       }
     },
-    confirm(item, amount) {
-      return this.run(
-        item,
-        () => apiClient.post(`/api/recurring/occurrences/${item.id}/confirm`, amount === undefined ? {} : { amount }),
-        "無法確認",
-      );
+    confirm(item) {
+      return this.run(item, () => apiClient.post(`/api/recurring/occurrences/${item.id}/confirm`, {}), "無法確認");
     },
-    async confirmWithAmount(item) {
+    async editAmount(item) {
+      // Only changes this month's amount. Booking it stays a separate, deliberate tap on 確認.
       const result = await this.$swal.fire({
         title: item.title,
-        text: `${this.dueLabel(item.due_date)}，這個月實際金額是多少？`,
+        text: `${this.dueLabel(item.due_date)}，這個月的金額是多少？（改完後還需要按「確認」才會入帳）`,
         input: "number",
         inputValue: item.amount,
         inputAttributes: { min: "0", step: "any", inputmode: "decimal" },
         showCancelButton: true,
-        confirmButtonText: "確認入帳",
+        confirmButtonText: "儲存金額",
         cancelButtonText: "取消",
         inputValidator: (value) => (Number(value) > 0 ? undefined : "金額必須大於 0"),
       });
-      if (result.isConfirmed) await this.confirm(item, result.value);
+      if (!result.isConfirmed) return;
+      await this.run(item, () => apiClient.put(`/api/recurring/occurrences/${item.id}`, { amount: result.value }), "無法修改金額");
     },
     async skip(item) {
       const result = await this.$swal.fire({

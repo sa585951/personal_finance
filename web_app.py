@@ -1837,6 +1837,18 @@ def confirm_recurring_occurrence(current_user_id, occurrence_id):
         return _api_operation_error(error, "confirm_recurring_occurrence", validation_status=400)
 
 
+@app.route("/api/recurring/occurrences/<string:occurrence_id>", methods=["PUT"])
+@token_required
+def update_recurring_occurrence(current_user_id, occurrence_id):
+    try:
+        data = _recurring_json()
+        _recurring_manager().update_pending_amount(current_user_id, occurrence_id, data.get("amount"))
+        db_session.commit()
+        return jsonify({"success": True}), 200
+    except Exception as error:
+        return _api_operation_error(error, "update_recurring_occurrence", validation_status=400)
+
+
 @app.route("/api/recurring/occurrences/<string:occurrence_id>/skip", methods=["POST"])
 @token_required
 def skip_recurring_occurrence(current_user_id, occurrence_id):
