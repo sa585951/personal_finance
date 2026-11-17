@@ -52,7 +52,11 @@
         </span>
       </button>
     </div>
-    <p v-else class="no-data">該月無預算或支出資料。</p>
+    <div v-else class="empty-budget">
+      <p class="no-data">這個月還沒有預算或支出。</p>
+      <p class="empty-hint">替常花的分類（例如伙食）設一個每月上限，就能看到還剩多少、每天可以花多少。先設 1 到 3 個就夠了。</p>
+      <button type="button" class="app-button app-button--soft" @click="$emit('start-budget')">設定第一個預算</button>
+    </div>
   </section>
 </template>
 
@@ -67,7 +71,7 @@ export default {
       required: true,
     },
   },
-  emits: ["update-month", "update-budget"],
+  emits: ["update-month", "update-budget", "start-budget"],
   data() {
     return {
       availableMonths: [],
@@ -267,6 +271,18 @@ export default {
 </script>
 
 <style scoped>
+.empty-budget {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.empty-hint {
+  margin: 0;
+  color: var(--light-text-color);
+  line-height: 1.55;
+}
+
 .budget-summary {
   display: grid;
   gap: 12px;

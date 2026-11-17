@@ -18,6 +18,7 @@
       :selected-month="selectedMonth"
       @update-month="handleSelectedMonthUpdate"
       @update-budget="updateBudget"
+      @start-budget="showBudgetForm = true"
     />
 
     <div v-if="showBudgetForm" class="form-container">
