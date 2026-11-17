@@ -123,7 +123,10 @@ async function run() {
     await page.getByText(`E2E 咖啡 ${stamp}`).waitFor();
     await page.getByText(`E2E 午餐 ${stamp}`).waitFor();
 
-    // 7. Privacy: export, then delete the account (runs last: it removes the user).
+    // 7. Fixed monthly entries: pending months, confirm once, skip.
+    await require('./test-e2e-recurring.cjs')({ page, web, stamp, accountName, accountByName, expectEventually });
+
+    // 8. Privacy: export, then delete the account (runs last: it removes the user).
     await require('./test-e2e-privacy.cjs')({ page, web, stamp, accountName, expectEventually });
 
     assert.deepEqual(errors, [], 'no uncaught browser exceptions');

@@ -52,6 +52,22 @@
         <ArrowRight aria-hidden="true" />
       </router-link>
 
+      <section v-if="hasAccounts && recurringPending.length" class="recurring" aria-labelledby="recurring-title">
+        <div class="section-head">
+          <h2 id="recurring-title">待確認的固定收支</h2>
+          <router-link to="/recurring">管理</router-link>
+        </div>
+        <RecurringPendingList :items="recurringPending" @changed="load" />
+      </section>
+      <router-link
+        v-else-if="hasAccounts"
+        class="recurring-prompt"
+        to="/recurring?new=1"
+        @click="track('home_click', { target: 'recurring_new' })"
+      >
+        {{ recurringRuleCount ? "＋ 新增固定收支" : "每月固定的房租、訂閱？設定一次，到期時提醒你確認" }}
+      </router-link>
+
       <section v-if="hasAccounts" class="recent" aria-labelledby="recent-title">
         <div class="section-head">
           <h2 id="recent-title">最近</h2>
@@ -72,6 +88,7 @@ import { ArrowRight } from "@element-plus/icons-vue";
 import apiClient from "@/api";
 import AppStatePanel from "@/components/shared/AppStatePanel.vue";
 import LedgerRow from "@/components/shared/LedgerRow.vue";
+import RecurringPendingList from "@/components/recurring/RecurringPendingList.vue";
 import { formatAmount, localDateKey } from "@/utils/money";
 import { track } from "@/utils/track";
 
@@ -88,7 +105,7 @@ function daysBetween(fromKey, toKey) {
 
 export default {
   name: "HomeView",
-  components: { AppStatePanel, ArrowRight, LedgerRow },
+  components: { AppStatePanel, ArrowRight, LedgerRow, RecurringPendingList },
   data() {
     return {
       month: localDateKey().slice(0, 7),
@@ -99,6 +116,8 @@ export default {
       income: 0,
       expense: 0,
       recent: [],
+      recurringPending: [],
+      recurringRuleCount: 0,
       trips: [],
       accounts: [],
       today: localDateKey(),
@@ -189,12 +208,14 @@ export default {
       this.loading = true;
       this.loadError = "";
       try {
-        const [assets, budgets, summary, recent, trips] = await Promise.all([
+        const [assets, budgets, summary, recent, trips, recurring] = await Promise.all([
           apiClient.get("/api/assets"),
           apiClient.get(`/api/budgets/summary/${this.month}`),
           apiClient.get("/api/reports/income_expense_summary", { params: { month: this.month } }),
           apiClient.get("/api/transactions", { params: { limit: 5 } }),
           apiClient.get("/api/trips").catch(() => ({ data: { data: [] } })),
+          // Optional on Home: a failure here must not hide the rest of the page.
+          apiClient.get("/api/recurring").catch(() => ({ data: { data: { rules: [], pending: [] } } })),
         ]);
         this.accounts = Object.values(assets.data?.data || {});
         this.hasAccounts = this.accounts.length > 0;
@@ -204,6 +225,8 @@ export default {
         this.income = Number(income || 0);
         this.expense = Number(expense || 0);
         this.recent = recent.data?.data || [];
+        this.recurringPending = recurring.data?.data?.pending || [];
+        this.recurringRuleCount = (recurring.data?.data?.rules || []).length;
         track("home_view", { context: this.contextCard?.kind || "none", budget: this.hasBudget });
       } catch (error) {
         this.loadError = error.response?.data?.message || "請確認網路連線後重試。";
@@ -337,6 +360,21 @@ export default {
 .alert-line svg {
   width: 16px;
   height: 16px;
+}
+
+.recurring {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.recurring-prompt {
+  display: block;
+  margin-bottom: 20px;
+  color: var(--light-text-color);
+  font-size: 0.88rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .section-head {

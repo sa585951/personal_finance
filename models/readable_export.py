@@ -16,7 +16,7 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy import or_, select
 
 from .schema import (
-    accounts_table, budgets_table, categories_table, transactions_table, transfers_table,
+    accounts_table, budgets_table, categories_table, recurring_rules_table, transactions_table, transfers_table,
     trip_members_table, trips_table,
 )
 
@@ -30,7 +30,7 @@ TRIP_STATUS_LABELS = {"active": "進行中", "archived": "已封存"}
 ROLE_LABELS = {"owner": "建立者", "editor": "可編輯", "viewer": "僅檢視"}
 MONEY_FORMAT = "#,##0.00"
 
-SHEETS = ("交易明細", "帳戶", "轉帳", "預算", "旅行")
+SHEETS = ("交易明細", "帳戶", "轉帳", "預算", "旅行", "固定收支")
 
 
 def _number(value):
@@ -178,6 +178,20 @@ def build_workbook(db_session, user_id):
             trip["name"], trip["destination"] or "", trip["start_date"], trip["end_date"],
             trip["base_currency"], TRIP_STATUS_LABELS.get(trip["status"], trip["status"]),
             ROLE_LABELS.get(role, role),
+        ])
+    _finish(sheet)
+
+    recurring = db_session.execute(
+        select(recurring_rules_table).where(recurring_rules_table.c.user_id == owner)
+        .order_by(recurring_rules_table.c.created_at)
+    ).mappings().all()
+    sheet = book.create_sheet(SHEETS[5])
+    sheet.append(["項目", "類型", "分類", "金額", "帳戶", "每月幾號", "開始日", "結束日", "備註", "狀態"])
+    for rule in recurring:
+        _put(sheet, [
+            rule["title"], TYPE_LABELS[rule["type"]], rule["budget_category"], rule["amount"],
+            account_names.get(rule["account_id"], ""), rule["day_of_month"], rule["start_date"],
+            rule["end_date"], rule["description"] or "", "使用中" if rule["is_active"] else "已暫停",
         ])
     _finish(sheet)
 

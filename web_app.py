@@ -18,6 +18,7 @@ import jwt
 from models.asset_manager import AssetManager
 from models.account_privacy import AccountPrivacyService, SharedTripOwnershipError
 from models.readable_export import build_workbook
+from models.recurring_manager import RecurringManager
 from models.idempotency import IdempotencyConflict
 from models.asset_allocation_manager import AllocationNotFoundError, AssetAllocationManager
 from models.auth_session_manager import AuthSessionManager
@@ -1750,6 +1751,86 @@ def delete_trip(current_user_id, trip_id):
         return jsonify({"success": True, "message": "旅行已刪除", "data": trip}), 200
     except Exception as error:
         return _api_operation_error(error, "delete_trip", validation_status=400)
+
+# --- API - 固定收支（每月重複，需使用者確認才入帳）---
+
+def _recurring_manager():
+    return RecurringManager(db_session, get_transaction_service())
+
+
+def _recurring_json():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        raise ValueError("請提供 JSON object")
+    return data
+
+
+@app.route("/api/recurring", methods=["GET"])
+@token_required
+def get_recurring(current_user_id):
+    """Rules plus the months waiting for confirmation. Generating due months here is what
+    replaces a scheduler: opening the app is the trigger."""
+    try:
+        manager = _recurring_manager()
+        manager.generate_due(current_user_id)
+        data = {"rules": manager.list_rules(current_user_id), "pending": manager.list_pending(current_user_id)}
+        db_session.commit()
+        return jsonify({"success": True, "data": data}), 200
+    except Exception as error:
+        return _api_operation_error(error, "get_recurring", validation_status=400)
+
+
+@app.route("/api/recurring/rules", methods=["POST"])
+@token_required
+def create_recurring_rule(current_user_id):
+    try:
+        rule_id = _recurring_manager().create_rule(current_user_id, _recurring_json())
+        db_session.commit()
+        return jsonify({"success": True, "data": {"id": rule_id}}), 201
+    except Exception as error:
+        return _api_operation_error(error, "create_recurring_rule", validation_status=400)
+
+
+@app.route("/api/recurring/rules/<string:rule_id>", methods=["PUT", "DELETE"])
+@token_required
+def change_recurring_rule(current_user_id, rule_id):
+    try:
+        manager = _recurring_manager()
+        if request.method == "DELETE":
+            manager.delete_rule(current_user_id, rule_id)
+        else:
+            manager.update_rule(current_user_id, rule_id, _recurring_json())
+        db_session.commit()
+        return jsonify({"success": True}), 200
+    except Exception as error:
+        return _api_operation_error(error, "change_recurring_rule", validation_status=400)
+
+
+@app.route("/api/recurring/occurrences/<string:occurrence_id>/confirm", methods=["POST"])
+@token_required
+def confirm_recurring_occurrence(current_user_id, occurrence_id):
+    try:
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            raise ValueError("請提供 JSON object")
+        transaction_id = _recurring_manager().confirm(
+            current_user_id, occurrence_id, amount=data.get("amount"), transaction_date=data.get("date"))
+        db_session.commit()
+        return jsonify({"success": True, "data": {"transaction_id": transaction_id}}), 200
+    except Exception as error:
+        return _api_operation_error(error, "confirm_recurring_occurrence", validation_status=400)
+
+
+@app.route("/api/recurring/occurrences/<string:occurrence_id>/skip", methods=["POST"])
+@token_required
+def skip_recurring_occurrence(current_user_id, occurrence_id):
+    try:
+        _recurring_manager().skip(current_user_id, occurrence_id)
+        db_session.commit()
+        return jsonify({"success": True}), 200
+    except Exception as error:
+        return _api_operation_error(error, "skip_recurring_occurrence", validation_status=400)
+
 
 # --- API - 預算與支出管理 ---
 
