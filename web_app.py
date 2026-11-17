@@ -17,6 +17,7 @@ import jwt
 # 匯入重構後的核心類別和資料庫引擎
 from models.asset_manager import AssetManager
 from models.account_privacy import AccountPrivacyService, SharedTripOwnershipError
+from models.readable_export import build_workbook
 from models.idempotency import IdempotencyConflict
 from models.asset_allocation_manager import AllocationNotFoundError, AssetAllocationManager
 from models.auth_session_manager import AuthSessionManager
@@ -427,12 +428,22 @@ def logout_all_devices(current_user_id):
 @app.route("/api/account/export", methods=["GET"])
 @token_required
 def export_account_data(current_user_id):
+    """`?kind=ledger` (default): readable Excel of the person's own records.
+    `?kind=full`: the complete data-portability ZIP of raw tables."""
+    kind = request.args.get("kind", "ledger")
+    if kind not in ("ledger", "full"):
+        return jsonify({"success": False, "message": "kind 必須是 ledger 或 full"}), 400
+    stamp = f"{datetime.now(timezone.utc):%Y%m%d}"
     try:
-        archive = account_privacy_service.export_zip(current_user_id)
+        if kind == "full":
+            body, mimetype, filename = account_privacy_service.export_zip(current_user_id), \
+                "application/zip", f"nomica-full-export-{stamp}.zip"
+        else:
+            body, mimetype, filename = build_workbook(db_session, current_user_id), \
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", f"nomica-{stamp}.xlsx"
     except Exception as error:
         return _api_operation_error(error, "export_account_data")
-    filename = f"nomica-export-{datetime.now(timezone.utc):%Y%m%d}.zip"
-    return app.response_class(archive, mimetype="application/zip", headers={
+    return app.response_class(body, mimetype=mimetype, headers={
         "Content-Disposition": f'attachment; filename="{filename}"',
     })
 
