@@ -60,6 +60,7 @@ export default {
       ledgerLinks: [
         { to: "/assets", label: "帳戶", hint: "餘額、轉帳、信用卡帳期" },
         { to: "/budgets", label: "預算", hint: "每月各類別上限" },
+        { to: "/recurring", label: "固定收支", hint: "房租、訂閱、薪水，到期時確認入帳" },
         { to: "/analysis", label: "分析", hint: "趨勢與類別分佈" },
         { to: "/allocation", label: "資產配置", hint: "投資標的與成本" },
       ],

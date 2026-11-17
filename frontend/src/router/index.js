@@ -17,6 +17,7 @@ const AllocationDetail = () => import("../views/AllocationDetail.vue");
 const UniversalAddView = () => import("../views/UniversalAddView.vue");
 const AnalysisView = () => import("../views/AnalysisView.vue");
 const MeView = () => import("../views/MeView.vue");
+const RecurringView = () => import("../views/RecurringView.vue");
 const PolicyView = () => import("../views/PolicyView.vue");
 
 const routes = [
@@ -85,6 +86,12 @@ const routes = [
     name: "TripDetail",
     component: TripsView,
     meta: { requiresAuth: true, tab: "trips" },
+  },
+  {
+    path: "/recurring",
+    name: "Recurring",
+    component: RecurringView,
+    meta: { requiresAuth: true, tab: "me" },
   },
   {
     path: "/budgets",

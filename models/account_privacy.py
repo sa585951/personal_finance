@@ -16,7 +16,8 @@ from sqlalchemy import and_, func, select, update
 from .schema import (
     account_adjustments_table, accounts_table, ai_parse_events_table, auth_sessions_table,
     budgets_table, categories_table, credit_card_billing_profiles_table, line_ai_consents,
-    portfolios_table, product_events_table, receipt_documents_table, transactions_table, transfers_table,
+    portfolios_table, product_events_table, receipt_documents_table, recurring_occurrences_table,
+    recurring_rules_table, transactions_table, transfers_table,
     trip_invites_table, trip_members_table, trips_table, user_identities_table, users_table,
 )
 
@@ -37,6 +38,8 @@ EXPORTS = (
     ("portfolios.csv", portfolios_table, "user_id"),
     ("receipt_documents.csv", receipt_documents_table, "user_id"),
     ("trip_memberships.csv", trip_members_table, "user_id"),
+    ("recurring_rules.csv", recurring_rules_table, "user_id"),
+    ("recurring_occurrences.csv", recurring_occurrences_table, "user_id"),
     ("ai_parse_events.csv", ai_parse_events_table, "user_id"),
     ("line_ai_consents.csv", line_ai_consents, "user_id"),
     ("usage_events.csv", product_events_table, "user_id"),
@@ -179,6 +182,9 @@ class AccountPrivacyService:
                                 .where(trip_members_table.c.user_id == owner,
                                        trip_members_table.c.status != "removed")
                                 .values(status="removed", removed_at=now, updated_at=now, **soft))
+
+        # Fixed income/expense rules are not ledger history: remove them (and their pending months).
+        self.db_session.execute(recurring_rules_table.delete().where(recurring_rules_table.c.user_id == owner))
 
         # AI: stop any new provider calls for this person.
         self.db_session.execute(update(line_ai_consents).where(line_ai_consents.c.user_id == owner)

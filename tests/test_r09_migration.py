@@ -42,7 +42,7 @@ def test_r09_populated_upgrade_preserves_all_financial_rows(command_db,monkeypat
     with engine.connect() as c:
         for table,name in CONSTRAINTS.items():
             assert name in {x['name'] for x in inspect(c).get_unique_constraints(table)}
-        assert c.scalar(text('SELECT version_num FROM alembic_version'))=='20261116_0024'
+        assert c.scalar(text('SELECT version_num FROM alembic_version'))=='20261117_0025'
 
 
 @pytest.mark.parametrize('kind',['member','split'])

@@ -346,6 +346,58 @@ trip_exchange_rates_table = Table(
     CheckConstraint("rate > 0", name="ck_trip_exchange_rates_rate_positive"),
 )
 
+# Fixed income and expenses that repeat every month. A rule never touches the ledger itself:
+# each due month becomes a pending occurrence the person confirms, which then creates a real
+# transaction. Occurrences carry their own copy of the details, so later rule edits only
+# affect months that have not been generated yet.
+recurring_rules_table = Table(
+    "recurring_rules",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("title", String(100), nullable=False),
+    Column("type", String(20), nullable=False),
+    Column("budget_category", String(100), nullable=False),
+    Column("amount", AMOUNT, nullable=False),
+    Column("account_id", UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="SET NULL")),
+    Column("day_of_month", Integer, nullable=False),
+    Column("start_date", Date, nullable=False),
+    Column("end_date", Date),
+    Column("description", Text, nullable=False, server_default=text("''")),
+    Column("is_active", Boolean, nullable=False, server_default=text("true")),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Index("ix_recurring_rules_user", "user_id"),
+    CheckConstraint("type in ('expense', 'income')", name="ck_recurring_rules_type"),
+    CheckConstraint("amount > 0", name="ck_recurring_rules_amount_positive"),
+    CheckConstraint("day_of_month between 1 and 31", name="ck_recurring_rules_day"),
+    CheckConstraint("end_date is null or end_date >= start_date", name="ck_recurring_rules_dates"),
+)
+
+recurring_occurrences_table = Table(
+    "recurring_occurrences",
+    metadata,
+    Column("id", UUID(as_uuid=True), **UUID_PK),
+    Column("rule_id", UUID(as_uuid=True), ForeignKey("recurring_rules.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("month", Date, nullable=False),
+    Column("due_date", Date, nullable=False),
+    Column("title", String(100), nullable=False),
+    Column("type", String(20), nullable=False),
+    Column("budget_category", String(100), nullable=False),
+    Column("amount", AMOUNT, nullable=False),
+    Column("account_id", UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="SET NULL")),
+    Column("description", Text, nullable=False, server_default=text("''")),
+    Column("status", String(20), nullable=False, server_default=text("'pending'")),
+    Column("transaction_id", UUID(as_uuid=True), ForeignKey("transactions.id", ondelete="SET NULL")),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("now()")),
+    UniqueConstraint("rule_id", "month", name="uq_recurring_occurrences_rule_month"),
+    Index("ix_recurring_occurrences_user_status", "user_id", "status"),
+    CheckConstraint("status in ('pending', 'confirmed', 'skipped')", name="ck_recurring_occurrences_status"),
+    CheckConstraint("type in ('expense', 'income')", name="ck_recurring_occurrences_type"),
+)
+
 # Who changed a trip rate, when, from what, and whether it was re-applied to recorded expenses.
 trip_exchange_rate_changes_table = Table(
     "trip_exchange_rate_changes",
