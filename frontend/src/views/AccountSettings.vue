@@ -41,9 +41,13 @@
 
     <section class="account-card" aria-labelledby="data-export">
       <h2 id="data-export">匯出我的資料</h2>
-      <p class="muted">下載 ZIP，內含帳戶、收支、轉帳、預算、旅行成員資格與 AI 解析紀錄的 CSV。</p>
-      <button type="button" class="secondary-action" :disabled="busy === 'export'" @click="exportData">
-        {{ busy === "export" ? "準備中" : "下載資料" }}
+      <p class="muted">下載 Excel（.xlsx），包含你自己記錄的收支明細、帳戶、轉帳、預算與旅行。分類與帳戶都是名稱，可以直接閱讀。</p>
+      <button type="button" class="secondary-action" :disabled="busy === 'export'" @click="exportData('ledger')">
+        {{ busy === "export" ? "準備中" : "下載 Excel" }}
+      </button>
+      <p class="muted">需要完整資料備份（含登入方式、AI 同意紀錄、系統欄位）時，可下載 ZIP。</p>
+      <button type="button" class="secondary-action" :disabled="busy === 'export-full'" @click="exportData('full')">
+        {{ busy === "export-full" ? "準備中" : "下載完整備份（ZIP）" }}
       </button>
     </section>
 
@@ -153,15 +157,15 @@ export default {
       if (provider.provider === "line") return "用於登入，也可以在 LINE 直接記帳。";
       return provider.email || "已綁定。";
     },
-    async exportData() {
-      this.busy = "export";
+    async exportData(kind = "ledger") {
+      this.busy = kind === "full" ? "export-full" : "export";
       try {
-        const response = await apiClient.get("/api/account/export", { responseType: "blob" });
+        const response = await apiClient.get("/api/account/export", { params: { kind }, responseType: "blob" });
         const url = URL.createObjectURL(response.data);
         const link = document.createElement("a");
         const match = /filename="([^"]+)"/.exec(response.headers?.["content-disposition"] || "");
         link.href = url;
-        link.download = match?.[1] || "nomica-export.zip";
+        link.download = match?.[1] || (kind === "full" ? "nomica-full-export.zip" : "nomica.xlsx");
         document.body.append(link);
         link.click();
         link.remove();
