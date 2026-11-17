@@ -86,6 +86,10 @@
 
 「我的」頁在營運者帳號下多一列「使用概況」，頁面 `/admin/usage` 顯示總使用者數、近 7 天有記帳人數，以及每位使用者的加入日、最後記帳時間與筆數。營運者沿用既有的 `NOMICA_ADMIN_LINE_USER_ID`，不新增環境變數；未設定時沒有人是營運者。只讀、只統計人數與筆數，不含任何帳務內容；後端對非營運者回 404。
 
+## AI 失敗原因紀錄（`codex/ai-error-reasons`）
+
+呼叫 Gemini 失敗時，LINE 與網頁仍只顯示「AI 解析暫時無法使用」，但伺服器日誌會多一行 `LINE AI provider call failed stage=… <錯誤類別> code=… status=… reason=…`（例如 `reason=API_KEY_INVALID`）。只記錄錯誤類別、HTTP 代碼、狀態與原因代碼，不記錄訊息內文、金鑰或使用者輸入。不新增欄位或環境變數。
+
 ## 開始封閉測試前
 
 依本機的 deployment-checklist.md「封閉測試 → 開始前」逐項完成：備份 → migration 到 `20261112_0023` → 部署 → 環境變數 → 清除排程 → 填政策頁與上手說明的營運者與聯絡方式 → 實機驗收。

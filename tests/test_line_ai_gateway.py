@@ -320,3 +320,29 @@ def test_global_in_flight_cap_refuses_without_counting(gate, monkeypatch):
     assert ids == ["first"]  # the refused call left no attempt behind
     # The slot is free again afterwards.
     gateway.generate(data["b"], "third", "private text")
+
+
+def test_provider_failure_logs_only_a_safe_reason(gate, caplog):
+    import logging
+
+    from models.line_ai_gateway import provider_error_summary
+
+    class ClientError(Exception):
+        code = 400
+        status = "INVALID_ARGUMENT"
+        details = {"error": {"message": "key sk-SECRET and 私人句子", "details": [
+            {"reason": "API_KEY_INVALID"}, {"reason": "not a code, with spaces"}]}}
+
+    summary = provider_error_summary(ClientError("key sk-SECRET and 私人句子"))
+    assert summary == "ClientError code=400 status=INVALID_ARGUMENT reason=API_KEY_INVALID"
+    assert provider_error_summary(TimeoutError("private")) == "TimeoutError"
+
+    engine, data, provider, gateway = gate
+    consent(gateway, data["a"])
+    provider.fail = True
+    with caplog.at_level(logging.WARNING, logger="models.line_ai_gateway"):
+        with pytest.raises(AIRequestBlocked, match="暫時"):
+            gateway.generate(data["a"], "evt", "私人句子 午餐 120")
+    logged = " ".join(record.getMessage() for record in caplog.records)
+    assert "stage=generate_content" in logged and "TimeoutError" in logged
+    assert "私人句子" not in logged and "private provider exception" not in logged

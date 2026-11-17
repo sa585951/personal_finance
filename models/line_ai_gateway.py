@@ -29,6 +29,34 @@ CONSENT_NOTICE = (
 )
 
 
+def provider_error_summary(error):
+    """A log-safe description of a provider failure: class, HTTP code, status and reason code only.
+
+    Never the message or details text, which could echo a key or the person's sentence.
+    """
+    parts = [type(error).__name__]
+    code = getattr(error, "code", None)
+    if isinstance(code, int):
+        parts.append(f"code={code}")
+    status = getattr(error, "status", None)
+    if isinstance(status, str) and status.isupper() and len(status) <= 40:
+        parts.append(f"status={status}")
+    try:
+        details = (getattr(error, "details", None) or {}).get("error", {}).get("details", [])
+        reasons = [item["reason"] for item in details
+                   if isinstance(item, dict) and isinstance(item.get("reason"), str)
+                   and item["reason"].replace("_", "").isalnum() and item["reason"].isupper()]
+        if reasons:
+            parts.append(f"reason={reasons[0]}")
+    except Exception:  # Diagnostics must never break the reply path.
+        pass
+    return " ".join(parts)
+
+
+def _log_provider_failure(stage, error):
+    logging.getLogger(__name__).warning("LINE AI provider call failed stage=%s %s", stage, provider_error_summary(error))
+
+
 class AIRequestBlocked(Exception):
     """Carries a fixed, safe reply instead of a provider exception."""
 
@@ -237,7 +265,8 @@ class LineAIGateway:
         self._authorize_or_release(owner, event_id, "counting")
         try:
             counted = self.models.count_tokens(model=MODEL, contents=prompt).total_tokens
-        except Exception:
+        except Exception as error:
+            _log_provider_failure("count_tokens", error)
             self._finish(event_id, "unknown")
             raise AIRequestBlocked("AI 解析暫時無法使用，請稍後再試。") from None
         if type(counted) is not int or not 0 < counted <= INPUT_LIMIT:
@@ -253,7 +282,8 @@ class LineAIGateway:
                     thinking_config=types.ThinkingConfig(thinking_level="MINIMAL"),
                 ),
             )
-        except Exception:
+        except Exception as error:
+            _log_provider_failure("generate_content", error)
             self._finish(event_id, "unknown")
             raise AIRequestBlocked("AI 解析暫時無法使用，請稍後再試。") from None
         usage = getattr(response, "usage_metadata", None)
