@@ -182,8 +182,11 @@ class LineOralPilot:
             else:
                 parsed, _ = parse_oral(self.parser, text)
         except AIRequestBlocked as blocked:
+            if str(blocked) != SENSITIVE_MESSAGE:
+                self._keep_unread_sentence(owner, text, "規則看不懂，AI 沒有接手")
             return str(blocked)
         if parsed.get("type") not in {"expense", "income"}:
+            self._keep_unread_sentence(owner, text, "規則看不懂")
             return GUIDE
 
         payload = oral_payload(self.parser, text, parsed, self._amount)
@@ -219,6 +222,14 @@ class LineOralPilot:
             "account_hint": hint, "offered_accounts": [], "category_id": str(category_id),
         }, "success", result_type=parsed["type"])
         return self._advance(owner, record)
+
+    def _keep_unread_sentence(self, owner, text, reason):
+        """Remember a sentence nothing could read, so the rules can learn it (kept 30 days, operator only)."""
+        try:
+            self.drafts.events.record_failure(owner, "line_bot", text, reason)
+        except Exception:
+            # Learning from a miss must never break the reply the person is waiting for.
+            self.session.rollback()
 
     def _amount(self, value):
         try:

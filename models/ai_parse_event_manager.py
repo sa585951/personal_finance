@@ -1,15 +1,27 @@
 import hashlib
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
-from sqlalchemy import desc, insert, select, update
+from sqlalchemy import desc, insert, or_, select, update
 
 from .schema import ai_parse_events_table
 
 
 SAFE_TRANSACTION_FIELDS = ("type", "budget_category", "amount", "currency", "date", "account_id")
+
+# The typed sentence is kept only where it helps improve the rules: a parse that failed, or a draft the
+# person changed before saving. Everything else loses it within a day, and nothing outlives 30 days.
+SENTENCE_KEEP_DAYS = 30
+DRAFT_SENTENCE_HOURS = 24
+MAX_SENTENCE_CHARS = 200
+PURGE_INTERVAL = timedelta(minutes=10)
+_last_purge = None
+
+
+def clip_sentence(text):
+    return str(text or "").strip()[:MAX_SENTENCE_CHARS]
 
 
 def title_digest(value):
@@ -56,6 +68,7 @@ class AIParseEventManager:
         confidence=None,
         error_message=None,
     ):
+        self.purge_expired_sentences()
         payload = self._to_jsonable(parsed_payload)
         stmt = (
             insert(ai_parse_events_table)
@@ -83,12 +96,37 @@ class AIParseEventManager:
         return self.record_parse_event(
             user_id=user_id,
             source=source,
-            raw_input="",  # The typed sentence is never stored; see redact_parse_result.
+            # Kept for now so a failed or edited draft can be reviewed; purge_expired_sentences clears it.
+            raw_input=clip_sentence(parse_result.get("raw_text")),
             parsed_payload=redact_parse_result(parse_result),
             status=status,
             result_type=transaction.get("type") if transaction else parse_result.get("intent"),
             error_message="; ".join(errors) if errors else None,
         )
+
+    def record_failure(self, user_id, source, sentence, reason):
+        """A sentence the rules (and AI, if on) could not turn into an entry; kept for rule improvement."""
+        return self.record_parse_event(
+            user_id=user_id, source=source, raw_input=clip_sentence(sentence),
+            parsed_payload={"failure": reason}, status="failed", error_message=reason,
+        )
+
+    def purge_expired_sentences(self, now=None, force=False):
+        """Clear sentences that no longer earn their place. Runs at most every few minutes per process."""
+        global _last_purge
+        now = now or datetime.now(timezone.utc)
+        if not force and _last_purge is not None and now - _last_purge < PURGE_INTERVAL:
+            return
+        _last_purge = now
+        table = ai_parse_events_table
+        has_text = table.c.raw_input != ""
+        self.db_session.execute(update(table).where(
+            has_text, table.c.created_at < now - timedelta(days=SENTENCE_KEEP_DAYS)).values(raw_input=""))
+        # Worth keeping: a failure, or a draft the person edited. Anything else only waits for its confirmation.
+        worth_keeping = or_(table.c.status == "failed", table.c.confirmed_unchanged.is_(False))
+        self.db_session.execute(update(table).where(
+            has_text, ~worth_keeping, table.c.created_at < now - timedelta(hours=DRAFT_SENTENCE_HOURS),
+        ).values(raw_input=""))
 
     @staticmethod
     def draft_unchanged(parsed_payload, submitted):
@@ -117,18 +155,17 @@ class AIParseEventManager:
         return bool(checks) and all(checks)
 
     def confirm_event(self, user_id, event_id, result_type, result_id, *, unchanged=None):
+        values = dict(status="confirmed", result_type=result_type, result_id=UUID(str(result_id)),
+                      confirmed_unchanged=unchanged)
+        if unchanged is True:
+            values["raw_input"] = ""  # Saved as parsed: nothing to learn from the sentence.
         stmt = (
             update(ai_parse_events_table)
             .where(
                 ai_parse_events_table.c.id == UUID(str(event_id)),
                 ai_parse_events_table.c.user_id == UUID(str(user_id)),
             )
-            .values(
-                status="confirmed",
-                result_type=result_type,
-                result_id=UUID(str(result_id)),
-                confirmed_unchanged=unchanged,
-            )
+            .values(**values)
             .returning(ai_parse_events_table)
         )
         row = self.db_session.execute(stmt).first()

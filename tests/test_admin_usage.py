@@ -101,3 +101,14 @@ def test_endpoint_is_404_for_everyone_but_the_operator(api, monkeypatch):
 
     monkeypatch.delenv("NOMICA_ADMIN_LINE_USER_ID")
     assert get(client, "/api/admin/usage").status_code == 404
+
+
+def test_sentences_endpoint_is_operator_only(api, monkeypatch):
+    client, engine, app = api
+    monkeypatch.setenv("NOMICA_ADMIN_LINE_USER_ID", ADMIN_LINE_ID)
+    assert get(client, "/api/admin/sentences").status_code == 404
+    with Session(engine) as s:
+        dev_user_id = UserManager(s).get_user_by_identity("dev", "local-dev-user")["id"]
+    link_line(engine, dev_user_id)
+    response = get(client, "/api/admin/sentences")
+    assert response.status_code == 200 and isinstance(response.get_json()["data"], list)
