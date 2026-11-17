@@ -8,10 +8,12 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 
-from .schema import transactions_table, user_identities_table, users_table
+from .schema import ai_parse_events_table, transactions_table, user_identities_table, users_table
 
 RECENT_DAYS = 7
 USER_LIMIT = 200
+SENTENCE_LIMIT = 100
+SOURCE_LABELS = {"line_bot": "LINE", "web": "網頁", "pwa": "網頁", "ios": "iOS"}
 
 
 def is_admin(session, user_id):
@@ -64,3 +66,22 @@ def usage_overview(session, now=None):
         "active_users": sum(1 for user in users if user["recent_records"] > 0),
         "users": users,
     }
+
+
+def retained_sentences(session):
+    """Sentences kept for improving the rules: ones nothing could read, and drafts the person edited.
+
+    Deliberately without any user id or name, so the list shows what people type, not who typed it.
+    """
+    t = ai_parse_events_table
+    rows = session.execute(
+        select(t.c.created_at, t.c.source, t.c.status, t.c.error_message, t.c.raw_input)
+        .where(t.c.raw_input != "", (t.c.status == "failed") | (t.c.confirmed_unchanged.is_(False)))
+        .order_by(t.c.created_at.desc()).limit(SENTENCE_LIMIT)
+    ).all()
+    return [{
+        "date": row.created_at.isoformat(),
+        "source": SOURCE_LABELS.get(row.source, row.source),
+        "reason": (row.error_message or "解析失敗") if row.status == "failed" else "存檔前被修改",
+        "sentence": row.raw_input,
+    } for row in rows]

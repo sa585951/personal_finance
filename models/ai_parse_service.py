@@ -22,6 +22,19 @@ DISABLED_GOAL_TYPES = {
 # Sentinel for parse(): run quick rules and the local fallback, never a model.
 LOCAL_ONLY = object()
 
+# One list of what counts as income, shared by type detection, categories and title splitting.
+# A word is here only when it almost always means money coming in; 紅包 and 收到 can go either way,
+# so they never make a sentence income on their own.
+INCOME_VOCABULARY = [
+    ("薪資", ["薪水", "薪資", "發薪", "加班費"]),
+    ("獎金", ["獎金", "年終", "分紅", "紅利"]),
+    ("利息", ["利息", "股利", "股息", "配息"]),
+    ("報銷/補貼", ["報銷", "補貼", "補助", "津貼", "退款", "退費", "退稅"]),
+    ("禮金/贈與", ["禮金", "贈與"]),
+]
+# Only picks the category once the sentence is already income for another reason.
+INCOME_CATEGORY_ONLY = ["紅包"]
+
 
 class AIParseService:
     """跨入口共用的語意解析服務。
@@ -216,23 +229,17 @@ class AIParseService:
         return float(amount) if amount % 1 else int(amount)
 
     def _detect_transaction_type(self, message):
-        income_keywords = ["收入", "薪水", "薪資", "發薪", "獎金", "報銷", "補貼", "利息"]
-        if any(keyword in message for keyword in income_keywords):
+        if "收入" in message or any(keyword in message for _, keywords in INCOME_VOCABULARY for keyword in keywords):
             return "income"
         return "expense"
 
     def _detect_category(self, message, transaction_type):
         if transaction_type == "income":
-            income_category_keywords = [
-                ("薪資", ["薪水", "薪資", "發薪"]),
-                ("獎金", ["獎金"]),
-                ("利息", ["利息"]),
-                ("報銷/補貼", ["報銷", "補貼"]),
-                ("禮金/贈與", ["禮金", "贈與", "紅包"]),
-            ]
-            for category, keywords in income_category_keywords:
+            for category, keywords in INCOME_VOCABULARY:
                 if any(keyword in message for keyword in keywords):
                     return category, category
+            if any(keyword in message for keyword in INCOME_CATEGORY_ONLY):
+                return "禮金/贈與", "禮金/贈與"
             return "其他收入", "收入"
 
         expense_category_keywords = [
@@ -373,13 +380,8 @@ class AIParseService:
         return self._extract_expense_fields(content)
 
     def _extract_income_fields(self, content):
-        income_keywords = [
-            ("收入", "薪資", ["薪資", "薪水", "發薪"]),
-            ("收入", "獎金", ["獎金"]),
-            ("收入", "利息", ["利息"]),
-            ("收入", "報銷/補貼", ["報銷", "補貼"]),
-            ("收入", "禮金/贈與", ["禮金", "贈與", "紅包"]),
-        ]
+        income_keywords = [("收入", title, keywords) for title, keywords in INCOME_VOCABULARY]
+        income_keywords.append(("收入", "禮金/贈與", INCOME_CATEGORY_ONLY))
         return self._split_by_leading_keyword(content, income_keywords)
 
     def _extract_expense_fields(self, content):

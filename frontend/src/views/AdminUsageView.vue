@@ -2,7 +2,7 @@
   <div class="usage-page">
     <router-link to="/me" class="back-link">← 我的</router-link>
     <h1>使用概況</h1>
-    <p class="note">只有你看得到。這裡只統計人數和筆數，不含任何金額、品項或備註。</p>
+    <p class="note">只有你看得到。上半部只統計人數和筆數；下半部是規則看不懂或被使用者修改過的句子（保留 30 天），不顯示是誰輸入的。</p>
 
     <p v-if="loading" class="state">載入中</p>
     <div v-else-if="errorMessage" class="state" role="alert">
@@ -30,6 +30,15 @@
       <p v-if="overview.total_users > overview.users.length" class="note">
         只列出最近活動的 {{ overview.users.length }} 位。
       </p>
+
+      <h2>待改善的句子</h2>
+      <p v-if="!sentences.length" class="note">目前沒有。規則看不懂的句子、或使用者存檔前改過的草稿會出現在這裡。</p>
+      <ul v-else class="sentence-list">
+        <li v-for="(item, index) in sentences" :key="index" class="sentence-row">
+          <strong>{{ item.sentence }}</strong>
+          <small>{{ dayText(item.date) }} · {{ item.source }} · {{ item.reason }}</small>
+        </li>
+      </ul>
     </template>
   </div>
 </template>
@@ -42,7 +51,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export default {
   name: "AdminUsageView",
   data() {
-    return { overview: null, loading: false, errorMessage: "" };
+    return { overview: null, sentences: [], loading: false, errorMessage: "" };
   },
   mounted() {
     this.load();
@@ -55,6 +64,8 @@ export default {
         const data = (await apiClient.get("/api/admin/usage")).data?.data;
         if (!data || !Array.isArray(data.users)) throw new Error("bad shape");
         this.overview = data;
+        const sentences = await apiClient.get("/api/admin/sentences").then((response) => response.data?.data).catch(() => []);
+        this.sentences = Array.isArray(sentences) ? sentences : [];
       } catch (error) {
         this.overview = null;
         this.errorMessage = error.response?.status === 404 ? "沒有權限查看這個頁面。" : "請確認網路連線後重試。";
@@ -163,6 +174,29 @@ small {
 .user-counts {
   text-align: right;
   white-space: nowrap;
+}
+
+h2 {
+  margin: 24px 0 8px;
+  font-size: 1.15rem;
+}
+
+.sentence-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border-color);
+}
+
+.sentence-row {
+  display: grid;
+  gap: 2px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sentence-row strong {
+  overflow-wrap: anywhere;
 }
 
 .retry {

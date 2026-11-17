@@ -32,7 +32,7 @@ from models.settlement_account_entry_manager import SettlementAccountEntryManage
 from models.transaction_service import TransactionService
 from models.receipt_import_service import ReceiptImportService
 from models.schema import users_table
-from models.admin_usage import is_admin as _is_admin, usage_overview
+from models.admin_usage import is_admin as _is_admin, retained_sentences, usage_overview
 from models.trip_manager import TripManager, safe_avatar_url
 from models.user_manager import UserManager
 
@@ -361,6 +361,18 @@ def get_admin_usage(current_user_id):
         db_session.rollback()
         return _api_operation_error(error, "admin_usage")
 
+@app.route("/api/admin/sentences", methods=["GET"])
+@token_required
+def get_admin_sentences(current_user_id):
+    """Operator-only: sentences kept for rule improvement, with no user identity attached."""
+    if not _caller_is_admin(current_user_id):
+        return jsonify({"success": False, "message": "Not found"}), 404
+    try:
+        return jsonify({"success": True, "data": retained_sentences(db_session)})
+    except Exception as error:
+        db_session.rollback()
+        return _api_operation_error(error, "admin_sentences")
+
 @app.route("/api/auth/logout", methods=["POST"])
 def logout():
     data, _, _ = _decode_auth_payload()
@@ -522,6 +534,14 @@ def _parse_response(current_user_id, text, parse):
         )
         transaction["account_id"] = matched_account["account_key"] if matched_account else None
         transaction["account_name"] = matched_account["bank_name"] if matched_account else None
+    if transaction and not transaction.get("account_id") and transaction.get("type") in ("expense", "income"):
+        # No account words like 「帳戶」 or 「銀行」: look for one of the person's own account names instead.
+        mentioned = asset_manager.find_asset_mentioned_in(current_user_id, text, currency=transaction.get("currency"))
+        if mentioned:
+            asset, token = mentioned
+            transaction["account_id"] = asset["account_key"]
+            transaction["account_name"] = asset["bank_name"]
+            transaction["title"] = asset_manager.remove_account_words(transaction.get("title"), token)
     parse_event = linebot_manager.ai_parse_event_manager.record_from_parse_result(
         current_user_id,
         "web",

@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
@@ -317,6 +318,46 @@ class AssetManager:
         if len(scored_accounts) > 1 and scored_accounts[1][0] == top_score:
             return None
         return self._to_legacy_asset(top_account)
+
+    def find_asset_mentioned_in(self, user_id, text, currency=None):
+        """The person's own account whose short name appears in the sentence, e.g. 「玉山」 for 玉山銀行.
+
+        Only a single unambiguous account is returned (two accounts sharing the word, or a word that
+        is just a type like 「現金」, yield nothing), so a guess can never pick the wrong account.
+        Returns (legacy asset, the words matched in the sentence), or None.
+        """
+        sentence = unicodedata.normalize("NFKC", str(text or "")).lower()
+        stmt = select(accounts_table).where(
+            accounts_table.c.user_id == self._parse_user_id(user_id),
+            accounts_table.c.deleted_at.is_(None),
+            accounts_table.c.is_active.is_(True),
+        )
+        if currency:
+            stmt = stmt.where(accounts_table.c.currency == self._normalize_currency(currency))
+        matches = []
+        for row in self.db_session.execute(stmt):
+            account = dict(row._mapping)
+            full = self._normalize_account_search_text(unicodedata.normalize("NFKC", account["name"]))
+            token = self._meaningful_account_token(full)
+            if not token:
+                continue  # A name made only of type words (現金, 信用卡) says nothing about which account.
+            for candidate in (full, token):
+                # Only Chinese names: a Latin word like 「cash」 is far too easy to hit by accident
+                # (「B cash」 is someone else's account, not mine).
+                if (len(candidate) >= 2 and re.search(r"[一-鿿]", candidate)
+                        and candidate in re.sub(r"\s+", "", sentence)):
+                    matches.append((account, candidate))
+                    break
+        if len(matches) != 1:
+            return None
+        account, token = matches[0]
+        return self._to_legacy_asset(account), token
+
+    @staticmethod
+    def remove_account_words(title, token):
+        """Drop the matched account words from a title (「租屋補助 玉山」 -> 「租屋補助」), never to nothing."""
+        cleaned = re.sub(r"\s+", " ", re.sub(re.escape(token), "", str(title or ""), flags=re.IGNORECASE)).strip()
+        return cleaned or title
 
     def _score_account_match(self, account, normalized_hint, context_text=None):
         normalized_name = self._normalize_account_search_text(account["name"])

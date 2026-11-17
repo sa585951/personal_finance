@@ -27,7 +27,7 @@ def test_record_from_parse_result_marks_success_for_valid_parse():
     record = manager.record_from_parse_result(uuid4(), "line_bot", parse_result)
 
     assert record["source"] == "line_bot"
-    assert record["raw_input"] == "早餐 100"
+    assert record["raw_input"] == "早餐 100"  # held only until the draft is saved; see the retention tests
     assert record["status"] == "success"
     assert record["result_type"] == "expense"
     assert record["error_message"] is None
