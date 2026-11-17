@@ -22,6 +22,16 @@
       </router-link>
     </nav>
 
+    <nav class="me-group" aria-label="意見回饋">
+      <a :href="feedbackUrl" class="me-row" target="_blank" rel="noopener noreferrer">
+        <span>
+          <strong>意見回饋</strong>
+          <small>遇到問題或有想法，填一份簡短表單告訴我們</small>
+        </span>
+        <ArrowRight aria-hidden="true" />
+      </a>
+    </nav>
+
     <nav class="me-group" aria-label="設定">
       <router-link to="/account" class="me-row">
         <span>
@@ -50,6 +60,7 @@
 import { ArrowRight } from "@element-plus/icons-vue";
 import apiClient from "@/api";
 import ThemeToggle from "@/components/shared/ThemeToggle.vue";
+import { FEEDBACK_FORM_URL } from "@/constants/feedback";
 
 export default {
   name: "MeView",
@@ -57,6 +68,7 @@ export default {
   data() {
     return {
       isAdmin: false,
+      feedbackUrl: FEEDBACK_FORM_URL,
       ledgerLinks: [
         { to: "/assets", label: "帳戶", hint: "餘額、轉帳、信用卡帳期" },
         { to: "/budgets", label: "預算", hint: "每月各類別上限" },
