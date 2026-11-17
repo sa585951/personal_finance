@@ -1,3 +1,5 @@
+import hashlib
+import unicodedata
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
@@ -5,6 +7,35 @@ from uuid import UUID
 from sqlalchemy import desc, insert, select, update
 
 from .schema import ai_parse_events_table
+
+
+SAFE_TRANSACTION_FIELDS = ("type", "budget_category", "amount", "currency", "date", "account_id")
+
+
+def title_digest(value):
+    """Fingerprint of a title so a draft can be compared with the saved entry without keeping the words."""
+    return hashlib.sha256(unicodedata.normalize("NFKC", str(value or "")).strip().encode("utf-8")).hexdigest()
+
+
+def redact_parse_result(parse_result):
+    """The parse outcome without anything the person typed: no sentence, title, note or merchant.
+
+    What remains is enough to measure whether a draft was used unchanged: type, category, amount,
+    currency, date and account id, plus a fingerprint of the title.
+    """
+    transaction = parse_result.get("transaction")
+    safe = {
+        "intent": parse_result.get("intent"),
+        "source": parse_result.get("source"),
+        "missing_fields": parse_result.get("missing_fields") or [],
+        "errors": parse_result.get("errors") or [],
+        "transaction": None,
+    }
+    if transaction:
+        safe["transaction"] = {key: transaction[key] for key in SAFE_TRANSACTION_FIELDS if key in transaction}
+        if transaction.get("title"):
+            safe["transaction"]["title_hash"] = title_digest(transaction["title"])
+    return safe
 
 
 class AIParseEventManager:
@@ -52,8 +83,8 @@ class AIParseEventManager:
         return self.record_parse_event(
             user_id=user_id,
             source=source,
-            raw_input=parse_result.get("raw_text", ""),
-            parsed_payload=parse_result,
+            raw_input="",  # The typed sentence is never stored; see redact_parse_result.
+            parsed_payload=redact_parse_result(parse_result),
             status=status,
             result_type=transaction.get("type") if transaction else parse_result.get("intent"),
             error_message="; ".join(errors) if errors else None,
@@ -75,7 +106,9 @@ class AIParseEventManager:
             checks.append(same_amount(draft["amount"], submitted.get("amount")))
         if draft.get("budget_category"):
             checks.append(draft["budget_category"] == submitted.get("budget_category"))
-        if draft.get("title"):
+        if draft.get("title_hash"):
+            checks.append(draft["title_hash"] == title_digest(submitted.get("item")))
+        elif draft.get("title"):  # events recorded before titles stopped being stored
             checks.append(draft["title"] == submitted.get("item"))
         if draft.get("date"):
             checks.append(draft["date"] == submitted.get("date"))
