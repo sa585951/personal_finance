@@ -41,14 +41,17 @@
 
     <section class="account-card" aria-labelledby="data-export">
       <h2 id="data-export">匯出我的資料</h2>
-      <p class="muted">下載 Excel（.xlsx），包含你自己記錄的收支明細、帳戶、轉帳、預算與旅行。分類與帳戶都是名稱，可以直接閱讀。</p>
+      <p class="muted">下載 Excel（.xlsx），包含你自己記錄的收支明細、帳戶、轉帳、預算、旅行與固定收支。分類與帳戶都是名稱，可以直接閱讀。</p>
       <button type="button" class="secondary-action" :disabled="busy === 'export'" @click="exportData('ledger')">
         {{ busy === "export" ? "準備中" : "下載 Excel" }}
       </button>
-      <p class="muted">需要完整資料備份（含登入方式、AI 同意紀錄、系統欄位）時，可下載 ZIP。</p>
-      <button type="button" class="secondary-action" :disabled="busy === 'export-full'" @click="exportData('full')">
-        {{ busy === "export-full" ? "準備中" : "下載完整備份（ZIP）" }}
-      </button>
+      <details class="advanced">
+        <summary>進階：完整原始資料</summary>
+        <p class="muted">給需要自行處理資料的人。ZIP 內是各資料表的 CSV，欄位為英文代碼與編號，另含登入方式、使用紀錄等系統資料。一般記帳用 Excel 就夠了。</p>
+        <button type="button" class="secondary-action" :disabled="busy === 'export-full'" @click="exportData('full')">
+          {{ busy === "export-full" ? "準備中" : "下載完整備份（ZIP）" }}
+        </button>
+      </details>
     </section>
 
     <section class="account-card" aria-labelledby="sessions">
@@ -300,6 +303,22 @@ ul.muted {
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 800;
+}
+
+.advanced {
+  display: grid;
+  gap: 10px;
+}
+
+.advanced summary {
+  width: fit-content;
+  color: var(--light-text-color);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.advanced[open] {
+  padding-top: 4px;
 }
 
 .secondary-action,
