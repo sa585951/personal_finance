@@ -40,6 +40,10 @@
 
 `is_admin` 只有在該使用者的 LINE 身分等於 `NOMICA_ADMIN_LINE_USER_ID` 時為 `true`，供「我的」頁決定是否顯示「使用概況」。`provider` 與 `session_id` 在正式 session response 中存在。Dev auth bypass 只保證 `user_id` 與 `name`，不得作為正式 client contract。
 
+### `POST /api/onboarding/cash-account`
+
+首頁「開始使用」清單的一鍵步驟：只有在使用者沒有任何帳戶時，建立一個 TWD、餘額 0 的「現金」帳戶。已有帳戶時不新增，回 `200` 與既有帳戶 id（`created: false`）；新建回 `201`（`created: true`）。同一人的重複點擊或多個分頁以每人一把資料庫鎖序列化，只會建立一個。
+
 ### `GET /api/admin/usage`
 
 只有營運者（LINE 身分等於 `NOMICA_ADMIN_LINE_USER_ID`）可用；其他人一律回 404，與不存在的路由相同。`data` 為 `total_users`、`active_users`（近 `recent_days` 天有記帳）、`recent_days` 與 `users`（最多 200 位，依最後記帳時間排序）。每位使用者只有 `name`、`joined_at`、`last_record_at`、`total_records`、`recent_records`，不含金額、品項、備註或任何帳務內容。

@@ -116,6 +116,9 @@
 - 入口：首頁（有待確認時顯示清單，否則一行「新增固定收支」提示）；我的 → 固定收支（新增、編輯、暫停、刪除）。
 - 匯出：Excel 多一個「固定收支」分頁；完整備份 ZIP 多 `recurring_rules.csv`、`recurring_occurrences.csv`；刪除帳號時規則與待確認項目直接刪除。
 - Migration `20261117_0025`：新增兩張表（含 RLS），沒有環境變數。
+## 新手引導（`codex/onboarding`）
+
+首頁新增「開始使用」清單：一鍵建立現金帳戶、記下第一筆、加 LINE 好友，以及只在 iPhone Safari（尚未加入主畫面）顯示的「加到主畫面」提示（在 LINE 內建瀏覽器會提醒改用 Safari）。沒有帳戶時它就是首頁的入口；有帳戶後，使用者按「不再顯示」或全部完成才會消失，LINE 與主畫面兩步的完成狀態只存在該裝置的 localStorage。LINE 好友連結是公開網址，放在 `frontend/src/constants/links.js`，不新增環境變數。後端只新增 `POST /api/onboarding/cash-account`。
 
 ## 開始封閉測試前
 

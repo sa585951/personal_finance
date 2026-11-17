@@ -11,13 +11,16 @@
     />
 
     <template v-else>
-      <section v-if="!hasAccounts" class="onboarding">
-        <h1>先建立一個帳戶</h1>
-        <p>現金、銀行或信用卡都可以。記帳時餘額會跟著變動。</p>
-        <router-link class="ink-button" to="/assets">建立帳戶</router-link>
-      </section>
+      <OnboardingChecklist
+        v-if="showChecklist"
+        :has-accounts="hasAccounts"
+        :has-records="recent.length > 0"
+        @created="load"
+        @track="(target) => track('home_click', { target })"
+        @dismissed="checklistDismissed = true"
+      />
 
-      <section v-else class="monthly-overview-card" aria-label="本月概況">
+      <section v-if="hasAccounts" class="monthly-overview-card" aria-label="本月概況">
         <p class="label">{{ monthLabel }} · {{ heroLabel }}</p>
         <p class="hero-number" :class="{ over: hasBudget && remaining < 0 }">
           <span class="currency">NT$</span>{{ formatAmount(hasBudget ? Math.abs(remaining) : expense) }}
@@ -88,6 +91,7 @@ import { ArrowRight } from "@element-plus/icons-vue";
 import apiClient from "@/api";
 import AppStatePanel from "@/components/shared/AppStatePanel.vue";
 import LedgerRow from "@/components/shared/LedgerRow.vue";
+import OnboardingChecklist, { DISMISS_KEY } from "@/components/home/OnboardingChecklist.vue";
 import RecurringPendingList from "@/components/recurring/RecurringPendingList.vue";
 import { formatAmount, localDateKey } from "@/utils/money";
 import { track } from "@/utils/track";
@@ -105,7 +109,7 @@ function daysBetween(fromKey, toKey) {
 
 export default {
   name: "HomeView",
-  components: { AppStatePanel, ArrowRight, LedgerRow, RecurringPendingList },
+  components: { AppStatePanel, ArrowRight, LedgerRow, OnboardingChecklist, RecurringPendingList },
   data() {
     return {
       month: localDateKey().slice(0, 7),
@@ -121,9 +125,14 @@ export default {
       trips: [],
       accounts: [],
       today: localDateKey(),
+      checklistDismissed: this.readDismissed(),
     };
   },
   computed: {
+    showChecklist() {
+      // Always while there is no account (it is the way in); otherwise until the person dismisses it.
+      return !this.hasAccounts || !this.checklistDismissed;
+    },
     monthLabel() {
       return `${Number(this.month.slice(5))} 月`;
     },
@@ -204,6 +213,13 @@ export default {
   methods: {
     formatAmount,
     track,
+    readDismissed() {
+      try {
+        return window.localStorage.getItem(DISMISS_KEY) === "1";
+      } catch {
+        return false;
+      }
+    },
     async load() {
       this.loading = true;
       this.loadError = "";
