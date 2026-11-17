@@ -78,7 +78,7 @@
     <section v-else class="empty-panel">
       <div class="empty-icon" aria-hidden="true"><TrendCharts /></div>
       <h2>建立第一個投資組合</h2>
-      <p>先決定基準幣別，再加入同幣別投資帳戶中的配置標的。</p>
+      <p>投資組合用來記錄你持有的標的與成本，看資產分布。例如建立「長期 ETF」，基準幣別選 TWD，之後再加入標的。只是記錄，不連接券商，也不是投資建議。</p>
       <button class="primary-action app-primary-action" type="button" @click="showForm = true"><Plus />新增投資組合</button>
     </section>
   </div>
