@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import delete, desc, insert, or_, select, update
+from sqlalchemy import delete, desc, func, insert, or_, select, update
 
 from config import DEFAULT_CURRENCY
 from .account_movement import record_account_movement
@@ -450,6 +450,25 @@ class AssetManager:
 
         result = IdempotencyManager(self.db_session).execute(owner, 'account.create', key, canonical, apply)
         return AccountCreationResult(result['success'], result['message'], UUID(result['account_id']), result['replayed'])
+
+    def ensure_first_cash_account(self, user_id):
+        """Create a starter 現金 account only for someone who has no account yet.
+
+        A per-user lock makes a double tap or two open tabs create one account, not two.
+        Returns (account_id, created).
+        """
+        owner = self._parse_user_id(user_id)
+        self.db_session.execute(select(func.pg_advisory_xact_lock(func.hashtext(f"onboarding-cash:{owner}"))))
+        existing = self.db_session.scalar(
+            select(accounts_table.c.id).where(
+                accounts_table.c.user_id == owner, accounts_table.c.deleted_at.is_(None)).limit(1))
+        if existing is not None:
+            return existing, False
+        with self.db_session.begin_nested():
+            created = self._insert_account(owner, "現金", "cash", 0, currency=DEFAULT_CURRENCY)
+        if not created[0]:
+            raise ValueError(created[1])
+        return created.account_id, True
 
     def _command_balance(self, value, label="餘額"):
         amount = self._normalize_balance_value(value)
