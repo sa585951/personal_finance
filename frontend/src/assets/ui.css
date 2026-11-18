@@ -88,3 +88,21 @@
 .app-notice { padding: 12px; border-radius: 10px; font-size: .85rem; }
 .app-notice--info { color: var(--primary-color); background: var(--primary-soft); }
 .app-notice--error { color: var(--expense-color); background: var(--expense-soft); }
+
+/* iOS Safari renders date inputs at their intrinsic width unless appearance is reset,
+   which pushes them past the card edge inside a narrow grid column. */
+input[type="date"] {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.2;
+}
+input[type="date"]::-webkit-date-and-time-value {
+  min-height: 1.2em;
+  text-align: left;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+}
