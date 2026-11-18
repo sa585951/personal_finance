@@ -3,6 +3,10 @@
     <router-link class="back-link" to="/allocation"><Back />返回資產配置</router-link>
 
     <div v-if="loading" class="state-panel">正在載入投資組合...</div>
+    <div v-else-if="notFound" class="state-panel">
+      這個投資組合已經不存在，可能已被刪除。
+      <router-link class="back-link" to="/allocation">回到資產配置</router-link>
+    </div>
     <div v-else-if="error" class="state-panel error-state">{{ error }}</div>
 
     <template v-else-if="portfolio">
@@ -67,6 +71,7 @@ export default {
       transfers: [],
       loading: true,
       error: "",
+      notFound: false,
       activeTab: "holdings",
       tabs: [
         { key: "holdings", label: "配置標的", icon: "List" },
@@ -86,7 +91,7 @@ export default {
   created() { this.fetchPage(); },
   methods: {
     async fetchPage() {
-      this.loading = true; this.error = "";
+      this.loading = true; this.error = ""; this.notFound = false;
       try {
         const [portfolioResponse, assetsResponse, transfersResponse] = await Promise.all([
           apiClient.get(`/api/portfolios/${this.$route.params.portfolioId}`),
@@ -96,7 +101,11 @@ export default {
         this.portfolio = portfolioResponse.data.data;
         this.accounts = Object.values(assetsResponse.data.data || {});
         this.transfers = transfersResponse.data.data || [];
-      } catch (error) { this.error = error.response?.data?.message || "無法載入投資組合。"; }
+      } catch (error) {
+        // Reached by pressing Back to a portfolio that was just deleted: say so plainly.
+        if (error.response?.status === 404) this.notFound = true;
+        else this.error = error.response?.data?.message || "無法載入投資組合。";
+      }
       finally { this.loading = false; }
     },
     async refreshPortfolio() {
