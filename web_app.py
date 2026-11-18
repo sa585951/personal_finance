@@ -4,6 +4,7 @@ from uuid import UUID
 from urllib.parse import urlencode, unquote, urlsplit
 import re
 import time
+from html import escape as _escape_html
 
 from flask import Flask, jsonify, request, redirect, g
 from flask_cors import CORS
@@ -2241,6 +2242,24 @@ def line_webhook():
 
     return 'OK'
 
+def _login_failed_page(title, detail, status=400):
+    """A readable page instead of raw JSON: this route is opened by the browser, not by the app."""
+    login_url = _escape_html(f"{FRONTEND_BASE_URL.rstrip('/')}/login", quote=True)
+    body = (
+        '<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{_escape_html(title)}</title>"
+        "<style>body{font-family:-apple-system,system-ui,sans-serif;margin:0;padding:32px 20px;"
+        "line-height:1.6;color:#1f2933;background:#fafafa}main{max-width:420px;margin:12vh auto 0}"
+        "h1{font-size:1.4rem;margin:0 0 12px}p{margin:0 0 20px;color:#52606d}"
+        "a{display:inline-block;padding:12px 20px;border-radius:10px;background:#1f2933;color:#fff;"
+        "text-decoration:none;font-weight:700}</style></head><body><main>"
+        f"<h1>{_escape_html(title)}</h1><p>{_escape_html(detail)}</p>"
+        f'<a href="{login_url}">回到登入頁</a></main></body></html>'
+    )
+    return app.response_class(body, status=status, mimetype="text/html")
+
+
 @app.route("/line-login-start", methods=["GET"])
 def line_login_start():
     redirect_path = _safe_frontend_redirect_path(request.args.get("redirect", "/"))
@@ -2274,9 +2293,10 @@ def line_login_callback():
     code = request.args.get('code')
     state = request.args.get("state")
     if not code:
-        return jsonify({"success": False, "message": "授權碼遺失"}), 400
+        # Most often the person tapped cancel on the LINE consent screen.
+        return _login_failed_page("登入沒有完成", "你取消了 LINE 登入，或授權沒有成功。想繼續的話，回到登入頁再試一次。")
     if not state:
-        return jsonify({"success": False, "message": "LINE Login state 遺失"}), 400
+        return _login_failed_page("登入沒有完成", "登入資訊不完整，請回到登入頁重新開始。")
 
     try:
         challenge = _decode_line_login_state(state)
@@ -2334,10 +2354,19 @@ def line_login_callback():
 
     except (ValueError, jwt.PyJWTError):
         db_session.rollback()
-        app.logger.warning("LINE login verification failed")
-        return jsonify({"success": False, "message": "登入驗證失敗，請重新登入"}), 400
-    except Exception as error:
-        return _api_operation_error(error, "line_login_callback")
+        # Only whether the browser-binding cookie arrived: it separates "the login came back
+        # in a different browser than it started in" from a tampered or expired state.
+        app.logger.warning("LINE login verification failed browser_cookie_present=%s",
+                           bool(request.cookies.get(LINE_LOGIN_BROWSER_COOKIE)))
+        return _login_failed_page(
+            "登入沒有完成",
+            "驗證沒有通過，可能是登入逾時，或登入完成時開啟的瀏覽器和一開始不同。"
+            "如果你是從手機主畫面的圖示開啟，請改用 Safari 開啟網站登入，登入後再加到主畫面。",
+        )
+    except Exception:
+        db_session.rollback()
+        app.logger.error("API operation failed: operation=line_login_callback")
+        return _login_failed_page("暫時無法登入", "服務暫時無法完成登入，請稍後再試。", 503)
 
 @app.route('/healthcheck')
 def healthcheck():

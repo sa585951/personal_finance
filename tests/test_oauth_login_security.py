@@ -99,3 +99,22 @@ def test_redirects_cannot_escape_the_frontend_origin(monkeypatch, path):
     params, browser = start(app, client, path)
     challenge = app.oauth_login_state_manager.consume(params["state"], browser)
     assert challenge["redirect_path"] == "/"
+
+
+def test_failures_show_a_readable_page_not_raw_json(monkeypatch):
+    app = _load_web_app(monkeypatch)
+    client = app.app.test_client()
+    params, _ = start(app, client)
+    client.delete_cookie(app.LINE_LOGIN_BROWSER_COOKIE, path="/line-login-callback")  # login returned in another browser
+    calls = provider(monkeypatch, app, params["nonce"])
+    response = client.get("/line-login-callback", query_string={"state": params["state"], "code": "test"})
+    assert response.status_code == 400 and not calls
+    assert response.mimetype == "text/html"
+    page = response.get_data(as_text=True)
+    assert "登入沒有完成" in page and "Safari" in page
+    assert 'href="https://frontend.example.test/login"' in page
+    assert "success" not in page  # nothing JSON-shaped
+
+    cancelled = client.get("/line-login-callback", query_string={"error": "access_denied"})
+    assert cancelled.status_code == 400 and cancelled.mimetype == "text/html"
+    assert "取消" in cancelled.get_data(as_text=True)
