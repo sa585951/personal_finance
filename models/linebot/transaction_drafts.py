@@ -35,6 +35,21 @@ class LineTransactionDrafts:
             ]},
         })
 
+    @staticmethod
+    def _account_problem(found, payload):
+        """Why the account frozen into a draft can no longer take the entry, in words the person can act on."""
+        if found is None or found['deleted_at'] is not None:
+            return '這個帳戶已經不存在，沒有新增記帳。請重新傳一次這筆，並選擇其他帳戶。'
+        name = found['name']
+        if not found['is_active']:
+            return f'帳戶「{name}」已被停用或封存，沒有新增記帳。請重新傳一次這筆，並選擇其他帳戶。'
+        if not found['track_balance']:
+            return f'帳戶「{name}」不追蹤餘額，LINE 無法記到這個帳戶，沒有新增記帳。請重新傳一次這筆並改選其他帳戶，或到 Nomica Web 記帳。'
+        if found['currency'] != payload.get('original_currency'):
+            return (f"帳戶「{name}」的幣別是 {found['currency']}，這筆是 {payload.get('original_currency')}，"
+                    '沒有新增記帳。請重新傳一次這筆，並選擇同幣別的帳戶。')
+        return None
+
     def resolve(self, user_id, draft_id, action):
         try:
             owner, key = UUID(str(user_id)), UUID(str(draft_id))
@@ -52,42 +67,51 @@ class LineTransactionDrafts:
             return '這份收支草稿已取消，沒有新增記帳。'
         payload = (row['parsed_payload'] or {}).get('line_draft')
         if row['status'] != 'success' or not payload:
-            return '這份資料不能確認記帳，請重新輸入。'
+            return '這則訊息沒有解析成可記帳的內容，沒有新增記帳。請重新傳一筆收支，例如「午餐 120」。'
         created_at = row['created_at']
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=timezone.utc)
-        if action == 'cancel' or datetime.now(timezone.utc) - created_at > self.ttl:
+        expired = datetime.now(timezone.utc) - created_at > self.ttl
+        if action == 'cancel' or expired:
             self.db_session.execute(update(table).where(table.c.id == key).values(status='cancelled'))
-            return '收支草稿已取消或逾期，沒有新增記帳。'
+            if action == 'cancel':
+                return '已取消這筆草稿，沒有新增記帳。'
+            return '這份草稿已超過 30 分鐘，沒有新增記帳。請重新傳一次這筆收支。'
         if action != 'confirm':
             return '請使用草稿上的確認或取消按鈕。'
         # Recheck the frozen account under lock before a pilot can write money.
         account = accounts_table
-        eligible = self.db_session.execute(select(account.c.id).where(
-            account.c.id == payload.get('account_id'), account.c.user_id == owner,
-            account.c.deleted_at.is_(None), account.c.is_active.is_(True),
-            account.c.track_balance.is_(True), account.c.currency == payload['original_currency'],
-        ).with_for_update()).first()
-        if not eligible or payload.get('amount') is None or payload.get('date') is None:
-            return '草稿資料不完整或帳戶已無法使用，請重新輸入。'
+        found = self.db_session.execute(select(
+            account.c.name, account.c.deleted_at, account.c.is_active, account.c.track_balance, account.c.currency,
+        ).where(account.c.id == payload.get('account_id'), account.c.user_id == owner).with_for_update()).mappings().first()
+        problem = self._account_problem(found, payload)
+        if problem:
+            return problem
+        if payload.get('amount') is None or payload.get('date') is None:
+            return '這筆草稿缺少金額或日期，沒有新增記帳。請重新傳一次，例如「午餐 120」。'
         # Row lock + stable transaction key protect even distinct postback event
         # IDs clicking the same preview concurrently across multiple workers.
         transaction = {**payload, 'client_request_id': str(key)}
         try:
+            category_id = self.service.budget_manager._get_category_id(
+                owner, payload['budget_category'], payload['type'],
+            )
+        except ValueError:
+            return f"分類「{payload['budget_category']}」已經無法使用，沒有新增記帳。請重新傳一次這筆。"
+        if str(category_id) != row['parsed_payload'].get('category_id'):
+            return '這筆的分類在你確認前被改過，沒有新增記帳。請重新傳一次這筆。'
+        try:
             with self.db_session.begin_nested():
-                category_id = self.service.budget_manager._get_category_id(
-                    owner, payload['budget_category'], payload['type'],
-                )
-                if str(category_id) != row['parsed_payload'].get('category_id'):
-                    return '草稿分類已變更，請重新輸入。'
                 result = self.service.create_transaction(user_id, transaction)
                 if not result['success']:
                     raise ValueError(result['message'])
         except InsufficientBalanceError as error:
-            # The draft stays open: after the missing record is added, tapping confirm again works.
-            return f"{error}\n補記後，30 分鐘內可以再按一次「確認新增」。"
-        except ValueError:
-            return '目前無法入帳，請核對帳戶餘額與草稿資料後再試。'
+            return f"{error}\n補記之後，請重新傳一次這筆（例如「午餐 120」）。"
+        except ValueError as error:
+            # Validation messages from the ledger are written for people; database errors are not ValueErrors.
+            reason = str(error).strip()[:80]
+            return f"沒有新增記帳：{reason}。請重新傳一次這筆，或到 Nomica Web 記帳。" if reason \
+                else '沒有新增記帳。請重新傳一次這筆，或到 Nomica Web 記帳。'
         if not result['success']:
             raise ValueError(result['message'])
         self.events.confirm_event(user_id, key, payload['type'], result['transaction_id'])

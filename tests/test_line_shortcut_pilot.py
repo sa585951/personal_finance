@@ -489,11 +489,57 @@ def test_unaffordable_confirm_names_the_account_and_stays_confirmable(webhook):
     reply = str(replies[-1].messages[0].to_dict())
     assert "餘額不足" in reply and "cash" in reply
     assert "1,000" in reply and "1,500" in reply          # what is there, and what the entry needs
-    assert "提款" in reply and "再按一次" in reply            # what to check, and that the draft is still open
+    assert "提款" in reply and "重新傳" in reply              # what to check, and what to do next
+    assert "30 分鐘" not in reply
     assert counts(engine, data) == (1, 0, 1000)            # nothing was booked
 
-    with Session(engine) as session:                       # the missing income is recorded, then confirm again
+    with Session(engine) as session:                       # the missing income is recorded; the same draft still works
         session.execute(update(accounts_table).where(accounts_table.c.id == data["cash"]).values(balance=2000))
         session.commit()
     assert send(event_dict("confirm-big-again", postback=action)).status_code == 200
     assert "記帳完成" in str(replies[-1].messages[0].to_dict())
+
+
+def _open_draft(send, replies, engine, text="午餐 120"):
+    assert send(lunch("d-" + text, text)).status_code == 200
+    buttons = replies[-1].messages[0].to_dict()["contents"]["footer"]["contents"]
+    choose = next(button["action"]["data"] for button in buttons if button["action"]["label"] == "cash")
+    assert send(event_dict("p-" + text, postback=choose)).status_code == 200
+    with Session(engine) as session:
+        return str(session.execute(select(ai_parse_events_table.c.id).order_by(
+            ai_parse_events_table.c.created_at.desc())).scalars().first())
+
+
+@pytest.mark.parametrize("change,fragment", [
+    ({"is_active": False}, "停用或封存"),
+    ({"deleted_at": datetime.now(timezone.utc)}, "已經不存在"),
+    ({"track_balance": False}, "不追蹤餘額"),
+])
+def test_confirm_names_why_the_account_can_no_longer_take_the_entry(webhook, change, fragment):
+    send, replies, engine, data = webhook
+    draft = _open_draft(send, replies, engine)
+    with Session(engine) as session:
+        session.execute(update(accounts_table).where(accounts_table.c.id == data["cash"]).values(**change))
+        session.commit()
+    assert send(event_dict("confirm-changed", postback="nomica.oral.confirm:" + draft)).status_code == 200
+    reply = str(replies[-1].messages[0].to_dict())
+    assert fragment in reply and "沒有新增記帳" in reply and "重新傳" in reply
+    assert "目前無法入帳" not in reply
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(transactions_table)) == 1  # only the seed row
+
+
+def test_cancel_and_expiry_are_told_apart(webhook):
+    send, replies, engine, data = webhook
+    draft = _open_draft(send, replies, engine)
+    assert send(event_dict("cancel-it", postback="nomica.oral.cancel:" + draft)).status_code == 200
+    assert "已取消" in str(replies[-1].messages[0].to_dict())
+
+    second = _open_draft(send, replies, engine, "晚餐 200")
+    with Session(engine) as session:
+        session.execute(update(ai_parse_events_table).where(ai_parse_events_table.c.id == second)
+                        .values(created_at=datetime.now(timezone.utc) - timedelta(minutes=31)))
+        session.commit()
+    assert send(event_dict("too-late", postback="nomica.oral.confirm:" + second)).status_code == 200
+    reply = str(replies[-1].messages[0].to_dict())
+    assert "超過 30 分鐘" in reply and "重新傳" in reply
