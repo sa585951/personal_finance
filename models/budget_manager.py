@@ -79,6 +79,16 @@ class ReportCurrencyError(ValueError):
     """Expected refusal to aggregate unsupported personal-report currencies."""
 
 
+class InsufficientBalanceError(ValueError):
+    """The account cannot cover this change. The message says which account and by how much,
+    so the person can look for a missing withdrawal or income instead of guessing."""
+
+
+def _plain_money(value):
+    text = format(Decimal(str(value)).quantize(Decimal("0.01")), ",f")
+    return text[:-3] if text.endswith(".00") else text
+
+
 class TransactionCreationResult(tuple):
     """Request-local identity while retaining legacy (success, message) unpacking."""
 
@@ -217,7 +227,12 @@ class BudgetManager:
         balance_before = Decimal(str(account["balance"] or 0))
         new_balance = balance_before + Decimal(str(delta))
         if new_balance < 0 and not self._account_allows_negative_balance(account):
-            raise ValueError("帳戶餘額不足")
+            currency = account.get("currency") or ""
+            raise InsufficientBalanceError(
+                f"帳戶餘額不足：「{account.get('name') or '這個帳戶'}」目前餘額 {currency} {_plain_money(balance_before)}，"
+                f"這筆需要 {currency} {_plain_money(abs(Decimal(str(delta))))}，所以沒有記帳。"
+                "如果有提款、轉帳或收入還沒記，請先補記，再重新確認。"
+            )
 
         self.db_session.execute(
             update(accounts_table)

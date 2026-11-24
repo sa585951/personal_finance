@@ -473,3 +473,27 @@ def test_failed_confirmation_rolls_back_everything_and_can_be_retried(webhook, m
     monkeypatch.setattr(AIParseEventManager, "confirm_event", original)
     assert send(event_dict("confirm-once", postback=confirm)).status_code == 200
     assert counts(engine, data) == (2, 1, 880)
+
+
+def test_unaffordable_confirm_names_the_account_and_stays_confirmable(webhook):
+    send, replies, engine, data = webhook
+    assert send(lunch("big", "午餐 1500")).status_code == 200
+    buttons = replies[-1].messages[0].to_dict()["contents"]["footer"]["contents"]
+    choose = next(button["action"]["data"] for button in buttons if button["action"]["label"] == "cash")
+    assert send(event_dict("pick-big", postback=choose)).status_code == 200
+    with Session(engine) as session:
+        draft_id = str(session.execute(select(ai_parse_events_table.c.id)).scalar_one())
+    action = "nomica.oral.confirm:" + draft_id
+
+    assert send(event_dict("confirm-big", postback=action)).status_code == 200
+    reply = str(replies[-1].messages[0].to_dict())
+    assert "餘額不足" in reply and "cash" in reply
+    assert "1,000" in reply and "1,500" in reply          # what is there, and what the entry needs
+    assert "提款" in reply and "再按一次" in reply            # what to check, and that the draft is still open
+    assert counts(engine, data) == (1, 0, 1000)            # nothing was booked
+
+    with Session(engine) as session:                       # the missing income is recorded, then confirm again
+        session.execute(update(accounts_table).where(accounts_table.c.id == data["cash"]).values(balance=2000))
+        session.commit()
+    assert send(event_dict("confirm-big-again", postback=action)).status_code == 200
+    assert "記帳完成" in str(replies[-1].messages[0].to_dict())

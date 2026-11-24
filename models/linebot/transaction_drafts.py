@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select, update
 from ..ai_parse_event_manager import AIParseEventManager
 from ..asset_manager import AssetManager
-from ..budget_manager import BudgetManager
+from ..budget_manager import BudgetManager, InsufficientBalanceError
 from ..idempotency import money
 from ..schema import accounts_table, ai_parse_events_table
 from ..transaction_service import TransactionService
@@ -83,6 +83,9 @@ class LineTransactionDrafts:
                 result = self.service.create_transaction(user_id, transaction)
                 if not result['success']:
                     raise ValueError(result['message'])
+        except InsufficientBalanceError as error:
+            # The draft stays open: after the missing record is added, tapping confirm again works.
+            return f"{error}\n補記後，30 分鐘內可以再按一次「確認新增」。"
         except ValueError:
             return '目前無法入帳，請核對帳戶餘額與草稿資料後再試。'
         if not result['success']:
